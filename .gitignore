@@ -12,6 +12,7 @@ __pycache__/
 # Local secrets and machine-specific config
 .env
 .env.*
+!.env.example
 config.yaml
 config.local.yaml
 
@@ -56,4 +57,3 @@ watched_folder/*
 Thumbs.db
 .idea/
 .vscode/
-

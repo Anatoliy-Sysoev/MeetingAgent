@@ -64,9 +64,11 @@ def make_chunks(cfg: dict[str, Any]) -> list[dict[str, Any]]:
         text = extracted_path.read_text(encoding="utf-8", errors="replace")
         for index, chunk in enumerate(chunk_text(text, chunk_size, overlap)):
             chunk_id = stable_id(f"{meta['sha256']}:{index}:{chunk[:120]}")
+            db_id = stable_id(f"{meta['relative_path']}:{meta['sha256']}:{index}:{chunk[:120]}")
             chunks.append(
                 {
                     "chunk_id": chunk_id,
+                    "db_id": db_id,
                     "text": chunk,
                     "source_path": meta["source_path"],
                     "relative_path": meta["relative_path"],
@@ -190,11 +192,12 @@ def main() -> None:
             cached = embedding_cache.get(chunk["chunk_id"])
             if not cached:
                 raise RuntimeError(f"Missing embedding for chunk: {chunk['chunk_id']}")
-            batch_ids.append(chunk["chunk_id"])
+            batch_ids.append(chunk.get("db_id") or chunk["chunk_id"])
             batch_docs.append(chunk["text"])
             batch_embeddings.append(cached["embedding"])
             batch_meta.append(
                 {
+                    "chunk_id": chunk["chunk_id"],
                     "source_path": chunk["source_path"],
                     "relative_path": chunk["relative_path"],
                     "extension": chunk["extension"],
