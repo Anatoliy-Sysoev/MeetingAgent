@@ -34,6 +34,19 @@ Runtime data is intentionally ignored by git:
 
 Use `config.example.yaml` as a template for local `config.yaml`.
 
+## Working With Codex
+
+This repository follows a simple pet-project rule: one folder is one Git repository, and meaningful changes should be recorded in Git.
+
+Before making changes, read:
+
+- `AGENTS.md`
+- `docs/context.md`
+- `docs/decisions.md`
+- `docs/todo.md`
+
+Before ending a work session, update `docs/context.md` and `docs/todo.md`, then check `git status`.
+
 ## Product Structure
 
 ```text
@@ -65,4 +78,3 @@ MeetingAgent/
 3. Create meeting-card output: video, transcript, memo, protocol, tasks, links to project docs.
 4. Add document-generation briefs for Passport IS, FTT extracts, architecture notes, and protocols.
 5. Build a local API and small UI for inbox, search, and generation.
-
