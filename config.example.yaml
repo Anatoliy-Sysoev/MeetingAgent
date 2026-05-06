@@ -1,0 +1,76 @@
+project_root: "%USERPROFILE%/Desktop/PROJECT_DOCUMENTS"
+work_root: "%USERPROFILE%/Desktop/AI/MeetingAgent"
+
+ollama:
+  base_url: "http://localhost:11434"
+  embedding_model: "bge-m3"
+  chat_model: "qwen3:8b"
+  embedding_num_ctx: 8192
+  keep_alive: "24h"
+
+rag:
+  chunk_size_chars: 3000
+  chunk_overlap_chars: 300
+  top_k: 12
+  max_context_chars: 24000
+
+transcription:
+  model: "large-v3-turbo"
+  language: "ru"
+  compute_type: "int8"
+  device: "cpu"
+  beam_size: 5
+  vad_filter: true
+
+paths:
+  manifest: "data/manifest.jsonl"
+  extracted_text_dir: "data/extracted_text"
+  chunks: "data/chunks.jsonl"
+  embeddings_cache: "data/embeddings_cache.jsonl"
+  vector_db: "vector_db"
+  logs: "logs"
+  watched_folder: "watched_folder"
+
+collections:
+  project_docs: "asu_project_docs"
+  meeting_transcripts: "asu_meeting_transcripts"
+  protocols: "asu_protocols"
+
+include_extensions:
+  - ".docx"
+  - ".pdf"
+  - ".xlsx"
+  - ".xlsb"
+  - ".pptx"
+  - ".md"
+  - ".txt"
+  - ".html"
+  - ".json"
+  - ".yml"
+  - ".yaml"
+  - ".drawio"
+  - ".puml"
+  - ".srt"
+  - ".py"
+  - ".js"
+  - ".ts"
+  - ".css"
+
+exclude_dirs:
+  - ".git"
+  - "__pycache__"
+  - "node_modules"
+  - "_backup"
+  - "backup"
+  - "cache"
+  - ".venv"
+  - "dist"
+  - "build"
+
+exclude_extensions:
+  - ".pyc"
+  - ".ttf"
+  - ".zip"
+  - ".rar"
+  - ".mp4"
+
