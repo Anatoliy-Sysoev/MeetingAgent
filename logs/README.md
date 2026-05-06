@@ -1,4 +1,4 @@
 # logs
 
-Local operational logs and build markers live here and are ignored by git.
+Здесь лежат локальные операционные логи и markers сборки. Они игнорируются Git.
 

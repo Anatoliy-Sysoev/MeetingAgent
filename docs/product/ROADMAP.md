@@ -1,68 +1,68 @@
-# Roadmap
+# Дорожная Карта
 
-## Phase 0 - Stabilize Local RAG
+## Фаза 0 - Стабилизация Локального RAG
 
-Status: in progress.
+Статус: в работе.
 
-- Finish full project index.
-- Validate embedding cache resume behavior.
-- Verify ChromaDB collection count.
-- Add RAG query smoke tests.
-- Document operational recovery steps.
+- Завершить полный индекс проекта.
+- Проверить продолжение сборки через embeddings cache.
+- Проверить количество записей в коллекции ChromaDB.
+- Добавить smoke-тесты RAG-запросов.
+- Описать восстановление после типовых сбоев.
 
-## Phase 1 - Project Search
+## Фаза 1 - Поиск По Проекту
 
-- Improve `scripts/04_query.py` output with source citations.
-- Add source previews and chunk metadata.
-- Add evaluation questions for FTT, architecture, Passport IS, and delivery docs.
-- Create query templates for common project roles.
+- Улучшить вывод `scripts/04_query.py`: добавить ссылки на источники.
+- Добавить preview источников и metadata chunks.
+- Добавить проверочные вопросы по ФТТ, архитектуре, Паспорту ИС и сдачным документам.
+- Создать query-шаблоны для типовых проектных ролей.
 
-## Phase 2 - Meeting Processing
+## Фаза 2 - Обработка Встреч
 
-- Watch incoming media folder.
-- Transcribe video/audio.
-- Generate transcript with timestamps.
-- Generate memo, protocol, decisions, risks, and tasks.
-- Create meeting-card folder per recording.
-- Link meeting content to RAG sources.
+- Следить за папкой входящих медиа.
+- Транскрибировать видео и аудио.
+- Генерировать транскрипт с таймкодами.
+- Генерировать memo, протокол, решения, риски и задачи.
+- Создавать папку-карточку для каждой встречи.
+- Связывать материалы встречи с источниками из RAG.
 
-## Phase 3 - Classification
+## Фаза 3 - Классификация
 
-- Classify every document and meeting by:
-  - project stage;
-  - FTT section;
-  - deliverable;
-  - task;
-  - decision/risk/action type.
-- Store classification metadata.
-- Add manual override and correction flow.
+- Классифицировать каждый документ и встречу по:
+  - этапу проекта;
+  - разделу ФТТ;
+  - сдачному результату;
+  - задаче;
+  - типу решения, риска или действия.
+- Сохранять classification metadata.
+- Добавить ручную корректировку классификации.
 
-## Phase 4 - Document Generation
+## Фаза 4 - Генерация Документов
 
-- Create generation briefs and templates:
-  - Passport IS;
-  - FTT summary;
-  - project solution;
-  - architecture note;
-  - meeting protocol;
-  - delivery checklist.
-- Generate drafts with source citations.
-- Export to Markdown and DOCX.
+- Создать briefs и шаблоны:
+  - Паспорт ИС;
+  - выдержка по ФТТ;
+  - проектное решение;
+  - архитектурная записка;
+  - протокол встречи;
+  - чеклист сдачи.
+- Генерировать черновики с источниками.
+- Экспортировать в Markdown и DOCX.
 
-## Phase 5 - Local Product UI
+## Фаза 5 - Локальный Интерфейс
 
-- Add local API.
-- Add inbox/status screen.
-- Add project search UI.
-- Add meeting-card view.
-- Add document generation flow.
+- Добавить local API.
+- Добавить экран inbox/status.
+- Добавить UI поиска по проекту.
+- Добавить карточку встречи.
+- Добавить поток генерации документов.
 
-## Phase 6 - Quality and Governance
+## Фаза 6 - Качество И Управление
 
-- Add regression evaluation dataset.
-- Track retrieval quality.
-- Track generation quality.
-- Add retention policies.
-- Add protected records.
-- Add backup/export workflow.
+- Добавить regression/evaluation dataset.
+- Отслеживать качество поиска.
+- Отслеживать качество генерации.
+- Добавить политики хранения.
+- Добавить protected records.
+- Добавить backup/export workflow.
 

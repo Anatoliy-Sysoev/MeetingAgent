@@ -1,11 +1,11 @@
 # data
 
-Local generated data lives here and is ignored by git.
+Здесь лежат локальные сгенерированные данные. Они игнорируются Git.
 
-Examples:
+Примеры:
 
-- manifest files;
-- extracted text;
+- manifest-файлы;
+- извлеченный текст;
 - chunks;
-- embedding cache.
+- embeddings cache.
 

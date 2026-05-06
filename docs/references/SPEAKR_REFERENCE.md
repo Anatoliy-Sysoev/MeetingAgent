@@ -1,27 +1,27 @@
-# Speakr Reference
+# Референс Speakr
 
-Repository reviewed as product reference:
+Репозиторий рассмотрен как продуктовый референс:
 
 <https://github.com/murtaza-nasir/speakr>
 
-## Useful Ideas
+## Полезные Идеи
 
-- Meeting/recording detail page.
-- Transcript synchronized with audio.
-- Semantic search across recordings.
-- Prompt tags for reusable AI behaviors.
-- Auto-export to knowledge tools.
-- REST API for automation.
-- Retention and protected-record policies.
-- Speaker identification as a later-stage feature.
+- Страница записи/встречи.
+- Синхронизация транскрипта с аудио.
+- Семантический поиск по записям.
+- Prompt-теги для переиспользуемого поведения AI.
+- Auto-export в инструменты базы знаний.
+- REST API для автоматизации.
+- Политики хранения и protected records.
+- Идентификация спикеров как функция более позднего этапа.
 
-## Adaptation for MeetingAgent
+## Адаптация Для MeetingAgent
 
-We should not copy code. Instead, use the ideas as product patterns:
+Код копировать не нужно. Берем идеи как продуктовые паттерны:
 
-- Project-aware meeting cards.
-- Tags such as FTT, Passport IS, Architecture, Protocol, Decisions, Tasks.
-- Unified "Ask Project" mode across documents and meetings.
-- Local API for automation.
-- Export into project folder structure.
+- проектно-ориентированные карточки встреч;
+- теги `ФТТ`, `Паспорт ИС`, `Архитектура`, `Протокол`, `Решения`, `Задачи`;
+- единый режим "Спроси проект" по документам и встречам;
+- локальный API для автоматизации;
+- экспорт в структуру проектной папки.
 

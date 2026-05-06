@@ -1,66 +1,66 @@
-# Product Approach
+# Продуктовый Подход
 
-## Product Name
+## Название Продукта
 
-Working name: **MeetingAgent**.
+Рабочее название: **MeetingAgent**.
 
-Product idea: a local project-memory agent that connects documents, meetings, decisions, requirements, and deliverables.
+Идея продукта: локальный агент памяти проекта, который связывает документы, встречи, решения, требования и сдачные результаты.
 
-## Problem
+## Проблема
 
-Project knowledge is scattered across folders, office documents, meeting recordings, chat notes, protocols, and task lists. Important decisions are often present somewhere, but hard to find, validate, and reuse when preparing delivery documentation.
+Знания проекта разбросаны по папкам, офисным документам, записям встреч, заметкам, протоколам и спискам задач. Важные решения часто где-то есть, но их трудно найти, проверить и переиспользовать при подготовке сдачной документации.
 
-## Target Users
+## Целевые Пользователи
 
-- Project manager who needs protocols, decisions, risks, and task traceability.
-- Analyst who works with FTT, requirements, and acceptance documents.
-- Architect who needs to connect decisions with project solutions.
-- Delivery owner who prepares Passport IS and final project documentation.
+- Руководитель проекта, которому нужны протоколы, решения, риски и трассируемость задач.
+- Аналитик, работающий с ФТТ, требованиями и приемочной документацией.
+- Архитектор, которому нужно связывать решения с проектными решениями.
+- Ответственный за сдачу, который готовит Паспорт ИС и итоговую проектную документацию.
 
-## Core Promise
+## Ключевое Обещание
 
-MeetingAgent turns project materials into a reliable local knowledge base and helps generate documents from cited sources.
+MeetingAgent превращает проектные материалы в надежную локальную базу знаний и помогает создавать документы на основе цитируемых источников.
 
-## Product Pillars
+## Продуктовые Опоры
 
-1. **Project Memory**
-   Documents, transcripts, protocols, memo, decisions, and tasks are indexed into a single searchable knowledge layer.
+1. **Память Проекта**
+   Документы, транскрипты, протоколы, memo, решения и задачи индексируются в единый поисковый слой.
 
-2. **Meeting Intelligence**
-   New recordings become transcript, memo, protocol, task list, decision log, and project-stage classification.
+2. **Интеллект Встреч**
+   Новые записи превращаются в транскрипт, memo, протокол, список задач, журнал решений и классификацию по этапу проекта.
 
-3. **Document Generation**
-   The user describes a target document. MeetingAgent retrieves source evidence and drafts structured content with citations.
+3. **Генерация Документов**
+   Пользователь описывает целевой документ. MeetingAgent находит подтверждающие источники и собирает структурированный черновик с ссылками.
 
-4. **Traceability**
-   Every generated statement should point back to documents, meeting fragments, timestamps, or source chunks.
+4. **Трассируемость**
+   Каждое сгенерированное утверждение должно вести к документам, фрагментам встреч, таймкодам или chunks.
 
-5. **Local Control**
-   The default mode keeps files, vectors, logs, and generated drafts on the local machine.
+5. **Локальный Контроль**
+   По умолчанию файлы, векторы, логи и черновики остаются на локальной машине.
 
-## Differentiation
+## Отличие
 
-MeetingAgent is not just a generic transcription tool. It is project-aware:
+MeetingAgent - не просто инструмент транскрибации. Он понимает проектный контекст:
 
-- understands project stages;
-- links content to FTT and project decisions;
-- separates protocols, memo, decisions, and tasks;
-- supports delivery-document generation;
-- treats source attribution as a product requirement.
+- учитывает этапы проекта;
+- связывает материалы с ФТТ и проектными решениями;
+- разделяет протоколы, memo, решения и задачи;
+- помогает готовить сдачную документацию;
+- считает ссылки на источники обязательной частью продукта.
 
-## Product Modes
+## Режимы Продукта
 
-- **Build RAG**: scan documents, extract text, chunk, embed, index.
-- **Ask Project**: ask across documents and meetings with sources.
-- **Process Meeting**: transcribe, summarize, classify, and export.
-- **Generate Document**: draft a document from project sources.
-- **Maintain Knowledge Base**: update, remove, and re-index changed content.
+- **Build RAG**: просканировать документы, извлечь текст, нарезать chunks, построить embeddings и индекс.
+- **Ask Project**: задать вопрос по документам и встречам с источниками.
+- **Process Meeting**: транскрибировать, суммаризировать, классифицировать и экспортировать встречу.
+- **Generate Document**: подготовить черновик документа на основе проектных источников.
+- **Maintain Knowledge Base**: обновлять, удалять и переиндексировать измененные материалы.
 
-## Success Criteria
+## Критерии Успеха
 
-- User can ask a project question and see relevant cited sources.
-- New meeting recordings become useful project artifacts without manual copy-paste.
-- Generated protocols and memo require editing, not rewriting.
-- Generated document drafts are grounded in existing project materials.
-- Long-running jobs can safely resume after interruption.
+- Пользователь задает проектный вопрос и видит релевантные источники.
+- Новые записи встреч становятся полезными проектными артефактами без ручного копирования.
+- Протоколы и memo нужно редактировать, а не писать заново.
+- Черновики документов опираются на существующие проектные материалы.
+- Долгие задачи безопасно продолжаются после прерывания.
 

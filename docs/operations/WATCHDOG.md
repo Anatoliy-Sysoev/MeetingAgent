@@ -1,21 +1,20 @@
-# Watchdog
+# Watchdog-Мониторинг
 
-`monitor_rag.ps1` is a single-tick monitor intended to run every 15 minutes.
+`monitor_rag.ps1` - монитор одного тика, рассчитанный на запуск каждые 15 минут.
 
-## Responsibilities
+## Ответственность
 
-- Detect whether build is done.
-- Detect whether build is running.
-- Detect stalled embedding cache growth.
-- Restart Ollama when stalled.
-- Restart the build if it is down and not done.
-- Avoid duplicate builds.
+- Определять, завершена ли сборка.
+- Определять, идет ли сборка.
+- Находить зависание по отсутствию роста embeddings cache.
+- Перезапускать Ollama при зависании.
+- Перезапускать сборку, если она не идет и не завершена.
+- Не допускать дублей сборки.
 
-## Invariants
+## Инварианты
 
-- Never start a second build when `03_build_index.py` is alive.
-- Never kill `03_build_index.py` during a stall.
-- Only restart Ollama during stall recovery.
-- Every embedding healthcheck uses `num_ctx=8192`.
-- Lock deletion is allowed only when no build worker is alive.
-
+- Не запускать второй build, если жив `03_build_index.py`.
+- Не убивать `03_build_index.py` при зависании.
+- При восстановлении от stall перезапускать только Ollama.
+- Каждый embedding healthcheck использует `num_ctx=8192`.
+- Lock можно удалять только если нет живого build worker.

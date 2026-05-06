@@ -1,27 +1,27 @@
-# Product Backlog
+# Продуктовый Backlog
 
-## Now
+## Сейчас
 
-- Complete current RAG build.
-- Verify query quality on real project questions.
-- Keep watchdog stable and non-destructive.
-- Add source-citation format to query output.
+- Завершить текущую сборку RAG.
+- Проверить качество ответов на реальных проектных вопросах.
+- Держать watchdog стабильным и недеструктивным.
+- Добавить формат ссылок на источники в ответы.
 
-## Next
+## Далее
 
-- Add `update_rag.ps1` for incremental updates.
-- Add meeting ingestion script.
-- Add transcript, memo, protocol templates.
-- Add project-stage classifier.
-- Add document-generation brief format.
+- Добавить `update_rag.ps1` для инкрементальных обновлений.
+- Добавить скрипт загрузки встреч.
+- Добавить шаблоны транскрипта, memo и протокола.
+- Добавить классификатор этапов проекта.
+- Добавить формат brief для генерации документов.
 
-## Later
+## Позже
 
-- Add local FastAPI service.
-- Add lightweight web UI.
-- Add speaker diarization.
-- Add voice profiles.
-- Add Obsidian/Markdown export.
-- Add DOCX export.
-- Add evaluation dashboard.
+- Добавить локальный FastAPI-сервис.
+- Добавить легкий web UI.
+- Добавить diarization спикеров.
+- Добавить профили голосов.
+- Добавить экспорт в Obsidian/Markdown.
+- Добавить экспорт в DOCX.
+- Добавить evaluation dashboard.
 

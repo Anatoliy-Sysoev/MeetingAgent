@@ -1,4 +1,4 @@
-# Folder Structure
+# Структура Папок
 
 ```text
 MeetingAgent/
@@ -50,10 +50,10 @@ MeetingAgent/
   watched_folder/
 ```
 
-## Notes
+## Пояснения
 
-- `scripts/` contains current working automation.
-- `src/meeting_agent/` is the future package structure.
-- `apps/` will contain product surfaces.
-- `data/`, `logs/`, `vector_db/`, and `watched_folder/` are local runtime folders and are ignored by git.
+- `scripts/` содержит текущую рабочую автоматизацию.
+- `src/meeting_agent/` - будущая структура Python-пакета.
+- `apps/` - будущие продуктовые интерфейсы.
+- `data/`, `logs/`, `vector_db/` и `watched_folder/` - локальные runtime-папки, которые игнорируются Git.
 

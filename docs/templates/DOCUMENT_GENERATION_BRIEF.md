@@ -1,23 +1,23 @@
-# Document Generation Brief
+# Brief Для Генерации Документа
 
-## Target Document
+## Целевой Документ
 
-## Purpose
+## Назначение
 
-## Required Sections
+## Обязательные Разделы
 
-## Source Types
+## Типы Источников
 
-- Project documentation
-- FTT
-- Architecture
-- Project decisions
-- Meeting protocols
-- Meeting transcripts
+- Проектная документация
+- ФТТ
+- Архитектура
+- Проектные решения
+- Протоколы встреч
+- Транскрипты встреч
 
-## Constraints
+## Ограничения
 
-## Output Format
+## Формат Вывода
 
-## Review Checklist
+## Чеклист Проверки
 

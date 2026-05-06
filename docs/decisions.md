@@ -1,19 +1,19 @@
-# Decisions
+# Решения
 
-## 2026-05-06 - One Folder, One Git Repository
+## 2026-05-06 - Одна Папка, Один Git-Репозиторий
 
-Decision: each pet project gets its own folder and its own Git repository.
+Решение: каждый пет-проект получает отдельную папку и отдельный Git-репозиторий.
 
-Reason:
+Почему:
 
-- dependencies stay isolated;
-- history stays readable;
-- projects can be moved, pushed, archived, or deleted independently;
-- Codex can restore context from repository files.
+- зависимости остаются изолированными;
+- история остается читаемой;
+- проекты можно независимо переносить, пушить, архивировать и удалять;
+- Codex может восстановить контекст по файлам репозитория.
 
-## 2026-05-06 - Required Project Memory Files
+## 2026-05-06 - Обязательные Файлы Памяти Проекта
 
-Decision: every pet project should keep:
+Решение: в каждом пет-проекте должны быть:
 
 - `README.md`;
 - `AGENTS.md`;
@@ -22,70 +22,80 @@ Decision: every pet project should keep:
 - `docs/todo.md`;
 - `.env.example`.
 
-Reason:
+Почему:
 
-- new threads can recover context quickly;
-- decisions are not lost;
-- next actions remain explicit;
-- secrets and local state stay out of Git.
+- новые треды быстрее восстанавливают контекст;
+- решения не теряются;
+- следующие действия остаются явными;
+- секреты и локальное состояние не попадают в Git.
 
-## 2026-05-06 - Local-First By Default
+## 2026-05-06 - Local-First По Умолчанию
 
-Decision: MeetingAgent processes project documents locally by default.
+Решение: MeetingAgent по умолчанию обрабатывает проектные документы локально.
 
-Reason:
+Почему:
 
-- project files and meeting transcripts may be confidential;
-- local Ollama and local Whisper-compatible models reduce data exposure;
-- cloud integrations can be added later as explicit opt-in features.
+- проектные файлы и транскрипты встреч могут быть конфиденциальными;
+- локальная Ollama и локальные Whisper-совместимые модели уменьшают риск утечки данных;
+- cloud-интеграции можно добавить позже как явный opt-in.
 
-## 2026-05-06 - Do Not Commit Runtime Data
+## 2026-05-06 - Не Коммитить Runtime-Данные
 
-Decision: ignore `.venv/`, `config.yaml`, `data/`, `logs/`, `vector_db/`, `watched_folder/`, and media files.
+Решение: игнорировать `.venv/`, `config.yaml`, `data/`, `logs/`, `vector_db/`, `watched_folder/` и медиафайлы.
 
-Reason:
+Почему:
 
-- these files can be huge;
-- they may contain confidential source documents or transcripts;
-- they are machine-specific runtime state, not product source.
+- эти файлы могут быть большими;
+- они могут содержать конфиденциальные документы или транскрипты;
+- это machine-specific runtime state, а не исходники продукта.
 
-## 2026-05-06 - bge-m3 With num_ctx 8192
+## 2026-05-06 - bge-m3 С num_ctx 8192
 
-Decision: every Ollama embedding request must send `options.num_ctx=8192` and `keep_alive=24h`.
+Решение: каждый Ollama embedding-запрос должен отправлять `options.num_ctx=8192` и `keep_alive=24h`.
 
-Reason:
+Почему:
 
-- Ollama may default `bge-m3` to 4096 context;
-- real project chunks can exceed that after tokenization;
-- explicit context prevents HTTP 500 errors from context overflow.
+- Ollama может по умолчанию запускать `bge-m3` с контекстом 4096;
+- реальные проектные chunks после токенизации могут превышать этот лимит;
+- явный контекст предотвращает HTTP 500 из-за context overflow.
 
-## 2026-05-06 - Keep Embedding Cache Reusable
+## 2026-05-06 - Сохранять Embedding Cache
 
-Decision: keep `embedding_model="bge-m3"` in cache records and do not delete valid cached embeddings during recovery.
+Решение: оставлять `embedding_model="bge-m3"` в cache records и не удалять валидные cached embeddings при восстановлении.
 
-Reason:
+Почему:
 
-- cached embeddings were produced by the same model weights;
-- `num_ctx` changes the accepted input length, not vectors for inputs that already fit;
-- preserving cache makes multi-day builds resumable.
+- cached embeddings получены теми же весами модели;
+- `num_ctx` меняет допустимую длину входа, а не векторы для входов, которые уже помещались;
+- сохранение cache делает многодневную сборку продолжаемой.
 
-## 2026-05-06 - Separate chunk_id And db_id
+## 2026-05-06 - Разделить chunk_id И db_id
 
-Decision: use `chunk_id` for embedding cache reuse and `db_id` for ChromaDB record identity.
+Решение: использовать `chunk_id` для переиспользования embedding cache, а `db_id` для identity записей в ChromaDB.
 
-Reason:
+Почему:
 
-- identical backup documents can produce identical `chunk_id`;
-- ChromaDB requires unique IDs;
-- adding relative path into `db_id` avoids collisions without invalidating existing embeddings cache.
+- одинаковые backup-документы могут давать одинаковый `chunk_id`;
+- ChromaDB требует уникальные IDs;
+- добавление relative path в `db_id` устраняет collisions без инвалидирования существующего embeddings cache.
 
-## 2026-05-06 - Watchdog Restarts Ollama, Not Python
+## 2026-05-06 - Watchdog Перезапускает Ollama, А Не Python
 
-Decision: when cache growth stalls, the watchdog restarts Ollama but does not kill live `03_build_index.py`.
+Решение: при зависании роста cache watchdog перезапускает Ollama, но не убивает живой `03_build_index.py`.
 
-Reason:
+Почему:
 
-- the Python worker has retry/backoff and can recover when Ollama returns;
-- killing it risks unnecessary interruption;
-- lock removal is safe only when no live build worker exists.
+- Python worker имеет retry/backoff и может восстановиться после возвращения Ollama;
+- убийство процесса создает лишний риск прерывания;
+- удалять lock безопасно только при отсутствии живого build worker.
+
+## 2026-05-06 - Русский Язык Документации
+
+Решение: основная документация MeetingAgent ведется на русском языке.
+
+Почему:
+
+- продукт создается под русскоязычный рабочий процесс;
+- проектные термины вроде ФТТ, Паспорт ИС, протокол и сдачная документация должны быть естественными;
+- новый тред Codex быстрее восстанавливает контекст без перевода терминов.
 

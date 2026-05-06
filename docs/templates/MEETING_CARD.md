@@ -1,26 +1,25 @@
-# Meeting Card Template
+# Шаблон Карточки Встречи
 
-## Metadata
+## Метаданные
 
-- Title:
-- Date:
-- Source file:
-- Project stage:
-- Related FTT:
-- Related task:
-- Related document:
+- Название:
+- Дата:
+- Исходный файл:
+- Этап проекта:
+- Связанные ФТТ:
+- Связанная задача:
+- Связанный документ:
 
-## Summary
+## Краткое Содержание
 
-## Protocol
+## Протокол
 
-## Decisions
+## Решения
 
-## Tasks
+## Задачи
 
-## Risks
+## Риски
 
-## Open Questions
+## Открытые Вопросы
 
-## Source Links
-
+## Ссылки На Источники

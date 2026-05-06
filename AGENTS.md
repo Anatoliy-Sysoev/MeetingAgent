@@ -1,38 +1,38 @@
-# Agent Instructions
+# Инструкции Для Агентов
 
-## Startup Context
+## Восстановление Контекста
 
-- Read `README.md`, `AGENTS.md`, `docs/context.md`, and `docs/todo.md` before making changes.
-- Review `git log --oneline -10` when restoring context in a new thread.
-- Treat one folder as one pet project and one Git repository.
+- Перед изменениями прочитай `README.md`, `AGENTS.md`, `docs/context.md` и `docs/todo.md`.
+- В новом треде дополнительно посмотри `git log --oneline -10`.
+- Один каталог считается одним пет-проектом и одним Git-репозиторием.
 
-## Git Discipline
+## Работа С Git
 
-- Always record meaningful project changes in Git.
-- Prefer small commits with clear messages.
-- Inspect `git status --short` before editing and before finishing.
-- Do not overwrite or revert user changes unless explicitly asked.
-- Do not commit secrets, `.env` files, local configs, build artifacts, `node_modules`, `.venv`, `venv`, `dist`, local IDE settings, runtime logs, vector databases, media files, or generated project data.
-- Before finishing a work session, update `docs/context.md` with what changed and what remains.
-- Keep `docs/todo.md` current with the next actionable steps.
-- At the end of the work session, show or summarize `git status`.
+- Всегда фиксируй значимые изменения проекта в Git.
+- Предпочитай небольшие коммиты с понятными сообщениями.
+- Проверяй `git status --short` перед изменениями и перед завершением работы.
+- Не перезаписывай и не откатывай изменения пользователя без прямой просьбы.
+- Не коммить секреты, `.env`, локальные конфиги, build-артефакты, `node_modules`, `.venv`, `venv`, `dist`, настройки IDE, runtime-логи, vector DB, медиафайлы и сгенерированные проектные данные.
+- Перед завершением рабочей сессии обновляй `docs/context.md`: что изменилось и что осталось.
+- Поддерживай `docs/todo.md` в актуальном состоянии.
+- В конце сессии показывай или кратко пересказывай `git status`.
 
-## MeetingAgent-Specific Rules
+## Правила MeetingAgent
 
-- Keep the product local-first by default.
-- Do not commit `config.yaml`, `data/`, `logs/`, `vector_db/`, `watched_folder/`, or `.venv/`.
-- Every Ollama `/api/embeddings` call must include `options.num_ctx=8192`.
-- Keep embedding model records as `bge-m3` unless the user explicitly migrates the cache.
-- Preserve resumability: do not delete `data/embeddings_cache.jsonl` during recovery.
-- Watchdog may restart Ollama, but must not kill a live `03_build_index.py` process.
-- Prefer product documents and small implementation steps over large rewrites.
+- Продукт по умолчанию должен оставаться локальным.
+- Не коммить `config.yaml`, `data/`, `logs/`, `vector_db/`, `watched_folder/` и `.venv/`.
+- Каждый вызов Ollama `/api/embeddings` должен включать `options.num_ctx=8192`.
+- Не меняй значение модели embeddings в cache с `bge-m3`, если пользователь явно не запускает миграцию cache.
+- Сохраняй resumability: не удаляй `data/embeddings_cache.jsonl` при восстановлении после сбоев.
+- Watchdog может перезапускать Ollama, но не должен убивать живой процесс `03_build_index.py`.
+- Предпочитай продуктовые документы и небольшие шаги реализации большим переписываниям.
 
-## End-Of-Day Routine
+## Ритуал Завершения Дня
 
-When the user asks to wrap up, do this:
+Когда пользователь просит завершить рабочий день:
 
-1. Update `docs/context.md`.
-2. Update `docs/todo.md`.
-3. Run `git status --short`.
-4. Commit and push if the changes are ready and safe.
+1. Обнови `docs/context.md`.
+2. Обнови `docs/todo.md`.
+3. Выполни `git status --short`.
+4. Если изменения готовы и безопасны, сделай commit и push.
 

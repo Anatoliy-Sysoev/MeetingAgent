@@ -1,6 +1,6 @@
 # watched_folder
 
-Incoming meeting recordings and watched documents can be placed here.
+Сюда можно класть входящие записи встреч и отслеживаемые документы.
 
-Runtime files are ignored by git.
+Runtime-файлы игнорируются Git.
 

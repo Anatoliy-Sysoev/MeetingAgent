@@ -1,72 +1,75 @@
-# Project Context
+# Контекст Проекта
 
-Last updated: 2026-05-06.
+Обновлено: 2026-05-06.
 
-## Current State
+## Текущее Состояние
 
-MeetingAgent is now a private GitHub-backed pet project and local product repository.
+MeetingAgent - приватный GitHub-backed пет-проект и локальный продуктовый репозиторий.
 
-Repository:
+Репозиторий:
 
-- Local path: `%USERPROFILE%\Desktop\AI\MeetingAgent`
+- Локальный путь: `%USERPROFILE%\Desktop\AI\MeetingAgent`
 - Remote: `https://github.com/Anatoliy-Sysoev/MeetingAgent`
-- Visibility: private
-- Branch: `main`
+- Видимость: private
+- Ветка: `main`
 
-The current product direction is a local-first project memory agent:
+Продуктовое направление: local-first агент памяти проекта.
 
-- RAG over project documentation;
-- meeting transcription;
-- memo and protocol generation;
-- project-stage, FTT, task, and document classification;
-- document generation from cited project sources.
+Основные сценарии:
 
-## Runtime Status
+- RAG по проектной документации;
+- транскрибация встреч;
+- генерация memo и протоколов;
+- классификация по этапу проекта, ФТТ, задаче и документу;
+- генерация документов на основе цитируемых проектных источников.
 
-The long RAG build is running locally and must not be interrupted without a reason.
+## Runtime-Статус
 
-Known runtime facts:
+Долгая сборка RAG идет локально. Без причины ее не прерывать.
 
-- `run_full_rag.ps1` starts the full build.
-- `scripts/03_build_index.py` is the long embedding/indexing step.
-- `data/embeddings_cache.jsonl` is the resumable embedding cache.
-- `monitor_rag.ps1` is the watchdog tick.
-- Runtime folders are ignored by Git.
+Важные runtime-факты:
 
-## Important Files
+- `run_full_rag.ps1` запускает полную сборку.
+- `scripts/03_build_index.py` - долгий шаг embeddings/indexing.
+- `data/embeddings_cache.jsonl` - resumable cache embeddings.
+- `monitor_rag.ps1` - watchdog tick.
+- Runtime-папки игнорируются Git.
 
-- `README.md`: product overview and run notes.
-- `AGENTS.md`: instructions for Codex/AI work.
-- `docs/context.md`: current state of the project.
-- `docs/decisions.md`: why key decisions were made.
-- `docs/todo.md`: next steps.
-- `.env.example`: safe example environment variables.
-- `config.example.yaml`: safe example local config.
-- `scripts/03_build_index.py`: RAG embedding/indexing worker.
-- `monitor_rag.ps1`: watchdog for long-running RAG build.
+## Важные Файлы
 
-## What Changed Recently
+- `README.md`: обзор продукта и запуск.
+- `AGENTS.md`: инструкции для Codex/AI.
+- `docs/context.md`: текущее состояние проекта.
+- `docs/decisions.md`: почему приняты ключевые решения.
+- `docs/todo.md`: следующие шаги.
+- `.env.example`: безопасный пример переменных окружения.
+- `config.example.yaml`: безопасный пример локальной конфигурации.
+- `scripts/03_build_index.py`: worker для embeddings/indexing.
+- `monitor_rag.ps1`: watchdog долгой RAG-сборки.
 
-- Product repository structure was created.
-- Private GitHub repository was created and pushed.
-- Runtime data was excluded from Git.
-- Watchdog was hardened around Ollama and live Python build processes.
-- `scripts/03_build_index.py` now separates reusable `chunk_id` from Chroma `db_id` so duplicate backup documents do not collide in ChromaDB while embeddings cache remains reusable.
-- Standard pet-project files were added: `AGENTS.md`, `docs/context.md`, `docs/decisions.md`, `docs/todo.md`, and `.env.example`.
+## Что Изменилось Недавно
 
-## What Remains
+- Создана продуктовая структура репозитория.
+- Создан и запушен приватный GitHub-репозиторий.
+- Runtime-данные исключены из Git.
+- Watchdog усилен для работы с Ollama и живым Python build-процессом.
+- В `scripts/03_build_index.py` разделены reusable `chunk_id` и Chroma `db_id`, чтобы одинаковые backup-документы не конфликтовали в ChromaDB, а embeddings cache оставался переиспользуемым.
+- Добавлены стандартные файлы пет-проекта: `AGENTS.md`, `docs/context.md`, `docs/decisions.md`, `docs/todo.md` и `.env.example`.
+- Основная документация переведена на русский язык как основной язык проекта.
 
-- Finish current RAG build.
-- Validate ChromaDB collection count and smoke queries.
-- Improve query output with source citations.
-- Add incremental RAG update flow.
-- Build the first meeting processing pipeline.
+## Что Осталось
 
-## Restore Context In New Thread
+- Дождаться завершения текущей RAG-сборки.
+- Проверить количество записей в коллекции ChromaDB и smoke-запросы.
+- Улучшить вывод query: добавить компактные ссылки на источники.
+- Добавить инкрементальное обновление RAG.
+- Собрать первый pipeline обработки встреч.
 
-Use this prompt:
+## Восстановление Контекста В Новом Треде
+
+Используй prompt:
 
 ```text
-Read README.md, AGENTS.md, docs/context.md, docs/todo.md and git log --oneline -10. Restore project context and propose the next step.
+Прочитай README.md, AGENTS.md, docs/context.md, docs/todo.md и git log --oneline -10. Восстанови контекст проекта и предложи следующий шаг.
 ```
 

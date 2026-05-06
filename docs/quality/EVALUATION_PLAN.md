@@ -1,41 +1,41 @@
-# Evaluation Plan
+# План Оценки Качества
 
-## RAG Quality
+## Качество RAG
 
-Create a small set of project questions:
+Нужно собрать небольшой набор проектных вопросов:
 
-- What documents are needed for delivery?
-- What is included in Passport IS?
-- Which FTT sections affect architecture?
-- What decisions were made about integration?
-- Which documents mention acceptance or handover?
+- Какие документы нужны для сдачи?
+- Что входит в Паспорт ИС?
+- Какие разделы ФТТ влияют на архитектуру?
+- Какие решения были приняты по интеграции?
+- Какие документы упоминают приемку или передачу?
 
-For every question, check:
+Для каждого вопроса проверять:
 
-- answer relevance;
-- source relevance;
-- missing sources;
-- hallucinations;
-- citation usefulness.
+- релевантность ответа;
+- релевантность источников;
+- пропущенные источники;
+- галлюцинации;
+- полезность ссылок на источники.
 
-## Meeting Quality
+## Качество Встреч
 
-For every processed meeting, check:
+Для каждой обработанной встречи проверять:
 
-- transcript accuracy;
-- memo usefulness;
-- protocol structure;
-- decisions extracted;
-- tasks extracted;
-- classification quality.
+- точность транскрипта;
+- полезность memo;
+- структуру протокола;
+- извлеченные решения;
+- извлеченные задачи;
+- качество классификации.
 
-## Document Generation Quality
+## Качество Генерации Документов
 
-For generated drafts, check:
+Для сгенерированных черновиков проверять:
 
-- source grounding;
-- structure;
-- completeness;
-- consistency with project terminology;
-- edit effort required.
+- опору на источники;
+- структуру;
+- полноту;
+- согласованность с проектной терминологией;
+- объем ручной доработки.
 

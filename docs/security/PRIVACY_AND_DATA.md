@@ -1,14 +1,14 @@
-# Privacy And Data
+# Конфиденциальность И Данные
 
-MeetingAgent is designed as a local-first product.
+MeetingAgent проектируется как local-first продукт.
 
-## Sensitive Data
+## Чувствительные Данные
 
-Project documents, transcripts, protocols, and generated documents may contain confidential project information.
+Проектные документы, транскрипты, протоколы и сгенерированные документы могут содержать конфиденциальную информацию проекта.
 
-## Repository Rules
+## Правила Репозитория
 
-Do not commit:
+Не коммитить:
 
 - `.venv/`;
 - `config.yaml`;
@@ -16,20 +16,20 @@ Do not commit:
 - `logs/`;
 - `vector_db/`;
 - `watched_folder/`;
-- raw media files;
-- generated transcripts or protocols from real projects.
+- исходные медиафайлы;
+- сгенерированные транскрипты или протоколы реальных проектов.
 
-Commit only:
+Коммитить можно:
 
-- source code;
-- templates;
-- documentation;
-- example configuration;
-- synthetic test data.
+- исходный код;
+- шаблоны;
+- документацию;
+- пример конфигурации;
+- синтетические тестовые данные.
 
-## Local Model Policy
+## Политика Локальных Моделей
 
-Default processing should use local Ollama and local Whisper-compatible models.
+По умолчанию обработка должна идти через локальную Ollama и локальные Whisper-совместимые модели.
 
-Any cloud integration must be explicit, documented, and disabled by default.
+Любая cloud-интеграция должна быть явной, задокументированной и выключенной по умолчанию.
 

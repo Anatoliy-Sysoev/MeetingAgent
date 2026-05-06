@@ -1,30 +1,30 @@
 # MeetingAgent
 
-MeetingAgent is a local-first product for turning project documents and meeting recordings into a searchable project memory.
+MeetingAgent - локальный продукт для превращения проектных документов и записей встреч в поисковую память проекта.
 
-The product goal is simple: every document, meeting, decision, requirement, and task should become findable, attributable, and usable for producing project deliverables.
+Цель продукта простая: каждый документ, встреча, решение, требование и задача должны стать находимыми, проверяемыми и пригодными для подготовки проектной и сдачной документации.
 
-## What It Does
+## Что Делает
 
-- Builds a RAG index over project documentation.
-- Watches for new meeting recordings.
-- Transcribes audio/video with Whisper-compatible models.
-- Produces meeting memo, protocol, decisions, risks, and tasks.
-- Classifies content by project stage, FTT, deliverable, document, and task.
-- Generates draft project documents from existing source materials.
+- Строит RAG-индекс по проектной документации.
+- Следит за появлением новых записей встреч.
+- Транскрибирует аудио и видео через Whisper-совместимые модели.
+- Формирует memo, протокол, решения, риски и задачи.
+- Классифицирует материалы по этапу проекта, ФТТ, документу, результату и задаче.
+- Генерирует черновики проектных документов на основе существующих источников.
 
-## Current Local Runtime
+## Текущий Локальный Runtime
 
-The current implementation is script-based:
+Сейчас реализация скриптовая:
 
-- `run_full_rag.ps1` runs the full RAG build.
-- `monitor_rag.ps1` is a single-tick watchdog for recurring monitoring.
-- `scripts/01_inventory.py` inventories project files.
-- `scripts/02_extract_text.py` extracts text.
-- `scripts/03_build_index.py` chunks text, embeds it with `bge-m3`, and writes ChromaDB.
-- `scripts/04_query.py` queries the RAG index.
+- `run_full_rag.ps1` запускает полную сборку RAG.
+- `monitor_rag.ps1` выполняет один тик watchdog-мониторинга.
+- `scripts/01_inventory.py` инвентаризирует файлы проекта.
+- `scripts/02_extract_text.py` извлекает текст.
+- `scripts/03_build_index.py` режет текст на chunks, строит embeddings через `bge-m3` и пишет ChromaDB.
+- `scripts/04_query.py` выполняет запросы к RAG-индексу.
 
-Runtime data is intentionally ignored by git:
+Runtime-данные специально исключены из Git:
 
 - `data/`
 - `logs/`
@@ -32,49 +32,49 @@ Runtime data is intentionally ignored by git:
 - `watched_folder/`
 - `.venv/`
 
-Use `config.example.yaml` as a template for local `config.yaml`.
+Используй `config.example.yaml` как шаблон для локального `config.yaml`.
 
-## Working With Codex
+## Работа С Codex
 
-This repository follows a simple pet-project rule: one folder is one Git repository, and meaningful changes should be recorded in Git.
+В этом репозитории действует правило пет-проектов: одна папка - один Git-репозиторий, а значимые изменения записываются в Git.
 
-Before making changes, read:
+Перед изменениями прочитай:
 
 - `AGENTS.md`
 - `docs/context.md`
 - `docs/decisions.md`
 - `docs/todo.md`
 
-Before ending a work session, update `docs/context.md` and `docs/todo.md`, then check `git status`.
+Перед завершением рабочей сессии обнови `docs/context.md` и `docs/todo.md`, затем проверь `git status`.
 
-## Product Structure
+## Структура Продукта
 
 ```text
 MeetingAgent/
-  apps/                  Product surfaces: CLI, local API, desktop/web UI
-  src/meeting_agent/      Future package code
-  scripts/                Current operational scripts
-  templates/              Prompt and document templates
-  docs/                   Product, architecture, operations, security
-  tests/                  Unit, integration, and evaluation tests
-  data/                   Local generated data, ignored by git
-  logs/                   Local logs, ignored by git
-  vector_db/              Local ChromaDB, ignored by git
-  watched_folder/         Incoming media/documents, ignored by git
+  apps/                  Продуктовые интерфейсы: CLI, local API, desktop/web UI
+  src/meeting_agent/      Будущий Python-пакет
+  scripts/                Текущие рабочие скрипты
+  templates/              Шаблоны prompt и документов
+  docs/                   Продукт, архитектура, эксплуатация, безопасность
+  tests/                  Unit, integration и evaluation-тесты
+  data/                   Локальные сгенерированные данные, игнорируются Git
+  logs/                   Локальные логи, игнорируются Git
+  vector_db/              Локальная ChromaDB, игнорируется Git
+  watched_folder/         Входящие медиа/документы, игнорируются Git
 ```
 
-## Product Principles
+## Принципы Продукта
 
-- Local-first: project data should stay on the user's machine by default.
-- Source-grounded: every generated answer or document should cite source files and meeting fragments.
-- Resumable: long-running work must continue from cache after interruption.
-- Inspectable: user can see what was processed, skipped, classified, and generated.
-- Project-aware: outputs should understand stages, FTT, architecture, deliverables, decisions, and tasks.
+- **Local-first**: проектные данные по умолчанию остаются на машине пользователя.
+- **Опора на источники**: каждый ответ или документ должен ссылаться на исходные файлы и фрагменты встреч.
+- **Продолжение после сбоев**: долгие задачи должны продолжаться из cache.
+- **Прозрачность**: пользователь должен видеть, что обработано, пропущено, классифицировано и создано.
+- **Понимание проекта**: система должна учитывать этапы, ФТТ, архитектуру, сдачные документы, решения и задачи.
 
-## Next Milestones
+## Ближайшие Вехи
 
-1. Finish and validate the project RAG index.
-2. Add query quality checks and source citation review.
-3. Create meeting-card output: video, transcript, memo, protocol, tasks, links to project docs.
-4. Add document-generation briefs for Passport IS, FTT extracts, architecture notes, and protocols.
-5. Build a local API and small UI for inbox, search, and generation.
+1. Завершить и проверить RAG-индекс проекта.
+2. Добавить проверки качества поиска и ревью источников.
+3. Сделать карточку встречи: видео, транскрипт, memo, протокол, задачи, связи с документами.
+4. Добавить brief-шаблоны для Паспорта ИС, выдержек ФТТ, архитектурных заметок и протоколов.
+5. Собрать локальный API и небольшой UI для inbox, поиска и генерации.

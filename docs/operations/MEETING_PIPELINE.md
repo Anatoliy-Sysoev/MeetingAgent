@@ -1,49 +1,48 @@
-# Meeting Pipeline
+# Pipeline Обработки Встреч
 
-## Goal
+## Цель
 
-Turn every meeting recording into reusable project knowledge.
+Превратить каждую запись встречи в переиспользуемое знание проекта.
 
-## Target Flow
+## Целевой Поток
 
-1. New video/audio appears in `watched_folder/`.
-2. Watcher waits until the file is stable.
-3. Transcription runs with Whisper-compatible model.
-4. Transcript is saved with timestamps.
-5. AI generates:
-   - short memo;
-   - formal protocol;
-   - decisions;
-   - action items;
-   - risks;
-   - open questions.
-6. RAG classifies relation to:
-   - project stage;
-   - FTT;
-   - task;
-   - deliverable;
-   - existing document.
-7. Artifacts are saved into a meeting-card folder.
-8. Transcript and generated artifacts are added to RAG.
+1. Новое видео или аудио появляется в `watched_folder/`.
+2. Watcher ждет, пока файл перестанет изменяться.
+3. Запускается транскрибация через Whisper-совместимую модель.
+4. Транскрипт сохраняется с таймкодами.
+5. AI генерирует:
+   - краткое memo;
+   - формальный протокол;
+   - решения;
+   - задачи;
+   - риски;
+   - открытые вопросы.
+6. RAG классифицирует связь с:
+   - этапом проекта;
+   - ФТТ;
+   - задачей;
+   - сдачным результатом;
+   - существующим документом.
+7. Артефакты сохраняются в папку-карточку встречи.
+8. Транскрипт и сгенерированные артефакты добавляются в RAG.
 
-## Meeting Card
+## Карточка Встречи
 
-Each processed meeting should have:
+Каждая обработанная встреча должна содержать:
 
-- original media reference;
-- transcript;
+- ссылку на исходный медиафайл;
+- транскрипт;
 - memo;
-- protocol;
-- decisions;
-- tasks;
+- протокол;
+- решения;
+- задачи;
 - classification metadata;
-- source links to related project documents.
+- ссылки на связанные проектные документы.
 
-## Later Enhancements
+## Будущие Улучшения
 
-- speaker diarization;
-- speaker profiles;
-- transcript-player synchronization;
-- manual correction UI;
-- export to DOCX/Markdown.
-
+- diarization спикеров;
+- профили голосов;
+- синхронизация транскрипта с проигрывателем;
+- UI для ручной корректировки;
+- экспорт в DOCX/Markdown.
