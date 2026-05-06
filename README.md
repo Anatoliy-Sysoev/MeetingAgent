@@ -80,3 +80,5 @@ MeetingAgent/
 5. Собрать локальный API и небольшой UI для inbox, поиска и генерации.
 
 Подробное видение и полный план развития: `docs/product/PRODUCT_VISION_AND_PLAN.md`.
+
+План задач, которые можно делать параллельно текущей RAG-сборке: `docs/product/PARALLEL_WORK_WHILE_RAG_BUILDS.md`.
