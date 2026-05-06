@@ -1,0 +1,59 @@
+# Local Python environment
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local secrets and machine-specific config
+.env
+.env.*
+config.yaml
+config.local.yaml
+
+# Runtime RAG data and generated artifacts
+data/*
+!data/.gitkeep
+!data/README.md
+logs/*
+!logs/.gitkeep
+!logs/README.md
+vector_db/*
+!vector_db/.gitkeep
+!vector_db/README.md
+watched_folder/*
+!watched_folder/.gitkeep
+!watched_folder/README.md
+
+# Large media and meeting inputs/outputs
+*.mp4
+*.mkv
+*.mov
+*.avi
+*.mp3
+*.wav
+*.m4a
+*.webm
+
+# Local indexes, caches, and database files
+*.jsonl
+*.sqlite
+*.sqlite3
+*.db
+*.parquet
+
+# Office temporary files
+~$*
+*.tmp
+*.bak
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
