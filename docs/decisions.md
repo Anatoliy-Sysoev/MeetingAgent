@@ -220,7 +220,7 @@
 
 ## 2026-05-07 - Гигиена Корпуса RAG И Исключение Дублей
 
-Решение: `scripts/01_inventory.py` поддерживает `exclude_path_patterns` и исключает из индексации архивные, черновые и служебные копии: `Архив`, `Черновики и шаблоны`, backup-папки, `_analysis/docx_json*`, `_analysis/site_review*`, скрипты и JSON/Docx-слепки внутри `_analysis`. Curated markdown-аналитика в `_analysis/*.md` остается допустимым источником.
+Решение: `scripts/01_inventory.py` поддерживает `exclude_path_patterns` и исключает из индексации архивные, черновые и служебные копии: `Архив`, `Черновики и шаблоны`, backup-папки и файлы с `backup` в имени, `_analysis/docx_json*`, `_analysis/site_review*`, скрипты и JSON/Docx-слепки внутри `_analysis`. Curated markdown-аналитика в `_analysis/*.md` остается допустимым источником.
 
 Почему:
 

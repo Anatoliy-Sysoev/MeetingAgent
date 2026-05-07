@@ -6,7 +6,8 @@
 
 - `docs/quality/rag_eval_questions.md` - список вопросов и статусы;
 - `docs/quality/rag_eval_report_template.md` - шаблон исторического отчета;
-- `docs/quality/rag_eval_baseline_2026-05-07.md` - первый фактический baseline-прогон.
+- `docs/quality/rag_eval_baseline_2026-05-07.md` - исторический baseline до чистки корпуса;
+- `docs/quality/rag_eval_baseline_clean_2026-05-07.md` - текущий рабочий baseline после чистки корпуса.
 
 Нужно прогнать небольшой набор проектных вопросов:
 
