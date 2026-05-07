@@ -2,7 +2,11 @@
 
 ## Качество RAG
 
-Текущий baseline RAG фиксируется в `docs/quality/rag_eval_questions.md`.
+Текущий baseline RAG фиксируется в:
+
+- `docs/quality/rag_eval_questions.md` - список вопросов и статусы;
+- `docs/quality/rag_eval_report_template.md` - шаблон исторического отчета;
+- `docs/quality/rag_eval_baseline_2026-05-07.md` - первый фактический baseline-прогон.
 
 Нужно прогнать небольшой набор проектных вопросов:
 
