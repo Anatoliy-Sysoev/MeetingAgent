@@ -15,6 +15,10 @@ rag:
   top_k: 12
   max_context_chars: 24000
 
+generation:
+  temperature: 0.2
+  top_p: 0.9
+
 transcription:
   model: "large-v3-turbo"
   language: "ru"
@@ -23,20 +27,26 @@ transcription:
   beam_size: 5
   vad_filter: true
 
+live_transcription:
+  model: "small"
+  language: "ru"
+  compute_type: "int8"
+  device: "cpu"
+  chunk_sec: 5
+  beam_size: 3
+  vad_filter: false
+  write_separate_mic_and_system_tracks: true
+
 paths:
   manifest: "data/manifest.jsonl"
   extracted_text_dir: "data/extracted_text"
   chunks: "data/chunks.jsonl"
   embeddings_cache: "data/embeddings_cache.jsonl"
   numpy_index: "data/numpy_index"
+  # Устаревшая папка ChromaDB. Основной поиск и сборка RAG ее не используют.
   vector_db: "vector_db"
   logs: "logs"
   watched_folder: "watched_folder"
-
-collections:
-  project_docs: "asu_project_docs"
-  meeting_transcripts: "asu_meeting_transcripts"
-  protocols: "asu_protocols"
 
 include_extensions:
   - ".docx"

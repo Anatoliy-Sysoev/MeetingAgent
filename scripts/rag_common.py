@@ -32,7 +32,7 @@ def resolve_work_path(cfg: dict[str, Any], raw: str) -> Path:
 
 def ensure_runtime_dirs(cfg: dict[str, Any]) -> None:
     paths = cfg.get("paths", {})
-    for key in ("extracted_text_dir", "vector_db", "logs", "watched_folder"):
+    for key in ("extracted_text_dir", "logs", "watched_folder"):
         if key in paths:
             resolve_work_path(cfg, paths[key]).mkdir(parents=True, exist_ok=True)
     (cfg["work_root_path"] / "data").mkdir(parents=True, exist_ok=True)

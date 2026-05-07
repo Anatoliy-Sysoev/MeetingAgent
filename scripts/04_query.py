@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +12,10 @@ import requests
 
 from rag_common import ensure_runtime_dirs, jsonl_read, load_config, resolve_work_path
 from rag_numpy_backend import index_exists, load_index
+
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 
 def ollama_embed(base_url: str, model: str, text: str, num_ctx: int = 8192, keep_alive: str = "24h") -> list[float]:
@@ -27,7 +33,7 @@ def ollama_embed(base_url: str, model: str, text: str, num_ctx: int = 8192, keep
     return resp.json()["embedding"]
 
 
-def ollama_chat(base_url: str, model: str, prompt: str) -> str:
+def ollama_chat(base_url: str, model: str, prompt: str, temperature: float, top_p: float) -> str:
     resp = requests.post(
         f"{base_url.rstrip('/')}/api/generate",
         json={
@@ -35,8 +41,8 @@ def ollama_chat(base_url: str, model: str, prompt: str) -> str:
             "prompt": prompt,
             "stream": False,
             "options": {
-                "temperature": 0.2,
-                "top_p": 0.9,
+                "temperature": temperature,
+                "top_p": top_p,
             },
         },
         timeout=300,
@@ -86,7 +92,7 @@ def load_embedding_cache(path: Path, expected_model: str, chunk_ids: set[str]) -
     return cache
 
 
-def query_without_chroma(
+def query_from_jsonl_cache(
     chunks_path: Path,
     embeddings_cache_path: Path,
     embedding_model: str,
@@ -133,16 +139,37 @@ def query_without_chroma(
                     "chars": int(chunk["chars"]),
                 },
                 "distance": float(1.0 - scores[int(idx)]),
+                "score": float(scores[int(idx)]),
             }
         )
     return contexts
 
 
+def preview_text(text: str, limit: int = 220) -> str:
+    normalized = " ".join(text.split())
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[: limit - 1].rstrip() + "…"
+
+
+def print_compact_contexts(contexts: list[dict[str, Any]]) -> None:
+    for i, ctx in enumerate(contexts, start=1):
+        meta = ctx["metadata"]
+        score = float(ctx.get("score", 1.0 - float(ctx.get("distance", 1.0))))
+        distance = float(ctx.get("distance", 1.0 - score))
+        print(
+            f"[{i}] score={score:.4f} distance={distance:.4f} "
+            f"file={meta.get('relative_path')} chunk={meta.get('chunk_index')} chars={meta.get('chars')}"
+        )
+        print(f"    {preview_text(ctx['document'])}")
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Query local ASU RAG index")
+    parser = argparse.ArgumentParser(description="Запрос к локальному RAG-индексу проекта АСУ")
     parser.add_argument("question", nargs="+", help="Вопрос к RAG-индексу")
     parser.add_argument("--top-k", type=int, default=None, help="Сколько chunks искать")
-    parser.add_argument("--raw", action="store_true", help="Показать найденные chunks без LLM-ответа")
+    parser.add_argument("--raw", action="store_true", help="Показать найденные chunks в JSON без LLM-ответа")
+    parser.add_argument("--compact", action="store_true", help="Показать компактный список найденных источников без LLM-ответа")
     args = parser.parse_args()
 
     question = " ".join(args.question).strip()
@@ -154,6 +181,9 @@ def main() -> None:
     embedding_num_ctx = int(cfg["ollama"].get("embedding_num_ctx", 8192))
     keep_alive = str(cfg["ollama"].get("keep_alive", "24h"))
     chat_model = cfg["ollama"]["chat_model"]
+    generation_cfg = cfg.get("generation", {})
+    temperature = float(generation_cfg.get("temperature", 0.2))
+    top_p = float(generation_cfg.get("top_p", 0.9))
     chunks_path = resolve_work_path(cfg, cfg["paths"]["chunks"])
     embeddings_cache_path = resolve_work_path(cfg, cfg["paths"].get("embeddings_cache", "data/embeddings_cache.jsonl"))
     numpy_index_path = resolve_work_path(cfg, cfg["paths"].get("numpy_index", "data/numpy_index"))
@@ -166,8 +196,8 @@ def main() -> None:
         index = load_index(numpy_index_path)
         found_contexts = index.query(query_embedding, top_k)
     else:
-        print(f"WARNING: Numpy RAG index not found, using JSONL embedding fallback: {numpy_index_path}", flush=True)
-        found_contexts = query_without_chroma(chunks_path, embeddings_cache_path, embedding_model, query_embedding, top_k)
+        print(f"ПРЕДУПРЕЖДЕНИЕ: numpy-индекс RAG не найден, используется JSONL-cache: {numpy_index_path}", flush=True)
+        found_contexts = query_from_jsonl_cache(chunks_path, embeddings_cache_path, embedding_model, query_embedding, top_k)
 
     contexts = []
     used_chars = 0
@@ -179,11 +209,26 @@ def main() -> None:
         used_chars += len(doc)
 
     if args.raw:
-        print(json.dumps(contexts, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "question": question,
+                    "top_k": top_k,
+                    "contexts": contexts,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return
+
+    if args.compact:
+        print_compact_contexts(contexts)
         return
 
     prompt = build_prompt(question, contexts)
-    answer = ollama_chat(base_url, chat_model, prompt)
+    answer = ollama_chat(base_url, chat_model, prompt, temperature, top_p)
     print(answer)
 
 
