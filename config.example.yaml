@@ -106,6 +106,7 @@ exclude_path_patterns:
   - "**/backup*/**"
   - "**/_backup/**"
   - "**/_backup*/**"
+  - "**/*backup*"
   - "**/Черновики и шаблоны/**"
   - "**/_to_review*/**"
 
