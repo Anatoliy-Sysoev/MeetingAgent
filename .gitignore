@@ -24,8 +24,6 @@ logs/*
 !logs/.gitkeep
 !logs/README.md
 vector_db/*
-!vector_db/.gitkeep
-!vector_db/README.md
 watched_folder/*
 !watched_folder/.gitkeep
 !watched_folder/README.md
