@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import json
-import shutil
 import time
 from pathlib import Path
 from typing import Any
 
-import chromadb
 import requests
 from tqdm import tqdm
 
@@ -117,8 +115,6 @@ def main() -> None:
     lock_path = resolve_work_path(cfg, "logs/build_index.lock")
     chunks_path = resolve_work_path(cfg, cfg["paths"]["chunks"])
     embeddings_cache_path = resolve_work_path(cfg, cfg["paths"].get("embeddings_cache", "data/embeddings_cache.jsonl"))
-    vector_db_path = resolve_work_path(cfg, cfg["paths"]["vector_db"])
-    collection_name = cfg["collections"]["project_docs"]
     base_url = cfg["ollama"]["base_url"]
     embedding_model = cfg["ollama"]["embedding_model"]
     embedding_num_ctx = int(cfg["ollama"].get("embedding_num_ctx", 8192))
@@ -166,60 +162,14 @@ def main() -> None:
             append_embedding_cache(embeddings_cache_path, rec)
             embedding_cache[chunk["chunk_id"]] = rec
 
-        rebuild_marker = vector_db_path / ".rebuild_in_progress"
-        if vector_db_path.exists():
-            shutil.rmtree(vector_db_path)
-        vector_db_path.mkdir(parents=True, exist_ok=True)
-        rebuild_marker.write_text("rebuild in progress\n", encoding="utf-8")
-
-        client = chromadb.PersistentClient(path=str(vector_db_path))
-        collection = client.get_or_create_collection(name=collection_name, metadata={"hnsw:space": "cosine"})
-
-        batch_ids: list[str] = []
-        batch_docs: list[str] = []
-        batch_embeddings: list[list[float]] = []
-        batch_meta: list[dict[str, Any]] = []
-        batch_size = 32
-
-        def flush() -> None:
-            nonlocal batch_ids, batch_docs, batch_embeddings, batch_meta
-            if not batch_ids:
-                return
-            collection.add(ids=batch_ids, documents=batch_docs, embeddings=batch_embeddings, metadatas=batch_meta)
-            batch_ids, batch_docs, batch_embeddings, batch_meta = [], [], [], []
-
-        for chunk in tqdm(chunks, desc="Writing ChromaDB", unit="chunk"):
-            cached = embedding_cache.get(chunk["chunk_id"])
-            if not cached:
-                raise RuntimeError(f"Missing embedding for chunk: {chunk['chunk_id']}")
-            batch_ids.append(chunk.get("db_id") or chunk["chunk_id"])
-            batch_docs.append(chunk["text"])
-            batch_embeddings.append(cached["embedding"])
-            batch_meta.append(
-                {
-                    "chunk_id": chunk["chunk_id"],
-                    "source_path": chunk["source_path"],
-                    "relative_path": chunk["relative_path"],
-                    "extension": chunk["extension"],
-                    "sha256": chunk["sha256"],
-                    "mtime": float(chunk["mtime"]),
-                    "chunk_index": int(chunk["chunk_index"]),
-                    "chars": int(chunk["chars"]),
-                }
-            )
-            if len(batch_ids) >= batch_size:
-                flush()
-        flush()
-        rebuild_marker.unlink(missing_ok=True)
-
         print(
             json.dumps(
                 {
                     "chunks": len(chunks),
                     "chunks_path": str(chunks_path),
-                    "vector_db": str(vector_db_path),
-                    "collection": collection_name,
+                    "embeddings_cache": str(embeddings_cache_path),
                     "embedding_model": embedding_model,
+                    "next_step": "Запустите scripts/05_build_numpy_index.py для пересборки локального numpy-индекса.",
                 },
                 ensure_ascii=False,
                 indent=2,

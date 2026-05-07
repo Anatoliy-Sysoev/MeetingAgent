@@ -55,5 +55,6 @@ MeetingAgent/
 - `scripts/` содержит текущую рабочую автоматизацию.
 - `src/meeting_agent/` - будущая структура Python-пакета.
 - `apps/` - будущие продуктовые интерфейсы.
-- `data/`, `logs/`, `vector_db/` и `watched_folder/` - локальные runtime-папки, которые игнорируются Git.
-
+- `data/`, `logs/`, `vector_db/` и `watched_folder/` - локальные рабочие папки, которые игнорируются Git.
+- `data/numpy_index/` - основной поисковый индекс.
+- `vector_db/` - устаревшая папка ChromaDB; основной поток сборки ее не использует.

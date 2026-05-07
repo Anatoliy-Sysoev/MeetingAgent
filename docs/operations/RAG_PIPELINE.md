@@ -1,4 +1,4 @@
-# RAG Pipeline
+# Поток Сборки RAG
 
 ## Текущий Поток
 
@@ -14,12 +14,28 @@
    - режет извлеченный текст на chunks;
    - переиспользует `data/embeddings_cache.jsonl`;
    - вызывает Ollama `/api/embeddings`;
-   - записывает ChromaDB в `vector_db/`.
+   - дописывает недостающие embeddings в cache;
+   - не пересоздает ChromaDB и не пишет в `vector_db/`.
 
-4. `04_query.py`
+4. `05_build_numpy_index.py`
+   - собирает основной локальный numpy-индекс в `data/numpy_index`;
+   - использует готовые chunks и embeddings cache;
+   - не пересчитывает embeddings.
+
+5. `04_query.py`
    - строит embedding запроса;
-   - достает top chunks;
+   - достает top chunks из `data/numpy_index`;
+   - если numpy-индекса нет, использует fallback напрямую по JSONL cache;
    - просит локальную LLM ответить с учетом найденного контекста.
+
+## Параметры Chunking
+
+Текущие параметры MVP:
+
+- `chunk_size_chars`: 3000;
+- `chunk_overlap_chars`: 300.
+
+Эти параметры влияют на `chunk_id`. При их изменении часть старого embeddings cache становится устаревшей по дизайну, потому что меняются границы chunks.
 
 ## Требования К Embeddings
 
@@ -51,6 +67,21 @@
 После сборки:
 
 - проверить наличие done marker;
-- проверить количество записей в коллекции ChromaDB;
+- проверить `data/numpy_index/manifest.json`;
+- сравнить количество chunks в manifest с `data/chunks.jsonl`;
 - выполнить smoke-запросы;
 - проверить релевантность источников.
+
+## Проверка Query
+
+Компактный вывод источников:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\04_query.py "Что входит в Паспорт ИС?" --top-k 8 --compact
+```
+
+JSON для evaluation:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\04_query.py "Что входит в Паспорт ИС?" --top-k 8 --raw
+```
