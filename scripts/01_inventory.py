@@ -5,6 +5,7 @@ from pathlib import Path
 
 from rag_common import (
     ensure_runtime_dirs,
+    is_excluded_by_path_patterns,
     is_under_excluded_dir,
     jsonl_write,
     load_config,
@@ -20,11 +21,14 @@ def classify_file(path: Path, rel: Path, cfg: dict) -> tuple[str, str]:
     include_ext = {x.lower() for x in cfg.get("include_extensions", [])}
     exclude_ext = {x.lower() for x in cfg.get("exclude_extensions", [])}
     exclude_dirs = {x.lower() for x in cfg.get("exclude_dirs", [])}
+    exclude_path_patterns = cfg.get("exclude_path_patterns", [])
 
     if path.name.startswith("~$"):
         return "excluded", "office_temp_file"
     if is_under_excluded_dir(rel, exclude_dirs):
         return "excluded", "excluded_dir"
+    if is_excluded_by_path_patterns(rel, exclude_path_patterns):
+        return "excluded", "excluded_path_pattern"
     if ext in exclude_ext:
         return "excluded", "excluded_extension"
     if ext not in include_ext:

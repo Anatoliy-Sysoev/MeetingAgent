@@ -5,6 +5,7 @@ import json
 import os
 import re
 import time
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -18,8 +19,10 @@ CONFIG_PATH = WORK_ROOT / "config.yaml"
 def load_config() -> dict[str, Any]:
     with CONFIG_PATH.open("r", encoding="utf-8") as fp:
         cfg = yaml.safe_load(fp) or {}
-    cfg["work_root_path"] = Path(cfg.get("work_root", WORK_ROOT)).resolve()
-    cfg["project_root_path"] = Path(cfg["project_root"]).resolve()
+    work_root = os.path.expandvars(str(cfg.get("work_root", WORK_ROOT)))
+    project_root = os.path.expandvars(str(cfg["project_root"]))
+    cfg["work_root_path"] = Path(work_root).resolve()
+    cfg["project_root_path"] = Path(project_root).resolve()
     return cfg
 
 
@@ -88,6 +91,20 @@ def safe_rel_id(rel_path: str) -> str:
 def is_under_excluded_dir(rel_path: Path, excluded: set[str]) -> bool:
     parts = {part.lower() for part in rel_path.parts[:-1]}
     return bool(parts & excluded)
+
+
+def is_excluded_by_path_patterns(rel_path: Path | str, patterns: Iterable[str]) -> bool:
+    normalized = str(rel_path).replace("\\", "/").strip("/").lower()
+    if not normalized:
+        return False
+
+    for raw_pattern in patterns:
+        pattern = str(raw_pattern).replace("\\", "/").strip("/").lower()
+        if not pattern:
+            continue
+        if fnmatchcase(normalized, pattern):
+            return True
+    return False
 
 
 def path_rel_to_project(cfg: dict[str, Any], path: Path) -> str:

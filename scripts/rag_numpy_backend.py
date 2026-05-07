@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from rag_common import jsonl_read
+from rag_common import is_excluded_by_path_patterns, jsonl_read, stable_id
 
 
 INDEX_VERSION = 1
@@ -159,31 +159,56 @@ class NumpyRagIndex:
                 f"Numpy index is inconsistent: embeddings={self.embeddings.shape[0]}, metadata={len(self.metadata)}, manifest={count}"
             )
 
-    def query(self, query_embedding: list[float], top_k: int) -> list[dict[str, Any]]:
+    def query(
+        self,
+        query_embedding: list[float],
+        top_k: int,
+        exclude_path_patterns: list[str] | None = None,
+        dedupe_by_chunk_id: bool = True,
+    ) -> list[dict[str, Any]]:
         if top_k <= 0:
             return []
 
+        exclude_path_patterns = exclude_path_patterns or []
         query = _normalize_vector(np.asarray(query_embedding, dtype=np.float32))
         scores = np.asarray(self.embeddings @ query, dtype=np.float32)
-        limit = min(top_k, scores.shape[0])
-        if limit == scores.shape[0]:
-            top_indices = np.argsort(-scores)
-        else:
-            top_indices = np.argpartition(-scores, limit - 1)[:limit]
-            top_indices = top_indices[np.argsort(-scores[top_indices])]
+        top_indices = np.argsort(-scores)
+        duplicate_counts: dict[str, int] = {}
+
+        if dedupe_by_chunk_id:
+            for row in self.metadata:
+                meta = row["metadata"]
+                if is_excluded_by_path_patterns(str(meta.get("relative_path", "")), exclude_path_patterns):
+                    continue
+                dedupe_key = stable_id(row["document"])
+                duplicate_counts[dedupe_key] = duplicate_counts.get(dedupe_key, 0) + 1
 
         contexts: list[dict[str, Any]] = []
-        for idx in top_indices[:limit]:
+        seen_dedupe_keys: set[str] = set()
+        for idx in top_indices:
             score = float(scores[int(idx)])
             row = self.metadata[int(idx)]
+            meta = dict(row["metadata"])
+            if is_excluded_by_path_patterns(str(meta.get("relative_path", "")), exclude_path_patterns):
+                continue
+            if dedupe_by_chunk_id:
+                dedupe_key = stable_id(row["document"])
+                if dedupe_key in seen_dedupe_keys:
+                    continue
+                seen_dedupe_keys.add(dedupe_key)
+                duplicate_count = duplicate_counts.get(dedupe_key, 1) - 1
+                if duplicate_count > 0:
+                    meta["duplicate_count"] = duplicate_count
             contexts.append(
                 {
                     "document": row["document"],
-                    "metadata": row["metadata"],
+                    "metadata": meta,
                     "distance": float(1.0 - score),
                     "score": score,
                 }
             )
+            if len(contexts) >= top_k:
+                break
         return contexts
 
 

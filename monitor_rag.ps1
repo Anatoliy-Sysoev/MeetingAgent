@@ -12,6 +12,9 @@ param(
 )
 
 $ErrorActionPreference = 'Continue'
+$Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = $Utf8NoBom
+$OutputEncoding = $Utf8NoBom
 
 $LogDir = Join-Path $Root 'logs'
 $DataDir = Join-Path $Root 'data'
@@ -281,7 +284,14 @@ Write-WLog ("wrappers: {0}" -f (Get-ProcIds -Processes $wrappers))
 Write-WLog ("builders: {0}" -f (Get-ProcIds -Processes $builders))
 Write-WLog ("cache_lines: {0}" -f $cacheLines)
 
-if ($done -and (-not $failed -or $done.LastWriteTime -gt $failed.LastWriteTime)) {
+if ($wrappers.Count -gt 0 -and $builders.Count -eq 0) {
+    Write-WLog 'Build wrapper is running; waiting for current run instead of using old done markers.'
+    Save-State -CacheLines $cacheLines
+    Write-TickOutput -Status ("running (wrapper PID {0})" -f (Get-ProcIds -Processes $wrappers)) -CacheLines $cacheLines -TotalChunks $totalChunks
+    return
+}
+
+if ($builders.Count -eq 0 -and $wrappers.Count -eq 0 -and $done -and (-not $failed -or $done.LastWriteTime -gt $failed.LastWriteTime)) {
     Write-WLog 'build complete'
     Write-TickOutput -Status 'done' -CacheLines $cacheLines -TotalChunks $totalChunks
     return
