@@ -55,6 +55,8 @@ meetings/
 
 ## Markdown-Карточка
 
+Markdown-карточка является человекочитаемым представлением данных из `meeting.json` и JSON-артефактов в `artifacts/`. Решения, задачи, риски и открытые вопросы не должны иметь две независимые версии: машинные JSON-файлы остаются источником истины, а таблицы в Markdown генерируются или обновляются из них.
+
 ```markdown
 # Название Встречи
 
@@ -132,7 +134,9 @@ meetings/
 Не индексируются: исходные медиа, временные live-файлы, черновики до очистки.
 ```
 
-## Минимальный `meeting.json`
+## Минимальный `meeting.json` Для Статуса `new`
+
+В новой встрече большинство артефактов еще отсутствует. Поэтому `artifacts`, `classification` и `links` могут быть пустыми объектами, а `rag.indexed_artifacts` - пустым списком.
 
 ```json
 {
@@ -164,6 +168,31 @@ meetings/
     ]
   },
   "processing_status": "new",
+  "artifacts": {},
+  "classification": {},
+  "links": {},
+  "retention": {
+    "policy": "default"
+  },
+  "rag": {
+    "index_policy": "structured_artifacts_and_final_transcript",
+    "indexed_artifacts": [],
+    "no_index_artifacts": [
+      "source/original.mp4"
+    ]
+  },
+  "created_at": "2026-05-07T10:00:00+03:00",
+  "updated_at": "2026-05-07T10:00:00+03:00"
+}
+```
+
+## Фрагмент `meeting.json` После Обработки
+
+Когда встреча дошла до статуса `indexed`, обработчик должен заполнить ссылки на созданные файлы и явно перечислить артефакты, которые попали в RAG.
+
+```json
+{
+  "processing_status": "indexed",
   "artifacts": {
     "transcript": "transcript/transcript.md",
     "segments": "transcript/segments.jsonl",
@@ -189,9 +218,6 @@ meetings/
     "related_meetings": [],
     "related_decisions": []
   },
-  "retention": {
-    "policy": "default"
-  },
   "rag": {
     "index_policy": "structured_artifacts_and_final_transcript",
     "indexed_artifacts": [
@@ -206,9 +232,7 @@ meetings/
     "no_index_artifacts": [
       "source/original.mp4"
     ]
-  },
-  "created_at": "2026-05-07T10:00:00+03:00",
-  "updated_at": "2026-05-07T10:00:00+03:00"
+  }
 }
 ```
 
@@ -222,3 +246,9 @@ meetings/
 - пути в `artifacts` указывают на реальные файлы внутри папки встречи;
 - retention явно указан как `default` или `protected`;
 - RAG-политика явно перечисляет, что индексируется и что не индексируется.
+
+## Поведение В Пограничных Случаях
+
+- Встреча, которая длится через полночь, остается одной карточкой с исходной `date`, `start_time` и фактическим `duration_minutes`.
+- Если в `source.media_files` есть `screen_recording`, приложение должно предложить или выставить `retention.policy = protected`. Это бизнес-правило pipeline, а не структурное ограничение JSON schema.
+- При переходе между статусами pipeline должен проверять наличие файлов, соответствующих статусу. Например, `transcribed` требует transcript, `summarized` требует memo/protocol, `classified` требует classification report, `indexed` требует заполненного `rag.indexed_artifacts`.
