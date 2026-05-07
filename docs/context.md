@@ -52,6 +52,8 @@ ChromaDB больше не считается стабильным query backend
 - `scripts/05_build_numpy_index.py`: сборщик локального numpy backend.
 - `scripts/04_query.py`: query к RAG через numpy backend.
 - `monitor_rag.ps1`: watchdog долгой RAG-сборки.
+- `docs/product/PROJECT_STAGES_AND_FTT.md`: рабочая карта этапов продукта, ФТТ и критериев приемки.
+- `docs/references/WHISPERDESK_EXPERIMENT.md`: что берем из эксперимента WhisperDesk для live-транскрибации.
 
 ## Что Изменилось Недавно
 
@@ -70,11 +72,15 @@ ChromaDB больше не считается стабильным query backend
 - Smoke-проверка numpy backend прошла: индекс собран на 9575 chunks, размерность embeddings 1024, raw-запросы возвращают релевантные источники.
 - `vector_db/` полностью исключен из Git как legacy/runtime-папка ChromaDB, чтобы rebuild не удалял tracked-заглушки.
 - `monitor_rag.ps1` получил более устойчивое определение процессов через CIM fallback и lock PID fallback.
+- Добавлен документ `docs/product/PROJECT_STAGES_AND_FTT.md`: этапы разработки MeetingAgent, ФТТ продукта, предметные этапы проекта АСУ и ближайший маршрут выполнения.
+- Добавлен документ `docs/references/WHISPERDESK_EXPERIMENT.md`: WhisperDesk зафиксирован как экспериментальный референс для live-транскрибации, но не как production-код.
 
 ## Что Осталось
 
 - Добавить набор evaluation-вопросов для RAG и зафиксировать baseline качества numpy backend.
 - Улучшить вывод query: добавить компактные ссылки на источники.
+- Использовать `docs/product/PROJECT_STAGES_AND_FTT.md` как основной execution checklist.
+- Спроектировать карточку встречи и live-сессию вокруг `FTT-MA-09`, `FTT-MA-10` и `FTT-MA-11`.
 - Добавить инкрементальное обновление RAG.
 - Собрать первый pipeline обработки встреч.
 - Опционально подключить FAISS как ускорение поверх того же backend-контракта, если понадобится скорость на большем корпусе.

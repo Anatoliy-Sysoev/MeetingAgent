@@ -83,4 +83,8 @@ MeetingAgent/
 
 Подробное видение и полный план развития: `docs/product/PRODUCT_VISION_AND_PLAN.md`.
 
+Рабочая карта этапов и ФТТ: `docs/product/PROJECT_STAGES_AND_FTT.md`.
+
 План задач, которые можно делать параллельно текущей RAG-сборке: `docs/product/PARALLEL_WORK_WHILE_RAG_BUILDS.md`.
+
+Экспериментальный референс live-транскрибации: `docs/references/WHISPERDESK_EXPERIMENT.md`.
