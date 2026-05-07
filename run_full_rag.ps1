@@ -1,4 +1,8 @@
 $ErrorActionPreference = "Continue"
+$Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = $Utf8NoBom
+$OutputEncoding = $Utf8NoBom
+$env:PYTHONUTF8 = "1"
 $env:PYTHONIOENCODING = "utf-8"
 
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path

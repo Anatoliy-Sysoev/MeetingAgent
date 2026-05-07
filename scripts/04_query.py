@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 import requests
 
-from rag_common import ensure_runtime_dirs, jsonl_read, load_config, resolve_work_path
+from rag_common import ensure_runtime_dirs, is_excluded_by_path_patterns, jsonl_read, load_config, resolve_work_path, stable_id
 from rag_numpy_backend import index_exists, load_index
 
 
@@ -98,7 +98,10 @@ def query_from_jsonl_cache(
     embedding_model: str,
     query_embedding: list[float],
     top_k: int,
+    exclude_path_patterns: list[str] | None = None,
+    dedupe_by_chunk_id: bool = True,
 ) -> list[dict[str, Any]]:
+    exclude_path_patterns = exclude_path_patterns or []
     chunks = list(jsonl_read(chunks_path))
     chunk_ids = {chunk["chunk_id"] for chunk in chunks}
     embedding_cache = load_embedding_cache(embeddings_cache_path, embedding_model, chunk_ids)
@@ -120,28 +123,50 @@ def query_from_jsonl_cache(
     matrix_norms = np.linalg.norm(matrix, axis=1)
     query_norm = np.linalg.norm(query)
     scores = matrix @ query / np.maximum(matrix_norms * query_norm, 1e-12)
-    top_indices = np.argsort(-scores)[:top_k]
+    top_indices = np.argsort(-scores)
+    duplicate_counts: dict[str, int] = {}
+
+    if dedupe_by_chunk_id:
+        for chunk in rows:
+            if is_excluded_by_path_patterns(str(chunk.get("relative_path", "")), exclude_path_patterns):
+                continue
+            dedupe_key = stable_id(str(chunk.get("text", "")))
+            duplicate_counts[dedupe_key] = duplicate_counts.get(dedupe_key, 0) + 1
 
     contexts = []
+    seen_dedupe_keys: set[str] = set()
     for idx in top_indices:
         chunk = rows[int(idx)]
+        if is_excluded_by_path_patterns(str(chunk.get("relative_path", "")), exclude_path_patterns):
+            continue
+        metadata = {
+            "chunk_id": chunk["chunk_id"],
+            "source_path": chunk["source_path"],
+            "relative_path": chunk["relative_path"],
+            "extension": chunk["extension"],
+            "sha256": chunk["sha256"],
+            "mtime": float(chunk["mtime"]),
+            "chunk_index": int(chunk["chunk_index"]),
+            "chars": int(chunk["chars"]),
+        }
+        if dedupe_by_chunk_id:
+            dedupe_key = stable_id(str(chunk.get("text", "")))
+            if dedupe_key in seen_dedupe_keys:
+                continue
+            seen_dedupe_keys.add(dedupe_key)
+            duplicate_count = duplicate_counts.get(dedupe_key, 1) - 1
+            if duplicate_count > 0:
+                metadata["duplicate_count"] = duplicate_count
         contexts.append(
             {
                 "document": chunk["text"],
-                "metadata": {
-                    "chunk_id": chunk["chunk_id"],
-                    "source_path": chunk["source_path"],
-                    "relative_path": chunk["relative_path"],
-                    "extension": chunk["extension"],
-                    "sha256": chunk["sha256"],
-                    "mtime": float(chunk["mtime"]),
-                    "chunk_index": int(chunk["chunk_index"]),
-                    "chars": int(chunk["chars"]),
-                },
+                "metadata": metadata,
                 "distance": float(1.0 - scores[int(idx)]),
                 "score": float(scores[int(idx)]),
             }
         )
+        if len(contexts) >= top_k:
+            break
     return contexts
 
 
@@ -157,9 +182,11 @@ def print_compact_contexts(contexts: list[dict[str, Any]]) -> None:
         meta = ctx["metadata"]
         score = float(ctx.get("score", 1.0 - float(ctx.get("distance", 1.0))))
         distance = float(ctx.get("distance", 1.0 - score))
+        duplicates = int(meta.get("duplicate_count", 0) or 0)
+        duplicate_suffix = f" duplicates=+{duplicates}" if duplicates else ""
         print(
             f"[{i}] score={score:.4f} distance={distance:.4f} "
-            f"file={meta.get('relative_path')} chunk={meta.get('chunk_index')} chars={meta.get('chars')}"
+            f"file={meta.get('relative_path')} chunk={meta.get('chunk_index')} chars={meta.get('chars')}{duplicate_suffix}"
         )
         print(f"    {preview_text(ctx['document'])}")
 
@@ -170,6 +197,8 @@ def main() -> None:
     parser.add_argument("--top-k", type=int, default=None, help="Сколько chunks искать")
     parser.add_argument("--raw", action="store_true", help="Показать найденные chunks в JSON без LLM-ответа")
     parser.add_argument("--compact", action="store_true", help="Показать компактный список найденных источников без LLM-ответа")
+    parser.add_argument("--include-excluded", action="store_true", help="Не применять query-фильтр служебных и архивных путей")
+    parser.add_argument("--no-dedupe", action="store_true", help="Не дедуплицировать одинаковые chunks по тексту")
     args = parser.parse_args()
 
     question = " ".join(args.question).strip()
@@ -189,15 +218,30 @@ def main() -> None:
     numpy_index_path = resolve_work_path(cfg, cfg["paths"].get("numpy_index", "data/numpy_index"))
     top_k = args.top_k or int(cfg["rag"]["top_k"])
     max_context_chars = int(cfg["rag"]["max_context_chars"])
+    exclude_path_patterns = [] if args.include_excluded else list(cfg.get("exclude_path_patterns", []))
+    dedupe_by_chunk_id = not args.no_dedupe
 
     query_embedding = ollama_embed(base_url, embedding_model, question, embedding_num_ctx, keep_alive)
 
     if index_exists(numpy_index_path):
         index = load_index(numpy_index_path)
-        found_contexts = index.query(query_embedding, top_k)
+        found_contexts = index.query(
+            query_embedding,
+            top_k,
+            exclude_path_patterns=exclude_path_patterns,
+            dedupe_by_chunk_id=dedupe_by_chunk_id,
+        )
     else:
         print(f"ПРЕДУПРЕЖДЕНИЕ: numpy-индекс RAG не найден, используется JSONL-cache: {numpy_index_path}", flush=True)
-        found_contexts = query_from_jsonl_cache(chunks_path, embeddings_cache_path, embedding_model, query_embedding, top_k)
+        found_contexts = query_from_jsonl_cache(
+            chunks_path,
+            embeddings_cache_path,
+            embedding_model,
+            query_embedding,
+            top_k,
+            exclude_path_patterns=exclude_path_patterns,
+            dedupe_by_chunk_id=dedupe_by_chunk_id,
+        )
 
     contexts = []
     used_chars = 0

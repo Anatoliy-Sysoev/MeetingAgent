@@ -4,6 +4,7 @@
 
 1. `01_inventory.py`
    - сканирует папку проекта;
+   - применяет `exclude_dirs`, `exclude_extensions` и `exclude_path_patterns`;
    - записывает metadata файлов в `data/manifest.jsonl`.
 
 2. `02_extract_text.py`
@@ -25,8 +26,21 @@
 5. `04_query.py`
    - строит embedding запроса;
    - достает top chunks из `data/numpy_index`;
+   - по умолчанию фильтрует служебные и архивные пути из `exclude_path_patterns`;
+   - дедуплицирует одинаковые chunks по тексту;
    - если numpy-индекса нет, использует fallback напрямую по JSONL cache;
    - просит локальную LLM ответить с учетом найденного контекста.
+
+## Гигиена Корпуса
+
+Рабочая папка проекта может содержать архивы, черновики, backup-копии и служебные результаты анализа. Они остаются на диске, но не должны попадать в продуктивный RAG.
+
+В `config.example.yaml` для этого предусмотрены:
+
+- `exclude_dirs`: быстрые исключения по имени папки;
+- `exclude_path_patterns`: glob-паттерны для точных случаев вроде `_analysis/docx_json*/**`, `**/Архив/**`, `**/Черновики и шаблоны/**`.
+
+Curated markdown-заметки в `_analysis/*.md` могут оставаться источниками, если содержат выводы по замечаниям, сверкам и расхождениям. Сгенерированные JSON/Docx-слепки и рабочие папки `_analysis/docx_json*` исключаются.
 
 ## Параметры Chunking
 
@@ -84,4 +98,10 @@ JSON для evaluation:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\04_query.py "Что входит в Паспорт ИС?" --top-k 8 --raw
+```
+
+Диагностика без query-фильтров и дедупликации:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\04_query.py "Что входит в Паспорт ИС?" --top-k 8 --compact --include-excluded --no-dedupe
 ```

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,7 @@ from rag_common import (
 
 
 TEXT_EXTENSIONS = {".md", ".txt", ".json", ".yml", ".yaml", ".drawio", ".puml", ".srt", ".py", ".js", ".ts", ".css"}
+warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
 
 def extract_docx(path: Path) -> list[dict[str, Any]]:
