@@ -68,6 +68,8 @@ ChromaDB больше не считается стабильным query backend
 - `scripts/04_query.py` переведен на numpy backend по умолчанию и больше не зависит от ChromaDB для обычного поиска.
 - `run_full_rag.ps1` теперь после build/indexing запускает сборку `05_build_numpy_index`.
 - Smoke-проверка numpy backend прошла: индекс собран на 9575 chunks, размерность embeddings 1024, raw-запросы возвращают релевантные источники.
+- `vector_db/` полностью исключен из Git как legacy/runtime-папка ChromaDB, чтобы rebuild не удалял tracked-заглушки.
+- `monitor_rag.ps1` получил более устойчивое определение процессов через CIM fallback и lock PID fallback.
 
 ## Что Осталось
 

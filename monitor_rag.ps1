@@ -50,13 +50,44 @@ function Get-TotalChunks {
 }
 
 function Get-WrapperProcess {
-    Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
-        Where-Object { $_.CommandLine -like '*run_full_rag*' }
+    try {
+        Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction Stop |
+            Where-Object { $_.CommandLine -like '*run_full_rag*' }
+    } catch {
+        Write-WLog "WARN: Cannot read PowerShell command lines through CIM: $($_.Exception.Message)"
+        @()
+    }
 }
 
 function Get-BuilderProcess {
-    Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
-        Where-Object { $_.CommandLine -like '*03_build_index*' }
+    try {
+        Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction Stop |
+            Where-Object { $_.CommandLine -like '*03_build_index*' }
+    } catch {
+        Write-WLog "WARN: Cannot read Python command lines through CIM: $($_.Exception.Message)"
+        $venvPython = Join-Path $Root '.venv\Scripts\python.exe'
+        Get-Process -Name python -ErrorAction SilentlyContinue |
+            Where-Object { $_.Path -eq $venvPython }
+    }
+}
+
+function Get-LockPid {
+    if (-not (Test-Path -LiteralPath $Lock)) { return $null }
+    try {
+        $line = Get-Content -LiteralPath $Lock -ErrorAction Stop |
+            Where-Object { $_ -like 'pid=*' } |
+            Select-Object -First 1
+        if (-not $line) { return $null }
+        return [int]($line -replace '^pid=', '')
+    } catch {
+        return $null
+    }
+}
+
+function Test-LockPidAlive {
+    $pidFromLock = Get-LockPid
+    if ($null -eq $pidFromLock) { return $false }
+    return [bool](Get-Process -Id $pidFromLock -ErrorAction SilentlyContinue)
 }
 
 function New-EmbeddingPayload {
@@ -186,6 +217,20 @@ function Move-FailedMarkersToArchive {
     }
 }
 
+function Get-ProcIds {
+    param($Processes)
+    $ids = @()
+    foreach ($proc in @($Processes)) {
+        if ($null -ne $proc.ProcessId) {
+            $ids += [string]$proc.ProcessId
+        } elseif ($null -ne $proc.Id) {
+            $ids += [string]$proc.Id
+        }
+    }
+    if ($ids.Count -eq 0) { return '-' }
+    return ($ids -join ',')
+}
+
 function Get-FailureCause {
     param($FailedMarker)
     if (-not $FailedMarker) { return '' }
@@ -217,6 +262,11 @@ $failed = Get-ChildItem -LiteralPath $LogDir -Filter 'full_rag_*.failed.txt' -Er
     Sort-Object LastWriteTime -Descending | Select-Object -First 1
 $wrappers = @(Get-WrapperProcess)
 $builders = @(Get-BuilderProcess)
+if ($builders.Count -eq 0 -and (Test-LockPidAlive)) {
+    $lockPid = Get-LockPid
+    $builders = @(Get-Process -Id $lockPid -ErrorAction SilentlyContinue)
+    Write-WLog "Using live lock PID as builder fallback: $lockPid"
+}
 $cacheLines = Get-CacheLines
 $totalChunks = Get-TotalChunks
 
@@ -227,8 +277,8 @@ $script:FailureCause = Get-FailureCause -FailedMarker $failed
 Write-WLog '---- check ----'
 Write-WLog ("done: {0}" -f $(if ($done) { $done.Name } else { '-' }))
 Write-WLog ("failed: {0}" -f $(if ($failed) { $failed.Name } else { '-' }))
-Write-WLog ("wrappers: {0}" -f $(if ($wrappers.Count) { ($wrappers.ProcessId -join ',') } else { '-' }))
-Write-WLog ("builders: {0}" -f $(if ($builders.Count) { ($builders.ProcessId -join ',') } else { '-' }))
+Write-WLog ("wrappers: {0}" -f (Get-ProcIds -Processes $wrappers))
+Write-WLog ("builders: {0}" -f (Get-ProcIds -Processes $builders))
 Write-WLog ("cache_lines: {0}" -f $cacheLines)
 
 if ($done -and (-not $failed -or $done.LastWriteTime -gt $failed.LastWriteTime)) {
@@ -242,7 +292,7 @@ if ($builders.Count -gt 0) {
     if (-not $state) {
         Write-WLog 'Build running. No valid prior state; initializing state.'
         Save-State -CacheLines $cacheLines
-        Write-TickOutput -Status ("running (PID {0})" -f ($builders.ProcessId -join ',')) -CacheLines $cacheLines -TotalChunks $totalChunks
+        Write-TickOutput -Status ("running (PID {0})" -f (Get-ProcIds -Processes $builders)) -CacheLines $cacheLines -TotalChunks $totalChunks
         return
     }
 
@@ -253,10 +303,15 @@ if ($builders.Count -gt 0) {
     if ($growth -le 0 -and $elapsed -ge $StallMinutes) {
         Write-WLog 'STALL detected. Restarting Ollama; build process is kept alive.'
         [void](Restart-Ollama)
+    } elseif ($growth -gt 0 -and $failed) {
+        Write-WLog 'Build is progressing; archiving stale failed markers.'
+        Move-FailedMarkersToArchive
+        $script:LatestMarker = 'no marker yet'
+        $script:FailureCause = ''
     }
 
     Save-State -CacheLines (Get-CacheLines)
-    Write-TickOutput -Status ("running (PID {0})" -f ($builders.ProcessId -join ',')) -CacheLines (Get-CacheLines) -TotalChunks $totalChunks
+    Write-TickOutput -Status ("running (PID {0})" -f (Get-ProcIds -Processes $builders)) -CacheLines (Get-CacheLines) -TotalChunks $totalChunks
     return
 }
 
@@ -286,9 +341,14 @@ if (-not (Test-OllamaEmbedding)) {
     }
 }
 
-if (Test-Path -LiteralPath $Lock) {
+if ((Test-Path -LiteralPath $Lock) -and -not (Test-LockPidAlive)) {
     Write-WLog "Removing stale lock: $Lock"
     Remove-Item -LiteralPath $Lock -Force -ErrorAction SilentlyContinue
+} elseif (Test-Path -LiteralPath $Lock) {
+    Write-WLog "Lock exists and PID is alive; not removing lock."
+    Save-State -CacheLines (Get-CacheLines)
+    Write-TickOutput -Status 'running (lock PID alive)' -CacheLines (Get-CacheLines) -TotalChunks $totalChunks
+    return
 }
 
 Move-FailedMarkersToArchive
@@ -297,10 +357,10 @@ Start-Sleep -Seconds 12
 
 $builders = @(Get-BuilderProcess)
 if ($builders.Count -gt 0) {
-    Write-WLog ("Build started. python PID {0}." -f ($builders.ProcessId -join ','))
+    Write-WLog ("Build started. python PID {0}." -f (Get-ProcIds -Processes $builders))
 } else {
     Write-WLog 'WARN: build did not start.'
 }
 
 Save-State -CacheLines (Get-CacheLines)
-Write-TickOutput -Status $(if ($builders.Count -gt 0) { "running (PID $($builders.ProcessId -join ','))" } else { 'not running' }) -CacheLines (Get-CacheLines) -TotalChunks (Get-TotalChunks)
+Write-TickOutput -Status $(if ($builders.Count -gt 0) { "running (PID $(Get-ProcIds -Processes $builders))" } else { 'not running' }) -CacheLines (Get-CacheLines) -TotalChunks (Get-TotalChunks)
