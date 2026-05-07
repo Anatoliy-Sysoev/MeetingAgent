@@ -1,0 +1,405 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://meetingagent.local/schemas/meeting.schema.json",
+  "title": "MeetingAgent meeting.json",
+  "description": "Машинный контракт карточки встречи MeetingAgent. Описывает папку встречи, статус обработки, артефакты, классификацию, связи, RAG-индексацию и retention.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "meeting_id",
+    "title",
+    "date",
+    "source",
+    "processing_status",
+    "participants",
+    "artifacts",
+    "classification",
+    "links",
+    "retention",
+    "rag",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Версия схемы карточки встречи."
+    },
+    "meeting_id": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}__[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "description": "Человекочитаемый идентификатор и имя папки встречи: YYYY-MM-DD__short-title."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Дата встречи в формате YYYY-MM-DD."
+    },
+    "start_time": {
+      "type": "string",
+      "pattern": "^\\d{2}:\\d{2}(?::\\d{2})?(?:[+-]\\d{2}:\\d{2})?$",
+      "description": "Время начала. Допустимо HH:MM, HH:MM:SS или время с часовым поясом."
+    },
+    "duration_minutes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "participants": {
+      "type": "array",
+      "description": "На первой итерации участники хранятся обычным списком строк без diarization.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "offline_record",
+            "live_session"
+          ]
+        },
+        "original_location": {
+          "type": "string",
+          "description": "Исходный путь или описание места, откуда пришла запись."
+        },
+        "media_files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/media_file"
+          }
+        },
+        "audio_tracks": {
+          "type": "array",
+          "description": "Основные дорожки. Для live MVP MIC и SYS являются источниками истины.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "MIC",
+              "SYS"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "derived_tracks": {
+          "type": "array",
+          "description": "Производные дорожки для просмотра или экспорта, например MIX.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "MIX"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "processing_status": {
+      "type": "string",
+      "enum": [
+        "new",
+        "transcribing",
+        "transcribed",
+        "summarized",
+        "classified",
+        "indexed",
+        "failed"
+      ]
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Относительные пути внутри папки встречи. Отсутствие поля означает, что артефакт еще не создан.",
+      "properties": {
+        "transcript": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "segments": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "memo": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "protocol": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "decisions": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "tasks": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "risks": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "open_questions": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "classification_report": {
+          "$ref": "#/$defs/relative_path"
+        }
+      }
+    },
+    "classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "project_stage": {
+          "type": "string",
+          "pattern": "^PRJ-\\d{2}$",
+          "description": "Код этапа проекта из docs/product/PROJECT_TAXONOMY.md."
+        },
+        "ftt_candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/classification_candidate"
+          }
+        },
+        "document_candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/classification_candidate"
+          }
+        },
+        "task_candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/classification_candidate"
+          }
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "summary": {
+          "type": "string"
+        },
+        "needs_review": {
+          "type": "boolean"
+        }
+      }
+    },
+    "links": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "related_documents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/related_link"
+          }
+        },
+        "related_meetings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/related_link"
+          }
+        },
+        "related_decisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/related_link"
+          }
+        }
+      }
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy"
+      ],
+      "properties": {
+        "policy": {
+          "type": "string",
+          "enum": [
+            "default",
+            "protected"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "review_after": {
+          "type": "string",
+          "format": "date"
+        },
+        "media_delete_after_days": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "rag": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index_policy"
+      ],
+      "properties": {
+        "index_policy": {
+          "type": "string",
+          "enum": [
+            "structured_artifacts_and_final_transcript",
+            "do_not_index"
+          ]
+        },
+        "indexed_artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/relative_path"
+          },
+          "uniqueItems": true
+        },
+        "no_index_artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/relative_path"
+          },
+          "uniqueItems": true
+        },
+        "last_indexed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "$defs": {
+    "relative_path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Относительный путь внутри папки встречи."
+    },
+    "media_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "media_type"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "media_type": {
+          "type": "string",
+          "enum": [
+            "video",
+            "audio",
+            "screen_recording",
+            "other"
+          ]
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "duration_seconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "classification_candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source_ref"
+          }
+        }
+      }
+    },
+    "related_link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id_or_path"
+      ],
+      "properties": {
+        "id_or_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        },
+        "relation": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "source_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "chunk_id": {
+          "type": "string"
+        },
+        "timecode_start": {
+          "type": "number",
+          "minimum": 0
+        },
+        "timecode_end": {
+          "type": "number",
+          "minimum": 0
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

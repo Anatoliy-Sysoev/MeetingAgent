@@ -12,6 +12,7 @@ MeetingAgent/
   configs/
     prompts/
     schemas/
+      meeting.schema.json
   data/
   docs/
     architecture/
@@ -58,3 +59,4 @@ MeetingAgent/
 - `data/`, `logs/`, `vector_db/` и `watched_folder/` - локальные рабочие папки, которые игнорируются Git.
 - `data/numpy_index/` - основной поисковый индекс.
 - `vector_db/` - устаревшая папка ChromaDB; основной поток сборки ее не использует.
+- `configs/schemas/meeting.schema.json` - формальный контракт `meeting.json` для карточки встречи.

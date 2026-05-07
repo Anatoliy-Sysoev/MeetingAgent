@@ -91,7 +91,7 @@
 
 - Детализировать `docs/templates/MEETING_CARD.md`.
 - Создать JSON/YAML-схемы в `configs/schemas/`:
-  - `meeting_card.schema.json`;
+  - `meeting.schema.json`;
   - `meeting_artifacts.schema.json`;
   - `classification.schema.json`;
   - `document_brief.schema.json`;
@@ -103,14 +103,10 @@
 meetings/
   2026-05-06__meeting-title/
     source/
-    transcript.md
-    memo.md
-    protocol.md
-    decisions.json
-    tasks.json
-    risks.json
-    classification.json
-    routing.json
+    transcript/
+    artifacts/
+    exports/
+    meeting.json
 ```
 
 - Описать правила именования файлов.

@@ -66,13 +66,12 @@ meeting_session/
 
 ```text
 meetings/
-  YYYY-MM-DD/
-    meeting_slug/
-      source/
-      transcript/
-      artifacts/
-      exports/
-      meeting.json
+  YYYY-MM-DD__meeting-slug/
+    source/
+    transcript/
+    artifacts/
+    exports/
+    meeting.json
 ```
 
 ### 4. JSONL Сегменты
