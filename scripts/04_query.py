@@ -2,18 +2,25 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 from typing import Any
 
-import chromadb
+import numpy as np
 import requests
 
-from rag_common import ensure_runtime_dirs, load_config, resolve_work_path
+from rag_common import ensure_runtime_dirs, jsonl_read, load_config, resolve_work_path
+from rag_numpy_backend import index_exists, load_index
 
 
-def ollama_embed(base_url: str, model: str, text: str) -> list[float]:
+def ollama_embed(base_url: str, model: str, text: str, num_ctx: int = 8192, keep_alive: str = "24h") -> list[float]:
     resp = requests.post(
         f"{base_url.rstrip('/')}/api/embeddings",
-        json={"model": model, "prompt": text},
+        json={
+            "model": model,
+            "prompt": text,
+            "keep_alive": keep_alive,
+            "options": {"num_ctx": num_ctx},
+        },
         timeout=120,
     )
     resp.raise_for_status()
@@ -67,6 +74,70 @@ def build_prompt(question: str, contexts: list[dict[str, Any]]) -> str:
 """
 
 
+def load_embedding_cache(path: Path, expected_model: str, chunk_ids: set[str]) -> dict[str, list[float]]:
+    cache: dict[str, list[float]] = {}
+    for rec in jsonl_read(path):
+        if rec.get("embedding_model") != expected_model:
+            continue
+        chunk_id = rec.get("chunk_id")
+        embedding = rec.get("embedding")
+        if chunk_id in chunk_ids and isinstance(embedding, list):
+            cache[chunk_id] = embedding
+    return cache
+
+
+def query_without_chroma(
+    chunks_path: Path,
+    embeddings_cache_path: Path,
+    embedding_model: str,
+    query_embedding: list[float],
+    top_k: int,
+) -> list[dict[str, Any]]:
+    chunks = list(jsonl_read(chunks_path))
+    chunk_ids = {chunk["chunk_id"] for chunk in chunks}
+    embedding_cache = load_embedding_cache(embeddings_cache_path, embedding_model, chunk_ids)
+
+    rows: list[dict[str, Any]] = []
+    embeddings: list[list[float]] = []
+    for chunk in chunks:
+        embedding = embedding_cache.get(chunk["chunk_id"])
+        if embedding is None:
+            continue
+        rows.append(chunk)
+        embeddings.append(embedding)
+
+    if not rows:
+        raise RuntimeError("No current chunk embeddings found in embeddings cache")
+
+    matrix = np.asarray(embeddings, dtype=np.float32)
+    query = np.asarray(query_embedding, dtype=np.float32)
+    matrix_norms = np.linalg.norm(matrix, axis=1)
+    query_norm = np.linalg.norm(query)
+    scores = matrix @ query / np.maximum(matrix_norms * query_norm, 1e-12)
+    top_indices = np.argsort(-scores)[:top_k]
+
+    contexts = []
+    for idx in top_indices:
+        chunk = rows[int(idx)]
+        contexts.append(
+            {
+                "document": chunk["text"],
+                "metadata": {
+                    "chunk_id": chunk["chunk_id"],
+                    "source_path": chunk["source_path"],
+                    "relative_path": chunk["relative_path"],
+                    "extension": chunk["extension"],
+                    "sha256": chunk["sha256"],
+                    "mtime": float(chunk["mtime"]),
+                    "chunk_index": int(chunk["chunk_index"]),
+                    "chars": int(chunk["chars"]),
+                },
+                "distance": float(1.0 - scores[int(idx)]),
+            }
+        )
+    return contexts
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Query local ASU RAG index")
     parser.add_argument("question", nargs="+", help="Вопрос к RAG-индексу")
@@ -80,23 +151,31 @@ def main() -> None:
 
     base_url = cfg["ollama"]["base_url"]
     embedding_model = cfg["ollama"]["embedding_model"]
+    embedding_num_ctx = int(cfg["ollama"].get("embedding_num_ctx", 8192))
+    keep_alive = str(cfg["ollama"].get("keep_alive", "24h"))
     chat_model = cfg["ollama"]["chat_model"]
-    vector_db_path = resolve_work_path(cfg, cfg["paths"]["vector_db"])
-    collection_name = cfg["collections"]["project_docs"]
+    chunks_path = resolve_work_path(cfg, cfg["paths"]["chunks"])
+    embeddings_cache_path = resolve_work_path(cfg, cfg["paths"].get("embeddings_cache", "data/embeddings_cache.jsonl"))
+    numpy_index_path = resolve_work_path(cfg, cfg["paths"].get("numpy_index", "data/numpy_index"))
     top_k = args.top_k or int(cfg["rag"]["top_k"])
     max_context_chars = int(cfg["rag"]["max_context_chars"])
 
-    client = chromadb.PersistentClient(path=str(vector_db_path))
-    collection = client.get_collection(collection_name)
-    query_embedding = ollama_embed(base_url, embedding_model, question)
-    result = collection.query(query_embeddings=[query_embedding], n_results=top_k, include=["documents", "metadatas", "distances"])
+    query_embedding = ollama_embed(base_url, embedding_model, question, embedding_num_ctx, keep_alive)
+
+    if index_exists(numpy_index_path):
+        index = load_index(numpy_index_path)
+        found_contexts = index.query(query_embedding, top_k)
+    else:
+        print(f"WARNING: Numpy RAG index not found, using JSONL embedding fallback: {numpy_index_path}", flush=True)
+        found_contexts = query_without_chroma(chunks_path, embeddings_cache_path, embedding_model, query_embedding, top_k)
 
     contexts = []
     used_chars = 0
-    for doc, meta, dist in zip(result["documents"][0], result["metadatas"][0], result["distances"][0]):
+    for ctx in found_contexts:
+        doc = ctx["document"]
         if used_chars + len(doc) > max_context_chars and contexts:
             break
-        contexts.append({"document": doc, "metadata": meta, "distance": dist})
+        contexts.append(ctx)
         used_chars += len(doc)
 
     if args.raw:

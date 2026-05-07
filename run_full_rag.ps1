@@ -46,6 +46,7 @@ try {
     Run-Step "01_inventory" @("scripts\01_inventory.py")
     Run-Step "02_extract_text" @("scripts\02_extract_text.py")
     Run-Step "03_build_index" @("scripts\03_build_index.py")
+    Run-Step "05_build_numpy_index" @("scripts\05_build_numpy_index.py")
 
     Write-Step "Full RAG build completed successfully"
     Set-Content -LiteralPath $DonePath -Encoding UTF8 -Value "Completed at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`nLog: $LogPath"

@@ -9,6 +9,7 @@ ollama:
   keep_alive: "24h"
 
 rag:
+  search_backend: "numpy"
   chunk_size_chars: 3000
   chunk_overlap_chars: 300
   top_k: 12
@@ -27,6 +28,7 @@ paths:
   extracted_text_dir: "data/extracted_text"
   chunks: "data/chunks.jsonl"
   embeddings_cache: "data/embeddings_cache.jsonl"
+  numpy_index: "data/numpy_index"
   vector_db: "vector_db"
   logs: "logs"
   watched_folder: "watched_folder"
@@ -73,4 +75,3 @@ exclude_extensions:
   - ".zip"
   - ".rar"
   - ".mp4"
-
