@@ -93,6 +93,27 @@ JSON-схемы структурированных артефактов:
 
 Правило качества: каждый структурированный пункт должен иметь `source_refs` со ссылкой на transcript segment, RAG-источник или ручную заметку. Если модель не уверена в пункте, он остается в JSON, но получает `needs_review = true`.
 
+Минимальный генератор артефактов:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\07_generate_meeting_artifacts.py `
+  --meeting-dir meetings\2026-05-08__test-meeting
+```
+
+По умолчанию используется быстрый `extractive`-режим: он ищет решения, задачи, риски и вопросы по transcript segments и всегда помечает результат как требующий ручной проверки. Это нужно, чтобы pipeline `transcribed -> summarized` работал предсказуемо даже без долгого LLM-вызова.
+
+Экспериментальный LLM-режим:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\07_generate_meeting_artifacts.py `
+  --meeting-dir meetings\2026-05-08__test-meeting `
+  --mode ollama `
+  --model qwen3:4b `
+  --max-transcript-chars 9000
+```
+
+На текущем CPU-профиле Qwen3 может быть слишком медленной для длинных transcript. Поэтому `ollama`-режим пока считается экспериментальным, а не обязательным путем MVP.
+
 ## Правила Статусов И Артефактов
 
 JSON schema проверяет форму карточки, но не должна превращаться в сложный движок процесса. Проверки переходов между статусами выполняет pipeline:
