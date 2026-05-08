@@ -13,10 +13,13 @@
 - Использовать `configs/schemas/meeting.schema.json` как контракт `FTT-MA-09` для всех будущих обработчиков встреч.
 - Использовать `scripts/06_transcribe_meeting.py` как минимальный offline CLI для одной встречи.
 - Проверить качество первого transcript: акронимы ФТТ/ПМИ/ЦТА, таймкоды, разбиение на абзацы, шумные места.
-- Решить, нужны ли изменения параметров `faster-whisper`: `beam_size`, `vad_filter`, модель, post-processing.
+- Учитывать результат сравнения моделей: `small/int8` для быстрого черновика и live MVP, `large-v3-turbo/int8` для финальной offline-транскрибации важных встреч.
+- Использовать prompt-шаблоны `configs/prompts/meeting_memo.md`, `meeting_protocol.md`, `meeting_artifacts_json.md` как основу `FTT-MA-12`.
 
 ## Далее
 
+- Реализовать `scripts/07_generate_meeting_artifacts.py`: взять `transcript/segments.jsonl`, создать `memo.md`, `protocol.md`, `decisions.json`, `tasks.json`, `risks.json`, `open_questions.json`, обновить `meeting.json` до `summarized`.
+- Валидировать новые JSON-артефакты по схемам `meeting.decisions.schema.json`, `meeting.tasks.schema.json`, `meeting.risks.schema.json`, `meeting.open_questions.schema.json`.
 - Добавить инкрементальный `update_rag.ps1` для новых, измененных и удаленных документов.
 - В `update_rag.ps1` обязательно обработать deletion: удаленные и попавшие под `exclude_path_patterns` документы должны исчезать из актуального индекса.
 - Добавить watcher/скрипт загрузки встреч из `watched_folder/` поверх уже готового `06_transcribe_meeting.py`.

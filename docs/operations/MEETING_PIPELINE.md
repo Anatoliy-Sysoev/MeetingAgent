@@ -74,6 +74,25 @@
 - пишет `transcript/segments.jsonl` и `transcript/transcript.md`;
 - при ошибке переводит встречу в `failed` и записывает причину в `meeting.json.last_error`.
 
+## Prompt-Пакет Для Итогов Встречи
+
+После статуса `transcribed` следующий слой pipeline создает человекочитаемые и машинные артефакты встречи.
+
+Prompt-шаблоны:
+
+- `configs/prompts/meeting_memo.md` - краткое memo встречи;
+- `configs/prompts/meeting_protocol.md` - формальный протокол;
+- `configs/prompts/meeting_artifacts_json.md` - структурированное извлечение решений, задач, рисков и открытых вопросов.
+
+JSON-схемы структурированных артефактов:
+
+- `configs/schemas/meeting.decisions.schema.json` -> `artifacts/decisions.json`;
+- `configs/schemas/meeting.tasks.schema.json` -> `artifacts/tasks.json`;
+- `configs/schemas/meeting.risks.schema.json` -> `artifacts/risks.json`;
+- `configs/schemas/meeting.open_questions.schema.json` -> `artifacts/open_questions.json`.
+
+Правило качества: каждый структурированный пункт должен иметь `source_refs` со ссылкой на transcript segment, RAG-источник или ручную заметку. Если модель не уверена в пункте, он остается в JSON, но получает `needs_review = true`.
+
 ## Правила Статусов И Артефактов
 
 JSON schema проверяет форму карточки, но не должна превращаться в сложный движок процесса. Проверки переходов между статусами выполняет pipeline:
@@ -81,7 +100,7 @@ JSON schema проверяет форму карточки, но не должн
 - `new`: карточка создана, артефакты могут отсутствовать;
 - `transcribing`: исходное медиа найдено, транскрибация идет;
 - `transcribed`: должны существовать transcript и segments;
-- `summarized`: должны существовать memo и protocol;
+- `summarized`: должны существовать memo, protocol, decisions, tasks, risks и open_questions;
 - `classified`: должен существовать classification report и заполненный блок `classification`;
 - `indexed`: должны существовать все файлы из `rag.indexed_artifacts`;
 - `failed`: pipeline должен сохранить причину ошибки в логах и не затирать уже созданные артефакты.

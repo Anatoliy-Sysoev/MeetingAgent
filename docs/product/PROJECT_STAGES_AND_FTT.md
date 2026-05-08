@@ -68,7 +68,7 @@ MeetingAgent должен уметь относить документы, вст
 | `MA-03` | Карточка встречи | Описать единый формат папки встречи и артефактов. | `FTT-MA-08`, `FTT-MA-09`, `FTT-MA-20` | Начато: контракт `meeting.json` создан |
 | `MA-04` | Offline-транскрибация записи | Обрабатывать готовые видео/аудио из watched folder. | `FTT-MA-08`, `FTT-MA-11` | Начато: CLI одной встречи прошел реальный прогон |
 | `MA-05` | Live-транскрибация встречи | Писать черновой транскрипт в процессе встречи. | `FTT-MA-10`, `FTT-MA-11` | Запланировано, есть эксперимент WhisperDesk |
-| `MA-06` | Memo, протокол, задачи | Генерировать структурированные итоги встречи. | `FTT-MA-12`, `FTT-MA-20` | Запланировано |
+| `MA-06` | Memo, протокол, задачи | Генерировать структурированные итоги встречи. | `FTT-MA-12`, `FTT-MA-20` | Начато: prompt-пакет и JSON-схемы |
 | `MA-07` | Классификация и маршрутизация | Определять этап проекта, ФТТ, документ и задачу. | `FTT-MA-13`, `FTT-MA-15` | Запланировано |
 | `MA-08` | Генерация документов | Собирать черновики документов на основе источников. | `FTT-MA-14`, `FTT-MA-20` | Запланировано |
 | `MA-09` | Локальный API и UI | Дать интерфейс для inbox, поиска, встреч и документов. | `FTT-MA-16`, `FTT-MA-17` | Запланировано |
@@ -245,9 +245,19 @@ meetings/
 - risks: риски и открытые вопросы;
 - decisions: принятые решения с источниками.
 
+**Артефакты MVP:**
+
+- `configs/prompts/meeting_memo.md`;
+- `configs/prompts/meeting_protocol.md`;
+- `configs/prompts/meeting_artifacts_json.md`;
+- `configs/schemas/meeting.decisions.schema.json`;
+- `configs/schemas/meeting.tasks.schema.json`;
+- `configs/schemas/meeting.risks.schema.json`;
+- `configs/schemas/meeting.open_questions.schema.json`.
+
 **Критерий готовности:** каждый пункт связан с transcript segment или RAG-источником.
 
-**Статус:** запланировано.
+**Статус:** начато. Следующий шаг - скрипт генерации артефактов из `transcript/segments.jsonl` и проверка на тестовой встрече.
 
 ### `FTT-MA-13` Классификация По Этапу, ФТТ, Документу И Задаче
 
@@ -383,7 +393,7 @@ meetings/
 | 3 | Схема карточки встречи | `FTT-MA-09`, `FTT-MA-20` | `configs/schemas/meeting.schema.json` + markdown template | meeting folder можно проверить без кода |
 | 4 | Offline ingest записи | `FTT-MA-08`, `FTT-MA-11` | watcher/CLI для медиа | новое видео создает сессию и transcript |
 | 5 | Live-транскрибация MVP | `FTT-MA-10`, `FTT-MA-11` | live CLI или prototype module | mic/system audio пишутся в JSONL/TXT |
-| 6 | Prompts для memo, протокола и задач | `FTT-MA-12` | prompt-пакет и схемы | transcript превращается в memo и протокол |
+| 6 | Prompts для memo, протокола и задач | `FTT-MA-12` | prompt-пакет и схемы | Начато: prompt-шаблоны и JSON-схемы добавлены |
 | 7 | Project classifier | `FTT-MA-13` | classifier prompt/module | meeting получает `PRJ-*`, ФТТ-кандидаты и confidence |
 | 8 | Инкрементальное обновление RAG | `FTT-MA-15` | `update_rag.ps1` / скрипт | новый протокол попадает в RAG без полной пересборки |
 | 9 | Document generation briefs | `FTT-MA-14`, `FTT-MA-20` | briefs for Паспорт ИС, ПМИ, архитектура | черновик с источниками и TODO-checks |
