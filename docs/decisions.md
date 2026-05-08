@@ -333,3 +333,24 @@
 ## 2026-05-08 - WhisperX Отложен До Word-Level Timeline Или Diarization
 
 Решение: WhisperX отложен до появления потребности в word-level timestamps или diarization. Текстовое качество на тестовой встрече не превосходит `large-v3-turbo`, время выполнения хуже. См. `docs/references/WHISPERX_EXPERIMENT.md`.
+
+## 2026-05-08 - Внешнее Исследование Подтвердило Текущую Архитектуру Встреч
+
+Решение: внешний аналитический документ `deep-research-report (1).md` из Downloads используется как подтверждающий research-вход, но не как прямой mandate на расширение архитектуры. Текущими подтвержденными решениями остаются:
+
+- `MAP -> REDUCE -> RENDER` вместо full-context обработки длинной встречи;
+- `faster-whisper` как основной ASR для CPU/local-first профиля;
+- `large-v3-turbo/int8` как качественный offline-профиль для важных встреч, а `small/int8` как быстрый черновик/live MVP;
+- `pyannote 3.1` как направление diarization, когда появится конкретная потребность;
+- карточка встречи как папка с `meeting.json`, transcript и artifacts;
+- обязательные `source_refs` во всех структурированных артефактах встречи.
+
+Что не берем сейчас:
+
+- мультиагентные оркестраторы вроде LangGraph/CrewAI: это преждевременная абстракция для текущего MVP;
+- plain Whisper `large-v3` без turbo: слишком дорогой CPU-путь относительно `large-v3-turbo`;
+- DeepEval/RAGAS как обязательный evaluation framework: для пет-проекта достаточно ручного baseline-набора и JSON/raw логов;
+- cloud-сервисы Otter, Fathom, AssemblyAI и аналоги: они конфликтуют с local-first режимом;
+- маркетинговые метрики вроде "50-70% time savings": не использовать как критерии приемки без собственного воспроизводимого замера.
+
+Backlog-направления остаются точечными: `source_type`, hybrid retrieval, pyannote diarization, DOCX export и числовые метрики hallucination/source-grounding добавляются только под конкретную потребность или regression-контроль.
