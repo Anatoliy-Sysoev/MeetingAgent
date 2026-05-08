@@ -31,6 +31,7 @@ meetings/**/source/*
 meetings/**/transcript/*
 meetings/**/artifacts/*
 meetings/**/exports/*
+meetings/**/_partials/*
 meetings/**/meeting.json
 !meetings/**/.gitkeep
 
