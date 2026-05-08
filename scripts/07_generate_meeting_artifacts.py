@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -820,6 +822,7 @@ def run_ollama_map_reduce(
     window_overlap_seconds: int,
 ) -> tuple[str, str, dict[str, dict[str, Any]]]:
     partials_dir = meeting_dir / "_partials"
+    shutil.rmtree(partials_dir, ignore_errors=True)
     partials_dir.mkdir(parents=True, exist_ok=True)
     map_template = read_prompt(prompt_dir / "meeting_map_extract.md")
     reduce_template = read_prompt(prompt_dir / "meeting_reduce_artifacts.md")
@@ -839,7 +842,10 @@ def run_ollama_map_reduce(
                 "transcript_window": compact_window_segments(window),
             },
         )
+        t_start = time.time()
         raw_text = ollama_generate(base_url, model, prompt, temperature, top_p, num_ctx, keep_alive, timeout_sec)
+        elapsed = time.time() - t_start
+        print(f"[MAP] window {window_id}: {elapsed:.1f}s")
         (partials_dir / f"window_{window_id}.raw.txt").write_text(raw_text + "\n", encoding="utf-8")
         partial = extract_json_object(raw_text)
         partial.setdefault("window_id", window_id)
@@ -852,7 +858,10 @@ def run_ollama_map_reduce(
             "partial_artifacts_json": json.dumps(partials, ensure_ascii=False, indent=2),
         },
     )
+    t_start = time.time()
     reduce_raw = ollama_generate(base_url, model, reduce_prompt, temperature, top_p, num_ctx, keep_alive, timeout_sec)
+    elapsed = time.time() - t_start
+    print(f"[REDUCE]: {elapsed:.1f}s")
     (partials_dir / "reduce.raw.txt").write_text(reduce_raw + "\n", encoding="utf-8")
     reduced = extract_json_object(reduce_raw)
     write_json_atomic(partials_dir / "reduce.json", reduced)

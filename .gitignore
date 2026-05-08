@@ -17,6 +17,7 @@ config.yaml
 config.local.yaml
 
 # Runtime RAG data and generated artifacts
+_calibration/
 data/*
 !data/.gitkeep
 !data/README.md
