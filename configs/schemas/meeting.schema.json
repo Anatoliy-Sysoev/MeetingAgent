@@ -282,6 +282,33 @@
         }
       }
     },
+    "last_error": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Последняя ошибка обработки встречи. Поле очищается при успешном повторном запуске.",
+      "required": [
+        "stage",
+        "message",
+        "timestamp"
+      ],
+      "properties": {
+        "stage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
     "created_at": {
       "type": "string",
       "format": "date-time"

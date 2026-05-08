@@ -52,6 +52,7 @@ meetings/
 - `artifacts/` хранит очищенные проектные артефакты.
 - `exports/` зарезервирован для будущих Markdown/DOCX/PDF-экспортов.
 - `meeting.json` является машинной карточкой и источником статуса.
+- `last_error` в `meeting.json` заполняется только при `processing_status = failed` и очищается при успешном повторном запуске.
 
 ## Markdown-Карточка
 
@@ -252,3 +253,4 @@ Markdown-карточка является человекочитаемым пр
 - Встреча, которая длится через полночь, остается одной карточкой с исходной `date`, `start_time` и фактическим `duration_minutes`.
 - Если в `source.media_files` есть `screen_recording`, приложение должно предложить или выставить `retention.policy = protected`. Это бизнес-правило pipeline, а не структурное ограничение JSON schema.
 - При переходе между статусами pipeline должен проверять наличие файлов, соответствующих статусу. Например, `transcribed` требует transcript, `summarized` требует memo/protocol, `classified` требует classification report, `indexed` требует заполненного `rag.indexed_artifacts`.
+- При ошибке обработки карточка не должна оставаться в `transcribing`: статус меняется на `failed`, а причина фиксируется в `last_error`.

@@ -45,6 +45,35 @@
 
 Первая итерация `FTT-MA-09` описывает структуру данных и папок. Watcher, live-транскрибация, diarization и DOCX-экспорт относятся к следующим этапам и не являются частью этого контракта.
 
+## Offline-Транскрибация MVP
+
+Минимальный обработчик одной встречи:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\06_transcribe_meeting.py `
+  --meeting-dir meetings\2026-05-08__test-meeting
+```
+
+Проверка без транскрибации:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\06_transcribe_meeting.py `
+  --meeting-dir meetings\2026-05-08__test-meeting `
+  --dry-run
+```
+
+Скрипт работает только с одной готовой папкой встречи. Он не делает watcher, live-режим, diarization, memo/protocol и RAG-индексацию.
+
+Что делает скрипт:
+
+- валидирует `meeting.json` по `configs/schemas/meeting.schema.json`;
+- проверяет `ffmpeg` и первый файл из `source.media_files`;
+- использует `faster-whisper` с настройками `small`, `int8`, `ru` по умолчанию;
+- передает проектные термины из `docs/glossary.md` как `initial_prompt`;
+- переводит статус `new -> transcribing -> transcribed`;
+- пишет `transcript/segments.jsonl` и `transcript/transcript.md`;
+- при ошибке переводит встречу в `failed` и записывает причину в `meeting.json.last_error`.
+
 ## Правила Статусов И Артефактов
 
 JSON schema проверяет форму карточки, но не должна превращаться в сложный движок процесса. Проверки переходов между статусами выполняет pipeline:

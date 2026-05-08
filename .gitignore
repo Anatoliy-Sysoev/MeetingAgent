@@ -27,6 +27,12 @@ vector_db/*
 watched_folder/*
 !watched_folder/.gitkeep
 !watched_folder/README.md
+meetings/**/source/*
+meetings/**/transcript/*
+meetings/**/artifacts/*
+meetings/**/exports/*
+!meetings/**/.gitkeep
+!meetings/**/meeting.json
 
 # Large media and meeting inputs/outputs
 *.mp4
