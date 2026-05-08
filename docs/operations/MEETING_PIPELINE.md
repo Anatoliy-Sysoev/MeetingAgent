@@ -74,15 +74,29 @@
 - пишет `transcript/segments.jsonl` и `transcript/transcript.md`;
 - при ошибке переводит встречу в `failed` и записывает причину в `meeting.json.last_error`.
 
-## Prompt-Пакет Для Итогов Встречи
+## Итоги Встречи
 
 После статуса `transcribed` следующий слой pipeline создает человекочитаемые и машинные артефакты встречи.
 
-Prompt-шаблоны:
+Архитектура production-пути описана в `docs/architecture/MEETING_ARTIFACTS_PIPELINE.md`.
+
+Целевой подход:
+
+1. `MAP`: transcript делится на окна по 6 минут с overlap 30 секунд.
+2. `REDUCE`: частичные JSON-артефакты объединяются, дедуплицируются и нормализуются.
+3. `RENDER`: `memo.md` и `protocol.md` строятся из финальных JSON-артефактов, а не из сырого transcript.
+
+Prompt-шаблоны первого слоя:
 
 - `configs/prompts/meeting_memo.md` - краткое memo встречи;
 - `configs/prompts/meeting_protocol.md` - формальный протокол;
 - `configs/prompts/meeting_artifacts_json.md` - структурированное извлечение решений, задач, рисков и открытых вопросов.
+
+Prompt-шаблоны map-reduce-render:
+
+- `configs/prompts/meeting_map_extract.md` - извлечение из одного окна transcript;
+- `configs/prompts/meeting_reduce_artifacts.md` - объединение partial artifacts;
+- `configs/prompts/meeting_render_documents.md` - будущий LLM-слой для коротких текстовых разделов memo/protocol.
 
 JSON-схемы структурированных артефактов:
 
@@ -102,6 +116,8 @@ JSON-схемы структурированных артефактов:
 
 По умолчанию используется быстрый `extractive`-режим: он ищет решения, задачи, риски и вопросы по transcript segments и всегда помечает результат как требующий ручной проверки. Это нужно, чтобы pipeline `transcribed -> summarized` работал предсказуемо даже без долгого LLM-вызова.
 
+Важно: `extractive`-режим является скаффолдом контракта, а не продуктовым качеством FTT-MA-12. Его результаты нельзя считать готовым memo/protocol без ручной проверки.
+
 Экспериментальный LLM-режим:
 
 ```powershell
@@ -113,6 +129,18 @@ JSON-схемы структурированных артефактов:
 ```
 
 На текущем CPU-профиле Qwen3 может быть слишком медленной для длинных transcript. Поэтому `ollama`-режим пока считается экспериментальным, а не обязательным путем MVP.
+
+Map-reduce dry-run:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\07_generate_meeting_artifacts.py `
+  --meeting-dir meetings\2026-05-08__test-meeting `
+  --mode ollama-map-reduce `
+  --force `
+  --dry-run
+```
+
+Перед полным запуском `ollama-map-reduce` нужно прогнать одно окно на выбранной модели и оценить время, валидность JSON и качество классификации.
 
 ## Правила Статусов И Артефактов
 

@@ -15,14 +15,15 @@
 - Проверить качество первого transcript: акронимы ФТТ/ПМИ/ЦТА, таймкоды, разбиение на абзацы, шумные места.
 - Учитывать результат сравнения моделей: `small/int8` для быстрого черновика и live MVP, `large-v3-turbo/int8` для финальной offline-транскрибации важных встреч.
 - Использовать выводы `docs/references/WHISPERX_EXPERIMENT.md`: WhisperX оставить как эксперимент для word-level alignment/diarization, не включать в основной MVP pipeline.
-- Использовать prompt-шаблоны `configs/prompts/meeting_memo.md`, `meeting_protocol.md`, `meeting_artifacts_json.md` как основу `FTT-MA-12`.
-- Использовать `scripts/07_generate_meeting_artifacts.py` как первый генератор `summarized`-состояния встречи.
-- Проверить качество extractive-артефактов тестовой встречи: какие решения/задачи/риски полезны, какие являются шумом.
+- Использовать prompt-шаблоны `configs/prompts/meeting_memo.md`, `meeting_protocol.md`, `meeting_artifacts_json.md` только как первый одношаговый слой `FTT-MA-12`.
+- Использовать `docs/architecture/MEETING_ARTIFACTS_PIPELINE.md` как целевую архитектуру итогов встречи.
+- Использовать `scripts/07_generate_meeting_artifacts.py` как первый генератор `summarized`-состояния встречи, но считать `extractive` только скаффолдом контракта.
 
 ## Далее
 
-- Улучшить LLM-режим генерации итогов: chunking transcript, map-reduce summary или короткие prompt-пакеты вместо одного длинного запроса к Qwen3.
-- После ручной проверки extractive-итогов уточнить правила извлечения решений, задач, рисков и открытых вопросов.
+- Прогнать `--mode ollama-map-reduce` на одном окне transcript, не на всей встрече.
+- Сравнить `qwen2.5:7b-instruct` и `mistral:7b-instruct` на одном окне: время, валидность JSON, качество классификации.
+- После калибровки модели запустить полный map-reduce-render прогон тестовой встречи.
 - Добавить инкрементальный `update_rag.ps1` для новых, измененных и удаленных документов.
 - В `update_rag.ps1` обязательно обработать deletion: удаленные и попавшие под `exclude_path_patterns` документы должны исчезать из актуального индекса.
 - Добавить watcher/скрипт загрузки встреч из `watched_folder/` поверх уже готового `06_transcribe_meeting.py`.
