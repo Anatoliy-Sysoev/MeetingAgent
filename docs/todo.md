@@ -14,6 +14,7 @@
 - Использовать `scripts/06_transcribe_meeting.py` как минимальный offline CLI для одной встречи.
 - Проверить качество первого transcript: акронимы ФТТ/ПМИ/ЦТА, таймкоды, разбиение на абзацы, шумные места.
 - Учитывать результат сравнения моделей: `small/int8` для быстрого черновика и live MVP, `large-v3-turbo/int8` для финальной offline-транскрибации важных встреч.
+- Использовать выводы `docs/references/WHISPERX_EXPERIMENT.md`: WhisperX оставить как эксперимент для word-level alignment/diarization, не включать в основной MVP pipeline.
 - Использовать prompt-шаблоны `configs/prompts/meeting_memo.md`, `meeting_protocol.md`, `meeting_artifacts_json.md` как основу `FTT-MA-12`.
 - Использовать `scripts/07_generate_meeting_artifacts.py` как первый генератор `summarized`-состояния встречи.
 - Проверить качество extractive-артефактов тестовой встречи: какие решения/задачи/риски полезны, какие являются шумом.
@@ -32,6 +33,10 @@
 - Поддерживать правило: реальные `meetings/**/meeting.json`, transcript и медиа являются runtime-данными и не коммитятся; примеры хранить в `docs/examples/`.
 - Подготовить MVP live-транскрибации по `FTT-MA-10` и `FTT-MA-11`, используя WhisperDesk только как экспериментальный референс.
 - Опционально добавить FAISS поверх того же формата metadata, если numpy станет медленным на большем корпусе.
+
+## Когда Вернуться
+
+- Рассмотреть WhisperX, если появится UI с timeline или потребуется diarization (нужен HuggingFace token и pyannote gated models).
 
 ## Продуктовые Следующие Шаги
 

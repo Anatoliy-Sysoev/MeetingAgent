@@ -317,3 +317,7 @@
 - для проверки контракта важнее надежно пройти путь `transcribed -> summarized`, чем сразу получить идеальный протокол;
 - extractive-режим создает проверяемые `source_refs` на transcript segments и помечает все выводы `needs_review = true`;
 - LLM-режим остается в продукте как следующий слой качества, но не блокирует MVP pipeline.
+
+## 2026-05-08 - WhisperX Отложен До Word-Level Timeline Или Diarization
+
+Решение: WhisperX отложен до появления потребности в word-level timestamps или diarization. Текстовое качество на тестовой встрече не превосходит `large-v3-turbo`, время выполнения хуже. См. `docs/references/WHISPERX_EXPERIMENT.md`.
