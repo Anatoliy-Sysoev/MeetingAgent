@@ -31,8 +31,8 @@ meetings/**/source/*
 meetings/**/transcript/*
 meetings/**/artifacts/*
 meetings/**/exports/*
+meetings/**/meeting.json
 !meetings/**/.gitkeep
-!meetings/**/meeting.json
 
 # Large media and meeting inputs/outputs
 *.mp4
