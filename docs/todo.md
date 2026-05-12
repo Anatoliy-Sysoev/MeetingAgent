@@ -19,19 +19,17 @@
 - Использовать `docs/architecture/MEETING_ARTIFACTS_PIPELINE.md` как целевую архитектуру итогов встречи.
 - Использовать `scripts/07_generate_meeting_artifacts.py` как первый генератор `summarized`-состояния встречи, но считать `extractive` только скаффолдом контракта.
 - Использовать `scripts/08_process_meeting_pipeline.py` как первый оконный offline-pipeline для готовой записи: ASR по окнам, MAP по готовым окнам, затем REDUCE/RENDER.
-- Использовать `docs/product/PROJECT_ONLY_CHATBOT_MVP.md` как историческую дорожную карту первого project-only chatbot prototype.
-- Использовать `scripts/09_chat.py` только как prototype Project-Only Chatbot MVP, а не как целевую реализацию.
-- Использовать `docs/subprojects/asu-june-bot/` как основной контур документации нового AI-агента по проекту ЦП УПКС.
-- По Asu June Bot следующий практический шаг: создать модульный каркас `src/asu_june_bot/` и конфиги `configs/asu_june_bot/`, затем реализовать `/search` до `/chat`.
+- Использовать `docs/product/PROJECT_ONLY_CHATBOT_MVP.md` как дорожную карту разработки чат-бота.
+- Использовать `scripts/09_chat.py` как первый CLI Project-Only Chatbot MVP: ответ только по источникам проекта или корректный отказ.
+- Прогнать `scripts/09_chat.py` локально на быстром профиле: `--top-k 3 --max-context-chars 4500 --source-char-limit 1200 --num-predict 400 --timeout-sec 120`.
+- Проверить после `git pull`, что пустой ответ LLM возвращается как `status=refused` и `refusal_reason=llm_empty_response`, а не как `status=answered`.
+- Подобрать `--score-threshold` для project-only отказов на smoke-наборе.
 
 ## Далее
 
-- Для Asu June Bot реализовать `VectorSearchAdapter` поверх текущего numpy index MeetingAgent.
-- Для Asu June Bot реализовать `BM25SearchAdapter` поверх `data/chunks.jsonl`.
-- Для Asu June Bot реализовать `HybridRetriever`, `SourcePolicy` и CLI `scripts/asu_june_bot_search.py`.
-- Для Asu June Bot подготовить `eval_questions.yaml` на основе `docs/subprojects/asu-june-bot/eval_questions.md`.
-- После стабилизации `/search` реализовать `/chat` с ProjectGuard, QueryExpander, ContextBuilder, LLMClient, AnswerValidator и ResponseFormatter.
-- Вынести CLI-логику project-only чат-бота в local API только в рамках новой модульной архитектуры Asu June Bot, не через дальнейшее расширение `scripts/09_chat.py`.
+- Вынести CLI-логику project-only чат-бота в local API `/chat` после успешного smoke-прогона.
+- Зафиксировать baseline project-only chatbot: проектные вопросы, внепроектные вопросы, threshold, модель, время ответа, качество источников, timeout и `llm_empty_response`.
+- Проверить, нужна ли отдельная более легкая модель для интерактивного режима: `qwen3:4b` или `qwen2.5:7b-instruct` вместо `qwen3:8b`.
 - Прогнать `--mode ollama-map-reduce` на одном окне transcript, не на всей встрече.
 - Сравнить `qwen2.5:7b-instruct` и `mistral:7b-instruct` на одном окне: время, валидность JSON, качество классификации.
 - После калибровки модели запустить полный map-reduce-render прогон тестовой встречи.
@@ -85,4 +83,5 @@
 - Новый baseline `docs/quality/rag_eval_baseline_clean_2026-05-07.md` показал, что поиск по ПМИ и архитектурным сборным запросам требует улучшения.
 - Сгенерированные документы требуют строгого ревью источников.
 - Project-only отказ по одному `score_threshold` может быть слишком мягким или слишком жестким; порог нужно подобрать на smoke-наборе.
-- Asu June Bot рискует повторить ошибку `scripts/09_chat.py`, если начать добавлять новые условия в один монолитный CLI вместо модульной реализации.
+- `qwen3:8b` на CPU может быть слишком медленным для интерактивного чата при большом prompt; для CLI нужен быстрый профиль или более легкая модель.
+- `qwen3:4b` может вернуть пустой `response` без HTTP-ошибки; такой случай должен считаться отказом `llm_empty_response`, а не успешным ответом.
