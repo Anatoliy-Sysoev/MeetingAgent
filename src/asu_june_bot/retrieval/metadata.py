@@ -29,6 +29,8 @@ MEETING_HINTS = (
     "transcript",
 )
 
+SECTION_RE = re.compile(r"(?<!\d)(\d+(?:\.\d+){1,5})\s*\.", re.UNICODE)
+
 
 def _lower_path(metadata: dict[str, Any]) -> str:
     return str(metadata.get("relative_path") or metadata.get("source_path") or "").replace("\\", "/").lower()
@@ -42,7 +44,7 @@ def infer_source_type(metadata: dict[str, Any]) -> str:
         return "meeting_artifact"
     if any(hint in path for hint in ANALYTICAL_NOTE_HINTS):
         return "analytical_note"
-    if path.endswith((".py", ".ps1", ".yaml", ".yml", ".json")) and not "пд" in path:
+    if path.endswith((".py", ".ps1", ".yaml", ".yml", ".json")) and "пд" not in path:
         return "code"
     return "project_doc"
 
@@ -64,9 +66,12 @@ def infer_document_type(metadata: dict[str, Any]) -> str | None:
         ("сои ad", "СоИ AD"),
         ("сои_справоч", "СоИ Справочники"),
         ("сои справоч", "СоИ Справочники"),
+        ("реестр объектов нси", "Реестр НСИ"),
+        ("реест_объектов_нси", "Реестр НСИ"),
         ("руководство", "Руководство"),
         ("инструкция", "Инструкция"),
         ("протокол", "Протокол"),
+        ("wiki", "Wiki"),
     ]
     search_area = f"{path} {name}"
     for marker, doc_type in candidates:
@@ -83,6 +88,7 @@ def infer_module(metadata: dict[str, Any]) -> str | None:
         ("мто", "МТО"),
         ("пир", "ПИР"),
         ("справоч", "НСИ / Справочники"),
+        ("нси", "НСИ / Справочники"),
         ("ad", "AD / Авторизация"),
         ("исполнительн", "Исполнительная документация"),
         ("пми", "ПМИ"),
@@ -98,8 +104,10 @@ def infer_stage(metadata: dict[str, Any]) -> str | None:
     path = _lower_path(metadata)
     text = path.replace("_", " ").replace("-", " ")
     patterns = [
-        (r"этап\s*1(?:\D|$)", "Этап 1"),
         (r"этап\s*1\.2", "Этап 1.2"),
+        (r"этап\s*1\.1", "Этап 1.1"),
+        (r"этап\s*1(?:\D|$)", "Этап 1"),
+        (r"этап\s*2\.1", "Этап 2.1"),
         (r"этап\s*2(?:\D|$)", "Этап 2"),
         (r"этап\s*3(?:\D|$)", "Этап 3"),
         (r"этап\s*4(?:\D|$)", "Этап 4"),
@@ -110,8 +118,35 @@ def infer_stage(metadata: dict[str, Any]) -> str | None:
     return None
 
 
+def infer_sections(text: str, limit: int = 20) -> list[str]:
+    """Extract numbered sections mentioned in a chunk.
+
+    Chunks often begin in the middle of a Word table, so the first relevant
+    requirement number may be far from the first line. Store all section-like
+    markers, and keep `section` as the first marker for backward compatibility.
+    """
+    seen: set[str] = set()
+    sections: list[str] = []
+    for match in SECTION_RE.finditer(text[:6000]):
+        section = match.group(1)
+        if section in seen:
+            continue
+        # Avoid capturing version-like long fragments or tiny table counters.
+        if section.count(".") > 5:
+            continue
+        seen.add(section)
+        sections.append(section)
+        if len(sections) >= limit:
+            break
+    return sections
+
+
 def infer_section(text: str) -> str | None:
-    head = text[:500]
+    sections = infer_sections(text, limit=1)
+    if sections:
+        return sections[0]
+
+    head = text[:1000]
     patterns = [
         r"(?:^|\n)\s*(\d+(?:\.\d+){1,5})\s+[А-ЯA-Z]",
         r"(?:ФТТ|ЦТА|ПР)\s*(\d+(?:\.\d+){1,5})",
@@ -130,6 +165,8 @@ def enrich_metadata(metadata: dict[str, Any], text: str) -> dict[str, Any]:
     enriched.setdefault("document_type", infer_document_type(enriched))
     enriched.setdefault("module", infer_module(enriched))
     enriched.setdefault("stage", infer_stage(enriched))
-    enriched.setdefault("section", infer_section(text))
+    sections = infer_sections(text)
+    enriched.setdefault("sections", sections)
+    enriched.setdefault("section", sections[0] if sections else infer_section(text))
     enriched.setdefault("title", None)
     return enriched
