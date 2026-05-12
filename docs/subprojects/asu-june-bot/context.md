@@ -22,6 +22,54 @@ Asu June Bot — отдельный подпроект внутри MeetingAgent
 
 `09_chat.py` допускается оставить как prototype, но новая реализация должна идти модульно.
 
+## Что уже реализовано
+
+Начат первый технический слой Asu June Bot: search MVP.
+
+Добавлено:
+
+```text
+src/asu_june_bot/
+  __init__.py
+  core/config.py
+  retrieval/models.py
+  retrieval/metadata.py
+  retrieval/source_policy.py
+  retrieval/bm25.py
+  retrieval/vector.py
+  retrieval/hybrid.py
+  retrieval/chunks.py
+scripts/asu_june_bot_search.py
+configs/asu_june_bot/retrieval.yaml
+configs/asu_june_bot/source_policy.yaml
+configs/asu_june_bot/query_expansion.yaml
+configs/asu_june_bot/llm.yaml
+configs/asu_june_bot/guardrails.yaml
+```
+
+Что умеет текущий слой:
+
+- загружать основной `config.yaml` и конфиги Asu June Bot;
+- читать текущий `data/chunks.jsonl` MeetingAgent;
+- использовать существующий `data/numpy_index` через adapter;
+- строить BM25 in-memory без внешних зависимостей;
+- объединять vector и BM25 выдачу в `HybridRetriever`;
+- вычислять `source_type`, `document_type`, `module`, `stage`, `section` эвристически по пути и тексту chunk;
+- применять `SourcePolicy`, чтобы по умолчанию отдавать приоритет проектным документам и не тащить `system_export` без явного запроса;
+- запускать CLI-поиск через `scripts/asu_june_bot_search.py`.
+
+Проверочная команда после `git pull`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search.py "Какие интеграции заявлены в проекте?" --top-k 10 --json
+```
+
+Для точного поиска по пункту:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode bm25 --top-k 10 --json
+```
+
 ## Проектная область знаний
 
 Основная предметная область — проект ЦП УПКС: «Цифровая платформа управления проектами капитального строительства».
@@ -115,29 +163,29 @@ LLM_MODEL=Qwen/Qwen3-14B или Qwen/Qwen3-32B
 
 ## Текущие ограничения
 
-- Текущий RAG MeetingAgent уже умеет строить chunks и numpy index, но source typing, hybrid search и точные ссылки на разделы/пункты требуют доработки.
+- Текущий RAG MeetingAgent уже умеет строить chunks и numpy index, но source typing, hybrid search и точные ссылки на разделы/пункты требуют проверки на реальном корпусе.
 - Текущий `scripts/09_chat.py` является prototype, а не целевой архитектурой Asu June Bot.
-- Пока нет полноценного source policy: системные экспорты могут мешать проектным документам.
+- Search MVP еще не прогнан локально после добавления файлов.
+- Source type inference пока эвристический и должен быть заменен/усилен metadata extraction на этапе индексации.
 - Пока нет стабильного answer validator, который проверяет, что все утверждения подтверждены источниками.
 - Пока нет единого mapping-файла для ссылок на Яндекс.Диск / источники.
 
 ## Ближайшая цель
 
-Не писать новый большой монолит. Сначала спроектировать и реализовать минимальный модульный backend:
+Сначала проверить search MVP локально.
 
-```text
-src/asu_june_bot/
-  api/
-  agent/
-  retrieval/
-  ingestion/
-  evaluation/
+Ожидаемый следующий шаг:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search.py "Какие интеграции заявлены в проекте?" --top-k 10 --json
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode bm25 --top-k 10 --json
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search.py "Что входит в Паспорт ИС?" --top-k 10 --json
 ```
 
-Первый рабочий результат:
+После проверки:
 
-- `/search` возвращает источники с metadata;
-- `/chat` отвечает только по источникам;
-- внепроектный вопрос получает отказ;
-- каждый ответ содержит citations;
-- есть baseline из 30+ вопросов.
+- исправить import/runtime ошибки;
+- оценить качество выдачи;
+- настроить `source_policy.yaml`;
+- добавить query expansion runtime;
+- только потом переходить к `/chat`.
