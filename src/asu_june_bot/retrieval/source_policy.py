@@ -14,6 +14,19 @@ DEFAULT_SOURCE_TYPE_WEIGHTS = {
     "code": 0.35,
 }
 
+DEFAULT_DOCUMENT_TYPE_WEIGHTS = {
+    "ЦТА": 1.18,
+    "СоИ AD": 1.16,
+    "СоИ Справочники": 1.16,
+    "ФТТ": 1.12,
+    "ПР": 1.08,
+    "Паспорт ИС": 1.08,
+    "ПМИ": 1.0,
+    "Руководство": 0.96,
+    "Реестр НСИ": 0.86,
+    "Wiki": 0.74,
+}
+
 
 class SourcePolicy:
     def __init__(self, config: dict[str, Any] | None = None):
@@ -21,6 +34,8 @@ class SourcePolicy:
         self.allowed_by_default = list(config.get("allowed_by_default") or DEFAULT_ALLOWED_SOURCE_TYPES)
         self.weights = dict(DEFAULT_SOURCE_TYPE_WEIGHTS)
         self.weights.update(config.get("weights") or {})
+        self.document_type_weights = dict(DEFAULT_DOCUMENT_TYPE_WEIGHTS)
+        self.document_type_weights.update(config.get("document_type_weights") or {})
         self.explicit_enable_markers = config.get("explicit_enable_markers") or {
             "system_export": ["админ", "экспорт", "интерфейс", "страница", "токен", "пользователь", "роль"],
             "code": ["код", "скрипт", "python", "powershell", "ошибка в скрипте"],
@@ -43,4 +58,7 @@ class SourcePolicy:
 
     def weight(self, metadata: dict[str, Any]) -> float:
         source_type = str(metadata.get("source_type") or "project_doc")
-        return float(self.weights.get(source_type, 0.5))
+        document_type = metadata.get("document_type")
+        source_weight = float(self.weights.get(source_type, 0.5))
+        document_weight = float(self.document_type_weights.get(str(document_type), 1.0)) if document_type else 1.0
+        return source_weight * document_weight
