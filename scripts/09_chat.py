@@ -20,8 +20,10 @@ if hasattr(sys.stdout, "reconfigure"):
 DEFAULT_PROMPT_PATH = "configs/prompts/project_only_chat.md"
 DEFAULT_SCORE_THRESHOLD = 0.35
 DEFAULT_MIN_SOURCES = 1
-DEFAULT_TOP_K = 8
-DEFAULT_MAX_CONTEXT_CHARS = 12000
+DEFAULT_TOP_K = 4
+DEFAULT_MAX_CONTEXT_CHARS = 6000
+DEFAULT_NUM_PREDICT = 700
+DEFAULT_TIMEOUT_SEC = 180
 
 REFUSAL_OUT_OF_SCOPE = "out_of_scope_or_no_relevant_sources"
 REFUSAL_SENSITIVE = "sensitive_or_system_request"
@@ -72,6 +74,7 @@ def ollama_generate(
     prompt: str,
     temperature: float,
     top_p: float,
+    num_predict: int,
     timeout: int,
 ) -> str:
     resp = requests.post(
@@ -83,6 +86,7 @@ def ollama_generate(
             "options": {
                 "temperature": temperature,
                 "top_p": top_p,
+                "num_predict": num_predict,
             },
         },
         timeout=timeout,
@@ -92,6 +96,13 @@ def ollama_generate(
 
 
 def preview_text(text: str, limit: int = 280) -> str:
+    normalized = " ".join(str(text).split())
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[: limit - 1].rstrip() + "…"
+
+
+def compact_document(text: str, limit: int = 1800) -> str:
     normalized = " ".join(str(text).split())
     if len(normalized) <= limit:
         return normalized
@@ -127,7 +138,7 @@ def normalize_source(ctx: dict[str, Any], idx: int) -> dict[str, Any]:
     }
 
 
-def build_sources_block(contexts: list[dict[str, Any]]) -> str:
+def build_sources_block(contexts: list[dict[str, Any]], source_char_limit: int) -> str:
     blocks: list[str] = []
     for idx, ctx in enumerate(contexts, start=1):
         meta = ctx.get("metadata", {})
@@ -140,15 +151,15 @@ def build_sources_block(contexts: list[dict[str, Any]]) -> str:
                     f"Chunk: {meta.get('chunk_index')}",
                     f"Score: {score:.4f}",
                     "Фрагмент:",
-                    str(ctx.get("document", "")),
+                    compact_document(str(ctx.get("document", "")), source_char_limit),
                 ]
             )
         )
     return "\n\n---\n\n".join(blocks)
 
 
-def build_answer_prompt(question: str, contexts: list[dict[str, Any]], prompt_template: str) -> str:
-    return prompt_template.replace("{question}", question).replace("{sources}", build_sources_block(contexts))
+def build_answer_prompt(question: str, contexts: list[dict[str, Any]], prompt_template: str, source_char_limit: int) -> str:
+    return prompt_template.replace("{question}", question).replace("{sources}", build_sources_block(contexts, source_char_limit))
 
 
 def confidence_from_sources(sources: list[dict[str, Any]], threshold: float) -> float:
@@ -157,7 +168,6 @@ def confidence_from_sources(sources: list[dict[str, Any]], threshold: float) -> 
     top_score = max(float(src.get("score", 0.0)) for src in sources)
     if top_score <= 0:
         return 0.0
-    # Simple MVP confidence: relative to threshold, capped to 1.0.
     return round(min(1.0, top_score / max(threshold, 1e-6)), 4)
 
 
@@ -266,15 +276,17 @@ def output_result(result: dict[str, Any], as_json: bool) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Project-only чат-бот MeetingAgent поверх локального RAG")
     parser.add_argument("question", nargs="+", help="Вопрос к проектной базе знаний")
-    parser.add_argument("--top-k", type=int, default=None, help="Сколько chunks искать до фильтрации")
+    parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K, help="Сколько chunks искать до фильтрации")
     parser.add_argument("--score-threshold", type=float, default=DEFAULT_SCORE_THRESHOLD, help="Минимальный score источника")
     parser.add_argument("--min-sources", type=int, default=DEFAULT_MIN_SOURCES, help="Минимальное число источников выше порога")
-    parser.add_argument("--max-context-chars", type=int, default=None, help="Максимальный размер контекста для LLM")
+    parser.add_argument("--max-context-chars", type=int, default=DEFAULT_MAX_CONTEXT_CHARS, help="Максимальный размер контекста для LLM")
+    parser.add_argument("--source-char-limit", type=int, default=1800, help="Максимум символов одного источника в prompt")
     parser.add_argument("--model", default=None, help="Ollama model для генерации ответа")
     parser.add_argument("--prompt", default=DEFAULT_PROMPT_PATH, help="Путь к prompt-шаблону")
     parser.add_argument("--temperature", type=float, default=None, help="Температура генерации")
     parser.add_argument("--top-p", type=float, default=None, help="top_p генерации")
-    parser.add_argument("--timeout-sec", type=int, default=300, help="Timeout LLM-вызова")
+    parser.add_argument("--num-predict", type=int, default=DEFAULT_NUM_PREDICT, help="Ограничение длины ответа Ollama")
+    parser.add_argument("--timeout-sec", type=int, default=DEFAULT_TIMEOUT_SEC, help="Timeout LLM-вызова")
     parser.add_argument("--json", action="store_true", help="Вывести полный JSON-ответ")
     parser.add_argument("--sources-only", action="store_true", help="Не вызывать LLM, показать только найденные источники/отказ")
     parser.add_argument("--include-excluded", action="store_true", help="Не применять query-фильтр служебных и архивных путей")
@@ -299,8 +311,6 @@ def main() -> None:
         output_result(result, args.json)
         return
 
-    top_k = args.top_k or int(cfg.get("rag", {}).get("top_k", DEFAULT_TOP_K))
-    max_context_chars = args.max_context_chars or int(cfg.get("rag", {}).get("max_context_chars", DEFAULT_MAX_CONTEXT_CHARS))
     generation_cfg = cfg.get("generation", {})
     temperature = float(args.temperature if args.temperature is not None else generation_cfg.get("temperature", 0.1))
     top_p = float(args.top_p if args.top_p is not None else generation_cfg.get("top_p", 0.8))
@@ -309,7 +319,7 @@ def main() -> None:
     prompt_path = resolve_work_path(cfg, args.prompt)
 
     try:
-        found_contexts = query_contexts(cfg, question, top_k, args.include_excluded, args.no_dedupe)
+        found_contexts = query_contexts(cfg, question, args.top_k, args.include_excluded, args.no_dedupe)
     except FileNotFoundError as exc:
         result = refusal_response(
             question,
@@ -321,7 +331,7 @@ def main() -> None:
         return
 
     accepted_contexts = filter_contexts_by_score(found_contexts, args.score_threshold, args.min_sources)
-    accepted_contexts = trim_contexts(accepted_contexts, max_context_chars)
+    accepted_contexts = trim_contexts(accepted_contexts, args.max_context_chars)
     sources = [normalize_source(ctx, idx) for idx, ctx in enumerate(accepted_contexts, start=1)]
 
     if not accepted_contexts:
@@ -343,8 +353,8 @@ def main() -> None:
 
     try:
         prompt_template = read_prompt_template(prompt_path)
-        prompt = build_answer_prompt(question, accepted_contexts, prompt_template)
-        answer = ollama_generate(base_url, chat_model, prompt, temperature, top_p, args.timeout_sec)
+        prompt = build_answer_prompt(question, accepted_contexts, prompt_template, args.source_char_limit)
+        answer = ollama_generate(base_url, chat_model, prompt, temperature, top_p, args.num_predict, args.timeout_sec)
     except Exception as exc:  # noqa: BLE001 - CLI should return structured error for MVP usage.
         result = refusal_response(
             question,
