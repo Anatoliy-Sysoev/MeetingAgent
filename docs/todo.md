@@ -19,22 +19,24 @@
 - Использовать `docs/architecture/MEETING_ARTIFACTS_PIPELINE.md` как целевую архитектуру итогов встречи.
 - Использовать `scripts/07_generate_meeting_artifacts.py` как первый генератор `summarized`-состояния встречи, но считать `extractive` только скаффолдом контракта.
 - Использовать `scripts/08_process_meeting_pipeline.py` как первый оконный offline-pipeline для готовой записи: ASR по окнам, MAP по готовым окнам, затем REDUCE/RENDER.
-- Использовать `docs/product/PROJECT_ONLY_CHATBOT_MVP.md` как дорожную карту разработки чат-бота.
-- Использовать `scripts/09_chat.py` как первый CLI Project-Only Chatbot MVP: ответ только по источникам проекта или корректный отказ.
-- Прогнать `scripts/09_chat.py` локально на `data/numpy_index`: сначала `--sources-only --json`, затем полный LLM-ответ.
-- Подобрать `--score-threshold` для project-only отказов на smoke-наборе.
+- Использовать `docs/product/PROJECT_ONLY_CHATBOT_MVP.md` как историческую дорожную карту первого project-only chatbot prototype.
+- Использовать `scripts/09_chat.py` только как prototype Project-Only Chatbot MVP, а не как целевую реализацию.
+- Использовать `docs/subprojects/asu-june-bot/` как основной контур документации нового AI-агента по проекту ЦП УПКС.
+- По Asu June Bot следующий практический шаг: создать модульный каркас `src/asu_june_bot/` и конфиги `configs/asu_june_bot/`, затем реализовать `/search` до `/chat`.
 
 ## Далее
 
-- Вынести CLI-логику project-only чат-бота в local API `/chat` после успешного smoke-прогона.
+- Для Asu June Bot реализовать `VectorSearchAdapter` поверх текущего numpy index MeetingAgent.
+- Для Asu June Bot реализовать `BM25SearchAdapter` поверх `data/chunks.jsonl`.
+- Для Asu June Bot реализовать `HybridRetriever`, `SourcePolicy` и CLI `scripts/asu_june_bot_search.py`.
+- Для Asu June Bot подготовить `eval_questions.yaml` на основе `docs/subprojects/asu-june-bot/eval_questions.md`.
+- После стабилизации `/search` реализовать `/chat` с ProjectGuard, QueryExpander, ContextBuilder, LLMClient, AnswerValidator и ResponseFormatter.
+- Вынести CLI-логику project-only чат-бота в local API только в рамках новой модульной архитектуры Asu June Bot, не через дальнейшее расширение `scripts/09_chat.py`.
 - Прогнать `--mode ollama-map-reduce` на одном окне transcript, не на всей встрече.
 - Сравнить `qwen2.5:7b-instruct` и `mistral:7b-instruct` на одном окне: время, валидность JSON, качество классификации.
 - После калибровки модели запустить полный map-reduce-render прогон тестовой встречи.
 - Прогнать `scripts/08_process_meeting_pipeline.py` на полной тестовой встрече и оценить качество `memo.md`, `protocol.md`, `decisions.json`, `risks.json`.
 - Взять в отдельную разработку запись `C:\Users\Сотрудник\Desktop\!Проектные документы АСУ\Записи встреч\2026-05-08 14-32-43.mp4`: создать карточку встречи, сравнить `faster-whisper small` с GigaAM small и затем прогнать оконный pipeline.
-- Подготовить smoke-набор вопросов для чат-бота: 5-10 проектных вопросов и 2-3 внепроектных вопроса для проверки отказов. Первый набор лежит в `docs/quality/project_only_chatbot_smoke_questions.md`.
-- Зафиксировать формат ответа чат-бота: `answer`, `sources`, `refusal_reason`, `confidence`, `query`.
-- Для LLM-режима ввести метрику source-grounding: целевой уровень менее 5% сгенерированных пунктов без надежной привязки к transcript/source_refs.
 - Добавить инкрементальный `update_rag.ps1` для новых, измененных и удаленных документов.
 - В `update_rag.ps1` обязательно обработать deletion: удаленные и попавшие под `exclude_path_patterns` документы должны исчезать из актуального индекса.
 - Добавить watcher/скрипт загрузки встреч из `watched_folder/` поверх уже готового `06_transcribe_meeting.py`.
@@ -58,6 +60,7 @@
 - Использовать `docs/product/PROJECT_STAGES_AND_FTT.md` как рабочий чек-лист: этап -> ФТТ -> артефакт -> критерий готовности.
 - Использовать `docs/product/PROJECT_TAXONOMY.md` как единый реестр этапов проекта и типов документов.
 - Использовать `docs/glossary.md` как основу для терминов и будущего `initial_prompt` транскрибации.
+- Для Asu June Bot использовать `docs/subprojects/asu-june-bot/architecture.md`, `mvp.md` и `roadmap.md` как основной план реализации AI-агента.
 - Позже добавить политику обновления схемы в код: при появлении `schema_version = 2` нужен явный скрипт миграции.
 - Добавить briefs генерации документов для Паспорта ИС, выдержек ФТТ, архитектурных заметок и протоколов.
 - Спроектировать минимальный local API.
@@ -82,3 +85,4 @@
 - Новый baseline `docs/quality/rag_eval_baseline_clean_2026-05-07.md` показал, что поиск по ПМИ и архитектурным сборным запросам требует улучшения.
 - Сгенерированные документы требуют строгого ревью источников.
 - Project-only отказ по одному `score_threshold` может быть слишком мягким или слишком жестким; порог нужно подобрать на smoke-наборе.
+- Asu June Bot рискует повторить ошибку `scripts/09_chat.py`, если начать добавлять новые условия в один монолитный CLI вместо модульной реализации.
