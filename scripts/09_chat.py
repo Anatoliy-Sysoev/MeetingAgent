@@ -9,7 +9,7 @@ from typing import Any
 
 import requests
 
-from rag_common import ensure_runtime_dirs, is_excluded_by_path_patterns, jsonl_read, load_config, resolve_work_path
+from rag_common import ensure_runtime_dirs, load_config, resolve_work_path
 from rag_numpy_backend import index_exists, load_index
 
 
@@ -256,6 +256,13 @@ def print_human(result: dict[str, Any]) -> None:
             print(f"  {src.get('preview')}")
 
 
+def output_result(result: dict[str, Any], as_json: bool) -> None:
+    if as_json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        print_human(result)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Project-only чат-бот MeetingAgent поверх локального RAG")
     parser.add_argument("question", nargs="+", help="Вопрос к проектной базе знаний")
@@ -277,7 +284,7 @@ def main() -> None:
     question = " ".join(args.question).strip()
     if not question:
         result = refusal_response(question, REFUSAL_OUT_OF_SCOPE, "Вопрос пустой. Сформулируйте вопрос по проектным материалам.")
-        print(json.dumps(result, ensure_ascii=False, indent=2) if args.json else result["answer"])
+        output_result(result, args.json)
         return
 
     cfg = load_config()
@@ -289,7 +296,7 @@ def main() -> None:
             REFUSAL_SENSITIVE,
             "Я отвечаю только по проектным материалам и не раскрываю системные инструкции, секреты или локальные конфигурации.",
         )
-        print(json.dumps(result, ensure_ascii=False, indent=2) if args.json else result["answer"])
+        output_result(result, args.json)
         return
 
     top_k = args.top_k or int(cfg.get("rag", {}).get("top_k", DEFAULT_TOP_K))
@@ -310,7 +317,7 @@ def main() -> None:
             "Локальный RAG-индекс не найден. Сначала соберите индекс проекта.",
             details=str(exc),
         )
-        print(json.dumps(result, ensure_ascii=False, indent=2) if args.json else result["answer"])
+        output_result(result, args.json)
         return
 
     accepted_contexts = filter_contexts_by_score(found_contexts, args.score_threshold, args.min_sources)
@@ -326,12 +333,12 @@ def main() -> None:
             sources=candidate_sources,
             details=f"min_sources={args.min_sources}, score_threshold={args.score_threshold}",
         )
-        print(json.dumps(result, ensure_ascii=False, indent=2) if args.json else result["answer"])
+        output_result(result, args.json)
         return
 
     if args.sources_only:
         result = answer_response(question, "LLM не вызывалась: показаны найденные проектные источники.", sources, args.score_threshold)
-        print(json.dumps(result, ensure_ascii=False, indent=2) if args.json else print_human(result))
+        output_result(result, args.json)
         return
 
     try:
@@ -346,14 +353,11 @@ def main() -> None:
             sources=sources,
             details=str(exc),
         )
-        print(json.dumps(result, ensure_ascii=False, indent=2) if args.json else print_human(result))
+        output_result(result, args.json)
         return
 
     result = answer_response(question, answer, sources, args.score_threshold)
-    if args.json:
-        print(json.dumps(result, ensure_ascii=False, indent=2))
-    else:
-        print_human(result)
+    output_result(result, args.json)
 
 
 if __name__ == "__main__":
