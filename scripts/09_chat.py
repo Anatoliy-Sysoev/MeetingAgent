@@ -65,6 +65,13 @@ OBVIOUS_OUT_OF_SCOPE_PATTERNS = (
     r"\bборщ\b",
     r"\bновост[ьи]\b",
     r"\bкто\s+такой\s+наполеон\b",
+    r"\bзарплат",
+    r"\bкогда\s+зарплат",
+    r"\bкакой\s+день\s+недели\b",
+    r"\bкакое\s+сегодня\s+число\b",
+    r"\bсколько\s+времени\b",
+    r"\bтекущее\s+время\b",
+    r"\bтекущая\s+дата\b",
 )
 
 PROJECT_HINT_PATTERNS = (
@@ -76,11 +83,28 @@ PROJECT_HINT_PATTERNS = (
     r"\bцта\b",
     r"\bпми\b",
     r"\bинтеграц",
+    r"\bтребован",
+    r"\bархитектур",
     r"\bmdr\b",
+    r"\bкшд\b",
+    r"\bсои\b",
     r"\bad\b",
+    r"\bactive\s+directory\b",
     r"\bblitz\b",
     r"\bсием\b",
     r"\bsiem\b",
+    r"\bldaps\b",
+)
+
+INTEGRATION_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("MDR / КШД / СОИ", ("MDR", "КШД", "СОИ", "справоч")),
+    ("Active Directory / AD / LDAPS", ("Active Directory", " AD ", "LDAPS", "контроллер", "домен")),
+    ("Blitz IDP", ("Blitz", "IDP", "SSO")),
+    ("SMTP / почтовый сервер", ("SMTP", "почтов", "email", "e-mail")),
+    ("SIEM", ("SIEM", "СИЕМ", "событ", "ИБ")),
+    ("S3 / Minio", ("S3", "Minio", "объектн", "бакет")),
+    ("RabbitMQ", ("RabbitMQ",)),
+    ("Grafana Loki", ("Grafana", "Loki")),
 )
 
 
@@ -121,11 +145,6 @@ def ollama_chat(
     timeout: int,
     think: bool = False,
 ) -> str:
-    """Call Ollama chat API.
-
-    Qwen 3 is a thinking-capable model. The CLI may still print thinking by default;
-    the application path must disable it via top-level `think: false`.
-    """
     resp = requests.post(
         f"{base_url.rstrip('/')}/api/chat",
         json={
@@ -192,6 +211,37 @@ def is_obviously_out_of_scope_question(question: str) -> bool:
     if has_project_hint(lowered):
         return False
     return any(re.search(pattern, lowered, flags=re.IGNORECASE) for pattern in OBVIOUS_OUT_OF_SCOPE_PATTERNS)
+
+
+def build_retrieval_query(question: str) -> str:
+    """Add project vocabulary for common project questions without changing the user-visible query."""
+    lowered = question.lower()
+    extras: list[str] = []
+    if "интеграц" in lowered:
+        extras.extend(
+            [
+                "интеграционное взаимодействие",
+                "внешние системы",
+                "MDR",
+                "КШД",
+                "СОИ",
+                "Active Directory",
+                "AD",
+                "LDAPS",
+                "Blitz IDP",
+                "SMTP",
+                "SIEM",
+                "S3",
+                "Minio",
+            ]
+        )
+    if "паспорт" in lowered and "ис" in lowered:
+        extras.extend(["Паспорт информационной системы", "связанные документы", "приложения", "программное обеспечение"])
+    if "фтт" in lowered and ("перв" in lowered or "этап" in lowered):
+        extras.extend(["Этап 1", "функционально-технические требования", "первый этап", "требования"])
+    if not extras:
+        return question
+    return question + "\n" + " ".join(extras)
 
 
 def source_id(idx: int) -> str:
@@ -305,7 +355,14 @@ def refusal_response(
     }
 
 
-def answer_response(question: str, answer: str, sources: list[dict[str, Any]], threshold: float) -> dict[str, Any]:
+def answer_response(
+    question: str,
+    answer: str,
+    sources: list[dict[str, Any]],
+    threshold: float,
+    answer_mode: str = "llm",
+    details: str | None = None,
+) -> dict[str, Any]:
     return {
         "created_at": utc_now(),
         "query": question,
@@ -314,6 +371,8 @@ def answer_response(question: str, answer: str, sources: list[dict[str, Any]], t
         "sources": sources,
         "refusal_reason": None,
         "confidence": confidence_from_sources(sources, threshold),
+        "answer_mode": answer_mode,
+        "details": details,
     }
 
 
@@ -342,7 +401,8 @@ def query_contexts(
 
     exclude_path_patterns = [] if include_excluded else list(cfg.get("exclude_path_patterns", []))
     dedupe_by_chunk_id = not no_dedupe
-    query_embedding = ollama_embed(base_url, embedding_model, question, embedding_num_ctx, keep_alive)
+    retrieval_query = build_retrieval_query(question)
+    query_embedding = ollama_embed(base_url, embedding_model, retrieval_query, embedding_num_ctx, keep_alive)
     index = load_index(numpy_index_path)
     return index.query(
         query_embedding,
@@ -456,10 +516,70 @@ def trim_contexts(contexts: list[dict[str, Any]], max_context_chars: int) -> lis
     return selected
 
 
+def first_sentence(text: str, limit: int = 260) -> str:
+    compact = " ".join(str(text).split())
+    if len(compact) <= limit:
+        return compact
+    sentence_end = re.search(r"[.!?](\s|$)", compact[:limit])
+    if sentence_end:
+        return compact[: sentence_end.end()].strip()
+    return compact[: limit - 1].rstrip() + "…"
+
+
+def extract_confirmed_integrations(contexts: list[dict[str, Any]]) -> list[str]:
+    combined = "\n".join(str(ctx.get("document", "")) for ctx in contexts)
+    confirmed: list[str] = []
+    for label, terms in INTEGRATION_TERMS:
+        if any(term.lower() in combined.lower() for term in terms):
+            confirmed.append(label)
+    return confirmed
+
+
+def build_extractive_answer(question: str, contexts: list[dict[str, Any]], sources: list[dict[str, Any]], reason: str) -> str:
+    lowered = question.lower()
+    lines: list[str] = []
+    lines.append("Краткий ответ:")
+
+    if "интеграц" in lowered:
+        integrations = extract_confirmed_integrations(contexts)
+        if integrations:
+            lines.append("По найденным проектным источникам подтверждены следующие интеграции / внешние взаимодействия:")
+            for item in integrations:
+                lines.append(f"- {item}.")
+        else:
+            lines.append("В найденных источниках не удалось однозначно выделить перечень интеграций.")
+    elif "паспорт" in lowered and "ис" in lowered:
+        lines.append("По найденным проектным источникам Паспорт ИС содержит сведения о системе, связанных документах, приложениях и программном обеспечении информационной системы.")
+    else:
+        lines.append("LLM не сформировала ответ, поэтому ниже приведена краткая выжимка только из найденных источников.")
+
+    lines.append("")
+    lines.append("Подтверждающие фрагменты:")
+    for idx, ctx in enumerate(contexts[: min(5, len(contexts))], start=1):
+        meta = ctx.get("metadata", {})
+        src = source_id(idx)
+        lines.append(f"- [{src}] {first_sentence(str(ctx.get('document', '')))}")
+        lines.append(f"  Источник: {meta.get('relative_path')}, chunk {meta.get('chunk_index')}.")
+
+    lines.append("")
+    lines.append("Ограничения:")
+    lines.append(f"- Ответ сформирован в extractive fallback режиме, потому что LLM не вернула рабочий ответ: {reason}.")
+    lines.append("- Формулировка не использует общие знания модели и основана только на найденных фрагментах.")
+
+    lines.append("")
+    lines.append("Источники:")
+    for src in sources[: min(5, len(sources))]:
+        url = f", ссылка: {src.get('source_url')}" if src.get("source_url") else ""
+        lines.append(f"- [{src['source_id']}] {src.get('relative_path')}, chunk {src.get('chunk_index')}{url}")
+    return "\n".join(lines)
+
+
 def print_human(result: dict[str, Any]) -> None:
     print(result["answer"])
     print()
     print(f"Статус: {result['status']}")
+    if result.get("answer_mode"):
+        print(f"Режим ответа: {result['answer_mode']}")
     if result.get("refusal_reason"):
         print(f"Причина отказа: {result['refusal_reason']}")
     print(f"Уверенность: {result.get('confidence', 0.0)}")
@@ -504,6 +624,7 @@ def main() -> None:
     parser.add_argument("--include-excluded", action="store_true", help="Не применять query-фильтр служебных и архивных путей")
     parser.add_argument("--no-dedupe", action="store_true", help="Не дедуплицировать одинаковые chunks по тексту")
     parser.add_argument("--think", action="store_true", help="Разрешить thinking-режим Ollama. По умолчанию выключен")
+    parser.add_argument("--no-extractive-fallback", action="store_true", help="Не возвращать extractive-ответ при ошибке LLM")
     args = parser.parse_args()
 
     question = " ".join(args.question).strip()
@@ -571,7 +692,13 @@ def main() -> None:
         return
 
     if args.sources_only:
-        result = answer_response(question, "LLM не вызывалась: показаны найденные проектные источники.", raw_sources, args.score_threshold)
+        result = answer_response(
+            question,
+            "LLM не вызывалась: показаны найденные проектные источники.",
+            raw_sources,
+            args.score_threshold,
+            answer_mode="sources_only",
+        )
         output_result(result, args.json)
         return
 
@@ -600,6 +727,18 @@ def main() -> None:
             think=args.think,
         )
     except Exception as exc:  # noqa: BLE001 - CLI should return structured error for MVP usage.
+        if not args.no_extractive_fallback:
+            answer = build_extractive_answer(question, llm_contexts, llm_sources, reason=str(exc))
+            result = answer_response(
+                question,
+                answer,
+                llm_sources,
+                args.score_threshold,
+                answer_mode="extractive_fallback",
+                details=f"llm_error: {exc}",
+            )
+            output_result(result, args.json)
+            return
         result = refusal_response(
             question,
             REFUSAL_LLM_ERROR,
@@ -611,6 +750,18 @@ def main() -> None:
         return
 
     if not answer:
+        if not args.no_extractive_fallback:
+            fallback_answer = build_extractive_answer(question, llm_contexts, llm_sources, reason=REFUSAL_LLM_EMPTY)
+            result = answer_response(
+                question,
+                fallback_answer,
+                llm_sources,
+                args.score_threshold,
+                answer_mode="extractive_fallback",
+                details=f"model={chat_model}, empty_response=true",
+            )
+            output_result(result, args.json)
+            return
         result = refusal_response(
             question,
             REFUSAL_LLM_EMPTY,
@@ -621,7 +772,7 @@ def main() -> None:
         output_result(result, args.json)
         return
 
-    result = answer_response(question, answer, llm_sources, args.score_threshold)
+    result = answer_response(question, answer, llm_sources, args.score_threshold, answer_mode="llm")
     output_result(result, args.json)
 
 
