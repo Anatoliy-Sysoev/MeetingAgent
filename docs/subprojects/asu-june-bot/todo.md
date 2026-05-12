@@ -4,39 +4,30 @@
 
 ## Сейчас
 
-- Утвердить рабочее название `Asu June Bot` или заменить его до появления кода.
+- Утвердить рабочее название `Asu June Bot` или заменить его до расширения кодовой базы.
 - Не развивать дальше `scripts/09_chat.py` как основной продуктовый контур.
 - Использовать `scripts/09_chat.py` только как prototype и источник выводов.
-- Зафиксировать подпроект в документации MeetingAgent.
-- Создать модульную структуру `src/asu_june_bot/`.
-- Создать конфиги `configs/asu_june_bot/`.
-- Описать chunk schema для проектных документов.
-- Добавить source type policy.
-- Подготовить baseline-вопросы.
+- Использовать текущий corpus MeetingAgent и `data/numpy_index` как исходную базу для search MVP.
+- Проверить локально первый search MVP: `scripts/asu_june_bot_search.py`.
+- После локальной проверки исправить runtime/import ошибки, если они появятся.
+- Оценить качество выдачи по 3 запросам: интеграции, точный пункт ФТТ, Паспорт ИС.
 
-## Ближайшие задачи разработки
+## Сделано В Этом Срезе
 
-### 1. Каркас кода
-
-Создать:
+Создано:
 
 ```text
 src/asu_june_bot/
   __init__.py
-  api/
-  agent/
-  retrieval/
-  ingestion/
-  llm/
-  eval/
-configs/asu_june_bot/
-```
-
-### 2. Конфигурации
-
-Создать:
-
-```text
+  core/config.py
+  retrieval/models.py
+  retrieval/metadata.py
+  retrieval/source_policy.py
+  retrieval/bm25.py
+  retrieval/vector.py
+  retrieval/hybrid.py
+  retrieval/chunks.py
+scripts/asu_june_bot_search.py
 configs/asu_june_bot/llm.yaml
 configs/asu_june_bot/retrieval.yaml
 configs/asu_june_bot/guardrails.yaml
@@ -44,39 +35,93 @@ configs/asu_june_bot/query_expansion.yaml
 configs/asu_june_bot/source_policy.yaml
 ```
 
-### 3. Search MVP
-
-Реализовать:
+Реализовано:
 
 - `VectorSearchAdapter` поверх текущего numpy index MeetingAgent.
 - `BM25SearchAdapter` поверх `data/chunks.jsonl`.
 - `HybridRetriever`.
 - `SourcePolicy`.
+- эвристическое enrichment metadata: `source_type`, `document_type`, `module`, `stage`, `section`.
 - CLI `scripts/asu_june_bot_search.py`.
 
-### 4. Chat MVP
+## Команды Локальной Проверки
+
+Hybrid search:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search.py "Какие интеграции заявлены в проекте?" --top-k 10 --json
+```
+
+BM25 exact search:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode bm25 --top-k 10 --json
+```
+
+Document overview search:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search.py "Что входит в Паспорт ИС?" --top-k 10 --json
+```
+
+Проверка source policy с system_export:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search.py "пользователи админка роли" --include-source-type system_export --top-k 10 --json
+```
+
+## Следующие Задачи Разработки
+
+### 1. Проверить Search MVP Локально
+
+- Запустить 3 базовые команды.
+- Проверить, что импорт `rag_numpy_backend` работает через `scripts/`.
+- Проверить, что `config.yaml`, `data/chunks.jsonl` и `data/numpy_index` находятся.
+- Проверить, что Ollama доступна для vector search.
+- Если нужен быстрый smoke без Ollama, использовать `--mode bm25`.
+
+### 2. Исправить По Результату Smoke
+
+- Исправить runtime/import ошибки.
+- Уточнить source type inference.
+- Уточнить document_type inference.
+- Проверить, не режет ли `SourcePolicy` нужные источники.
+- Проверить, не вытесняет ли BM25 слишком много vector-результатов.
+
+### 3. Реализовать QueryExpander Runtime
+
+- Прочитать `configs/asu_june_bot/query_expansion.yaml`.
+- Расширять query для retrieval.
+- Исходный вопрос не менять для ответа.
+- Добавить diagnostics: какие expansion terms применены.
+
+### 4. Подготовить API Search
+
+После CLI-smoke:
+
+```text
+src/asu_june_bot/api/app.py
+src/asu_june_bot/api/routes_search.py
+```
+
+Endpoint:
+
+```text
+POST /search
+GET /health
+```
+
+### 5. Подготовить Chat MVP Только После Search
 
 Реализовать:
 
 - `ProjectGuard`.
-- `QueryExpander`.
 - `ContextBuilder`.
 - `PromptBuilder`.
 - `LLMClient`.
 - `AnswerValidator`.
 - `ResponseFormatter`.
 - CLI `scripts/asu_june_bot_chat.py`.
-
-### 5. FastAPI MVP
-
-Реализовать endpoints:
-
-```text
-GET /health
-POST /search
-POST /chat
-GET /sources/{source_id}
-```
 
 ### 6. Evaluation
 
@@ -108,6 +153,19 @@ GET /sources/{source_id}
 7. Режимы нужны:
    - `strict` — только подтвержденные факты;
    - `analyst` — допускает выводы, но с явным отделением от фактов.
+
+## Definition of Done для Search MVP
+
+Search MVP считается готовым, если:
+
+- CLI `scripts/asu_june_bot_search.py` запускается без ошибок.
+- `--mode bm25` работает без Ollama.
+- `--mode vector` работает через текущий numpy index и Ollama embeddings.
+- `--mode hybrid` объединяет результаты vector и BM25.
+- В результатах есть `source_type`, `document_type`, `module`, `stage`, `section`, `chunk_index`, `chunk_id`.
+- По запросу про интеграции в top-10 есть ЦТА / СоИ / ФТТ источники.
+- По точному запросу ФТТ пункт поднимается через BM25.
+- `system_export` не попадает в top по умолчанию, если вопрос не про админку/экспорт.
 
 ## Definition of Done для MVP
 
