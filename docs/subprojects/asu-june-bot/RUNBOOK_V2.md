@@ -122,9 +122,49 @@ Extractor v2 поддерживает resume.
 
 Использовать `--reset` только осознанно: он удаляет output-директорию extraction v2.
 
-## 7. Watchdog / мониторинг каждые 15 минут
+## 7. Аудит покрытия источников
 
-### 7.1. Один ручной тик мониторинга
+После extraction/chunking нужно проверить, какие файлы реально попали в v2 pipeline, а какие были исключены фильтрами.
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_audit_sources_v2.py
+```
+
+Подробный JSON:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_audit_sources_v2.py --json
+```
+
+Отчет сохраняется в:
+
+```text
+data/asu_june_bot/source_audit_v2_report.json
+```
+
+Проверка отчета:
+
+```powershell
+Get-Content .\data\asu_june_bot\source_audit_v2_report.json
+```
+
+Ключевые поля:
+
+```text
+summary.all_files_seen                  все файлы, увиденные в project_root
+summary.included_by_config              файлы, прошедшие фильтры config.yaml
+summary.documents_jsonl                 файлы, успешно записанные в documents.jsonl
+summary.blocks_jsonl                    количество extracted blocks
+summary.chunks_jsonl                    количество chunks
+summary.included_not_extracted          прошли фильтры, но не попали в documents.jsonl
+excluded_by_reason                      почему файлы исключены
+```
+
+Если `included_not_extracted > 0`, нужно смотреть `included_not_extracted_sample`.
+
+## 8. Watchdog / мониторинг каждые 15 минут
+
+### 8.1. Один ручной тик мониторинга
 
 ```powershell
 .\monitor_asu_june_bot_v2.ps1
@@ -143,7 +183,7 @@ Extractor v2 поддерживает resume.
 - если процесс не запущен и done marker отсутствует — запускает rebuild;
 - если был сбой — следующий tick продолжит extraction за счет resume-режима.
 
-### 7.2. Зарегистрировать задачу Windows Task Scheduler
+### 8.2. Зарегистрировать задачу Windows Task Scheduler
 
 ```powershell
 .\register_asu_june_bot_v2_watchdog.ps1
@@ -161,26 +201,26 @@ AsuJuneBotV2Watchdog
 каждые 15 минут
 ```
 
-### 7.3. Запустить задачу сразу
+### 8.3. Запустить задачу сразу
 
 ```powershell
 Start-ScheduledTask -TaskName AsuJuneBotV2Watchdog
 ```
 
-### 7.4. Проверить задачу
+### 8.4. Проверить задачу
 
 ```powershell
 Get-ScheduledTask -TaskName AsuJuneBotV2Watchdog
 Get-ScheduledTaskInfo -TaskName AsuJuneBotV2Watchdog
 ```
 
-### 7.5. Удалить задачу
+### 8.5. Удалить задачу
 
 ```powershell
 Unregister-ScheduledTask -TaskName AsuJuneBotV2Watchdog -Confirm:$false
 ```
 
-## 8. Проверка статуса
+## 9. Проверка статуса
 
 ### Последний watchdog log
 
@@ -215,7 +255,7 @@ Get-Content .\data\asu_june_bot\extracted_v2\extraction_v2_progress.json
 'chunks=' + (Get-Content .\data\asu_june_bot\chunks_v2.jsonl).Count
 ```
 
-## 9. Что считать успешным завершением
+## 10. Что считать успешным завершением
 
 Успешное завершение:
 
@@ -234,7 +274,7 @@ Current status: done
 Action taken: none
 ```
 
-## 10. Что делать при ошибке
+## 11. Что делать при ошибке
 
 1. Посмотреть последний failed marker:
 
@@ -256,7 +296,7 @@ Get-ChildItem .\logs\asu_june_bot_rebuild_v2_*.log | Sort-Object LastWriteTime -
 
 Если ошибка была временной, следующий запуск продолжит extraction с необработанных файлов.
 
-## 11. Не делать
+## 12. Не делать
 
 - Не удалять `data/asu_june_bot/`, если нужно продолжить после прерывания.
 - Не запускать `--reset`, если нужна resume-сборка.
