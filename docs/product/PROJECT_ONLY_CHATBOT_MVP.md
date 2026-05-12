@@ -29,6 +29,7 @@
 5. Бот должен отличать вопрос по проекту от общего вопроса. Общие вопросы в MVP отклоняются.
 6. Ответы формулируются на русском языке и в деловом стиле.
 7. Пустой ответ LLM не считается успешным ответом и должен возвращаться как отказ `llm_empty_response`.
+8. Для обзорных вопросов по документу бот должен расширять контекст по найденному top-документу, чтобы отвечать по структуре документа, а не по одному chunk.
 
 ## Минимальный Контур
 
@@ -41,6 +42,7 @@
   -> bge-m3 query embedding
   -> data/numpy_index
   -> top-k sources
+  -> document expansion по top-документу
   -> LLM answer with citations
 ```
 
@@ -57,6 +59,7 @@
 - ищет источники в `data/numpy_index`;
 - фильтрует источники по `score_threshold`;
 - отказывает, если источников нет или score ниже порога;
+- для LLM-контекста расширяет top-документ соседними chunks из `data/chunks.jsonl`;
 - блокирует sensitive-запросы про `.env`, `config.yaml`, пароли, токены и системные инструкции;
 - вызывает локальную LLM только после успешного поиска источников;
 - удаляет внутренние `<think>...</think>` блоки из ответа модели;
@@ -72,13 +75,19 @@
 Полный быстрый запуск через LLM:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\09_chat.py "Что входит в Паспорт ИС?" --json --top-k 3 --max-context-chars 4500 --source-char-limit 1200 --num-predict 400 --timeout-sec 120
+.\.venv\Scripts\python.exe scripts\09_chat.py "Что входит в Паспорт ИС?" --json --top-k 3 --max-context-chars 9000 --source-char-limit 1400 --document-expansion-chunks 5 --num-predict 700 --timeout-sec 180
+```
+
+Если нужно сравнить с прежним поведением без расширения документа:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\09_chat.py "Что входит в Паспорт ИС?" --json --no-document-expansion --top-k 3 --max-context-chars 4500 --source-char-limit 1200 --num-predict 400 --timeout-sec 120
 ```
 
 Если `qwen3:8b` на CPU отвечает слишком долго, временно использовать меньшую модель:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\09_chat.py "Что входит в Паспорт ИС?" --json --model qwen3:4b --top-k 3 --max-context-chars 4500 --source-char-limit 1200 --num-predict 400 --timeout-sec 120
+.\.venv\Scripts\python.exe scripts\09_chat.py "Что входит в Паспорт ИС?" --json --model qwen3:4b --top-k 3 --max-context-chars 9000 --source-char-limit 1400 --document-expansion-chunks 5 --num-predict 700 --timeout-sec 180
 ```
 
 ## Производительный Профиль MVP
@@ -89,18 +98,22 @@
 
 Отдельная проверка показала, что `qwen3:4b` может завершиться без HTTP-ошибки, но вернуть пустое поле `response`. Такое поведение теперь считается отказом `llm_empty_response`, а не успешным ответом.
 
-Поэтому для интерактивного CLI-чата принят быстрый профиль по умолчанию:
+Для обзорных вопросов вроде «Что входит в Паспорт ИС?» одного найденного chunk недостаточно. Поэтому CLI расширяет LLM-контекст по top-документу: если vector search нашел Паспорт ИС, в prompt добавляются соседние chunks этого же файла с пометкой `retrieval=document_expansion`.
+
+Для интерактивного CLI-чата принят быстрый профиль по умолчанию:
 
 | Параметр | Значение |
 | --- | --- |
 | `top_k` | `4` |
 | `max_context_chars` | `6000` |
 | `source_char_limit` | `1800` |
+| `document_expansion_chunks` | `6` |
+| `expand_top_documents` | `1` |
 | `num_predict` | `700` |
 | `timeout_sec` | `180` |
-| prompt | `/no_think`, краткий ответ |
+| prompt | `/no_think`, структурированный ответ |
 
-Для ручной диагностики можно уменьшать параметры до `top_k=3`, `max_context_chars=4500`, `source_char_limit=1200`, `num_predict=400`.
+Для ручной диагностики можно уменьшать параметры до `top_k=3`, `max_context_chars=4500`, `source_char_limit=1200`, `num_predict=400` или отключать расширение через `--no-document-expansion`.
 
 ## Дорожная Карта
 
@@ -183,6 +196,6 @@
 
 1. Использовать `scripts/09_chat.py` как первый CLI-срез.
 2. Проверить retrieval через `--sources-only --json`.
-3. Проверить полный LLM-ответ на быстром профиле.
+3. Проверить полный LLM-ответ на быстром профиле и с `document_expansion`.
 4. Подобрать `score_threshold` на smoke-наборе.
 5. После успешного smoke-прогона вынести логику в local API `/chat`.
