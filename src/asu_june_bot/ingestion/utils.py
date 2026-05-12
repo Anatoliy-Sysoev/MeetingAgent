@@ -13,6 +13,7 @@ from asu_june_bot.retrieval.metadata import enrich_metadata, infer_sections
 
 
 SECTION_RE = re.compile(r"(?<!\d)(\d+(?:\.\d+){1,5})\s*\.", re.UNICODE)
+OFFICE_TEMP_PREFIXES = ("~$", ".~")
 
 
 def normalize_text(text: str) -> str:
@@ -54,7 +55,14 @@ def jsonl_write(path: Path, rows: Iterable[dict[str, Any]]) -> None:
             fp.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
+def is_office_temp_file(path: Path) -> bool:
+    name = path.name
+    return name.startswith(OFFICE_TEMP_PREFIXES)
+
+
 def should_skip_path(path: Path, root: Path, include_extensions: set[str], exclude_dirs: set[str], exclude_extensions: set[str], exclude_path_patterns: list[str]) -> bool:
+    if is_office_temp_file(path):
+        return True
     ext = path.suffix.lower()
     if ext not in include_extensions:
         return True
