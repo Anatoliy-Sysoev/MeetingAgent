@@ -12,10 +12,22 @@ from .source_policy import SourcePolicy
 
 
 _TOKEN_RE = re.compile(r"[A-Za-zА-Яа-я0-9_./-]+", re.UNICODE)
+SECTION_QUERY_RE = re.compile(r"(?<!\d)(\d+(?:\.\d+){1,5})(?:\.|\b)")
 
 
 def tokenize(text: str) -> list[str]:
     return [token.lower() for token in _TOKEN_RE.findall(text or "") if len(token) > 1]
+
+
+def extract_query_sections(query: str) -> list[str]:
+    seen: set[str] = set()
+    sections: list[str] = []
+    for match in SECTION_QUERY_RE.finditer(query):
+        section = match.group(1)
+        if section not in seen:
+            seen.add(section)
+            sections.append(section)
+    return sections
 
 
 @dataclass(slots=True)
@@ -65,24 +77,47 @@ class BM25SearchAdapter:
             score += self._idf(term) * (tf * (self.k1 + 1)) / max(denom, 1e-9)
         return score
 
+    def _exact_section_boost(self, query_sections: list[str], doc: BM25Document) -> tuple[float, list[str]]:
+        if not query_sections:
+            return 1.0, []
+        doc_sections = set(str(section) for section in (doc.metadata.get("sections") or []))
+        matched = [section for section in query_sections if section in doc_sections]
+        if not matched:
+            return 1.0, []
+        return 1.45, matched
+
     def search(self, query: str, top_k: int, include_source_types: list[str] | None = None) -> list[SearchResult]:
         query_terms = tokenize(query)
+        query_sections = extract_query_sections(query)
         if not query_terms or top_k <= 0:
             return []
 
-        scored: list[tuple[float, BM25Document]] = []
+        scored: list[tuple[float, BM25Document, dict[str, Any]]] = []
         for doc in self.documents:
             if not self.source_policy.is_allowed(doc.metadata, query, include_source_types):
                 continue
             score = self._score_doc(query_terms, doc)
             if score <= 0:
                 continue
-            score *= self.source_policy.weight(doc.metadata)
-            scored.append((score, doc))
+            section_boost, matched_sections = self._exact_section_boost(query_sections, doc)
+            policy_weight = self.source_policy.weight(doc.metadata)
+            final_score = score * policy_weight * section_boost
+            scored.append(
+                (
+                    final_score,
+                    doc,
+                    {
+                        "raw_bm25_score": score,
+                        "policy_weight": policy_weight,
+                        "section_boost": section_boost,
+                        "matched_sections": matched_sections,
+                    },
+                )
+            )
 
         scored.sort(key=lambda item: item[0], reverse=True)
         results: list[SearchResult] = []
-        for idx, (score, doc) in enumerate(scored[:top_k], start=1):
+        for idx, (score, doc, diagnostics) in enumerate(scored[:top_k], start=1):
             results.append(
                 SearchResult(
                     source_id=f"BM25-{idx:03d}",
@@ -92,6 +127,7 @@ class BM25SearchAdapter:
                     bm25_score=float(score),
                     metadata=doc.metadata,
                     matched_by=["bm25"],
+                    diagnostics=diagnostics,
                 )
             )
         return results
