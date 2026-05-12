@@ -47,8 +47,8 @@ try {
         throw "Python venv not found: $Python"
     }
 
-    if (-not (Test-Path -LiteralPath (Join-Path $Root "data\extracted_text\_metadata.jsonl"))) {
-        throw "Extracted text metadata not found. Run run_full_rag.ps1 first at least through 02_extract_text."
+    if (-not (Test-Path -LiteralPath (Join-Path $Root "data\asu_june_bot\extracted_v2\blocks.jsonl"))) {
+        throw "Asu June Bot extracted blocks not found. Run scripts\asu_june_bot_extract_text_v2.py or run_asu_june_bot_rebuild_v2.ps1 first."
     }
 
     Run-Step "asu_june_bot_build_chunks_v2" @("scripts\asu_june_bot_build_chunks_v2.py")
