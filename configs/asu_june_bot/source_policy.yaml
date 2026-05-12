@@ -1,0 +1,32 @@
+# Source policy for Asu June Bot.
+
+allowed_by_default:
+  - project_doc
+  - meeting_artifact
+  - analytical_note
+  - instruction
+
+weights:
+  project_doc: 1.0
+  meeting_artifact: 0.9
+  analytical_note: 0.85
+  instruction: 0.8
+  system_export: 0.55
+  runtime_export: 0.4
+  code: 0.35
+
+explicit_enable_markers:
+  system_export:
+    - админ
+    - экспорт
+    - интерфейс
+    - страница
+    - токен
+    - пользователь
+    - роль
+  code:
+    - код
+    - скрипт
+    - python
+    - powershell
+    - ошибка в скрипте
