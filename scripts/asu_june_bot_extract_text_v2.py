@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 from collections import Counter
 from datetime import datetime, timezone
@@ -47,6 +48,39 @@ TEXT_EXTENSIONS = {".md", ".txt", ".json", ".yml", ".yaml", ".drawio", ".puml", 
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def append_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> int:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    count = 0
+    with path.open("a", encoding="utf-8", newline="\n") as fp:
+        for row in rows:
+            fp.write(json.dumps(row, ensure_ascii=False) + "\n")
+            count += 1
+        fp.flush()
+    return count
+
+
+def read_jsonl_if_exists(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8") as fp:
+        for line in fp:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                # Keep resume robust against a truncated last line.
+                continue
+    return rows
+
+
+def load_completed_source_ids(documents_path: Path) -> set[str]:
+    rows = read_jsonl_if_exists(documents_path)
+    return {str(row.get("source_id")) for row in rows if row.get("source_id")}
 
 
 def make_source_document(cfg: dict[str, Any], path: Path) -> SourceDocument:
@@ -458,20 +492,33 @@ def write_report_markdown(path: Path, report: dict[str, Any]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def build_report(sources: list[SourceDocument], blocks: list[ExtractedBlock], errors: list[dict[str, Any]], dry_run: bool) -> dict[str, Any]:
+def build_report(
+    *,
+    sources: list[SourceDocument],
+    blocks: list[ExtractedBlock],
+    errors: list[dict[str, Any]],
+    dry_run: bool,
+    skipped_existing: int,
+    total_candidates: int,
+    pending_candidates: int,
+) -> dict[str, Any]:
     return {
         "generated_at": utc_now(),
         "extractor_version": EXTRACTOR_VERSION,
         "dry_run": dry_run,
+        "resume_supported": True,
         "summary": {
-            "sources_total": len(sources),
-            "blocks_total": len(blocks),
-            "errors": len(errors),
-            "docx_sources": len([src for src in sources if src.extension == ".docx"]),
-            "xlsx_sources": len([src for src in sources if src.extension in {".xlsx", ".xlsb"}]),
-            "pdf_sources": len([src for src in sources if src.extension == ".pdf"]),
-            "blocks_with_section": len([block for block in blocks if block.section]),
-            "table_row_blocks": len([block for block in blocks if block.block_type == "table_row"]),
+            "candidate_sources_total": total_candidates,
+            "pending_sources_this_run": pending_candidates,
+            "sources_extracted_this_run": len(sources),
+            "sources_skipped_existing": skipped_existing,
+            "blocks_extracted_this_run": len(blocks),
+            "errors_this_run": len(errors),
+            "docx_sources_this_run": len([src for src in sources if src.extension == ".docx"]),
+            "xlsx_sources_this_run": len([src for src in sources if src.extension in {".xlsx", ".xlsb"}]),
+            "pdf_sources_this_run": len([src for src in sources if src.extension == ".pdf"]),
+            "blocks_with_section_this_run": len([block for block in blocks if block.section]),
+            "table_row_blocks_this_run": len([block for block in blocks if block.block_type == "table_row"]),
         },
         "by_extension": dict(Counter(src.extension or "unknown" for src in sources)),
         "by_block_type": dict(Counter(block.block_type for block in blocks)),
@@ -480,20 +527,34 @@ def build_report(sources: list[SourceDocument], blocks: list[ExtractedBlock], er
     }
 
 
+def write_progress(progress_path: Path, payload: dict[str, Any]) -> None:
+    progress_path.parent.mkdir(parents=True, exist_ok=True)
+    progress_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Asu June Bot extractor v2: independent structured extraction pipeline")
     parser.add_argument("--dry-run", action="store_true", help="Do not write output files")
     parser.add_argument("--limit", type=int, default=0, help="Limit source files")
     parser.add_argument("--path-contains", default=None, help="Process only source files whose relative path contains substring")
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR, help="Output directory")
+    parser.add_argument("--reset", action="store_true", help="Delete output directory before extraction and start from scratch")
+    parser.add_argument("--no-resume", action="store_true", help="Do not skip already extracted source_id records")
     args = parser.parse_args()
 
     cfg = load_config()
     output_dir = resolve_work_path(cfg, args.output_dir)
     blocks_path = output_dir / "blocks.jsonl"
     documents_path = output_dir / "documents.jsonl"
+    errors_path = output_dir / "errors.jsonl"
+    progress_path = output_dir / "extraction_v2_progress.json"
     report_json_path = output_dir / "extraction_v2_report.json"
     report_md_path = output_dir / "extraction_v2_report.md"
+
+    if args.reset and not args.dry_run and output_dir.exists():
+        shutil.rmtree(output_dir)
+
+    completed_source_ids = set() if args.no_resume or args.reset else load_completed_source_ids(documents_path)
 
     paths = iter_source_files(cfg)
     if args.path_contains:
@@ -502,27 +563,66 @@ def main() -> None:
     if args.limit and args.limit > 0:
         paths = paths[: args.limit]
 
-    sources: list[SourceDocument] = []
-    blocks: list[ExtractedBlock] = []
-    errors: list[dict[str, Any]] = []
+    total_candidates = len(paths)
+    pending_paths: list[tuple[Path, SourceDocument]] = []
+    skipped_existing = 0
+    source_errors: list[dict[str, Any]] = []
 
     for path in paths:
         try:
             source = make_source_document(cfg, path)
+            if source.source_id in completed_source_ids:
+                skipped_existing += 1
+                continue
+            pending_paths.append((path, source))
+        except Exception as exc:  # noqa: BLE001
+            source_errors.append({"relative_path": relative_to_project(cfg, path), "error": repr(exc)})
+
+    sources_this_run: list[SourceDocument] = []
+    blocks_this_run: list[ExtractedBlock] = []
+    errors: list[dict[str, Any]] = list(source_errors)
+
+    for index, (path, source) in enumerate(pending_paths, start=1):
+        try:
             extracted = extract_source(path, source)
             if not extracted:
                 continue
-            sources.append(source)
-            blocks.extend(extracted)
+            sources_this_run.append(source)
+            blocks_this_run.extend(extracted)
+            if not args.dry_run:
+                append_jsonl(documents_path, [source.to_dict()])
+                append_jsonl(blocks_path, [block.to_dict() for block in extracted])
+                completed_source_ids.add(source.source_id)
+                write_progress(
+                    progress_path,
+                    {
+                        "updated_at": utc_now(),
+                        "candidate_sources_total": total_candidates,
+                        "pending_sources_at_start": len(pending_paths),
+                        "processed_this_run": index,
+                        "completed_sources_total": len(completed_source_ids),
+                        "last_source": source.relative_path,
+                        "last_source_id": source.source_id,
+                    },
+                )
         except Exception as exc:  # noqa: BLE001 - extraction should continue per file.
-            errors.append({"relative_path": relative_to_project(cfg, path), "error": repr(exc)})
+            error = {"relative_path": source.relative_path, "source_id": source.source_id, "error": repr(exc)}
+            errors.append(error)
+            if not args.dry_run:
+                append_jsonl(errors_path, [error])
 
-    report = build_report(sources, blocks, errors, dry_run=args.dry_run)
+    report = build_report(
+        sources=sources_this_run,
+        blocks=blocks_this_run,
+        errors=errors,
+        dry_run=args.dry_run,
+        skipped_existing=skipped_existing,
+        total_candidates=total_candidates,
+        pending_candidates=len(pending_paths),
+    )
 
     if not args.dry_run:
         output_dir.mkdir(parents=True, exist_ok=True)
-        jsonl_write(documents_path, [source.to_dict() for source in sources])
-        jsonl_write(blocks_path, [block.to_dict() for block in blocks])
         report_json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         write_report_markdown(report_md_path, report)
 
@@ -535,6 +635,8 @@ def main() -> None:
                 {
                     "documents_path": str(documents_path),
                     "blocks_path": str(blocks_path),
+                    "errors_path": str(errors_path),
+                    "progress_path": str(progress_path),
                     "report_json": str(report_json_path),
                     "report_md": str(report_md_path),
                 },
