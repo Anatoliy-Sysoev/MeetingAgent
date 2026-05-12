@@ -10,7 +10,7 @@ from typing import Any
 
 import requests
 
-from rag_common import ensure_runtime_dirs, load_config, resolve_work_path
+from rag_common import ensure_runtime_dirs, jsonl_read, load_config, resolve_work_path
 from rag_numpy_backend import index_exists, load_index
 
 
@@ -25,6 +25,8 @@ DEFAULT_TOP_K = 4
 DEFAULT_MAX_CONTEXT_CHARS = 6000
 DEFAULT_NUM_PREDICT = 700
 DEFAULT_TIMEOUT_SEC = 180
+DEFAULT_DOCUMENT_EXPANSION_CHUNKS = 6
+DEFAULT_EXPAND_TOP_DOCUMENTS = 1
 
 REFUSAL_OUT_OF_SCOPE = "out_of_scope_or_no_relevant_sources"
 REFUSAL_SENSITIVE = "sensitive_or_system_request"
@@ -136,7 +138,7 @@ def source_id(idx: int) -> str:
 def normalize_source(ctx: dict[str, Any], idx: int) -> dict[str, Any]:
     meta = dict(ctx.get("metadata", {}))
     score = float(ctx.get("score", 1.0 - float(ctx.get("distance", 1.0))))
-    return {
+    source = {
         "source_id": source_id(idx),
         "score": score,
         "relative_path": meta.get("relative_path"),
@@ -145,6 +147,11 @@ def normalize_source(ctx: dict[str, Any], idx: int) -> dict[str, Any]:
         "chars": meta.get("chars"),
         "preview": preview_text(str(ctx.get("document", ""))),
     }
+    if meta.get("retrieval"):
+        source["retrieval"] = meta.get("retrieval")
+    if meta.get("expanded_from_chunk_index") is not None:
+        source["expanded_from_chunk_index"] = meta.get("expanded_from_chunk_index")
+    return source
 
 
 def build_sources_block(contexts: list[dict[str, Any]], source_char_limit: int) -> str:
@@ -152,12 +159,14 @@ def build_sources_block(contexts: list[dict[str, Any]], source_char_limit: int) 
     for idx, ctx in enumerate(contexts, start=1):
         meta = ctx.get("metadata", {})
         score = float(ctx.get("score", 1.0 - float(ctx.get("distance", 1.0))))
+        retrieval = meta.get("retrieval", "vector_search")
         blocks.append(
             "\n".join(
                 [
                     f"[{source_id(idx)}]",
                     f"Файл: {meta.get('relative_path')}",
                     f"Chunk: {meta.get('chunk_index')}",
+                    f"Retrieval: {retrieval}",
                     f"Score: {score:.4f}",
                     "Фрагмент:",
                     compact_document(str(ctx.get("document", "")), source_char_limit),
@@ -246,6 +255,98 @@ def query_contexts(
     )
 
 
+def chunk_row_to_context(row: dict[str, Any], parent_score: float, parent_chunk_index: int) -> dict[str, Any]:
+    meta = {
+        "chunk_id": row.get("chunk_id"),
+        "db_id": row.get("db_id"),
+        "source_path": row.get("source_path"),
+        "relative_path": row.get("relative_path"),
+        "extension": row.get("extension"),
+        "sha256": row.get("sha256"),
+        "mtime": float(row.get("mtime", 0.0)),
+        "chunk_index": int(row.get("chunk_index", 0)),
+        "chars": int(row.get("chars", len(str(row.get("text", ""))))),
+        "retrieval": "document_expansion",
+        "expanded_from_chunk_index": parent_chunk_index,
+    }
+    return {
+        "document": row.get("text", ""),
+        "metadata": meta,
+        "distance": float(1.0 - parent_score),
+        "score": parent_score,
+    }
+
+
+def load_document_chunks(cfg: dict[str, Any], relative_path: str) -> list[dict[str, Any]]:
+    chunks_path = resolve_work_path(cfg, cfg["paths"].get("chunks", "data/chunks.jsonl"))
+    rows = [row for row in jsonl_read(chunks_path) if row.get("relative_path") == relative_path]
+    rows.sort(key=lambda row: int(row.get("chunk_index", 0)))
+    return rows
+
+
+def expand_contexts_by_document(
+    cfg: dict[str, Any],
+    contexts: list[dict[str, Any]],
+    expand_top_documents: int,
+    document_expansion_chunks: int,
+) -> list[dict[str, Any]]:
+    if expand_top_documents <= 0 or document_expansion_chunks <= 0 or not contexts:
+        return contexts
+
+    selected_docs: list[tuple[str, int, float]] = []
+    seen_docs: set[str] = set()
+    for ctx in contexts:
+        meta = ctx.get("metadata", {})
+        relative_path = str(meta.get("relative_path") or "")
+        if not relative_path or relative_path in seen_docs:
+            continue
+        seen_docs.add(relative_path)
+        selected_docs.append(
+            (
+                relative_path,
+                int(meta.get("chunk_index", 0)),
+                float(ctx.get("score", 0.0)),
+            )
+        )
+        if len(selected_docs) >= expand_top_documents:
+            break
+
+    expanded: list[dict[str, Any]] = []
+    seen_keys: set[tuple[str, int]] = set()
+
+    for relative_path, parent_chunk_index, parent_score in selected_docs:
+        rows = load_document_chunks(cfg, relative_path)
+        if not rows:
+            continue
+
+        chunk_indices = [int(row.get("chunk_index", 0)) for row in rows]
+        if parent_chunk_index <= min(chunk_indices, default=0):
+            selected_rows = rows[:document_expansion_chunks]
+        else:
+            half_window = max(1, document_expansion_chunks // 2)
+            start = max(0, parent_chunk_index - half_window)
+            end = parent_chunk_index + half_window + 1
+            selected_rows = [row for row in rows if start <= int(row.get("chunk_index", 0)) < end]
+            selected_rows = selected_rows[:document_expansion_chunks]
+
+        for row in selected_rows:
+            key = (str(row.get("relative_path")), int(row.get("chunk_index", 0)))
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            expanded.append(chunk_row_to_context(row, parent_score, parent_chunk_index))
+
+    for ctx in contexts:
+        meta = ctx.get("metadata", {})
+        key = (str(meta.get("relative_path")), int(meta.get("chunk_index", 0)))
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        expanded.append(ctx)
+
+    return expanded or contexts
+
+
 def trim_contexts(contexts: list[dict[str, Any]], max_context_chars: int) -> list[dict[str, Any]]:
     selected: list[dict[str, Any]] = []
     used_chars = 0
@@ -268,9 +369,10 @@ def print_human(result: dict[str, Any]) -> None:
     if result.get("sources"):
         print("\nИсточники:")
         for src in result["sources"]:
+            retrieval = f" retrieval={src.get('retrieval')}" if src.get("retrieval") else ""
             print(
                 f"- [{src['source_id']}] score={float(src['score']):.4f} "
-                f"file={src.get('relative_path')} chunk={src.get('chunk_index')}"
+                f"file={src.get('relative_path')} chunk={src.get('chunk_index')}{retrieval}"
             )
             print(f"  {src.get('preview')}")
 
@@ -290,6 +392,9 @@ def main() -> None:
     parser.add_argument("--min-sources", type=int, default=DEFAULT_MIN_SOURCES, help="Минимальное число источников выше порога")
     parser.add_argument("--max-context-chars", type=int, default=DEFAULT_MAX_CONTEXT_CHARS, help="Максимальный размер контекста для LLM")
     parser.add_argument("--source-char-limit", type=int, default=1800, help="Максимум символов одного источника в prompt")
+    parser.add_argument("--document-expansion-chunks", type=int, default=DEFAULT_DOCUMENT_EXPANSION_CHUNKS, help="Сколько chunks брать из top-документа для LLM-контекста")
+    parser.add_argument("--expand-top-documents", type=int, default=DEFAULT_EXPAND_TOP_DOCUMENTS, help="Сколько top-документов расширять соседними chunks")
+    parser.add_argument("--no-document-expansion", action="store_true", help="Отключить расширение контекста по top-документу")
     parser.add_argument("--model", default=None, help="Ollama model для генерации ответа")
     parser.add_argument("--prompt", default=DEFAULT_PROMPT_PATH, help="Путь к prompt-шаблону")
     parser.add_argument("--temperature", type=float, default=None, help="Температура генерации")
@@ -340,8 +445,7 @@ def main() -> None:
         return
 
     accepted_contexts = filter_contexts_by_score(found_contexts, args.score_threshold, args.min_sources)
-    accepted_contexts = trim_contexts(accepted_contexts, args.max_context_chars)
-    sources = [normalize_source(ctx, idx) for idx, ctx in enumerate(accepted_contexts, start=1)]
+    raw_sources = [normalize_source(ctx, idx) for idx, ctx in enumerate(accepted_contexts, start=1)]
 
     if not accepted_contexts:
         candidate_sources = [normalize_source(ctx, idx) for idx, ctx in enumerate(found_contexts[: min(3, len(found_contexts))], start=1)]
@@ -356,20 +460,31 @@ def main() -> None:
         return
 
     if args.sources_only:
-        result = answer_response(question, "LLM не вызывалась: показаны найденные проектные источники.", sources, args.score_threshold)
+        result = answer_response(question, "LLM не вызывалась: показаны найденные проектные источники.", raw_sources, args.score_threshold)
         output_result(result, args.json)
         return
 
+    llm_contexts = accepted_contexts
+    if not args.no_document_expansion:
+        llm_contexts = expand_contexts_by_document(
+            cfg,
+            accepted_contexts,
+            args.expand_top_documents,
+            args.document_expansion_chunks,
+        )
+    llm_contexts = trim_contexts(llm_contexts, args.max_context_chars)
+    llm_sources = [normalize_source(ctx, idx) for idx, ctx in enumerate(llm_contexts, start=1)]
+
     try:
         prompt_template = read_prompt_template(prompt_path)
-        prompt = build_answer_prompt(question, accepted_contexts, prompt_template, args.source_char_limit)
+        prompt = build_answer_prompt(question, llm_contexts, prompt_template, args.source_char_limit)
         answer = ollama_generate(base_url, chat_model, prompt, temperature, top_p, args.num_predict, args.timeout_sec)
     except Exception as exc:  # noqa: BLE001 - CLI should return structured error for MVP usage.
         result = refusal_response(
             question,
             REFUSAL_LLM_ERROR,
             "Не удалось получить ответ от локальной LLM. Найденные источники сохранены в ответе.",
-            sources=sources,
+            sources=llm_sources,
             details=str(exc),
         )
         output_result(result, args.json)
@@ -380,13 +495,13 @@ def main() -> None:
             question,
             REFUSAL_LLM_EMPTY,
             "Локальная LLM вернула пустой ответ. Найденные источники сохранены в ответе.",
-            sources=sources,
+            sources=llm_sources,
             details=f"model={chat_model}, num_predict={args.num_predict}, top_k={args.top_k}",
         )
         output_result(result, args.json)
         return
 
-    result = answer_response(question, answer, sources, args.score_threshold)
+    result = answer_response(question, answer, llm_sources, args.score_threshold)
     output_result(result, args.json)
 
 
