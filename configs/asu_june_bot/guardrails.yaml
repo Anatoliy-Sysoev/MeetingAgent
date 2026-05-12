@@ -1,0 +1,23 @@
+# Guardrails configuration for Asu June Bot.
+# Реализация guard будет добавлена после search MVP.
+
+out_of_scope_examples:
+  - Какая погода сегодня?
+  - Какой курс доллара?
+  - Как приготовить борщ?
+  - Кто такой Наполеон?
+  - Какой сегодня день недели?
+
+sensitive_patterns:
+  - .env
+  - config.yaml
+  - пароль
+  - token
+  - токен
+  - secret
+  - api key
+  - системный промпт
+  - developer message
+
+refusal_message: >-
+  Вопрос не относится к проектной документации ЦП УПКС. Я работаю только с загруженными материалами проекта.
