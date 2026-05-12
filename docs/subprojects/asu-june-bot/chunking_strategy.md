@@ -6,7 +6,45 @@
 
 `chunking v2` — новая стратегия подготовки проектных chunks для Asu June Bot.
 
-Цель: перейти от нарезки текста по символам к структурному chunking по смысловым единицам проектных документов, чтобы бот мог отвечать с точными ссылками на документы, разделы, пункты, строки таблиц и сценарии.
+Цель: перейти от нарезки текста по символам к структурному extraction/chunking по смысловым единицам проектных документов, чтобы бот мог отвечать с точными ссылками на документы, разделы, пункты, строки таблиц и сценарии.
+
+## Ключевое Решение
+
+Asu June Bot строит собственный pipeline v2 и больше не зависит от старого extraction pipeline MeetingAgent.
+
+Старый pipeline остается для MeetingAgent v1:
+
+```text
+run_full_rag.ps1
+  -> scripts/01_inventory.py
+  -> scripts/02_extract_text.py
+  -> scripts/03_build_index.py
+  -> scripts/05_build_numpy_index.py
+```
+
+Новый pipeline Asu June Bot v2:
+
+```text
+run_asu_june_bot_rebuild_v2.ps1
+  -> scripts/asu_june_bot_extract_text_v2.py
+  -> scripts/asu_june_bot_build_chunks_v2.py
+  -> future: scripts/asu_june_bot_build_index_v2.py
+```
+
+Новый pipeline пишет только в:
+
+```text
+data/asu_june_bot/
+```
+
+и не трогает:
+
+```text
+data/chunks.jsonl
+data/embeddings_cache.jsonl
+data/numpy_index/
+run_full_rag.ps1
+```
 
 ## Почему Нужен v2
 
@@ -16,14 +54,75 @@
 
 1. Один chunk может содержать сразу несколько требований ФТТ.
 2. Таблицы превращаются в общий текст и теряют структуру строк.
-3. Номера пунктов определяются эвристически уже на этапе поиска.
-4. Для точных вопросов вроде `ФТТ 4.2.5` бот получает широкий фрагмент, а не атомарное требование.
-5. Для обзорных вопросов вроде `Что входит в Паспорт ИС?` не хватает parent-level chunks по разделам.
-6. Нельзя уверенно формировать citations уровня `[ФТТ, п. 4.2.5]`, если metadata не была извлечена при chunking.
+3. DOCX-таблицы в старом extractor переносились после всех paragraph, что ломало исходный порядок документа.
+4. Номера пунктов определяются эвристически уже на этапе поиска.
+5. Для точных вопросов вроде `ФТТ 4.2.5` бот получает широкий фрагмент, а не атомарное требование.
+6. Для обзорных вопросов вроде `Что входит в Паспорт ИС?` не хватает parent-level chunks по разделам.
+7. Нельзя уверенно формировать citations уровня `[ФТТ, п. 4.2.5]`, если metadata не была извлечена при extraction/chunking.
 
-Вывод: v1 оставить как стабильный baseline, v2 строить параллельно.
+Вывод: v1 оставить как стабильный baseline, v2 строить параллельно и независимо.
 
-## Главный Принцип v2
+## Extraction v2
+
+Extractor v2 создает структурные blocks, а не plain text.
+
+Скрипт:
+
+```text
+scripts/asu_june_bot_extract_text_v2.py
+```
+
+Выходные файлы:
+
+```text
+data/asu_june_bot/extracted_v2/documents.jsonl
+data/asu_june_bot/extracted_v2/blocks.jsonl
+data/asu_june_bot/extracted_v2/extraction_v2_report.json
+data/asu_june_bot/extracted_v2/extraction_v2_report.md
+```
+
+### Поддерживаемые форматы extraction v2
+
+| Формат | Стратегия |
+| --- | --- |
+| `.docx` | чтение paragraph/table в исходном порядке Word-документа |
+| `.xlsx` | лист + строка таблицы как block |
+| `.xlsb` | лист + строка таблицы как block через `pyxlsb` engine |
+| `.pdf` | page block по текстовому слою PDF |
+| `.pptx` | slide и shape_text blocks |
+| `.html` | heading/text blocks после удаления script/style/noscript |
+| `.md/.txt/.json/.yml/.yaml/.drawio/.puml/.srt/.py/.js/.ts/.css` | text blocks |
+
+### Block Schema v2
+
+Минимальная структура block:
+
+```json
+{
+  "block_id": "...",
+  "source_id": "...",
+  "block_index": 1,
+  "block_type": "table_row",
+  "text": "...",
+  "relative_path": "...",
+  "document_name": "ФТТ.docx",
+  "document_type": "ФТТ",
+  "source_type": "project_doc",
+  "stage": "Этап 1",
+  "module": "СМР / Строительный контроль",
+  "section": "4.2.5",
+  "sections": ["4.2.5"],
+  "table_id": "Table 3",
+  "row_id": "7",
+  "headers": ["Код", "Требование", "Описание"],
+  "cells": {
+    "Код": "4.2.5",
+    "Описание": "..."
+  }
+}
+```
+
+## Главный Принцип Chunking v2
 
 ```text
 Не chunk по символам, а chunk по смысловой единице документа.
@@ -33,10 +132,10 @@
 
 | Тип документа | Atomic child chunk | Parent chunk |
 | --- | --- | --- |
-| ФТТ | одно требование / пункт | раздел требований |
-| ЦТА | строка таблицы / архитектурный пункт / поток | раздел архитектуры |
-| СоИ AD | один блок / одна строка маппинга | раздел интеграции |
-| СоИ Справочники | одно поле маппинга / один справочник | справочник целиком |
+| ФТТ | одно требование / пункт / строка таблицы | раздел требований / таблица |
+| ЦТА | строка таблицы / архитектурный пункт / поток | раздел архитектуры / таблица |
+| СоИ AD | один блок / одна строка маппинга | раздел интеграции / таблица |
+| СоИ Справочники | одно поле маппинга / один справочник | справочник целиком / таблица |
 | Паспорт ИС | один пункт / один компонент / одна строка таблицы | раздел паспорта |
 | ПМИ | один шаг сценария / одно проверяемое требование | сценарий СФТ/СНТ целиком |
 | Руководства | один пункт инструкции | раздел руководства |
@@ -166,6 +265,8 @@ Child chunk содержит атомарный факт:
   "requirement_id": "4.2.5",
   "scenario_id": null,
 
+  "block_id": "...",
+  "block_type": "table_row",
   "table_id": "Table 3",
   "table_title": null,
   "row_id": "7",
@@ -184,178 +285,6 @@ Child chunk содержит атомарный факт:
 }
 ```
 
-## Правила По Типам Документов
-
-### ФТТ
-
-Правило:
-
-```text
-одно требование = один child chunk
-раздел требований = parent chunk
-```
-
-Metadata:
-
-```text
-document_type = ФТТ
-requirement_id = номер требования, например 4.2.5
-section = requirement_id
-module = модуль, если определяется по тексту/пути
-```
-
-Критерий качества:
-
-- запрос `ФТТ 4.2.5` должен возвращать chunk, где `requirement_id = 4.2.5`;
-- chunk не должен включать весь раздел 4.2 целиком, если можно выделить отдельное требование.
-
-### ЦТА
-
-Правило:
-
-```text
-раздел архитектуры = parent chunk
-строка таблицы / поток / сервис / порт = child chunk
-```
-
-Metadata:
-
-```text
-document_type = ЦТА
-section = номер раздела
-module = архитектурная область
-integration/protocol/source_system/target_system — если определяется
-```
-
-### СоИ AD
-
-Правило:
-
-```text
-логический раздел интеграции = parent chunk
-строка атрибутного состава / маппинга = child chunk
-```
-
-Metadata:
-
-```text
-document_type = СоИ AD
-integration = Active Directory
-protocol = LDAPS, если найден
-source_system = AD
-target_system = ЦП УПКС
-```
-
-### СоИ Справочники
-
-Правило:
-
-```text
-справочник = parent chunk
-поле / строка маппинга = child chunk
-```
-
-Metadata:
-
-```text
-document_type = СоИ Справочники
-dictionary = наименование справочника
-source_system = MDR / КШД / СОИ
-target_system = ЦП УПКС
-```
-
-### Паспорт ИС
-
-Правило:
-
-```text
-раздел паспорта = parent chunk
-пункт / сервис / компонент / строка таблицы = child chunk
-```
-
-Критерий качества:
-
-- вопрос `Что входит в Паспорт ИС?` должен поднимать parent chunks по структуре документа;
-- вопрос про PostgreSQL/Minio/AD должен поднимать конкретные child chunks.
-
-### ПМИ
-
-Правило:
-
-```text
-сценарий СФТ/СНТ = parent chunk
-шаг сценария / проверяемое требование = child chunk
-```
-
-Metadata:
-
-```text
-document_type = ПМИ
-test_type = СФТ / СНТ
-scenario_id = СФТ 1 / СНТ 5
-requirement_id = ФТТ пункт, если найден
-```
-
-## Таблицы
-
-Таблицы — главный источник атомарных chunks.
-
-Правило:
-
-```text
-одна строка таблицы = один child chunk
-```
-
-При этом в текст child chunk обязательно включать:
-
-```text
-- document_name
-- table_id
-- header row
-- row values
-```
-
-Пример текста child chunk:
-
-```text
-Документ: ФТТ.docx
-Таблица: Table 5
-Заголовки: Код | Наименование | Описание
-Строка: 4.2.5 | Формирование акта проверки | ... НОВАДОК ... ЭЦП ...
-```
-
-Такой формат нужен, чтобы chunk был понятен без просмотра всей таблицы.
-
-## Размеры
-
-### Child chunk
-
-Целевой размер:
-
-```text
-300–1200 токенов / примерно 500–2500 символов
-```
-
-Но смысл важнее длины.
-
-### Parent chunk
-
-Целевой размер:
-
-```text
-1200–3000 токенов / примерно 2500–7000 символов
-```
-
-### Overlap
-
-Overlap используется только для обычного текста.
-
-```text
-100–200 токенов / 300–600 символов
-```
-
-Для таблиц overlap не нужен.
-
 ## Выходные Файлы
 
 v2 не должен перезаписывать текущий индекс MeetingAgent.
@@ -371,6 +300,10 @@ data/numpy_index/
 v2 pipeline:
 
 ```text
+data/asu_june_bot/extracted_v2/documents.jsonl
+data/asu_june_bot/extracted_v2/blocks.jsonl
+data/asu_june_bot/extracted_v2/extraction_v2_report.json
+data/asu_june_bot/extracted_v2/extraction_v2_report.md
 data/asu_june_bot/chunks_v2.jsonl
 data/asu_june_bot/chunking_v2_report.json
 data/asu_june_bot/chunking_v2_report.md
@@ -384,49 +317,63 @@ data/asu_june_bot/numpy_index_v2/
 
 ## Скрипты
 
-Новый скрипт:
+Extraction v2:
+
+```text
+scripts/asu_june_bot_extract_text_v2.py
+```
+
+Chunking v2:
 
 ```text
 scripts/asu_june_bot_build_chunks_v2.py
 ```
 
-Скрипт должен:
+Full rebuild v2:
 
-1. Читать `data/extracted_text/_metadata.jsonl`.
-2. Читать извлеченный текст из `extracted_path`.
-3. Строить parent/child chunks.
-4. Сохранять результат в `data/asu_june_bot/chunks_v2.jsonl`.
-5. Сохранять отчет.
-6. Не трогать `data/chunks.jsonl`.
-7. Не трогать `data/embeddings_cache.jsonl`.
-8. Не трогать `data/numpy_index`.
+```text
+run_asu_june_bot_rebuild_v2.ps1
+```
+
+Chunk-only wrapper:
+
+```text
+run_asu_june_bot_chunks_v2.ps1
+```
 
 ## Команды
 
-Dry-run:
+Extraction dry-run:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --dry-run --limit 5
+```
+
+Extraction только по ФТТ:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --path-contains "ФТТ"
+```
+
+Chunking dry-run после extraction:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_build_chunks_v2.py --dry-run --limit 5
 ```
 
-Полная сборка chunks v2:
+Полная v2-пересборка:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_build_chunks_v2.py
-```
-
-Сборка только по ФТТ:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_build_chunks_v2.py --path-contains "ФТТ"
+.\run_asu_june_bot_rebuild_v2.ps1
 ```
 
 ## Acceptance Criteria
 
-`chunking v2` считается готовым для первого сравнения с v1, если:
+`extraction/chunking v2` считается готовым для первого сравнения с v1, если:
 
+- создан `data/asu_june_bot/extracted_v2/blocks.jsonl`;
 - создан `data/asu_june_bot/chunks_v2.jsonl`;
-- создан отчет `chunking_v2_report.json`;
+- созданы отчеты extraction и chunking;
 - старые `data/chunks.jsonl` и `data/numpy_index` не изменены;
 - у каждого chunk есть `chunker_version = v2`;
 - у каждого chunk есть `chunk_level = parent | child`;
@@ -454,6 +401,5 @@ Dry-run:
 - Не заменять текущий RAG индекс.
 - Не считать embeddings v2 в этом же скрипте.
 - Не подключать LLM.
-- Не делать DOCX/PDF re-extraction заново.
 - Не менять `run_full_rag.ps1`.
 - Не добавлять v2 в production search до сравнения с v1.
