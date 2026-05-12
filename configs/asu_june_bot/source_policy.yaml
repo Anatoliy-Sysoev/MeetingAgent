@@ -15,6 +15,18 @@ weights:
   runtime_export: 0.4
   code: 0.35
 
+document_type_weights:
+  ЦТА: 1.18
+  СоИ AD: 1.16
+  СоИ Справочники: 1.16
+  ФТТ: 1.12
+  ПР: 1.08
+  Паспорт ИС: 1.08
+  ПМИ: 1.0
+  Руководство: 0.96
+  Реестр НСИ: 0.86
+  Wiki: 0.74
+
 explicit_enable_markers:
   system_export:
     - админ
