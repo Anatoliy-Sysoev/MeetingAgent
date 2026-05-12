@@ -67,7 +67,7 @@ MeetingAgent должен уметь относить документы, вст
 | `MA-01` | RAG-фундамент | Собрать корпус документов, chunks, embeddings и устойчивый поиск. | `FTT-MA-02` - `FTT-MA-06`, `FTT-MA-15` | Работает, нужен baseline качества |
 | `MA-02` | Качество поиска | Проверить RAG на реальных вопросах, убрать мусор, зафиксировать метрики. | `FTT-MA-07` | Следующий этап |
 | `MA-03` | Карточка встречи | Описать единый формат папки встречи и артефактов. | `FTT-MA-08`, `FTT-MA-09`, `FTT-MA-20` | Начато: контракт `meeting.json` создан |
-| `MA-04` | Offline-транскрибация записи | Обрабатывать готовые видео/аудио из watched folder. | `FTT-MA-08`, `FTT-MA-11` | Начато: CLI одной встречи прошел реальный прогон |
+| `MA-04` | Offline-транскрибация записи | Обрабатывать готовые видео/аудио из watched folder. | `FTT-MA-08`, `FTT-MA-11` | Начато: CLI одной встречи прошел реальный прогон; оконный pipeline прошел 2-window smoke |
 | `MA-05` | Live-транскрибация встречи | Писать черновой транскрипт в процессе встречи. | `FTT-MA-10`, `FTT-MA-11` | Запланировано, есть эксперимент WhisperDesk |
 | `MA-06` | Memo, протокол, задачи | Генерировать структурированные итоги встречи. | `FTT-MA-12`, `FTT-MA-20` | Скаффолд: prompt-пакет, JSON-схемы, extractive CLI; production-генератор не закрыт |
 | `MA-07` | Классификация и маршрутизация | Определять этап проекта, ФТТ, документ и задачу. | `FTT-MA-13`, `FTT-MA-15` | Запланировано |
@@ -263,7 +263,7 @@ meetings/
 
 **Критерий готовности:** каждый пункт связан с transcript segment или RAG-источником.
 
-**Статус:** начато. Extractive-режим прошел на тестовой встрече и создал валидные артефакты, но по качеству является только скаффолдом: он выбирает сегменты по ключевым словам и не считается готовым продуктовым генератором. Целевой production-путь зафиксирован как `MAP -> REDUCE -> RENDER` в `docs/architecture/MEETING_ARTIFACTS_PIPELINE.md`; следующий шаг - калибровка LLM на одном окне transcript.
+**Статус:** начато. Extractive-режим прошел на тестовой встрече и создал валидные артефакты, но по качеству является только скаффолдом: он выбирает сегменты по ключевым словам и не считается готовым продуктовым генератором. Целевой production-путь зафиксирован как `MAP -> REDUCE -> RENDER` в `docs/architecture/MEETING_ARTIFACTS_PIPELINE.md`; `scripts/08_process_meeting_pipeline.py` прошел 2-window smoke и умеет сохранять partial JSON, resume и нормализованные `source_refs`. Следующий шаг - полный прогон и ручная оценка качества memo/protocol.
 
 ### `FTT-MA-13` Классификация По Этапу, ФТТ, Документу И Задаче
 
@@ -425,7 +425,7 @@ meetings/
 | 3 | Схема карточки встречи | `FTT-MA-09`, `FTT-MA-20` | `configs/schemas/meeting.schema.json` + markdown template | meeting folder можно проверить без кода |
 | 4 | Offline ingest записи | `FTT-MA-08`, `FTT-MA-11` | watcher/CLI для медиа | новое видео создает сессию и transcript |
 | 5 | Live-транскрибация MVP | `FTT-MA-10`, `FTT-MA-11` | live CLI или prototype module | mic/system audio пишутся в JSONL/TXT |
-| 6 | Prompts для memo, протокола и задач | `FTT-MA-12` | prompt-пакет и схемы | Скаффолд готов; production map-reduce-render требует калибровки |
+| 6 | Prompts для memo, протокола и задач | `FTT-MA-12` | prompt-пакет, схемы и оконный pipeline | Скаффолд готов; 2-window smoke прошел; production map-reduce-render требует полного прогона и ручной оценки |
 | 7 | Project classifier | `FTT-MA-13` | classifier prompt/module | meeting получает `PRJ-*`, ФТТ-кандидаты и confidence |
 | 8 | Инкрементальное обновление RAG | `FTT-MA-15` | `update_rag.ps1` / скрипт | новый протокол попадает в RAG без полной пересборки |
 | 9 | Project-only chatbot | `FTT-MA-21`, `FTT-MA-05`, `FTT-MA-06`, `FTT-MA-16`, `FTT-MA-18` | CLI/API чат | отвечает только по проектным источникам или отказывает |
