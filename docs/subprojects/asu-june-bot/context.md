@@ -14,6 +14,43 @@ Asu June Bot — отдельный подпроект внутри MeetingAgent
 - явно отделять подтвержденные факты от вывода;
 - отказывать на вопросы вне проекта или без источников.
 
+## Ключевое Решение По v2
+
+Asu June Bot теперь строит собственный независимый pipeline v2 и не опирается на старый `scripts/02_extract_text.py`.
+
+Старый pipeline MeetingAgent остается только как v1/baseline:
+
+```text
+run_full_rag.ps1
+  -> scripts/01_inventory.py
+  -> scripts/02_extract_text.py
+  -> scripts/03_build_index.py
+  -> scripts/05_build_numpy_index.py
+```
+
+Новый pipeline Asu June Bot:
+
+```text
+run_asu_june_bot_rebuild_v2.ps1
+  -> scripts/asu_june_bot_extract_text_v2.py
+  -> scripts/asu_june_bot_build_chunks_v2.py
+  -> future: scripts/asu_june_bot_build_index_v2.py
+```
+
+Все новые runtime-данные пишутся в:
+
+```text
+data/asu_june_bot/
+```
+
+и не перезаписывают:
+
+```text
+data/chunks.jsonl
+data/embeddings_cache.jsonl
+data/numpy_index/
+```
+
 ## Почему выделен отдельный подпроект
 
 Попытка развивать project-only чат в `scripts/09_chat.py` показала архитектурный риск: один скрипт начал смешивать CLI, guard, retrieval, query expansion, document expansion, LLM-вызов, fallback и форматирование ответа.
@@ -24,7 +61,9 @@ Asu June Bot — отдельный подпроект внутри MeetingAgent
 
 ## Что уже реализовано
 
-Начат первый технический слой Asu June Bot: search MVP.
+### 1. Search MVP v1
+
+Начат первый технический слой Asu June Bot: search MVP поверх текущего v1 corpus.
 
 Добавлено:
 
@@ -39,6 +78,7 @@ src/asu_june_bot/
   retrieval/vector.py
   retrieval/hybrid.py
   retrieval/chunks.py
+  retrieval/query_expansion.py
 scripts/asu_june_bot_search.py
 configs/asu_june_bot/retrieval.yaml
 configs/asu_june_bot/source_policy.yaml
@@ -54,20 +94,80 @@ configs/asu_june_bot/guardrails.yaml
 - использовать существующий `data/numpy_index` через adapter;
 - строить BM25 in-memory без внешних зависимостей;
 - объединять vector и BM25 выдачу в `HybridRetriever`;
-- вычислять `source_type`, `document_type`, `module`, `stage`, `section` эвристически по пути и тексту chunk;
+- расширять запрос через `query_expansion.yaml`;
+- вычислять `source_type`, `document_type`, `module`, `stage`, `section`, `sections` эвристически по пути и тексту chunk;
 - применять `SourcePolicy`, чтобы по умолчанию отдавать приоритет проектным документам и не тащить `system_export` без явного запроса;
 - запускать CLI-поиск через `scripts/asu_june_bot_search.py`.
 
-Проверочная команда после `git pull`:
+### 2. Extraction v2
 
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search.py "Какие интеграции заявлены в проекте?" --top-k 10 --json
+Добавлен самостоятельный extractor v2:
+
+```text
+scripts/asu_june_bot_extract_text_v2.py
+src/asu_june_bot/ingestion/
 ```
 
-Для точного поиска по пункту:
+Extractor v2 заново сканирует `project_root` из `config.yaml` и не читает старую папку `data/extracted_text`.
+
+Что делает extractor v2:
+
+- заново сканирует исходные файлы проекта;
+- поддерживает DOCX, XLSX/XLSB, PDF, PPTX, HTML и текстовые форматы;
+- для DOCX читает paragraph/table в исходном порядке документа;
+- для DOCX таблиц создает blocks `table` и `table_row`;
+- для XLSX/XLSB создает blocks `sheet` и `table_row`;
+- для PDF создает page blocks;
+- для PPTX создает slide/shape_text blocks;
+- пишет структурный результат в `data/asu_june_bot/extracted_v2/`.
+
+Выход extractor v2:
+
+```text
+data/asu_june_bot/extracted_v2/documents.jsonl
+data/asu_june_bot/extracted_v2/blocks.jsonl
+data/asu_june_bot/extracted_v2/extraction_v2_report.json
+data/asu_june_bot/extracted_v2/extraction_v2_report.md
+```
+
+### 3. Chunking v2
+
+Зафиксирована стратегия структурного chunking v2:
+
+```text
+docs/subprojects/asu-june-bot/chunking_strategy.md
+```
+
+Добавлен сборщик v2:
+
+```text
+scripts/asu_june_bot_build_chunks_v2.py
+run_asu_june_bot_chunks_v2.ps1
+run_asu_june_bot_rebuild_v2.ps1
+```
+
+Chunking v2 читает только:
+
+```text
+data/asu_june_bot/extracted_v2/blocks.jsonl
+```
+
+Что делает v2-сборщик:
+
+- строит parent/child chunks из blocks v2;
+- превращает строки таблиц в child chunks;
+- пытается заполнить `requirement_id`, `sections`, `document_type`, `source_type`, `integration`, `protocol`;
+- пишет результат в `data/asu_june_bot/chunks_v2.jsonl`;
+- пишет отчеты `chunking_v2_report.json` и `chunking_v2_report.md`;
+- не трогает `data/chunks.jsonl`, `data/embeddings_cache.jsonl`, `data/numpy_index` и `run_full_rag.ps1`.
+
+Проверочные команды:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode bm25 --top-k 10 --json
+.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --dry-run --limit 5
+.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --path-contains "ФТТ"
+.\.venv\Scripts\python.exe scripts\asu_june_bot_build_chunks_v2.py --dry-run --limit 5
+.\run_asu_june_bot_rebuild_v2.ps1
 ```
 
 ## Проектная область знаний
@@ -87,105 +187,23 @@ configs/asu_june_bot/guardrails.yaml
 - решения, задачи, риски и открытые вопросы;
 - маппинги НСИ / СоИ / MDR.
 
-## Базовое проектное понимание
-
-Бот должен понимать верхнеуровневую модель ЦП УПКС:
-
-- ЦП УПКС — цифровая платформа управления проектами капитального строительства.
-- Система автоматизирует проектные процессы от проектирования до ввода в эксплуатацию, а также капитальные ремонты и демонтаж объектов.
-- В проекте есть функциональные направления: ПИР, МТО, СМР, Строительный контроль, Исполнительная документация, ПНР, КСП, Контроль стоимости и прогресса.
-- Этап 1 сфокусирован на части функционала ПИР, СМР/Строительный контроль, исполнительной документации, справочниках, авторизации, уведомлениях и базовой архитектуре.
-- Архитектурно система строится как микросервисная платформа с Front, Core, Disk, Building, Approvals, Notifications, Ed, CC, Catalog, Help, Mdr и инфраструктурными компонентами.
-- Интеграции включают AD/LDAPS, Blitz IDP, MDR/КШД/СОИ, Exchange/SMTP, Minio S3, PostgreSQL, SIEM/логирование и другие взаимодействия, если они подтверждены документами.
-
-## Целевой режим ответа
-
-Бот должен отвечать так:
-
-```text
-Краткий ответ:
-...
-
-Обоснование:
-1. [Документ, раздел/пункт] ...
-2. [Документ, таблица/поток] ...
-
-Вывод:
-...
-
-Ограничения:
-- ...
-
-Источники:
-- SRC-001: документ, раздел/пункт, chunk, ссылка
-```
-
-Запрещенный стиль:
-
-```text
-Обычно в таких системах...
-Вероятно...
-Я думаю...
-В проекте точно есть..., если источник не найден.
-```
-
-## Локальный режим
-
-На первом этапе Asu June Bot должен работать локально:
-
-- Ollama как LLM runtime;
-- Qwen3 4B как стартовая модель;
-- qwen3:8b / qwen2.5:7b-instruct / mistral как модели для сравнения;
-- текущие chunks MeetingAgent как источник данных;
-- локальный индекс: сначала numpy/FAISS, затем Qdrant;
-- локальный FastAPI API;
-- Open WebUI позже как UI-поверхность.
-
-## Будущая миграция на GPU
-
-Вся LLM-интеграция должна строиться через OpenAI-compatible API.
-
-Сейчас:
-
-```text
-LLM_BASE_URL=http://localhost:11434/v1
-LLM_MODEL=qwen3:4b
-```
-
-Позже:
-
-```text
-LLM_BASE_URL=http://gpu-server:8000/v1
-LLM_MODEL=Qwen/Qwen3-14B или Qwen/Qwen3-32B
-```
-
-Это позволит перейти с Ollama на vLLM без переписывания бизнес-логики агента.
-
-## Текущие ограничения
-
-- Текущий RAG MeetingAgent уже умеет строить chunks и numpy index, но source typing, hybrid search и точные ссылки на разделы/пункты требуют проверки на реальном корпусе.
-- Текущий `scripts/09_chat.py` является prototype, а не целевой архитектурой Asu June Bot.
-- Search MVP еще не прогнан локально после добавления файлов.
-- Source type inference пока эвристический и должен быть заменен/усилен metadata extraction на этапе индексации.
-- Пока нет стабильного answer validator, который проверяет, что все утверждения подтверждены источниками.
-- Пока нет единого mapping-файла для ссылок на Яндекс.Диск / источники.
-
 ## Ближайшая цель
 
-Сначала проверить search MVP локально.
+Проверить новый independent v2 pipeline локально.
 
 Ожидаемый следующий шаг:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search.py "Какие интеграции заявлены в проекте?" --top-k 10 --json
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode bm25 --top-k 10 --json
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search.py "Что входит в Паспорт ИС?" --top-k 10 --json
+.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --dry-run --limit 5
+.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --path-contains "ФТТ"
+.\.venv\Scripts\python.exe scripts\asu_june_bot_build_chunks_v2.py --dry-run --limit 5
+.\run_asu_june_bot_rebuild_v2.ps1
 ```
 
 После проверки:
 
 - исправить import/runtime ошибки;
-- оценить качество выдачи;
-- настроить `source_policy.yaml`;
-- добавить query expansion runtime;
-- только потом переходить к `/chat`.
+- оценить `blocks.jsonl` по DOCX и XLSX;
+- оценить `chunks_v2.jsonl` по ФТТ и Паспорт ИС;
+- сравнить v1 и v2 на baseline;
+- только потом проектировать `numpy_index_v2` и подключение v2 к `/search`.

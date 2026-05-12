@@ -5,6 +5,7 @@ from typing import Any
 
 from .bm25 import BM25SearchAdapter
 from .models import SearchResult
+from .query_expansion import QueryExpander
 from .source_policy import SourcePolicy
 from .vector import VectorSearchAdapter
 
@@ -30,12 +31,14 @@ class HybridRetriever:
         vector_search: VectorSearchAdapter | None,
         bm25_search: BM25SearchAdapter | None,
         source_policy: SourcePolicy | None = None,
+        query_expander: QueryExpander | None = None,
         vector_weight: float = 0.65,
         bm25_weight: float = 0.35,
     ):
         self.vector_search = vector_search
         self.bm25_search = bm25_search
         self.source_policy = source_policy or SourcePolicy()
+        self.query_expander = query_expander or QueryExpander()
         self.vector_weight = vector_weight
         self.bm25_weight = bm25_weight
 
@@ -46,19 +49,22 @@ class HybridRetriever:
         include_source_types: list[str] | None = None,
         mode: str = "hybrid",
     ) -> list[SearchResult]:
+        expanded_query, expansions = self.query_expander.expand(query)
+        search_query = expanded_query if mode in ("hybrid", "vector") else query
         candidate_k = max(top_k * 3, top_k)
         vector_results: list[SearchResult] = []
         bm25_results: list[SearchResult] = []
 
         if mode in ("hybrid", "vector") and self.vector_search is not None:
-            vector_results = self.vector_search.search(query, candidate_k, include_source_types=include_source_types)
+            vector_results = self.vector_search.search(search_query, candidate_k, include_source_types=include_source_types)
         if mode in ("hybrid", "bm25") and self.bm25_search is not None:
-            bm25_results = self.bm25_search.search(query, candidate_k, include_source_types=include_source_types)
+            # BM25 receives the expanded query too, because exact words like MDR/LDAPS/Blitz are useful.
+            bm25_results = self.bm25_search.search(expanded_query, candidate_k, include_source_types=include_source_types)
 
         if mode == "vector":
-            return self._renumber(vector_results[:top_k])
+            return self._renumber(self._with_expansion_diagnostics(vector_results[:top_k], expansions, expanded_query))
         if mode == "bm25":
-            return self._renumber(bm25_results[:top_k])
+            return self._renumber(self._with_expansion_diagnostics(bm25_results[:top_k], expansions, expanded_query))
 
         vector_norm = _normalize_scores(vector_results, "score")
         bm25_norm = _normalize_scores(bm25_results, "score")
@@ -71,6 +77,16 @@ class HybridRetriever:
             bm25_component = bm25_norm.get(key, 0.0)
             score = self.vector_weight * vector_component + self.bm25_weight * bm25_component
 
+            diagnostics = dict(result.diagnostics)
+            diagnostics.update(
+                {
+                    "vector_component": vector_component,
+                    "bm25_component": bm25_component,
+                    "expanded_terms": expansions,
+                    "expanded_query": expanded_query if expansions else None,
+                }
+            )
+
             if existing is None:
                 merged[key] = replace(
                     result,
@@ -78,6 +94,7 @@ class HybridRetriever:
                     vector_score=result.vector_score,
                     bm25_score=result.bm25_score,
                     matched_by=list(result.matched_by),
+                    diagnostics=diagnostics,
                 )
             else:
                 matched_by = sorted(set(existing.matched_by + result.matched_by))
@@ -87,10 +104,25 @@ class HybridRetriever:
                     vector_score=existing.vector_score if existing.vector_score is not None else result.vector_score,
                     bm25_score=existing.bm25_score if existing.bm25_score is not None else result.bm25_score,
                     matched_by=matched_by,
+                    diagnostics={**existing.diagnostics, **diagnostics},
                 )
 
         ranked = sorted(merged.values(), key=lambda item: item.score, reverse=True)
         return self._renumber(ranked[:top_k])
+
+    @staticmethod
+    def _with_expansion_diagnostics(results: list[SearchResult], expansions: list[str], expanded_query: str) -> list[SearchResult]:
+        return [
+            replace(
+                result,
+                diagnostics={
+                    **result.diagnostics,
+                    "expanded_terms": expansions,
+                    "expanded_query": expanded_query if expansions else None,
+                },
+            )
+            for result in results
+        ]
 
     @staticmethod
     def _renumber(results: list[SearchResult]) -> list[SearchResult]:
@@ -105,7 +137,9 @@ def build_hybrid_retriever(
     ajb_cfg = cfg.get("asu_june_bot", {})
     retrieval_cfg = ajb_cfg.get("retrieval", {})
     source_policy_cfg = ajb_cfg.get("source_policy", {})
+    query_expansion_cfg = ajb_cfg.get("query_expansion", {})
     source_policy = SourcePolicy(source_policy_cfg)
+    query_expander = QueryExpander(query_expansion_cfg)
 
     vector_search = None
     bm25_search = None
@@ -118,6 +152,7 @@ def build_hybrid_retriever(
         vector_search=vector_search,
         bm25_search=bm25_search,
         source_policy=source_policy,
+        query_expander=query_expander,
         vector_weight=float(retrieval_cfg.get("vector_weight", 0.65)),
         bm25_weight=float(retrieval_cfg.get("bm25_weight", 0.35)),
     )
