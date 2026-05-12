@@ -22,6 +22,7 @@ class SearchResult:
     bm25_score: float | None
     metadata: dict[str, Any]
     matched_by: list[str] = field(default_factory=list)
+    diagnostics: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self, preview_chars: int = 600) -> dict[str, Any]:
         text_preview = " ".join(self.text.split())
@@ -39,9 +40,11 @@ class SearchResult:
             "module": self.metadata.get("module"),
             "stage": self.metadata.get("stage"),
             "section": self.metadata.get("section"),
+            "sections": self.metadata.get("sections"),
             "title": self.metadata.get("title"),
             "chunk_index": self.metadata.get("chunk_index"),
             "chunk_id": self.metadata.get("chunk_id"),
             "text_preview": text_preview,
+            "diagnostics": self.diagnostics,
             "metadata": self.metadata,
         }
