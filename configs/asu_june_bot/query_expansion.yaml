@@ -1,0 +1,35 @@
+# Query expansion dictionary for Asu June Bot.
+# На первом этапе файл создан как контракт. Реализация QueryExpander будет добавлена после search MVP.
+
+integrations:
+  triggers:
+    - интеграции
+    - интеграционное взаимодействие
+    - внешние системы
+    - системные взаимодействия
+  expansions:
+    - MDR
+    - КШД
+    - СОИ
+    - Active Directory
+    - AD
+    - LDAPS
+    - Blitz IDP
+    - SMTP
+    - Exchange
+    - SIEM
+    - Minio
+    - S3
+
+passport_is:
+  triggers:
+    - паспорт ис
+    - паспорт информационной системы
+    - что входит в паспорт
+  expansions:
+    - связанные документы
+    - приложения
+    - программное обеспечение
+    - архитектура
+    - эксплуатация
+    - информационная безопасность
