@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,6 +30,7 @@ REFUSAL_OUT_OF_SCOPE = "out_of_scope_or_no_relevant_sources"
 REFUSAL_SENSITIVE = "sensitive_or_system_request"
 REFUSAL_NO_INDEX = "rag_index_not_found"
 REFUSAL_LLM_ERROR = "llm_error"
+REFUSAL_LLM_EMPTY = "llm_empty_response"
 
 SENSITIVE_PATTERNS = (
     ".env",
@@ -68,6 +70,13 @@ def ollama_embed(base_url: str, model: str, text: str, num_ctx: int = 8192, keep
     return resp.json()["embedding"]
 
 
+def normalize_llm_answer(raw: str) -> str:
+    """Remove model-internal thinking blocks and normalize whitespace."""
+    text = raw or ""
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.IGNORECASE | re.DOTALL)
+    return text.strip()
+
+
 def ollama_generate(
     base_url: str,
     model: str,
@@ -92,7 +101,7 @@ def ollama_generate(
         timeout=timeout,
     )
     resp.raise_for_status()
-    return resp.json().get("response", "").strip()
+    return normalize_llm_answer(resp.json().get("response", ""))
 
 
 def preview_text(text: str, limit: int = 280) -> str:
@@ -362,6 +371,17 @@ def main() -> None:
             "Не удалось получить ответ от локальной LLM. Найденные источники сохранены в ответе.",
             sources=sources,
             details=str(exc),
+        )
+        output_result(result, args.json)
+        return
+
+    if not answer:
+        result = refusal_response(
+            question,
+            REFUSAL_LLM_EMPTY,
+            "Локальная LLM вернула пустой ответ. Найденные источники сохранены в ответе.",
+            sources=sources,
+            details=f"model={chat_model}, num_predict={args.num_predict}, top_k={args.top_k}",
         )
         output_result(result, args.json)
         return
