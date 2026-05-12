@@ -22,12 +22,13 @@
 - Использовать `docs/product/PROJECT_ONLY_CHATBOT_MVP.md` как дорожную карту разработки чат-бота.
 - Использовать `scripts/09_chat.py` как первый CLI Project-Only Chatbot MVP: ответ только по источникам проекта или корректный отказ.
 - Прогнать `scripts/09_chat.py` локально на быстром профиле: `--top-k 3 --max-context-chars 4500 --source-char-limit 1200 --num-predict 400 --timeout-sec 120`.
+- Проверить после `git pull`, что пустой ответ LLM возвращается как `status=refused` и `refusal_reason=llm_empty_response`, а не как `status=answered`.
 - Подобрать `--score-threshold` для project-only отказов на smoke-наборе.
 
 ## Далее
 
 - Вынести CLI-логику project-only чат-бота в local API `/chat` после успешного smoke-прогона.
-- Зафиксировать baseline project-only chatbot: проектные вопросы, внепроектные вопросы, threshold, модель, время ответа, качество источников.
+- Зафиксировать baseline project-only chatbot: проектные вопросы, внепроектные вопросы, threshold, модель, время ответа, качество источников, timeout и `llm_empty_response`.
 - Проверить, нужна ли отдельная более легкая модель для интерактивного режима: `qwen3:4b` или `qwen2.5:7b-instruct` вместо `qwen3:8b`.
 - Прогнать `--mode ollama-map-reduce` на одном окне transcript, не на всей встрече.
 - Сравнить `qwen2.5:7b-instruct` и `mistral:7b-instruct` на одном окне: время, валидность JSON, качество классификации.
@@ -85,3 +86,4 @@
 - Сгенерированные документы требуют строгого ревью источников.
 - Project-only отказ по одному `score_threshold` может быть слишком мягким или слишком жестким; порог нужно подобрать на smoke-наборе.
 - `qwen3:8b` на CPU может быть слишком медленным для интерактивного чата при большом prompt; для CLI нужен быстрый профиль или более легкая модель.
+- `qwen3:4b` может вернуть пустой `response` без HTTP-ошибки; такой случай должен считаться отказом `llm_empty_response`, а не успешным ответом.
