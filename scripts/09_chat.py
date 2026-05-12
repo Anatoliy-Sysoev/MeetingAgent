@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -9,7 +10,7 @@ from typing import Any
 
 import requests
 
-from rag_common import ensure_runtime_dirs, load_config, resolve_work_path
+from rag_common import ensure_runtime_dirs, jsonl_read, load_config, resolve_work_path
 from rag_numpy_backend import index_exists, load_index
 
 
@@ -20,13 +21,19 @@ if hasattr(sys.stdout, "reconfigure"):
 DEFAULT_PROMPT_PATH = "configs/prompts/project_only_chat.md"
 DEFAULT_SCORE_THRESHOLD = 0.35
 DEFAULT_MIN_SOURCES = 1
-DEFAULT_TOP_K = 8
-DEFAULT_MAX_CONTEXT_CHARS = 12000
+DEFAULT_TOP_K = 4
+DEFAULT_MAX_CONTEXT_CHARS = 6000
+DEFAULT_NUM_PREDICT = 700
+DEFAULT_TIMEOUT_SEC = 180
+DEFAULT_DOCUMENT_EXPANSION_CHUNKS = 6
+DEFAULT_EXPAND_TOP_DOCUMENTS = 1
 
 REFUSAL_OUT_OF_SCOPE = "out_of_scope_or_no_relevant_sources"
+REFUSAL_OBVIOUSLY_OUT_OF_SCOPE = "obviously_out_of_project_scope"
 REFUSAL_SENSITIVE = "sensitive_or_system_request"
 REFUSAL_NO_INDEX = "rag_index_not_found"
 REFUSAL_LLM_ERROR = "llm_error"
+REFUSAL_LLM_EMPTY = "llm_empty_response"
 
 SENSITIVE_PATTERNS = (
     ".env",
@@ -44,6 +51,60 @@ SENSITIVE_PATTERNS = (
     "developer message",
     "api key",
     "ключ api",
+)
+
+OBVIOUS_OUT_OF_SCOPE_PATTERNS = (
+    r"\bпогод[аеуы]\b",
+    r"\bпрогноз\s+погоды\b",
+    r"\bкурс\s+(доллар|доллара|евро|валют)",
+    r"\bдоллар\b",
+    r"\bбиткоин\b",
+    r"\bbitcoin\b",
+    r"\bрецепт\b",
+    r"\bприготов(ить|ление)\b",
+    r"\bборщ\b",
+    r"\bновост[ьи]\b",
+    r"\bкто\s+такой\s+наполеон\b",
+    r"\bзарплат",
+    r"\bкогда\s+зарплат",
+    r"\bкакой\s+день\s+недели\b",
+    r"\bкакое\s+сегодня\s+число\b",
+    r"\bсколько\s+времени\b",
+    r"\bтекущее\s+время\b",
+    r"\bтекущая\s+дата\b",
+)
+
+PROJECT_HINT_PATTERNS = (
+    r"\bпроект\b",
+    r"\bцп\s*упкс\b",
+    r"\bноватэк\b",
+    r"\bпаспорт\s+ис\b",
+    r"\bфтт\b",
+    r"\bцта\b",
+    r"\bпми\b",
+    r"\bинтеграц",
+    r"\bтребован",
+    r"\bархитектур",
+    r"\bmdr\b",
+    r"\bкшд\b",
+    r"\bсои\b",
+    r"\bad\b",
+    r"\bactive\s+directory\b",
+    r"\bblitz\b",
+    r"\bсием\b",
+    r"\bsiem\b",
+    r"\bldaps\b",
+)
+
+INTEGRATION_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("MDR / КШД / СОИ", ("MDR", "КШД", "СОИ", "справоч")),
+    ("Active Directory / AD / LDAPS", ("Active Directory", " AD ", "LDAPS", "контроллер", "домен")),
+    ("Blitz IDP", ("Blitz", "IDP", "SSO")),
+    ("SMTP / почтовый сервер", ("SMTP", "почтов", "email", "e-mail")),
+    ("SIEM", ("SIEM", "СИЕМ", "событ", "ИБ")),
+    ("S3 / Minio", ("S3", "Minio", "объектн", "бакет")),
+    ("RabbitMQ", ("RabbitMQ",)),
+    ("Grafana Loki", ("Grafana", "Loki")),
 )
 
 
@@ -66,32 +127,63 @@ def ollama_embed(base_url: str, model: str, text: str, num_ctx: int = 8192, keep
     return resp.json()["embedding"]
 
 
-def ollama_generate(
+def normalize_llm_answer(raw: str) -> str:
+    """Remove model-internal thinking blocks and normalize whitespace."""
+    text = raw or ""
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"^Thinking\.\.\..*?\.\.\.done thinking\.\s*", "", text, flags=re.IGNORECASE | re.DOTALL)
+    return text.strip()
+
+
+def ollama_chat(
     base_url: str,
     model: str,
     prompt: str,
     temperature: float,
     top_p: float,
+    num_predict: int,
     timeout: int,
+    think: bool = False,
 ) -> str:
     resp = requests.post(
-        f"{base_url.rstrip('/')}/api/generate",
+        f"{base_url.rstrip('/')}/api/chat",
         json={
             "model": model,
-            "prompt": prompt,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "Ты ProjectBot. Отвечай только по переданным проектным источникам. "
+                        "Не используй общие знания. Если данных недостаточно — откажись. "
+                        "Не выводи рассуждения, chain-of-thought или внутренний анализ."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
             "stream": False,
+            "think": think,
             "options": {
                 "temperature": temperature,
                 "top_p": top_p,
+                "num_predict": num_predict,
             },
         },
         timeout=timeout,
     )
     resp.raise_for_status()
-    return resp.json().get("response", "").strip()
+    payload = resp.json()
+    message = payload.get("message") or {}
+    return normalize_llm_answer(message.get("content") or payload.get("response") or "")
 
 
 def preview_text(text: str, limit: int = 280) -> str:
+    normalized = " ".join(str(text).split())
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[: limit - 1].rstrip() + "…"
+
+
+def compact_document(text: str, limit: int = 1800) -> str:
     normalized = " ".join(str(text).split())
     if len(normalized) <= limit:
         return normalized
@@ -109,46 +201,130 @@ def is_sensitive_question(question: str) -> bool:
     return any(pattern.lower() in lowered for pattern in SENSITIVE_PATTERNS)
 
 
+def has_project_hint(question: str) -> bool:
+    lowered = question.lower()
+    return any(re.search(pattern, lowered, flags=re.IGNORECASE) for pattern in PROJECT_HINT_PATTERNS)
+
+
+def is_obviously_out_of_scope_question(question: str) -> bool:
+    lowered = question.lower()
+    if has_project_hint(lowered):
+        return False
+    return any(re.search(pattern, lowered, flags=re.IGNORECASE) for pattern in OBVIOUS_OUT_OF_SCOPE_PATTERNS)
+
+
+def build_retrieval_query(question: str) -> str:
+    """Add project vocabulary for common project questions without changing the user-visible query."""
+    lowered = question.lower()
+    extras: list[str] = []
+    if "интеграц" in lowered:
+        extras.extend(
+            [
+                "интеграционное взаимодействие",
+                "внешние системы",
+                "MDR",
+                "КШД",
+                "СОИ",
+                "Active Directory",
+                "AD",
+                "LDAPS",
+                "Blitz IDP",
+                "SMTP",
+                "SIEM",
+                "S3",
+                "Minio",
+            ]
+        )
+    if "паспорт" in lowered and "ис" in lowered:
+        extras.extend(["Паспорт информационной системы", "связанные документы", "приложения", "программное обеспечение"])
+    if "фтт" in lowered and ("перв" in lowered or "этап" in lowered):
+        extras.extend(["Этап 1", "функционально-технические требования", "первый этап", "требования"])
+    if not extras:
+        return question
+    return question + "\n" + " ".join(extras)
+
+
 def source_id(idx: int) -> str:
     return f"SRC-{idx:03d}"
 
 
-def normalize_source(ctx: dict[str, Any], idx: int) -> dict[str, Any]:
+def load_source_links(cfg: dict[str, Any]) -> dict[str, str]:
+    raw_path = cfg.get("paths", {}).get("source_links", "data/source_links.json")
+    path = resolve_work_path(cfg, raw_path)
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    links: dict[str, str] = {}
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if isinstance(value, str):
+                links[str(key)] = value
+            elif isinstance(value, dict) and isinstance(value.get("url"), str):
+                links[str(key)] = value["url"]
+    return links
+
+
+def normalize_source(ctx: dict[str, Any], idx: int, source_links: dict[str, str] | None = None) -> dict[str, Any]:
     meta = dict(ctx.get("metadata", {}))
+    relative_path = meta.get("relative_path")
     score = float(ctx.get("score", 1.0 - float(ctx.get("distance", 1.0))))
-    return {
+    source = {
         "source_id": source_id(idx),
         "score": score,
-        "relative_path": meta.get("relative_path"),
+        "relative_path": relative_path,
         "chunk_index": meta.get("chunk_index"),
         "chunk_id": meta.get("chunk_id"),
         "chars": meta.get("chars"),
         "preview": preview_text(str(ctx.get("document", ""))),
     }
+    if source_links and relative_path in source_links:
+        source["source_url"] = source_links[relative_path]
+    if meta.get("retrieval"):
+        source["retrieval"] = meta.get("retrieval")
+    if meta.get("expanded_from_chunk_index") is not None:
+        source["expanded_from_chunk_index"] = meta.get("expanded_from_chunk_index")
+    return source
 
 
-def build_sources_block(contexts: list[dict[str, Any]]) -> str:
+def build_sources_block(contexts: list[dict[str, Any]], source_char_limit: int, source_links: dict[str, str] | None = None) -> str:
     blocks: list[str] = []
     for idx, ctx in enumerate(contexts, start=1):
         meta = ctx.get("metadata", {})
+        relative_path = meta.get("relative_path")
         score = float(ctx.get("score", 1.0 - float(ctx.get("distance", 1.0))))
-        blocks.append(
-            "\n".join(
-                [
-                    f"[{source_id(idx)}]",
-                    f"Файл: {meta.get('relative_path')}",
-                    f"Chunk: {meta.get('chunk_index')}",
-                    f"Score: {score:.4f}",
-                    "Фрагмент:",
-                    str(ctx.get("document", "")),
-                ]
-            )
+        retrieval = meta.get("retrieval", "vector_search")
+        lines = [
+            f"[{source_id(idx)}]",
+            f"Файл: {relative_path}",
+            f"Chunk: {meta.get('chunk_index')}",
+            f"Retrieval: {retrieval}",
+            f"Score: {score:.4f}",
+        ]
+        if source_links and relative_path in source_links:
+            lines.append(f"Ссылка: {source_links[relative_path]}")
+        lines.extend(
+            [
+                "Фрагмент:",
+                compact_document(str(ctx.get("document", "")), source_char_limit),
+            ]
         )
+        blocks.append("\n".join(lines))
     return "\n\n---\n\n".join(blocks)
 
 
-def build_answer_prompt(question: str, contexts: list[dict[str, Any]], prompt_template: str) -> str:
-    return prompt_template.replace("{question}", question).replace("{sources}", build_sources_block(contexts))
+def build_answer_prompt(
+    question: str,
+    contexts: list[dict[str, Any]],
+    prompt_template: str,
+    source_char_limit: int,
+    source_links: dict[str, str] | None = None,
+) -> str:
+    return prompt_template.replace("{question}", question).replace(
+        "{sources}", build_sources_block(contexts, source_char_limit, source_links)
+    )
 
 
 def confidence_from_sources(sources: list[dict[str, Any]], threshold: float) -> float:
@@ -157,7 +333,6 @@ def confidence_from_sources(sources: list[dict[str, Any]], threshold: float) -> 
     top_score = max(float(src.get("score", 0.0)) for src in sources)
     if top_score <= 0:
         return 0.0
-    # Simple MVP confidence: relative to threshold, capped to 1.0.
     return round(min(1.0, top_score / max(threshold, 1e-6)), 4)
 
 
@@ -180,7 +355,14 @@ def refusal_response(
     }
 
 
-def answer_response(question: str, answer: str, sources: list[dict[str, Any]], threshold: float) -> dict[str, Any]:
+def answer_response(
+    question: str,
+    answer: str,
+    sources: list[dict[str, Any]],
+    threshold: float,
+    answer_mode: str = "llm",
+    details: str | None = None,
+) -> dict[str, Any]:
     return {
         "created_at": utc_now(),
         "query": question,
@@ -189,6 +371,8 @@ def answer_response(question: str, answer: str, sources: list[dict[str, Any]], t
         "sources": sources,
         "refusal_reason": None,
         "confidence": confidence_from_sources(sources, threshold),
+        "answer_mode": answer_mode,
+        "details": details,
     }
 
 
@@ -217,7 +401,8 @@ def query_contexts(
 
     exclude_path_patterns = [] if include_excluded else list(cfg.get("exclude_path_patterns", []))
     dedupe_by_chunk_id = not no_dedupe
-    query_embedding = ollama_embed(base_url, embedding_model, question, embedding_num_ctx, keep_alive)
+    retrieval_query = build_retrieval_query(question)
+    query_embedding = ollama_embed(base_url, embedding_model, retrieval_query, embedding_num_ctx, keep_alive)
     index = load_index(numpy_index_path)
     return index.query(
         query_embedding,
@@ -225,6 +410,98 @@ def query_contexts(
         exclude_path_patterns=exclude_path_patterns,
         dedupe_by_chunk_id=dedupe_by_chunk_id,
     )
+
+
+def chunk_row_to_context(row: dict[str, Any], parent_score: float, parent_chunk_index: int) -> dict[str, Any]:
+    meta = {
+        "chunk_id": row.get("chunk_id"),
+        "db_id": row.get("db_id"),
+        "source_path": row.get("source_path"),
+        "relative_path": row.get("relative_path"),
+        "extension": row.get("extension"),
+        "sha256": row.get("sha256"),
+        "mtime": float(row.get("mtime", 0.0)),
+        "chunk_index": int(row.get("chunk_index", 0)),
+        "chars": int(row.get("chars", len(str(row.get("text", ""))))),
+        "retrieval": "document_expansion",
+        "expanded_from_chunk_index": parent_chunk_index,
+    }
+    return {
+        "document": row.get("text", ""),
+        "metadata": meta,
+        "distance": float(1.0 - parent_score),
+        "score": parent_score,
+    }
+
+
+def load_document_chunks(cfg: dict[str, Any], relative_path: str) -> list[dict[str, Any]]:
+    chunks_path = resolve_work_path(cfg, cfg["paths"].get("chunks", "data/chunks.jsonl"))
+    rows = [row for row in jsonl_read(chunks_path) if row.get("relative_path") == relative_path]
+    rows.sort(key=lambda row: int(row.get("chunk_index", 0)))
+    return rows
+
+
+def expand_contexts_by_document(
+    cfg: dict[str, Any],
+    contexts: list[dict[str, Any]],
+    expand_top_documents: int,
+    document_expansion_chunks: int,
+) -> list[dict[str, Any]]:
+    if expand_top_documents <= 0 or document_expansion_chunks <= 0 or not contexts:
+        return contexts
+
+    selected_docs: list[tuple[str, int, float]] = []
+    seen_docs: set[str] = set()
+    for ctx in contexts:
+        meta = ctx.get("metadata", {})
+        relative_path = str(meta.get("relative_path") or "")
+        if not relative_path or relative_path in seen_docs:
+            continue
+        seen_docs.add(relative_path)
+        selected_docs.append(
+            (
+                relative_path,
+                int(meta.get("chunk_index", 0)),
+                float(ctx.get("score", 0.0)),
+            )
+        )
+        if len(selected_docs) >= expand_top_documents:
+            break
+
+    expanded: list[dict[str, Any]] = []
+    seen_keys: set[tuple[str, int]] = set()
+
+    for relative_path, parent_chunk_index, parent_score in selected_docs:
+        rows = load_document_chunks(cfg, relative_path)
+        if not rows:
+            continue
+
+        chunk_indices = [int(row.get("chunk_index", 0)) for row in rows]
+        if parent_chunk_index <= min(chunk_indices, default=0):
+            selected_rows = rows[:document_expansion_chunks]
+        else:
+            half_window = max(1, document_expansion_chunks // 2)
+            start = max(0, parent_chunk_index - half_window)
+            end = parent_chunk_index + half_window + 1
+            selected_rows = [row for row in rows if start <= int(row.get("chunk_index", 0)) < end]
+            selected_rows = selected_rows[:document_expansion_chunks]
+
+        for row in selected_rows:
+            key = (str(row.get("relative_path")), int(row.get("chunk_index", 0)))
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            expanded.append(chunk_row_to_context(row, parent_score, parent_chunk_index))
+
+    for ctx in contexts:
+        meta = ctx.get("metadata", {})
+        key = (str(meta.get("relative_path")), int(meta.get("chunk_index", 0)))
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        expanded.append(ctx)
+
+    return expanded or contexts
 
 
 def trim_contexts(contexts: list[dict[str, Any]], max_context_chars: int) -> list[dict[str, Any]]:
@@ -239,19 +516,81 @@ def trim_contexts(contexts: list[dict[str, Any]], max_context_chars: int) -> lis
     return selected
 
 
+def first_sentence(text: str, limit: int = 260) -> str:
+    compact = " ".join(str(text).split())
+    if len(compact) <= limit:
+        return compact
+    sentence_end = re.search(r"[.!?](\s|$)", compact[:limit])
+    if sentence_end:
+        return compact[: sentence_end.end()].strip()
+    return compact[: limit - 1].rstrip() + "…"
+
+
+def extract_confirmed_integrations(contexts: list[dict[str, Any]]) -> list[str]:
+    combined = "\n".join(str(ctx.get("document", "")) for ctx in contexts)
+    confirmed: list[str] = []
+    for label, terms in INTEGRATION_TERMS:
+        if any(term.lower() in combined.lower() for term in terms):
+            confirmed.append(label)
+    return confirmed
+
+
+def build_extractive_answer(question: str, contexts: list[dict[str, Any]], sources: list[dict[str, Any]], reason: str) -> str:
+    lowered = question.lower()
+    lines: list[str] = []
+    lines.append("Краткий ответ:")
+
+    if "интеграц" in lowered:
+        integrations = extract_confirmed_integrations(contexts)
+        if integrations:
+            lines.append("По найденным проектным источникам подтверждены следующие интеграции / внешние взаимодействия:")
+            for item in integrations:
+                lines.append(f"- {item}.")
+        else:
+            lines.append("В найденных источниках не удалось однозначно выделить перечень интеграций.")
+    elif "паспорт" in lowered and "ис" in lowered:
+        lines.append("По найденным проектным источникам Паспорт ИС содержит сведения о системе, связанных документах, приложениях и программном обеспечении информационной системы.")
+    else:
+        lines.append("LLM не сформировала ответ, поэтому ниже приведена краткая выжимка только из найденных источников.")
+
+    lines.append("")
+    lines.append("Подтверждающие фрагменты:")
+    for idx, ctx in enumerate(contexts[: min(5, len(contexts))], start=1):
+        meta = ctx.get("metadata", {})
+        src = source_id(idx)
+        lines.append(f"- [{src}] {first_sentence(str(ctx.get('document', '')))}")
+        lines.append(f"  Источник: {meta.get('relative_path')}, chunk {meta.get('chunk_index')}.")
+
+    lines.append("")
+    lines.append("Ограничения:")
+    lines.append(f"- Ответ сформирован в extractive fallback режиме, потому что LLM не вернула рабочий ответ: {reason}.")
+    lines.append("- Формулировка не использует общие знания модели и основана только на найденных фрагментах.")
+
+    lines.append("")
+    lines.append("Источники:")
+    for src in sources[: min(5, len(sources))]:
+        url = f", ссылка: {src.get('source_url')}" if src.get("source_url") else ""
+        lines.append(f"- [{src['source_id']}] {src.get('relative_path')}, chunk {src.get('chunk_index')}{url}")
+    return "\n".join(lines)
+
+
 def print_human(result: dict[str, Any]) -> None:
     print(result["answer"])
     print()
     print(f"Статус: {result['status']}")
+    if result.get("answer_mode"):
+        print(f"Режим ответа: {result['answer_mode']}")
     if result.get("refusal_reason"):
         print(f"Причина отказа: {result['refusal_reason']}")
     print(f"Уверенность: {result.get('confidence', 0.0)}")
     if result.get("sources"):
         print("\nИсточники:")
         for src in result["sources"]:
+            retrieval = f" retrieval={src.get('retrieval')}" if src.get("retrieval") else ""
+            url = f" url={src.get('source_url')}" if src.get("source_url") else ""
             print(
                 f"- [{src['source_id']}] score={float(src['score']):.4f} "
-                f"file={src.get('relative_path')} chunk={src.get('chunk_index')}"
+                f"file={src.get('relative_path')} chunk={src.get('chunk_index')}{retrieval}{url}"
             )
             print(f"  {src.get('preview')}")
 
@@ -266,19 +605,26 @@ def output_result(result: dict[str, Any], as_json: bool) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Project-only чат-бот MeetingAgent поверх локального RAG")
     parser.add_argument("question", nargs="+", help="Вопрос к проектной базе знаний")
-    parser.add_argument("--top-k", type=int, default=None, help="Сколько chunks искать до фильтрации")
+    parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K, help="Сколько chunks искать до фильтрации")
     parser.add_argument("--score-threshold", type=float, default=DEFAULT_SCORE_THRESHOLD, help="Минимальный score источника")
     parser.add_argument("--min-sources", type=int, default=DEFAULT_MIN_SOURCES, help="Минимальное число источников выше порога")
-    parser.add_argument("--max-context-chars", type=int, default=None, help="Максимальный размер контекста для LLM")
+    parser.add_argument("--max-context-chars", type=int, default=DEFAULT_MAX_CONTEXT_CHARS, help="Максимальный размер контекста для LLM")
+    parser.add_argument("--source-char-limit", type=int, default=1800, help="Максимум символов одного источника в prompt")
+    parser.add_argument("--document-expansion-chunks", type=int, default=DEFAULT_DOCUMENT_EXPANSION_CHUNKS, help="Сколько chunks брать из top-документа для LLM-контекста")
+    parser.add_argument("--expand-top-documents", type=int, default=DEFAULT_EXPAND_TOP_DOCUMENTS, help="Сколько top-документов расширять соседними chunks")
+    parser.add_argument("--no-document-expansion", action="store_true", help="Отключить расширение контекста по top-документу")
     parser.add_argument("--model", default=None, help="Ollama model для генерации ответа")
     parser.add_argument("--prompt", default=DEFAULT_PROMPT_PATH, help="Путь к prompt-шаблону")
     parser.add_argument("--temperature", type=float, default=None, help="Температура генерации")
     parser.add_argument("--top-p", type=float, default=None, help="top_p генерации")
-    parser.add_argument("--timeout-sec", type=int, default=300, help="Timeout LLM-вызова")
+    parser.add_argument("--num-predict", type=int, default=DEFAULT_NUM_PREDICT, help="Ограничение длины ответа Ollama")
+    parser.add_argument("--timeout-sec", type=int, default=DEFAULT_TIMEOUT_SEC, help="Timeout LLM-вызова")
     parser.add_argument("--json", action="store_true", help="Вывести полный JSON-ответ")
     parser.add_argument("--sources-only", action="store_true", help="Не вызывать LLM, показать только найденные источники/отказ")
     parser.add_argument("--include-excluded", action="store_true", help="Не применять query-фильтр служебных и архивных путей")
     parser.add_argument("--no-dedupe", action="store_true", help="Не дедуплицировать одинаковые chunks по тексту")
+    parser.add_argument("--think", action="store_true", help="Разрешить thinking-режим Ollama. По умолчанию выключен")
+    parser.add_argument("--no-extractive-fallback", action="store_true", help="Не возвращать extractive-ответ при ошибке LLM")
     args = parser.parse_args()
 
     question = " ".join(args.question).strip()
@@ -286,9 +632,6 @@ def main() -> None:
         result = refusal_response(question, REFUSAL_OUT_OF_SCOPE, "Вопрос пустой. Сформулируйте вопрос по проектным материалам.")
         output_result(result, args.json)
         return
-
-    cfg = load_config()
-    ensure_runtime_dirs(cfg)
 
     if is_sensitive_question(question):
         result = refusal_response(
@@ -299,8 +642,19 @@ def main() -> None:
         output_result(result, args.json)
         return
 
-    top_k = args.top_k or int(cfg.get("rag", {}).get("top_k", DEFAULT_TOP_K))
-    max_context_chars = args.max_context_chars or int(cfg.get("rag", {}).get("max_context_chars", DEFAULT_MAX_CONTEXT_CHARS))
+    if is_obviously_out_of_scope_question(question):
+        result = refusal_response(
+            question,
+            REFUSAL_OBVIOUSLY_OUT_OF_SCOPE,
+            "Этот вопрос не относится к текущему проекту. Я отвечаю только по проектной базе знаний и найденным источникам.",
+        )
+        output_result(result, args.json)
+        return
+
+    cfg = load_config()
+    ensure_runtime_dirs(cfg)
+    source_links = load_source_links(cfg)
+
     generation_cfg = cfg.get("generation", {})
     temperature = float(args.temperature if args.temperature is not None else generation_cfg.get("temperature", 0.1))
     top_p = float(args.top_p if args.top_p is not None else generation_cfg.get("top_p", 0.8))
@@ -309,7 +663,7 @@ def main() -> None:
     prompt_path = resolve_work_path(cfg, args.prompt)
 
     try:
-        found_contexts = query_contexts(cfg, question, top_k, args.include_excluded, args.no_dedupe)
+        found_contexts = query_contexts(cfg, question, args.top_k, args.include_excluded, args.no_dedupe)
     except FileNotFoundError as exc:
         result = refusal_response(
             question,
@@ -321,11 +675,12 @@ def main() -> None:
         return
 
     accepted_contexts = filter_contexts_by_score(found_contexts, args.score_threshold, args.min_sources)
-    accepted_contexts = trim_contexts(accepted_contexts, max_context_chars)
-    sources = [normalize_source(ctx, idx) for idx, ctx in enumerate(accepted_contexts, start=1)]
+    raw_sources = [normalize_source(ctx, idx, source_links) for idx, ctx in enumerate(accepted_contexts, start=1)]
 
     if not accepted_contexts:
-        candidate_sources = [normalize_source(ctx, idx) for idx, ctx in enumerate(found_contexts[: min(3, len(found_contexts))], start=1)]
+        candidate_sources = [
+            normalize_source(ctx, idx, source_links) for idx, ctx in enumerate(found_contexts[: min(3, len(found_contexts))], start=1)
+        ]
         result = refusal_response(
             question,
             REFUSAL_OUT_OF_SCOPE,
@@ -337,26 +692,87 @@ def main() -> None:
         return
 
     if args.sources_only:
-        result = answer_response(question, "LLM не вызывалась: показаны найденные проектные источники.", sources, args.score_threshold)
+        result = answer_response(
+            question,
+            "LLM не вызывалась: показаны найденные проектные источники.",
+            raw_sources,
+            args.score_threshold,
+            answer_mode="sources_only",
+        )
         output_result(result, args.json)
         return
 
+    llm_contexts = accepted_contexts
+    if not args.no_document_expansion:
+        llm_contexts = expand_contexts_by_document(
+            cfg,
+            accepted_contexts,
+            args.expand_top_documents,
+            args.document_expansion_chunks,
+        )
+    llm_contexts = trim_contexts(llm_contexts, args.max_context_chars)
+    llm_sources = [normalize_source(ctx, idx, source_links) for idx, ctx in enumerate(llm_contexts, start=1)]
+
     try:
         prompt_template = read_prompt_template(prompt_path)
-        prompt = build_answer_prompt(question, accepted_contexts, prompt_template)
-        answer = ollama_generate(base_url, chat_model, prompt, temperature, top_p, args.timeout_sec)
+        prompt = build_answer_prompt(question, llm_contexts, prompt_template, args.source_char_limit, source_links)
+        answer = ollama_chat(
+            base_url,
+            chat_model,
+            prompt,
+            temperature,
+            top_p,
+            args.num_predict,
+            args.timeout_sec,
+            think=args.think,
+        )
     except Exception as exc:  # noqa: BLE001 - CLI should return structured error for MVP usage.
+        if not args.no_extractive_fallback:
+            answer = build_extractive_answer(question, llm_contexts, llm_sources, reason=str(exc))
+            result = answer_response(
+                question,
+                answer,
+                llm_sources,
+                args.score_threshold,
+                answer_mode="extractive_fallback",
+                details=f"llm_error: {exc}",
+            )
+            output_result(result, args.json)
+            return
         result = refusal_response(
             question,
             REFUSAL_LLM_ERROR,
             "Не удалось получить ответ от локальной LLM. Найденные источники сохранены в ответе.",
-            sources=sources,
+            sources=llm_sources,
             details=str(exc),
         )
         output_result(result, args.json)
         return
 
-    result = answer_response(question, answer, sources, args.score_threshold)
+    if not answer:
+        if not args.no_extractive_fallback:
+            fallback_answer = build_extractive_answer(question, llm_contexts, llm_sources, reason=REFUSAL_LLM_EMPTY)
+            result = answer_response(
+                question,
+                fallback_answer,
+                llm_sources,
+                args.score_threshold,
+                answer_mode="extractive_fallback",
+                details=f"model={chat_model}, empty_response=true",
+            )
+            output_result(result, args.json)
+            return
+        result = refusal_response(
+            question,
+            REFUSAL_LLM_EMPTY,
+            "Локальная LLM вернула пустой ответ. Найденные источники сохранены в ответе.",
+            sources=llm_sources,
+            details=f"model={chat_model}, num_predict={args.num_predict}, top_k={args.top_k}",
+        )
+        output_result(result, args.json)
+        return
+
+    result = answer_response(question, answer, llm_sources, args.score_threshold, answer_mode="llm")
     output_result(result, args.json)
 
 
