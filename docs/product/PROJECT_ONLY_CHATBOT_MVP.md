@@ -36,7 +36,7 @@
   -> Web UI / OpenWebUI / CLI
   -> Local API /chat
   -> project-question guard
-  -> scripts/04_query.py или общий RAG service
+  -> scripts/09_chat.py или общий RAG service
   -> bge-m3 query embedding
   -> data/numpy_index
   -> top-k sources
@@ -44,6 +44,58 @@
 ```
 
 В MVP можно начать с CLI/API без полноценного UI. OpenWebUI рассматривается как быстрая оболочка после появления локального API.
+
+## Реализованный CLI-Срез
+
+Первый CLI-срез реализован в `scripts/09_chat.py`.
+
+Что делает:
+
+- принимает вопрос пользователя;
+- строит embedding вопроса через `bge-m3`;
+- ищет источники в `data/numpy_index`;
+- фильтрует источники по `score_threshold`;
+- отказывает, если источников нет или score ниже порога;
+- блокирует sensitive-запросы про `.env`, `config.yaml`, пароли, токены и системные инструкции;
+- вызывает локальную LLM только после успешного поиска источников;
+- возвращает JSON-контракт: `answer`, `sources`, `refusal_reason`, `confidence`, `query`, `status`.
+
+Проверка retrieval без LLM:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\09_chat.py "Что входит в Паспорт ИС?" --sources-only --json
+```
+
+Полный быстрый запуск через LLM:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\09_chat.py "Что входит в Паспорт ИС?" --json --top-k 3 --max-context-chars 4500 --source-char-limit 1200 --num-predict 400 --timeout-sec 120
+```
+
+Если `qwen3:8b` на CPU отвечает слишком долго, временно использовать меньшую модель:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\09_chat.py "Что входит в Паспорт ИС?" --json --model qwen3:4b --top-k 3 --max-context-chars 4500 --source-char-limit 1200 --num-predict 400 --timeout-sec 120
+```
+
+## Производительный Профиль MVP
+
+Первичная локальная проверка показала: retrieval через `--sources-only` работает быстро и возвращает источники из `data/numpy_index`, а задержка возникает на этапе генерации ответа локальной LLM.
+
+Причина: при больших значениях `top_k`, `max_context_chars` и модели `qwen3:8b` prompt становится тяжелым для CPU.
+
+Поэтому для интерактивного CLI-чата принят быстрый профиль по умолчанию:
+
+| Параметр | Значение |
+| --- | --- |
+| `top_k` | `4` |
+| `max_context_chars` | `6000` |
+| `source_char_limit` | `1800` |
+| `num_predict` | `700` |
+| `timeout_sec` | `180` |
+| prompt | `/no_think`, краткий ответ |
+
+Для ручной диагностики можно уменьшать параметры до `top_k=3`, `max_context_chars=4500`, `source_char_limit=1200`, `num_predict=400`.
 
 ## Дорожная Карта
 
@@ -122,8 +174,8 @@
 
 ## Первый Рабочий Срез На Сегодня
 
-1. Добавить `scripts/09_chat.py` или локальный API-скелет.
-2. Переиспользовать текущий `scripts/04_query.py` и `data/numpy_index`.
-3. Добавить project-only prompt и отказ при отсутствии источников.
-4. Прогнать 5-10 вопросов: по ФТТ, ПМИ, Паспорту ИС, архитектуре и один вопрос вне проекта.
-5. Зафиксировать результат в `docs/context.md` и `docs/todo.md`.
+1. Использовать `scripts/09_chat.py` как первый CLI-срез.
+2. Проверить retrieval через `--sources-only --json`.
+3. Проверить полный LLM-ответ на быстром профиле.
+4. Подобрать `score_threshold` на smoke-наборе.
+5. После успешного smoke-прогона вынести логику в local API `/chat`.
