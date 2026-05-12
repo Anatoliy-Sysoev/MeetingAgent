@@ -115,6 +115,7 @@
       "type": "string",
       "enum": [
         "new",
+        "processing",
         "transcribing",
         "transcribed",
         "summarized",
@@ -150,6 +151,9 @@
           "$ref": "#/$defs/relative_path"
         },
         "open_questions": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "pipeline_report": {
           "$ref": "#/$defs/relative_path"
         },
         "classification_report": {

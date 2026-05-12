@@ -142,11 +142,49 @@ Map-reduce dry-run:
 
 Перед полным запуском `ollama-map-reduce` нужно прогнать одно окно на выбранной модели и оценить время, валидность JSON и качество классификации.
 
+## Оконный Offline-Pipeline
+
+Для сокращения общего времени обработки добавлен отдельный конвейерный offline-режим:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\08_process_meeting_pipeline.py `
+  --meeting-dir meetings\2026-05-08__test-meeting `
+  --asr-model small `
+  --llm-model qwen2.5:7b-instruct `
+  --window-seconds 120 `
+  --window-overlap-seconds 15 `
+  --max-asr-workers 1 `
+  --max-llm-workers 1
+```
+
+Проверка без записи файлов:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\08_process_meeting_pipeline.py `
+  --meeting-dir meetings\2026-05-08__test-meeting `
+  --dry-run
+```
+
+Что делает `scripts/08_process_meeting_pipeline.py`:
+
+- режет готовое аудио или видео на окна `transcript/chunks/Wxx.audio.wav`;
+- пишет сегменты каждого окна в `transcript/chunks/Wxx.segments.jsonl`;
+- запускает MAP-этап сразу после готовности окна;
+- сохраняет partial JSON в `artifacts/_partials/window_Wxx.json`;
+- после всех валидных partial запускает REDUCE и RENDER;
+- пишет `artifacts/pipeline_report.md` с параметрами, временем этапов и ошибками;
+- нормализует `source_refs` по реальному `transcript/segments.jsonl`, чтобы финальные решения, риски и задачи ссылались на существующие segment index и абсолютные таймкоды.
+
+Если partial уже существует и `--force` не указан, окно не пересчитывается. Это позволяет продолжать обработку после падения REDUCE/RENDER без повторного ASR и MAP.
+
+Текущий статус: 2-window smoke на тестовой встрече прошел. Полный прогон всей встречи и обработка новых записей остаются следующими задачами.
+
 ## Правила Статусов И Артефактов
 
 JSON schema проверяет форму карточки, но не должна превращаться в сложный движок процесса. Проверки переходов между статусами выполняет pipeline:
 
 - `new`: карточка создана, артефакты могут отсутствовать;
+- `processing`: оконный offline-pipeline выполняет ASR, MAP, REDUCE или RENDER;
 - `transcribing`: исходное медиа найдено, транскрибация идет;
 - `transcribed`: должны существовать transcript и segments;
 - `summarized`: должны существовать memo, protocol, decisions, tasks, risks и open_questions;
