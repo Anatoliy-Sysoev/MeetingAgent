@@ -14,6 +14,36 @@ from asu_june_bot.retrieval.metadata import enrich_metadata, infer_sections
 
 SECTION_RE = re.compile(r"(?<!\d)(\d+(?:\.\d+){1,5})\s*\.", re.UNICODE)
 OFFICE_TEMP_PREFIXES = ("~$", ".~")
+TEMP_EXTENSIONS = {".tmp", ".temp"}
+HARD_EXCLUDE_EXTENSIONS = {".har"}
+HARD_EXCLUDE_DIRS = {
+    "site_review_runs",
+    "playwright",
+    "exports",
+    "html_export",
+    "docs_html",
+    "docs_text",
+    "pages_html",
+    "pages_text",
+    "screenshots",
+    "node_modules",
+    "__pycache__",
+    ".git",
+    ".venv",
+    "dist",
+    "build",
+}
+HARD_EXCLUDE_PATH_FRAGMENTS = (
+    "/система/",
+    "/asu_docs_export/",
+    "/asu_admin_export/",
+    "/site_review_runs/",
+    "/playwright/",
+    "/docs_html/",
+    "/docs_text/",
+    "/pages_html/",
+    "/pages_text/",
+)
 
 
 def normalize_text(text: str) -> str:
@@ -60,8 +90,24 @@ def is_office_temp_file(path: Path) -> bool:
     return name.startswith(OFFICE_TEMP_PREFIXES)
 
 
-def should_skip_path(path: Path, root: Path, include_extensions: set[str], exclude_dirs: set[str], exclude_extensions: set[str], exclude_path_patterns: list[str]) -> bool:
+def is_hard_excluded(path: Path, root: Path) -> bool:
     if is_office_temp_file(path):
+        return True
+    if path.suffix.lower() in TEMP_EXTENSIONS | HARD_EXCLUDE_EXTENSIONS:
+        return True
+    lowered_parts = {part.lower() for part in path.parts}
+    if lowered_parts & HARD_EXCLUDE_DIRS:
+        return True
+    try:
+        rel = "/" + path.relative_to(root).as_posix().lower()
+    except ValueError:
+        rel = "/" + path.as_posix().lower()
+    rel = rel.replace("\\", "/")
+    return any(fragment in rel for fragment in HARD_EXCLUDE_PATH_FRAGMENTS)
+
+
+def should_skip_path(path: Path, root: Path, include_extensions: set[str], exclude_dirs: set[str], exclude_extensions: set[str], exclude_path_patterns: list[str]) -> bool:
+    if is_hard_excluded(path, root):
         return True
     ext = path.suffix.lower()
     if ext not in include_extensions:
