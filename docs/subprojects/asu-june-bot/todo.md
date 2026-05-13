@@ -10,7 +10,8 @@
 - Не менять старый `run_full_rag.ps1`, `data/chunks.jsonl`, `data/embeddings_cache.jsonl` и `data/numpy_index` при проверке v2.1.
 - `Система`, `asu_docs_export`, `asu_admin_export`, `site_review_runs`, `playwright`, `exports`, `.har`, временные файлы и медиа/архивы исключены из основного корпуса.
 - Локальная проверка extraction/chunking v2.1 пройдена: `documents=213`, `blocks=31076`, `chunks=31302`, `system_export` отсутствует в `by_source_type`.
-- Следующий практический шаг: BM25 smoke по `chunks_v2`, затем `embeddings_cache_v2`, затем `numpy_index_v2`.
+- `embeddings_cache_v2` собирается через `scripts/asu_june_bot_build_index_v2.py --embed-only`; для него добавлен отдельный watchdog `AsuJuneBotIndexV2Watchdog` с интервалом 30 минут.
+- Следующий практический шаг: дождаться полного `embeddings_cache_v2`, затем собрать `numpy_index_v2` и прогнать hybrid smoke.
 
 ## Сделано В Этом Срезе
 
@@ -126,6 +127,8 @@ src/asu_june_bot/retrieval/metadata.py
 ```text
 scripts/asu_june_bot_build_index_v2.py
 scripts/asu_june_bot_search_v2.py
+monitor_asu_june_bot_index_v2.ps1
+register_asu_june_bot_index_v2_watchdog.ps1
 ```
 
 Реализовано:
@@ -139,6 +142,7 @@ scripts/asu_june_bot_search_v2.py
 - отчет `data/asu_june_bot/index_v2_report.json`;
 - отдельный CLI-поиск по v2 corpus: `scripts/asu_june_bot_search_v2.py`;
 - режимы поиска `bm25`, `vector`, `hybrid` по `chunks_v2` и `numpy_index_v2`.
+- отдельный watchdog для `--embed-only`: если процесс пропал до завершения cache, он перезапускается без удаления накопленных embeddings.
 
 ## Команды Локальной Проверки v2.1
 
@@ -179,6 +183,14 @@ Get-Content .\data\asu_june_bot\index_v2_report.json -Encoding UTF8
 (Get-Content .\data\asu_june_bot\embeddings_cache_v2.jsonl -Encoding UTF8).Count
 ```
 
+Watchdog на 30 минут:
+
+```powershell
+.\register_asu_june_bot_index_v2_watchdog.ps1 -IntervalMinutes 30
+Get-ScheduledTask -TaskName AsuJuneBotIndexV2Watchdog
+Get-Content .\logs\asu_june_bot_index_v2_watchdog.log -Encoding UTF8 -Tail 80
+```
+
 ### 5. Построить numpy_index_v2
 
 ```powershell
@@ -201,7 +213,7 @@ Get-Content .\data\asu_june_bot\numpy_index_v2\manifest.json -Encoding UTF8
 - Запустить BM25 smoke по baseline.
 - Проверить, что топ-5 содержит Паспорт ИС, ФТТ, ЦТА, ПР, СоИ для соответствующих вопросов.
 - Запустить `--limit 20 --embed-only`.
-- После успешного smoke запустить полный `--embed-only`.
+- После успешного smoke запустить полный `--embed-only` под `AsuJuneBotIndexV2Watchdog`.
 - После заполнения cache запустить `--index-only`.
 - Запустить hybrid smoke по baseline.
 

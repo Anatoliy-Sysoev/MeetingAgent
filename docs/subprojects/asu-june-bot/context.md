@@ -35,7 +35,8 @@ scripts/asu_june_bot_apply_config_v2_1.py
   -> scripts/asu_june_bot_extract_text_v2.py
   -> scripts/asu_june_bot_build_chunks_v2.py
   -> scripts/asu_june_bot_audit_sources_v2.py
-  -> future: scripts/asu_june_bot_build_index_v2.py
+  -> scripts/asu_june_bot_build_index_v2.py
+  -> scripts/asu_june_bot_search_v2.py
 ```
 
 Все новые runtime-данные пишутся в:
@@ -232,25 +233,45 @@ scripts/asu_june_bot_audit_sources_v2.py
 - сколько blocks/chunks создано;
 - почему файлы исключены.
 
+### 5. Index/Search v2
+
+Добавлены отдельные index/search-скрипты v2:
+
+```text
+scripts/asu_june_bot_build_index_v2.py
+scripts/asu_june_bot_search_v2.py
+monitor_asu_june_bot_index_v2.ps1
+register_asu_june_bot_index_v2_watchdog.ps1
+```
+
+`build_index_v2` пишет только в `data/asu_june_bot/`:
+
+```text
+data/asu_june_bot/embeddings_cache_v2.jsonl
+data/asu_june_bot/numpy_index_v2/
+data/asu_june_bot/index_v2_report.json
+```
+
+Для долгого `--embed-only` добавлен отдельный watchdog `AsuJuneBotIndexV2Watchdog`.
+Он каждые 30 минут проверяет живой процесс `asu_june_bot_build_index_v2.py --embed-only`, считает строки `embeddings_cache_v2.jsonl` и перезапускает `--embed-only`, если процесс исчез до завершения cache.
+
 ## Ближайшая цель
 
-Проверить v2.1 pipeline локально после исключения папки `Система`.
+Дождаться заполнения `embeddings_cache_v2.jsonl`, собрать `numpy_index_v2` и проверить `search_v2`.
 
 Ожидаемый следующий шаг:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_apply_config_v2_1.py --project-root "C:\Users\Сотрудник\Desktop\!Проектные документы АСУ"
-.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --dry-run --limit 5
-.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --reset
-.\.venv\Scripts\python.exe scripts\asu_june_bot_build_chunks_v2.py
-.\.venv\Scripts\python.exe scripts\asu_june_bot_audit_sources_v2.py
+.\register_asu_june_bot_index_v2_watchdog.ps1 -IntervalMinutes 30
+.\.venv\Scripts\python.exe scripts\asu_june_bot_build_index_v2.py --embed-only
+.\.venv\Scripts\python.exe scripts\asu_june_bot_build_index_v2.py --index-only
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode hybrid --top-k 8
 ```
 
 После проверки:
 
-- убедиться, что `documents.jsonl` не содержит `/Система/`, `asu_admin_export`, `asu_docs_export`, `site_review_runs`, `playwright`, `.har`;
-- оценить `chunking_v2_report.json`: `system_export` и `unknown` не должны доминировать;
-- оценить `blocks.jsonl` по DOCX и XLSX;
-- оценить `chunks_v2.jsonl` по ФТТ и Паспорт ИС;
+- убедиться, что `index_v2_report.json` показывает `missing_after = 0`;
+- убедиться, что `numpy_index_v2/manifest.json` создан и `count` соответствует целевому числу индексируемых chunks;
+- проверить hybrid smoke по Паспорту ИС, интеграциям и ФТТ 4.2.5;
 - сравнить v1 и v2.1 на baseline;
-- только потом проектировать `numpy_index_v2` и подключение v2.1 к `/search`.
+- только потом подключать v2.1 к API `/search`.

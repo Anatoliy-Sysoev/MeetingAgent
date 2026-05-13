@@ -287,3 +287,30 @@ scripts/asu_june_bot_apply_config_v2_1.py
 
 - Chunking строит child chunks по строкам таблиц.
 - Проверка качества extraction должна обязательно смотреть первые `table_row` blocks по ФТТ, ЦТА, СоИ и ПМИ.
+
+## ADR-012. Embeddings cache v2 мониторится отдельным watchdog
+
+Дата: 2026-05-13.
+
+Решение: долгий этап `scripts/asu_june_bot_build_index_v2.py --embed-only` мониторится отдельной задачей Windows Task Scheduler `AsuJuneBotIndexV2Watchdog`, а не старым rebuild-watchdog.
+
+Скрипты:
+
+```text
+monitor_asu_june_bot_index_v2.ps1
+register_asu_june_bot_index_v2_watchdog.ps1
+```
+
+Почему:
+
+- `--embed-only` может идти долго на CPU и должен продолжаться после закрытия окна PowerShell;
+- embeddings cache v2 уже resumable по `chunk_id`, поэтому безопасный restart не требует удаления runtime-данных;
+- старый `AsuJuneBotV2Watchdog` отвечает за extraction/chunking и не должен запускать полную пересборку во время векторизации;
+- monitor не должен трогать живой Python/Ollama процесс, а только перезапускать `--embed-only`, если процесс исчез до завершения cache.
+
+Следствие:
+
+- `AsuJuneBotIndexV2Watchdog` запускается каждые 30 минут;
+- завершение определяется по `data/asu_june_bot/index_v2_report.json`: `embed_only = true`, `missing_after = 0`, `chunks_total` соответствует целевому числу индексируемых chunks;
+- после завершения monitor отключает свою scheduled task;
+- старые `AsuJuneBotV2Watchdog` и `MeetingAgent_Watchdog` не включаются для index v2.

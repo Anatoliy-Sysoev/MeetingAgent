@@ -29,7 +29,8 @@ scripts/asu_june_bot_apply_config_v2_1.py
   -> scripts/asu_june_bot_extract_text_v2.py
   -> scripts/asu_june_bot_build_chunks_v2.py
   -> scripts/asu_june_bot_audit_sources_v2.py
-  -> future: scripts/asu_june_bot_build_index_v2.py
+  -> scripts/asu_june_bot_build_index_v2.py
+  -> scripts/asu_june_bot_search_v2.py
 ```
 
 Новый pipeline пишет только в:
@@ -396,10 +397,14 @@ scripts/asu_june_bot_apply_config_v2_1.py
 scripts/asu_june_bot_extract_text_v2.py
 scripts/asu_june_bot_build_chunks_v2.py
 scripts/asu_june_bot_audit_sources_v2.py
+scripts/asu_june_bot_build_index_v2.py
+scripts/asu_june_bot_search_v2.py
 run_asu_june_bot_rebuild_v2.ps1
 run_asu_june_bot_chunks_v2.ps1
 monitor_asu_june_bot_v2.ps1
 register_asu_june_bot_v2_watchdog.ps1
+monitor_asu_june_bot_index_v2.ps1
+register_asu_june_bot_index_v2_watchdog.ps1
 ```
 
 ## Команды

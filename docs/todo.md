@@ -21,6 +21,7 @@
 - Использовать `scripts/08_process_meeting_pipeline.py` как первый оконный offline-pipeline для готовой записи: ASR по окнам, MAP по готовым окнам, затем REDUCE/RENDER.
 - Использовать `docs/product/PROJECT_ONLY_CHATBOT_MVP.md` как дорожную карту разработки чат-бота.
 - Использовать `scripts/09_chat.py` как первый CLI Project-Only Chatbot MVP: ответ только по источникам проекта или корректный отказ.
+- Использовать `register_asu_june_bot_index_v2_watchdog.ps1` для долгого `scripts/asu_june_bot_build_index_v2.py --embed-only`: watchdog `AsuJuneBotIndexV2Watchdog` проверяет cache каждые 30 минут и перезапускает сборку, если процесс исчез.
 - Прогнать `scripts/09_chat.py` локально на быстром профиле: `--top-k 3 --max-context-chars 4500 --source-char-limit 1200 --num-predict 400 --timeout-sec 120`.
 - Проверить после `git pull`, что пустой ответ LLM возвращается как `status=refused` и `refusal_reason=llm_empty_response`, а не как `status=answered`.
 - Подобрать `--score-threshold` для project-only отказов на smoke-наборе.
@@ -28,6 +29,7 @@
 ## Далее
 
 - Вынести CLI-логику project-only чат-бота в local API `/chat` после успешного smoke-прогона.
+- После завершения `embeddings_cache_v2` запустить `scripts/asu_june_bot_build_index_v2.py --index-only` и проверить `scripts/asu_june_bot_search_v2.py --mode hybrid`.
 - Зафиксировать baseline project-only chatbot: проектные вопросы, внепроектные вопросы, threshold, модель, время ответа, качество источников, timeout и `llm_empty_response`.
 - Проверить, нужна ли отдельная более легкая модель для интерактивного режима: `qwen3:4b` или `qwen2.5:7b-instruct` вместо `qwen3:8b`.
 - Прогнать `--mode ollama-map-reduce` на одном окне transcript, не на всей встрече.

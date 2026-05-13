@@ -219,6 +219,48 @@ Get-Content .\data\asu_june_bot\index_v2_report.json -Encoding UTF8
 (Get-Content .\data\asu_june_bot\embeddings_cache_v2.jsonl -Encoding UTF8).Count
 ```
 
+### 10.1. Watchdog для долгого embeddings cache
+
+Для долгого `--embed-only` использовать отдельный watchdog. Он не запускает extraction/chunking и не трогает старые RAG-файлы.
+
+```powershell
+.\register_asu_june_bot_index_v2_watchdog.ps1 -IntervalMinutes 30
+```
+
+По умолчанию создается задача:
+
+```text
+AsuJuneBotIndexV2Watchdog
+```
+
+Что делает monitor:
+
+1. Считает целевое количество chunks для индексации по `source_type`.
+2. Считает строки в `data/asu_june_bot/embeddings_cache_v2.jsonl`.
+3. Проверяет живой процесс `scripts\asu_june_bot_build_index_v2.py --embed-only`.
+4. Если процесс жив — ничего не делает.
+5. Если процесса нет и cache ещё не завершен — запускает `--embed-only` заново.
+6. Если `index_v2_report.json` показывает `missing_after = 0`, отключает свою scheduled task.
+
+Проверка задачи:
+
+```powershell
+Get-ScheduledTask -TaskName AsuJuneBotIndexV2Watchdog
+Get-ScheduledTaskInfo -TaskName AsuJuneBotIndexV2Watchdog
+```
+
+Лог:
+
+```powershell
+Get-Content .\logs\asu_june_bot_index_v2_watchdog.log -Encoding UTF8 -Tail 80
+```
+
+Отключить вручную:
+
+```powershell
+Unregister-ScheduledTask -TaskName AsuJuneBotIndexV2Watchdog -Confirm:$false
+```
+
 ## 11. Построить numpy_index_v2 из готового cache
 
 Когда cache заполнен:
@@ -250,7 +292,9 @@ Get-Content .\data\asu_june_bot\numpy_index_v2\manifest.json -Encoding UTF8
 .\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode hybrid --top-k 8
 ```
 
-## 13. Watchdog / мониторинг каждые 15 минут
+## 13. Watchdog extraction/chunking v2 каждые 15 минут
+
+Этот watchdog относится к `extract_text_v2 -> chunks_v2 -> audit_sources_v2`. Для долгого `build_index_v2 --embed-only` использовать отдельный `AsuJuneBotIndexV2Watchdog` из раздела 10.1.
 
 ### 13.1. Один ручной тик мониторинга
 
