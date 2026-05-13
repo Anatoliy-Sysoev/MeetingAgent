@@ -33,6 +33,8 @@ DEFAULT_CHUNKS_PATH = "data/asu_june_bot/chunks_v2.jsonl"
 DEFAULT_EMBEDDINGS_CACHE = "data/asu_june_bot/embeddings_cache_v2.jsonl"
 DEFAULT_INDEX_DIR = "data/asu_june_bot/numpy_index_v2"
 DEFAULT_REPORT_PATH = "data/asu_june_bot/index_v2_report.json"
+DEFAULT_MAX_EMBEDDING_CHARS = 3000
+MIN_EMBEDDING_CHARS = 800
 
 
 def utc_now() -> str:
@@ -83,16 +85,31 @@ def load_embedding_cache(path: Path, expected_model: str) -> dict[str, dict[str,
     return cache
 
 
+def compact_embedding_text(text: str, max_chars: int) -> str:
+    text = str(text or "").strip()
+    if len(text) <= max_chars:
+        return text
+    head_size = max_chars // 2
+    tail_size = max_chars - head_size
+    return text[:head_size].rstrip() + "\n\n[...chunk truncated for embedding...]\n\n" + text[-tail_size:].lstrip()
+
+
+def is_context_length_error(exc: Exception, response_text: str) -> bool:
+    message = f"{exc} {response_text}".lower()
+    return "input length exceeds" in message or "context length" in message
+
+
 def ollama_embed(base_url: str, model: str, text: str, num_ctx: int, keep_alive: str, timeout_sec: int) -> list[float]:
     last_error: Exception | None = None
     max_attempts = 10
+    current_text = text
     for attempt in range(1, max_attempts + 1):
         try:
             resp = requests.post(
                 f"{base_url.rstrip('/')}/api/embeddings",
                 json={
                     "model": model,
-                    "prompt": text,
+                    "prompt": current_text,
                     "keep_alive": keep_alive,
                     "options": {"num_ctx": num_ctx},
                 },
@@ -109,6 +126,15 @@ def ollama_embed(base_url: str, model: str, text: str, num_ctx: int, keep_alive:
             response_text = ""
             if isinstance(exc, requests.HTTPError) and exc.response is not None:
                 response_text = exc.response.text[:1000]
+            if is_context_length_error(exc, response_text) and len(current_text) > MIN_EMBEDDING_CHARS:
+                new_len = max(MIN_EMBEDDING_CHARS, len(current_text) // 2)
+                current_text = compact_embedding_text(current_text, new_len)
+                print(
+                    f"Ollama embedding context error on attempt {attempt}/{max_attempts}. "
+                    f"Truncate embedding input to {len(current_text)} chars and retry.",
+                    flush=True,
+                )
+                continue
             wait_sec = min(120, 5 * attempt)
             print(
                 f"Ollama embedding failed on attempt {attempt}/{max_attempts}: {exc}. "
@@ -210,7 +236,7 @@ def build_numpy_index(chunks: list[dict[str, Any]], embedding_cache: dict[str, d
     return manifest
 
 
-def make_report(*, chunks: list[dict[str, Any]], cached_before: int, cached_after: int, embedded_this_run: int, cache_path: Path, index_dir: Path, manifest: dict[str, Any] | None, dry_run: bool, embed_only: bool, index_only: bool, embedding_model: str) -> dict[str, Any]:
+def make_report(*, chunks: list[dict[str, Any]], cached_before: int, cached_after: int, embedded_this_run: int, cache_path: Path, index_dir: Path, manifest: dict[str, Any] | None, dry_run: bool, embed_only: bool, index_only: bool, embedding_model: str, max_embedding_chars: int) -> dict[str, Any]:
     return {
         "generated_at": utc_now(),
         "index_version": INDEX_VERSION,
@@ -218,6 +244,7 @@ def make_report(*, chunks: list[dict[str, Any]], cached_before: int, cached_afte
         "embed_only": embed_only,
         "index_only": index_only,
         "embedding_model": embedding_model,
+        "max_embedding_chars": max_embedding_chars,
         "summary": {
             "chunks_total": len(chunks),
             "cached_before": cached_before,
@@ -246,6 +273,7 @@ def main() -> None:
     parser.add_argument("--embed-only", action="store_true", help="Fill embeddings cache but do not build numpy index")
     parser.add_argument("--index-only", action="store_true", help="Do not call Ollama; build index from existing cache")
     parser.add_argument("--timeout-sec", type=int, default=240)
+    parser.add_argument("--max-embedding-chars", type=int, default=DEFAULT_MAX_EMBEDDING_CHARS)
     args = parser.parse_args()
 
     if args.embed_only and args.index_only:
@@ -261,6 +289,7 @@ def main() -> None:
     embedding_model = cfg["ollama"]["embedding_model"]
     embedding_num_ctx = int(cfg["ollama"].get("embedding_num_ctx", 8192))
     keep_alive = str(cfg["ollama"].get("keep_alive", "24h"))
+    max_embedding_chars = max(MIN_EMBEDDING_CHARS, int(args.max_embedding_chars))
 
     chunks = read_jsonl(chunks_path)
     chunks = [chunk for chunk in chunks if chunk.get("chunk_id") and str(chunk.get("text") or "").strip()]
@@ -280,6 +309,7 @@ def main() -> None:
                 "missing_before": len(chunks) - cached_before,
                 "embedding_model": embedding_model,
                 "embedding_num_ctx": embedding_num_ctx,
+                "max_embedding_chars": max_embedding_chars,
                 "cache_path": str(cache_path),
                 "index_dir": str(index_dir),
                 "dry_run": args.dry_run,
@@ -300,13 +330,16 @@ def main() -> None:
             if args.dry_run:
                 continue
             text = str(chunk.get("text") or "")
-            embedding = ollama_embed(base_url, embedding_model, text, embedding_num_ctx, keep_alive, args.timeout_sec)
+            embedding_text = compact_embedding_text(text, max_embedding_chars)
+            embedding = ollama_embed(base_url, embedding_model, embedding_text, embedding_num_ctx, keep_alive, args.timeout_sec)
             rec = {
                 "chunk_id": chunk_id,
                 "embedding_model": embedding_model,
                 "embedding": embedding,
                 "text_hash": chunk.get("text_hash"),
                 "chars": chunk.get("chars", len(text)),
+                "embedding_chars": len(embedding_text),
+                "embedding_truncated": len(embedding_text) < len(text),
                 "chunk_level": chunk.get("chunk_level"),
                 "document_type": chunk.get("document_type"),
                 "source_type": chunk.get("source_type"),
@@ -334,6 +367,7 @@ def main() -> None:
         embed_only=args.embed_only,
         index_only=args.index_only,
         embedding_model=embedding_model,
+        max_embedding_chars=max_embedding_chars,
     )
 
     if not args.dry_run:
