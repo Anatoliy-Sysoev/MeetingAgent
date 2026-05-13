@@ -15,6 +15,8 @@ __pycache__/
 !.env.example
 config.yaml
 config.local.yaml
+config.yaml.bak*
+*.bak_project_root
 
 # Runtime RAG data and generated artifacts
 _calibration/
@@ -35,6 +37,11 @@ meetings/**/exports/*
 meetings/**/_partials/*
 meetings/**/meeting.json
 !meetings/**/.gitkeep
+
+# Local experiments and one-off test scripts
+test_*.py
+*_test_local.py
+scratch_*.py
 
 # Large media and meeting inputs/outputs
 *.mp4
