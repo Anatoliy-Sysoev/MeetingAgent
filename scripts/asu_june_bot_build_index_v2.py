@@ -5,6 +5,7 @@ import json
 import shutil
 import sys
 import time
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -35,6 +36,7 @@ DEFAULT_INDEX_DIR = "data/asu_june_bot/numpy_index_v2"
 DEFAULT_REPORT_PATH = "data/asu_june_bot/index_v2_report.json"
 DEFAULT_MAX_EMBEDDING_CHARS = 3000
 MIN_EMBEDDING_CHARS = 800
+DEFAULT_INDEX_SOURCE_TYPES = ["project_doc", "meeting_artifact", "analytical_note", "instruction"]
 
 
 def utc_now() -> str:
@@ -167,7 +169,21 @@ def chunk_metadata(chunk: dict[str, Any]) -> dict[str, Any]:
     return metadata
 
 
-def build_numpy_index(chunks: list[dict[str, Any]], embedding_cache: dict[str, dict[str, Any]], index_dir: Path, embedding_model: str, chunks_path: Path, cache_path: Path) -> dict[str, Any]:
+def filter_chunks_by_source_type(chunks: list[dict[str, Any]], allowed_source_types: set[str]) -> tuple[list[dict[str, Any]], Counter[str], Counter[str]]:
+    kept: list[dict[str, Any]] = []
+    kept_counter: Counter[str] = Counter()
+    skipped_counter: Counter[str] = Counter()
+    for chunk in chunks:
+        source_type = str(chunk.get("source_type") or "unknown")
+        if source_type in allowed_source_types:
+            kept.append(chunk)
+            kept_counter[source_type] += 1
+        else:
+            skipped_counter[source_type] += 1
+    return kept, kept_counter, skipped_counter
+
+
+def build_numpy_index(chunks: list[dict[str, Any]], embedding_cache: dict[str, dict[str, Any]], index_dir: Path, embedding_model: str, chunks_path: Path, cache_path: Path, allowed_source_types: list[str]) -> dict[str, Any]:
     if not chunks:
         raise RuntimeError("No chunks to index")
 
@@ -214,6 +230,7 @@ def build_numpy_index(chunks: list[dict[str, Any]], embedding_cache: dict[str, d
         "version": INDEX_VERSION,
         "backend": "numpy",
         "corpus": "asu_june_bot_v2",
+        "allowed_source_types": allowed_source_types,
         "embedding_model": embedding_model,
         "embedding_dim": int(matrix.shape[1]),
         "count": int(matrix.shape[0]),
@@ -236,7 +253,7 @@ def build_numpy_index(chunks: list[dict[str, Any]], embedding_cache: dict[str, d
     return manifest
 
 
-def make_report(*, chunks: list[dict[str, Any]], cached_before: int, cached_after: int, embedded_this_run: int, cache_path: Path, index_dir: Path, manifest: dict[str, Any] | None, dry_run: bool, embed_only: bool, index_only: bool, embedding_model: str, max_embedding_chars: int) -> dict[str, Any]:
+def make_report(*, chunks_total_before_filter: int, chunks: list[dict[str, Any]], kept_by_source_type: Counter[str], skipped_by_source_type: Counter[str], cached_before: int, cached_after: int, embedded_this_run: int, cache_path: Path, index_dir: Path, manifest: dict[str, Any] | None, dry_run: bool, embed_only: bool, index_only: bool, embedding_model: str, max_embedding_chars: int, allowed_source_types: list[str]) -> dict[str, Any]:
     return {
         "generated_at": utc_now(),
         "index_version": INDEX_VERSION,
@@ -245,8 +262,11 @@ def make_report(*, chunks: list[dict[str, Any]], cached_before: int, cached_afte
         "index_only": index_only,
         "embedding_model": embedding_model,
         "max_embedding_chars": max_embedding_chars,
+        "allowed_source_types": allowed_source_types,
         "summary": {
+            "chunks_total_before_filter": chunks_total_before_filter,
             "chunks_total": len(chunks),
+            "chunks_skipped_by_source_type": sum(skipped_by_source_type.values()),
             "cached_before": cached_before,
             "embedded_this_run": embedded_this_run,
             "cached_after": cached_after,
@@ -254,6 +274,8 @@ def make_report(*, chunks: list[dict[str, Any]], cached_before: int, cached_afte
             "index_built": manifest is not None,
             "index_count": manifest.get("count") if manifest else 0,
         },
+        "kept_by_source_type": dict(sorted(kept_by_source_type.items())),
+        "skipped_by_source_type": dict(sorted(skipped_by_source_type.items())),
         "paths": {
             "embeddings_cache_v2": str(cache_path),
             "numpy_index_v2": str(index_dir),
@@ -268,12 +290,18 @@ def main() -> None:
     parser.add_argument("--cache-path", default=DEFAULT_EMBEDDINGS_CACHE)
     parser.add_argument("--index-dir", default=DEFAULT_INDEX_DIR)
     parser.add_argument("--report-path", default=DEFAULT_REPORT_PATH)
-    parser.add_argument("--limit", type=int, default=0, help="Limit chunks for smoke/debug")
+    parser.add_argument("--limit", type=int, default=0, help="Limit chunks for smoke/debug after source_type filtering")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--embed-only", action="store_true", help="Fill embeddings cache but do not build numpy index")
     parser.add_argument("--index-only", action="store_true", help="Do not call Ollama; build index from existing cache")
     parser.add_argument("--timeout-sec", type=int, default=240)
     parser.add_argument("--max-embedding-chars", type=int, default=DEFAULT_MAX_EMBEDDING_CHARS)
+    parser.add_argument(
+        "--include-source-type",
+        action="append",
+        dest="include_source_types",
+        help="Source type to include in index. Can be repeated. Default: project_doc, meeting_artifact, analytical_note, instruction.",
+    )
     args = parser.parse_args()
 
     if args.embed_only and args.index_only:
@@ -290,11 +318,16 @@ def main() -> None:
     embedding_num_ctx = int(cfg["ollama"].get("embedding_num_ctx", 8192))
     keep_alive = str(cfg["ollama"].get("keep_alive", "24h"))
     max_embedding_chars = max(MIN_EMBEDDING_CHARS, int(args.max_embedding_chars))
+    allowed_source_types = list(args.include_source_types or DEFAULT_INDEX_SOURCE_TYPES)
+    allowed_source_type_set = set(allowed_source_types)
 
-    chunks = read_jsonl(chunks_path)
-    chunks = [chunk for chunk in chunks if chunk.get("chunk_id") and str(chunk.get("text") or "").strip()]
+    all_chunks = read_jsonl(chunks_path)
+    all_chunks = [chunk for chunk in all_chunks if chunk.get("chunk_id") and str(chunk.get("text") or "").strip()]
+    chunks_total_before_filter = len(all_chunks)
+    chunks, kept_by_source_type, skipped_by_source_type = filter_chunks_by_source_type(all_chunks, allowed_source_type_set)
     if args.limit and args.limit > 0:
         chunks = chunks[: args.limit]
+        kept_by_source_type = Counter(str(chunk.get("source_type") or "unknown") for chunk in chunks)
 
     cache = load_embedding_cache(cache_path, embedding_model)
     chunk_ids = {str(chunk["chunk_id"]) for chunk in chunks}
@@ -304,12 +337,17 @@ def main() -> None:
     print(
         json.dumps(
             {
+                "chunks_total_before_filter": chunks_total_before_filter,
                 "chunks_total": len(chunks),
+                "chunks_skipped_by_source_type": sum(skipped_by_source_type.values()),
+                "kept_by_source_type": dict(sorted(kept_by_source_type.items())),
+                "skipped_by_source_type": dict(sorted(skipped_by_source_type.items())),
                 "cached_before": cached_before,
                 "missing_before": len(chunks) - cached_before,
                 "embedding_model": embedding_model,
                 "embedding_num_ctx": embedding_num_ctx,
                 "max_embedding_chars": max_embedding_chars,
+                "allowed_source_types": allowed_source_types,
                 "cache_path": str(cache_path),
                 "index_dir": str(index_dir),
                 "dry_run": args.dry_run,
@@ -353,10 +391,13 @@ def main() -> None:
     cached_after = len([chunk_id for chunk_id in chunk_ids if chunk_id in cache])
     manifest: dict[str, Any] | None = None
     if not args.dry_run and not args.embed_only:
-        manifest = build_numpy_index(chunks, cache, index_dir, embedding_model, chunks_path, cache_path)
+        manifest = build_numpy_index(chunks, cache, index_dir, embedding_model, chunks_path, cache_path, allowed_source_types)
 
     report = make_report(
+        chunks_total_before_filter=chunks_total_before_filter,
         chunks=chunks,
+        kept_by_source_type=kept_by_source_type,
+        skipped_by_source_type=skipped_by_source_type,
         cached_before=cached_before,
         cached_after=cached_after,
         embedded_this_run=embedded_this_run,
@@ -368,6 +409,7 @@ def main() -> None:
         index_only=args.index_only,
         embedding_model=embedding_model,
         max_embedding_chars=max_embedding_chars,
+        allowed_source_types=allowed_source_types,
     )
 
     if not args.dry_run:
