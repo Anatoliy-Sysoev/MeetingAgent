@@ -1,21 +1,22 @@
 # TODO Asu June Bot
 
-Обновлено: 2026-05-12.
+Обновлено: 2026-05-13.
 
 ## Сейчас
 
-- Утвердить рабочее название `Asu June Bot` или заменить его до расширения кодовой базы.
-- Не развивать дальше `scripts/09_chat.py` как основной продуктовый контур.
-- Использовать `scripts/09_chat.py` только как prototype и источник выводов.
 - Считать старый RAG MeetingAgent только v1/baseline.
-- Новый Asu June Bot v2 строить независимо: `extract_text_v2 -> chunks_v2 -> index_v2`.
-- Не опираться на старый `scripts/02_extract_text.py` для v2.
-- Не менять старый `run_full_rag.ps1`, `data/chunks.jsonl`, `data/embeddings_cache.jsonl` и `data/numpy_index` при проверке v2.
-- Проверить локально extractor v2: `scripts/asu_june_bot_extract_text_v2.py`.
-- Проверить локально chunking v2: `scripts/asu_june_bot_build_chunks_v2.py`.
-- После локальной проверки исправить runtime/import ошибки, если они появятся.
+- Новый Asu June Bot v2.1 строить независимо: `apply_config_v2_1 -> extract_text_v2 -> chunks_v2 -> audit_sources_v2 -> index_v2`.
+- Не опираться на старый `scripts/02_extract_text.py` для v2.1.
+- Не менять старый `run_full_rag.ps1`, `data/chunks.jsonl`, `data/embeddings_cache.jsonl` и `data/numpy_index` при проверке v2.1.
+- Применить локальный `config.yaml` через `scripts/asu_june_bot_apply_config_v2_1.py`.
+- Исключить из основного корпуса `**/Система/**`, `asu_docs_export`, `asu_admin_export`, `site_review_runs`, `playwright`, `exports`, `.har`, временные файлы и медиа/архивы.
+- Проверить локально extractor v2.1: `scripts/asu_june_bot_extract_text_v2.py`.
+- Проверить локально chunking v2.1: `scripts/asu_june_bot_build_chunks_v2.py`.
+- Проверить покрытие через `scripts/asu_june_bot_audit_sources_v2.py`.
+- Убедиться, что `documents.jsonl` не содержит `/Система/`, `asu_admin_export`, `asu_docs_export`, `site_review_runs`, `playwright`, `.har`.
 - Оценить качество `blocks.jsonl` по DOCX/XLSX: порядок paragraph/table, table_row, headers, cells.
-- Оценить качество `chunks_v2.jsonl` по ФТТ и Паспорт ИС до подключения v2 к поиску.
+- Оценить качество `chunks_v2.jsonl` по ФТТ, ЦТА, Паспорт ИС и СоИ до подключения v2.1 к поиску.
+- После успешной проверки v2.1 готовить `scripts/asu_june_bot_build_index_v2.py`.
 
 ## Сделано В Этом Срезе
 
@@ -50,39 +51,46 @@ configs/asu_june_bot/source_policy.yaml
 - `HybridRetriever`.
 - `QueryExpander`.
 - `SourcePolicy`.
-- эвристическое enrichment metadata: `source_type`, `document_type`, `module`, `stage`, `section`, `sections`.
+- enrichment metadata: `source_type`, `document_type`, `module`, `stage`, `section`, `sections`.
 - CLI `scripts/asu_june_bot_search.py`.
 
-### Extraction v2
+### Extraction v2.1
 
-Создано:
+Создано/обновлено:
 
 ```text
 src/asu_june_bot/ingestion/__init__.py
 src/asu_june_bot/ingestion/models.py
 src/asu_june_bot/ingestion/utils.py
 scripts/asu_june_bot_extract_text_v2.py
+scripts/asu_june_bot_apply_config_v2_1.py
 run_asu_june_bot_rebuild_v2.ps1
 ```
 
 Реализовано:
 
 - самостоятельное сканирование `project_root` из `config.yaml`;
+- локальное применение фильтров v2.1 к `config.yaml`;
+- жесткие исключения шумных источников на уровне ingestion-кода;
 - DOCX extraction в исходном порядке paragraph/table;
 - DOCX blocks: `heading`, `paragraph`, `table`, `table_row`;
-- XLSX/XLSB blocks: `sheet`, `table_row`;
+- эвристика определения заголовочной строки в DOCX-таблицах;
+- XLSX extraction через `openpyxl`;
+- XLSB extraction через `pandas` + `pyxlsb`;
+- эвристика определения заголовочной строки в Excel;
 - PDF blocks: `page`;
 - PPTX blocks: `slide`, `shape_text`;
-- HTML/text blocks;
+- text blocks для md/txt/json/yaml/drawio/puml/bpmn/srt;
 - `documents.jsonl`, `blocks.jsonl`, `extraction_v2_report.json`, `extraction_v2_report.md` в `data/asu_june_bot/extracted_v2/`.
 
-### Chunking v2
+### Chunking v2.1
 
-Создано:
+Создано/обновлено:
 
 ```text
 docs/subprojects/asu-june-bot/chunking_strategy.md
 scripts/asu_june_bot_build_chunks_v2.py
+scripts/asu_june_bot_audit_sources_v2.py
 run_asu_june_bot_chunks_v2.ps1
 run_asu_june_bot_rebuild_v2.ps1
 ```
@@ -94,98 +102,88 @@ run_asu_june_bot_rebuild_v2.ps1
 - child chunks по строкам таблиц;
 - metadata v2: `chunker_version`, `chunk_level`, `parent_chunk_id`, `block_id`, `block_type`, `requirement_id`, `sections`, `table_id`, `row_id`, `headers`, `cells`, `integration`, `protocol`;
 - отчеты `chunking_v2_report.json` и `chunking_v2_report.md`;
+- аудит покрытия `source_audit_v2_report.json`;
+- детальные причины исключений: `hard_excluded_path`, `hard_excluded_directory`, `hard_excluded_extension`, `office_temp_file`, `extension_not_in_config`;
 - dry-run режим без записи файлов;
 - отдельные wrappers со своими логами.
 
-## Команды Локальной Проверки
+### Source Policy v2.1
 
-### Extraction v2
+Обновлено:
 
-Dry-run без записи файлов:
+```text
+configs/asu_june_bot/source_policy.yaml
+src/asu_june_bot/retrieval/source_policy.py
+src/asu_june_bot/retrieval/metadata.py
+```
+
+Реализовано:
+
+- `system_export` не входит в default corpus;
+- `system_export` получает низкий вес `0.12`;
+- `system_export` подключается только при явном запросе по маркерам;
+- усилены веса ФТТ, ЦТА, ПР, СоИ, Паспорт ИС, ПМИ;
+- улучшено распознавание `document_type` по имени файла и пути.
+
+## Команды Локальной Проверки v2.1
+
+### 1. Применить config v2.1
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_apply_config_v2_1.py --project-root "C:\Users\Сотрудник\Desktop\!Проектные документы АСУ"
+```
+
+### 2. Dry-run extraction
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --dry-run --limit 5
 ```
 
-Extraction только по ФТТ:
+### 3. Полная пересборка v2.1
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --path-contains "ФТТ"
+Remove-Item .\logs\asu_june_bot_rebuild_v2_*.done.txt -ErrorAction SilentlyContinue
+Remove-Item .\logs\asu_june_bot_rebuild_v2_*.failed.txt -ErrorAction SilentlyContinue
+
+.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --reset
+.\.venv\Scripts\python.exe scripts\asu_june_bot_build_chunks_v2.py
+.\.venv\Scripts\python.exe scripts\asu_june_bot_audit_sources_v2.py
 ```
 
-Проверка результата extraction:
+### 4. Проверка исключения шумных источников
+
+```powershell
+Select-String -Path .\data\asu_june_bot\extracted_v2\documents.jsonl -Pattern '/Система/'
+Select-String -Path .\data\asu_june_bot\extracted_v2\documents.jsonl -Pattern 'asu_admin_export|asu_docs_export|site_review_runs|playwright|\.har'
+```
+
+Ожидаемо: строки не найдены.
+
+### 5. Проверка отчетов
 
 ```powershell
 Get-Content .\data\asu_june_bot\extracted_v2\extraction_v2_report.json
-(Get-Content .\data\asu_june_bot\extracted_v2\blocks.jsonl).Count
-Select-String -Path .\data\asu_june_bot\extracted_v2\blocks.jsonl -Pattern '"block_type": "table_row"' | Select-Object -First 10
-```
-
-### Chunking v2
-
-Dry-run после extraction:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_build_chunks_v2.py --dry-run --limit 5
-```
-
-Сборка chunks только по ФТТ из blocks v2:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_build_chunks_v2.py --path-contains "ФТТ"
-```
-
-Полная v2-пересборка extraction + chunks:
-
-```powershell
-.\run_asu_june_bot_rebuild_v2.ps1
-```
-
-Проверка результата chunking:
-
-```powershell
 Get-Content .\data\asu_june_bot\chunking_v2_report.json
-(Get-Content .\data\asu_june_bot\chunks_v2.jsonl).Count
-Select-String -Path .\data\asu_june_bot\chunks_v2.jsonl -Pattern '"requirement_id": "4.2.5"'
-```
-
-### Search MVP v1
-
-Hybrid search:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search.py "Какие интеграции заявлены в проекте?" --top-k 10 --json
-```
-
-BM25 exact search:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode bm25 --top-k 10 --json
+Get-Content .\data\asu_june_bot\source_audit_v2_report.json
 ```
 
 ## Следующие Задачи Разработки
 
-### 1. Проверить Extraction v2 Локально
+### 1. Проверить Extraction/Chunking v2.1 Локально
 
+- Запустить `apply_config_v2_1`.
 - Запустить dry-run `--limit 5`.
-- Запустить extraction только по ФТТ.
+- Запустить full rebuild с `--reset`.
 - Проверить, что `data/asu_june_bot/extracted_v2/blocks.jsonl` создается.
+- Проверить, что `data/asu_june_bot/chunks_v2.jsonl` создается.
+- Проверить, что `data/asu_june_bot/source_audit_v2_report.json` создается.
 - Проверить, что DOCX сохраняет исходный порядок `paragraph/table`.
 - Проверить, что DOCX-таблицы дают `table` и `table_row` blocks.
 - Проверить, что XLSX дает `sheet` и `table_row` blocks.
 - Проверить наличие `headers` и `cells` у `table_row`.
+- Проверить, что `Система` исключена из основного корпуса.
 
-### 2. Проверить Chunking v2 Локально
-
-- Запустить dry-run `--limit 5` после extraction.
-- Запустить сборку chunks только по ФТТ.
-- Проверить, что `data/chunks.jsonl` не меняется.
-- Проверить, что `data/asu_june_bot/chunks_v2.jsonl` создается.
-- Проверить наличие `parent` и `child` chunks.
-- Проверить, что табличные child chunks имеют `table_id`, `row_id`, `headers`, `cells`.
-- Проверить, что ФТТ-пункты получают `requirement_id`, где это возможно.
-
-### 3. Сравнить v1 и v2
+### 2. Сравнить v1 и v2.1
 
 Минимальный baseline:
 
@@ -195,23 +193,15 @@ BM25 exact search:
 Что входит в Паспорт ИС?
 Как работает интеграция с AD?
 Какие справочники передаются через MDR?
+Какие сценарии ПМИ покрывают ФТТ 4.1?
 ```
 
 Пока сравнение ручное:
 
 - v1: `scripts/asu_june_bot_search.py` по текущему `data/chunks.jsonl`.
-- v2: просмотр `blocks.jsonl` и `chunks_v2.jsonl`.
+- v2.1: просмотр `blocks.jsonl`, `chunks_v2.jsonl`, `chunking_v2_report.json`.
 
-### 4. Исправить По Результату Smoke
-
-- Исправить runtime/import ошибки.
-- Уточнить source type inference.
-- Уточнить document_type inference.
-- Проверить, не генерирует ли extraction v2 слишком много шумных blocks.
-- Проверить, не генерирует ли chunking v2 слишком много мелких бесполезных chunks.
-- Улучшить обнаружение заголовков/таблиц в DOCX по результату реального ФТТ/ЦТА/Паспорта ИС.
-
-### 5. Подготовить Search По Chunks v2
+### 3. Подготовить Search По Chunks v2.1
 
 После локального smoke:
 
@@ -219,9 +209,9 @@ BM25 exact search:
 - сделать отдельный embeddings cache v2: `data/asu_june_bot/embeddings_cache_v2.jsonl`;
 - подготовить `data/asu_june_bot/numpy_index_v2/`, но не подключать его к основному search без сравнения.
 
-### 6. Подготовить API Search
+### 4. Подготовить API Search
 
-После CLI-smoke v2:
+После CLI-smoke v2.1:
 
 ```text
 src/asu_june_bot/api/app.py
@@ -235,7 +225,7 @@ POST /search
 GET /health
 ```
 
-### 7. Подготовить Chat MVP Только После Search
+### 5. Подготовить Chat MVP Только После Search
 
 Реализовать:
 
@@ -256,6 +246,7 @@ GET /health
 5. Какие документы первого приоритета должны быть в baseline?
 6. Нужен ли режим `strict` и `analyst` отдельно?
 7. Какой формат embeddings cache v2 утвердить?
+8. Нужно ли выделять `Система` в отдельный `system_export_corpus` позже?
 
 ## Рекомендуемые решения по вопросам
 
@@ -268,31 +259,22 @@ GET /health
    - `strict` — только подтвержденные факты;
    - `analyst` — допускает выводы, но с явным отделением от фактов.
 7. Для v2 лучше сделать отдельный cache `data/asu_june_bot/embeddings_cache_v2.jsonl`, чтобы не смешивать chunk-id разных стратегий.
+8. `Система` не включать в основной корпус; при необходимости сделать отдельный корпус и отдельный режим поиска.
 
-## Definition of Done для Extraction v2
+## Definition of Done для v2.1
 
-Extraction v2 считается готовым для первого сравнения, если:
+v2.1 считается готовым для перехода к index v2, если:
 
+- `scripts/asu_june_bot_apply_config_v2_1.py` успешно обновляет локальный `config.yaml`.
 - `scripts/asu_june_bot_extract_text_v2.py --dry-run --limit 5` работает без ошибок.
-- `scripts/asu_june_bot_extract_text_v2.py --path-contains "ФТТ"` создает `blocks.jsonl`.
-- У DOCX сохраняется исходный порядок paragraph/table.
-- DOCX-таблицы дают `table_row` blocks.
-- XLSX/XLSB дают `sheet` и `table_row` blocks.
-- У `table_row` есть `headers` и `cells`.
-- Создаются `extraction_v2_report.json` и `extraction_v2_report.md`.
-
-## Definition of Done для Chunking v2
-
-Chunking v2 считается готовым для первого сравнения, если:
-
-- `scripts/asu_june_bot_build_chunks_v2.py --dry-run --limit 5` работает без ошибок после extraction.
-- `scripts/asu_june_bot_build_chunks_v2.py --path-contains "ФТТ"` создает `chunks_v2.jsonl`.
+- Full rebuild создает `blocks.jsonl`, `chunks_v2.jsonl`, `source_audit_v2_report.json`.
 - Старые `data/chunks.jsonl` и `data/numpy_index` не изменяются.
 - У всех v2 chunks есть `chunker_version = v2`.
 - Есть `parent` и `child` chunks.
 - Табличные child chunks имеют `table_id`, `row_id`, `headers`, `cells`.
 - ФТТ-пункты по возможности имеют `requirement_id`.
-- Создаются `chunking_v2_report.json` и `chunking_v2_report.md`.
+- `documents.jsonl` не содержит `/Система/`, `asu_admin_export`, `asu_docs_export`, `site_review_runs`, `playwright`, `.har`.
+- `unknown` и `system_export` не доминируют в `chunking_v2_report.json`.
 
 ## Не делать
 
@@ -305,3 +287,4 @@ Chunking v2 считается готовым для первого сравне
 - Не начинать UI до API.
 - Не делать fine-tuning.
 - Не делать agentic tool-use до стабилизации project-only RAG.
+- Не индексировать `Система` в основной project-only corpus.
