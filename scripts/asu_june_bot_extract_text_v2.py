@@ -15,6 +15,7 @@ from bs4 import BeautifulSoup
 from docx import Document
 from docx.table import Table
 from docx.text.paragraph import Paragraph
+from openpyxl import load_workbook
 from pptx import Presentation
 
 
@@ -41,9 +42,9 @@ from asu_june_bot.ingestion.utils import (  # noqa: E402
 )
 
 
-EXTRACTOR_VERSION = "v2"
+EXTRACTOR_VERSION = "v2.1"
 DEFAULT_OUTPUT_DIR = "data/asu_june_bot/extracted_v2"
-TEXT_EXTENSIONS = {".md", ".txt", ".json", ".yml", ".yaml", ".drawio", ".puml", ".srt", ".py", ".js", ".ts", ".css"}
+TEXT_EXTENSIONS = {".md", ".txt", ".json", ".yml", ".yaml", ".drawio", ".puml", ".bpmn", ".srt"}
 
 
 def utc_now() -> str:
@@ -195,6 +196,44 @@ def unique_headers(values: list[str]) -> list[str]:
     return headers
 
 
+def header_score(values: list[str]) -> int:
+    text = " ".join(values).lower()
+    keywords = (
+        "№",
+        "номер",
+        "код",
+        "наименование",
+        "описание",
+        "требование",
+        "атрибут",
+        "тип",
+        "значение",
+        "отправитель",
+        "получатель",
+        "система",
+        "статус",
+        "дата",
+        "роль",
+    )
+    score = sum(1 for value in values if normalize_text(value))
+    score += sum(3 for keyword in keywords if keyword in text)
+    return score
+
+
+def detect_header_row(rows: list[list[str]], max_scan_rows: int = 8) -> int:
+    if not rows:
+        return 0
+    scan = rows[:max_scan_rows]
+    best_idx = 0
+    best_score = -1
+    for idx, values in enumerate(scan):
+        score = header_score(values)
+        if score > best_score:
+            best_idx = idx
+            best_score = score
+    return best_idx
+
+
 def extract_docx_v2(path: Path, source: SourceDocument) -> list[ExtractedBlock]:
     doc = Document(str(path))
     blocks: list[ExtractedBlock] = []
@@ -233,8 +272,9 @@ def extract_docx_v2(path: Path, source: SourceDocument) -> list[ExtractedBlock]:
             table_index += 1
             if not item.rows:
                 continue
-            raw_headers = table_row_values(item, 0)
-            headers = unique_headers(raw_headers)
+            table_rows = [table_row_values(item, idx) for idx in range(len(item.rows))]
+            header_idx = detect_header_row(table_rows)
+            headers = unique_headers(table_rows[header_idx])
             table_title = current_parent_hint
             table_text_lines = [f"Таблица {table_index}"]
             if table_title:
@@ -255,9 +295,9 @@ def extract_docx_v2(path: Path, source: SourceDocument) -> list[ExtractedBlock]:
                 blocks.append(parent_block)
                 block_index += 1
 
-            start_row = 1 if len(item.rows) > 1 else 0
-            for idx in range(start_row, len(item.rows)):
-                values = table_row_values(item, idx)
+            for idx, values in enumerate(table_rows):
+                if idx == header_idx:
+                    continue
                 if not any(values):
                     continue
                 cells = {headers[col_idx] if col_idx < len(headers) else f"col_{col_idx + 1}": value for col_idx, value in enumerate(values)}
@@ -287,39 +327,49 @@ def extract_docx_v2(path: Path, source: SourceDocument) -> list[ExtractedBlock]:
     return blocks
 
 
-def extract_xlsx_v2(path: Path, source: SourceDocument) -> list[ExtractedBlock]:
-    engine = "pyxlsb" if path.suffix.lower() == ".xlsb" else None
-    sheets = pd.read_excel(path, sheet_name=None, dtype=str, engine=engine)
+def normalize_cell(value: Any) -> str:
+    if value is None:
+        return ""
+    return normalize_text(str(value))
+
+
+def extract_xlsx_with_openpyxl(path: Path, source: SourceDocument) -> list[ExtractedBlock]:
+    workbook = load_workbook(filename=str(path), read_only=True, data_only=True)
     blocks: list[ExtractedBlock] = []
     block_index = 0
 
-    for sheet_name, df in sheets.items():
-        df = df.fillna("")
-        headers = [str(col).strip() or f"col_{idx + 1}" for idx, col in enumerate(df.columns)]
+    for sheet in workbook.worksheets:
+        raw_rows = [[normalize_cell(cell) for cell in row] for row in sheet.iter_rows(values_only=True)]
+        raw_rows = [row for row in raw_rows if any(row)]
+        if not raw_rows:
+            continue
+        header_idx = detect_header_row(raw_rows)
+        headers = unique_headers(raw_rows[header_idx])
+        sheet_name = str(sheet.title)
         sheet_text = f"Лист: {sheet_name}\nЗаголовки: " + " | ".join(headers)
         block = make_block(
             source=source,
             block_index=block_index,
             block_type="sheet",
             text=sheet_text,
-            sheet=str(sheet_name),
+            sheet=sheet_name,
             headers=headers,
-            title=str(sheet_name),
+            title=sheet_name,
         )
         if block:
             blocks.append(block)
             block_index += 1
 
-        for row_zero_index, row in df.iterrows():
-            values = [normalize_text(row.get(col, "")) for col in df.columns]
-            if not any(values):
+        for row_idx, values in enumerate(raw_rows, start=1):
+            if row_idx - 1 == header_idx:
                 continue
-            cells = {headers[idx]: values[idx] if idx < len(values) else "" for idx in range(len(headers))}
+            normalized_values = values[: len(headers)] + [""] * max(0, len(headers) - len(values))
+            cells = {headers[idx]: normalized_values[idx] if idx < len(normalized_values) else "" for idx in range(len(headers))}
             row_text = "\n".join(
                 [
                     f"Лист: {sheet_name}",
                     "Заголовки: " + " | ".join(headers),
-                    f"Строка {int(row_zero_index) + 2}: " + " | ".join(values),
+                    f"Строка {row_idx}: " + " | ".join(values),
                 ]
             )
             block = make_block(
@@ -327,17 +377,82 @@ def extract_xlsx_v2(path: Path, source: SourceDocument) -> list[ExtractedBlock]:
                 block_index=block_index,
                 block_type="table_row",
                 text=row_text,
-                sheet=str(sheet_name),
-                row_index=int(row_zero_index) + 2,
+                sheet=sheet_name,
+                row_index=row_idx,
                 headers=headers,
                 cells=cells,
-                title=str(sheet_name),
-                parent_hint=str(sheet_name),
+                title=sheet_name,
+                parent_hint=sheet_name,
+            )
+            if block:
+                blocks.append(block)
+                block_index += 1
+    workbook.close()
+    return blocks
+
+
+def extract_xlsb_with_pandas(path: Path, source: SourceDocument) -> list[ExtractedBlock]:
+    sheets = pd.read_excel(path, sheet_name=None, dtype=str, engine="pyxlsb", header=None)
+    blocks: list[ExtractedBlock] = []
+    block_index = 0
+
+    for sheet_name, df in sheets.items():
+        df = df.fillna("")
+        raw_rows = [[normalize_cell(value) for value in row] for row in df.values.tolist()]
+        raw_rows = [row for row in raw_rows if any(row)]
+        if not raw_rows:
+            continue
+        header_idx = detect_header_row(raw_rows)
+        headers = unique_headers(raw_rows[header_idx])
+        sheet_title = str(sheet_name)
+        sheet_text = f"Лист: {sheet_title}\nЗаголовки: " + " | ".join(headers)
+        block = make_block(
+            source=source,
+            block_index=block_index,
+            block_type="sheet",
+            text=sheet_text,
+            sheet=sheet_title,
+            headers=headers,
+            title=sheet_title,
+        )
+        if block:
+            blocks.append(block)
+            block_index += 1
+
+        for row_idx, values in enumerate(raw_rows, start=1):
+            if row_idx - 1 == header_idx:
+                continue
+            normalized_values = values[: len(headers)] + [""] * max(0, len(headers) - len(values))
+            cells = {headers[idx]: normalized_values[idx] if idx < len(normalized_values) else "" for idx in range(len(headers))}
+            row_text = "\n".join(
+                [
+                    f"Лист: {sheet_title}",
+                    "Заголовки: " + " | ".join(headers),
+                    f"Строка {row_idx}: " + " | ".join(values),
+                ]
+            )
+            block = make_block(
+                source=source,
+                block_index=block_index,
+                block_type="table_row",
+                text=row_text,
+                sheet=sheet_title,
+                row_index=row_idx,
+                headers=headers,
+                cells=cells,
+                title=sheet_title,
+                parent_hint=sheet_title,
             )
             if block:
                 blocks.append(block)
                 block_index += 1
     return blocks
+
+
+def extract_xlsx_v2(path: Path, source: SourceDocument) -> list[ExtractedBlock]:
+    if path.suffix.lower() == ".xlsb":
+        return extract_xlsb_with_pandas(path, source)
+    return extract_xlsx_with_openpyxl(path, source)
 
 
 def extract_pdf_v2(path: Path, source: SourceDocument) -> list[ExtractedBlock]:
