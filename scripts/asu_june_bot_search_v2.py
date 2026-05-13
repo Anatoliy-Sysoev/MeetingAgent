@@ -33,6 +33,11 @@ def make_v2_cfg(cfg: dict[str, Any], chunks_path: str, index_dir: str) -> dict[s
     return patched
 
 
+def get_path(item: dict[str, Any]) -> str | None:
+    metadata = item.get("metadata") or {}
+    return item.get("relative_path") or item.get("document") or metadata.get("relative_path")
+
+
 def print_human(payload: dict[str, Any]) -> None:
     print(f"Запрос: {payload['query']}")
     print(f"Корпус: {payload['corpus']}")
@@ -40,14 +45,16 @@ def print_human(payload: dict[str, Any]) -> None:
     print(f"Результатов: {len(payload['results'])}")
     print()
     for item in payload["results"]:
+        metadata = item.get("metadata") or {}
+        requirement_id = item.get("requirement_id") or metadata.get("requirement_id")
         print(
             f"[{item['source_id']}] score={item['score']} "
             f"vector={item['vector_score']} bm25={item['bm25_score']} matched_by={','.join(item['matched_by'])}"
         )
         print(f"Документ: {item.get('document')}")
         print(f"Тип: {item.get('document_type')} | Source type: {item.get('source_type')} | Модуль: {item.get('module')}")
-        print(f"Раздел: {item.get('section')} | Requirement: {item.get('requirement_id')} | Chunk: {item.get('chunk_index')}")
-        print(f"Путь: {item.get('relative_path')}")
+        print(f"Раздел: {item.get('section')} | Requirement: {requirement_id} | Chunk: {item.get('chunk_index')}")
+        print(f"Путь: {get_path(item)}")
         print(f"Фрагмент: {item.get('text_preview')}")
         print("-" * 100)
 
