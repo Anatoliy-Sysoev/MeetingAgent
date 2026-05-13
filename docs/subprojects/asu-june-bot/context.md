@@ -1,6 +1,6 @@
 # Контекст Подпроекта Asu June Bot
 
-Обновлено: 2026-05-12.
+Обновлено: 2026-05-13.
 
 ## Назначение
 
@@ -14,9 +14,9 @@ Asu June Bot — отдельный подпроект внутри MeetingAgent
 - явно отделять подтвержденные факты от вывода;
 - отказывать на вопросы вне проекта или без источников.
 
-## Ключевое Решение По v2
+## Ключевое Решение По v2.1
 
-Asu June Bot теперь строит собственный независимый pipeline v2 и не опирается на старый `scripts/02_extract_text.py`.
+Asu June Bot строит собственный независимый pipeline v2.1 и не опирается на старый `scripts/02_extract_text.py`.
 
 Старый pipeline MeetingAgent остается только как v1/baseline:
 
@@ -31,9 +31,10 @@ run_full_rag.ps1
 Новый pipeline Asu June Bot:
 
 ```text
-run_asu_june_bot_rebuild_v2.ps1
+scripts/asu_june_bot_apply_config_v2_1.py
   -> scripts/asu_june_bot_extract_text_v2.py
   -> scripts/asu_june_bot_build_chunks_v2.py
+  -> scripts/asu_june_bot_audit_sources_v2.py
   -> future: scripts/asu_june_bot_build_index_v2.py
 ```
 
@@ -58,6 +59,47 @@ data/numpy_index/
 Решение: не продолжать раздувать `09_chat.py`, а выделить Asu June Bot в отдельный подпроект с собственной архитектурой, документацией, API-контрактом и eval-набором.
 
 `09_chat.py` допускается оставить как prototype, но новая реализация должна идти модульно.
+
+## Проектная область знаний
+
+Основная предметная область — проект ЦП УПКС: «Цифровая платформа управления проектами капитального строительства».
+
+Ключевые документы и источники:
+
+- ФТТ;
+- ЦТА;
+- проектные решения по модулям;
+- соглашения об интеграции;
+- Паспорт ИС;
+- ПМИ и сценарии испытаний;
+- руководства администратора ИС и ИБ;
+- протоколы встреч;
+- решения, задачи, риски и открытые вопросы;
+- маппинги НСИ / СоИ / MDR;
+- BPMN/PUML/Drawio схемы.
+
+## Что исключено из основного корпуса v2.1
+
+Папка `Система` и связанные технические выгрузки исключаются из основного project-only corpus:
+
+```text
+**/Система/**
+**/asu_docs_export/**
+**/asu_admin_export/**
+**/docs_html/**
+**/docs_text/**
+**/pages_html/**
+**/pages_text/**
+**/site_review_runs/**
+**/playwright/**
+**/exports/**
+**/screenshots/**
+**/*.har
+```
+
+Причина: это технические HTML/JSON/HAR выгрузки сайта/админки. Они создают много `system_export`, `html_text` и `unknown` chunks и ухудшают качество поиска по проектной документации.
+
+Если такие данные понадобятся, их нужно выделять в отдельный `system_export_corpus`, а не смешивать с основным корпусом проектной документации.
 
 ## Что уже реализовано
 
@@ -99,29 +141,32 @@ configs/asu_june_bot/guardrails.yaml
 - применять `SourcePolicy`, чтобы по умолчанию отдавать приоритет проектным документам и не тащить `system_export` без явного запроса;
 - запускать CLI-поиск через `scripts/asu_june_bot_search.py`.
 
-### 2. Extraction v2
+### 2. Extraction v2.1
 
-Добавлен самостоятельный extractor v2:
+Добавлен самостоятельный extractor v2.1:
 
 ```text
 scripts/asu_june_bot_extract_text_v2.py
 src/asu_june_bot/ingestion/
 ```
 
-Extractor v2 заново сканирует `project_root` из `config.yaml` и не читает старую папку `data/extracted_text`.
+Extractor v2.1 заново сканирует `project_root` из `config.yaml` и не читает старую папку `data/extracted_text`.
 
-Что делает extractor v2:
+Что делает extractor v2.1:
 
 - заново сканирует исходные файлы проекта;
 - поддерживает DOCX, XLSX/XLSB, PDF, PPTX, HTML и текстовые форматы;
 - для DOCX читает paragraph/table в исходном порядке документа;
+- для DOCX таблиц определяет вероятную строку заголовков;
 - для DOCX таблиц создает blocks `table` и `table_row`;
-- для XLSX/XLSB создает blocks `sheet` и `table_row`;
+- для XLSX использует `openpyxl`, извлекает листы, строки, headers и cells;
+- для XLSB использует `pandas` + `pyxlsb`;
 - для PDF создает page blocks;
 - для PPTX создает slide/shape_text blocks;
+- жестко исключает шумные системные exports и временные файлы;
 - пишет структурный результат в `data/asu_june_bot/extracted_v2/`.
 
-Выход extractor v2:
+Выход extractor v2.1:
 
 ```text
 data/asu_june_bot/extracted_v2/documents.jsonl
@@ -130,9 +175,9 @@ data/asu_june_bot/extracted_v2/extraction_v2_report.json
 data/asu_june_bot/extracted_v2/extraction_v2_report.md
 ```
 
-### 3. Chunking v2
+### 3. Chunking v2.1
 
-Зафиксирована стратегия структурного chunking v2:
+Зафиксирована стратегия структурного chunking v2.1:
 
 ```text
 docs/subprojects/asu-june-bot/chunking_strategy.md
@@ -161,49 +206,51 @@ data/asu_june_bot/extracted_v2/blocks.jsonl
 - пишет отчеты `chunking_v2_report.json` и `chunking_v2_report.md`;
 - не трогает `data/chunks.jsonl`, `data/embeddings_cache.jsonl`, `data/numpy_index` и `run_full_rag.ps1`.
 
-Проверочные команды:
+### 4. Config / audit v2.1
 
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --dry-run --limit 5
-.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --path-contains "ФТТ"
-.\.venv\Scripts\python.exe scripts\asu_june_bot_build_chunks_v2.py --dry-run --limit 5
-.\run_asu_june_bot_rebuild_v2.ps1
+Добавлено:
+
+```text
+scripts/asu_june_bot_apply_config_v2_1.py
+scripts/asu_june_bot_audit_sources_v2.py
 ```
 
-## Проектная область знаний
+`apply_config_v2_1` обновляет локальный `config.yaml`:
 
-Основная предметная область — проект ЦП УПКС: «Цифровая платформа управления проектами капитального строительства».
+- выставляет `project_root`;
+- добавляет поддерживаемые расширения;
+- добавляет исключаемые директории;
+- добавляет исключаемые path patterns;
+- добавляет исключаемые расширения;
+- делает backup `config.yaml`.
 
-Ключевые документы и источники:
+`audit_sources_v2` проверяет покрытие:
 
-- ФТТ;
-- ЦТА;
-- проектные решения по модулям;
-- соглашения об интеграции;
-- Паспорт ИС;
-- ПМИ и сценарии испытаний;
-- руководства администратора ИС и ИБ;
-- протоколы встреч;
-- решения, задачи, риски и открытые вопросы;
-- маппинги НСИ / СоИ / MDR.
+- сколько файлов увидел `project_root`;
+- сколько прошло фильтры;
+- сколько записано в `documents.jsonl`;
+- сколько blocks/chunks создано;
+- почему файлы исключены.
 
 ## Ближайшая цель
 
-Проверить новый independent v2 pipeline локально.
+Проверить v2.1 pipeline локально после исключения папки `Система`.
 
 Ожидаемый следующий шаг:
 
 ```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_apply_config_v2_1.py --project-root "C:\Users\Сотрудник\Desktop\!Проектные документы АСУ"
 .\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --dry-run --limit 5
-.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --path-contains "ФТТ"
-.\.venv\Scripts\python.exe scripts\asu_june_bot_build_chunks_v2.py --dry-run --limit 5
-.\run_asu_june_bot_rebuild_v2.ps1
+.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --reset
+.\.venv\Scripts\python.exe scripts\asu_june_bot_build_chunks_v2.py
+.\.venv\Scripts\python.exe scripts\asu_june_bot_audit_sources_v2.py
 ```
 
 После проверки:
 
-- исправить import/runtime ошибки;
+- убедиться, что `documents.jsonl` не содержит `/Система/`, `asu_admin_export`, `asu_docs_export`, `site_review_runs`, `playwright`, `.har`;
+- оценить `chunking_v2_report.json`: `system_export` и `unknown` не должны доминировать;
 - оценить `blocks.jsonl` по DOCX и XLSX;
 - оценить `chunks_v2.jsonl` по ФТТ и Паспорт ИС;
-- сравнить v1 и v2 на baseline;
-- только потом проектировать `numpy_index_v2` и подключение v2 к `/search`.
+- сравнить v1 и v2.1 на baseline;
+- только потом проектировать `numpy_index_v2` и подключение v2.1 к `/search`.
