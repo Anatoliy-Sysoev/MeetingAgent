@@ -5,18 +5,12 @@
 ## Сейчас
 
 - Считать старый RAG MeetingAgent только v1/baseline.
-- Новый Asu June Bot v2.1 строить независимо: `apply_config_v2_1 -> extract_text_v2 -> chunks_v2 -> audit_sources_v2 -> index_v2`.
+- Новый Asu June Bot v2.1 строить независимо: `apply_config_v2_1 -> extract_text_v2 -> chunks_v2 -> audit_sources_v2 -> build_index_v2 -> search_v2`.
 - Не опираться на старый `scripts/02_extract_text.py` для v2.1.
 - Не менять старый `run_full_rag.ps1`, `data/chunks.jsonl`, `data/embeddings_cache.jsonl` и `data/numpy_index` при проверке v2.1.
-- Применить локальный `config.yaml` через `scripts/asu_june_bot_apply_config_v2_1.py`.
-- Исключить из основного корпуса `**/Система/**`, `asu_docs_export`, `asu_admin_export`, `site_review_runs`, `playwright`, `exports`, `.har`, временные файлы и медиа/архивы.
-- Проверить локально extractor v2.1: `scripts/asu_june_bot_extract_text_v2.py`.
-- Проверить локально chunking v2.1: `scripts/asu_june_bot_build_chunks_v2.py`.
-- Проверить покрытие через `scripts/asu_june_bot_audit_sources_v2.py`.
-- Убедиться, что `documents.jsonl` не содержит `/Система/`, `asu_admin_export`, `asu_docs_export`, `site_review_runs`, `playwright`, `.har`.
-- Оценить качество `blocks.jsonl` по DOCX/XLSX: порядок paragraph/table, table_row, headers, cells.
-- Оценить качество `chunks_v2.jsonl` по ФТТ, ЦТА, Паспорт ИС и СоИ до подключения v2.1 к поиску.
-- После успешной проверки v2.1 готовить `scripts/asu_june_bot_build_index_v2.py`.
+- `Система`, `asu_docs_export`, `asu_admin_export`, `site_review_runs`, `playwright`, `exports`, `.har`, временные файлы и медиа/архивы исключены из основного корпуса.
+- Локальная проверка extraction/chunking v2.1 пройдена: `documents=213`, `blocks=31076`, `chunks=31302`, `system_export` отсутствует в `by_source_type`.
+- Следующий практический шаг: BM25 smoke по `chunks_v2`, затем `embeddings_cache_v2`, затем `numpy_index_v2`.
 
 ## Сделано В Этом Срезе
 
@@ -125,91 +119,93 @@ src/asu_june_bot/retrieval/metadata.py
 - усилены веса ФТТ, ЦТА, ПР, СоИ, Паспорт ИС, ПМИ;
 - улучшено распознавание `document_type` по имени файла и пути.
 
+### Index/Search v2
+
+Создано:
+
+```text
+scripts/asu_june_bot_build_index_v2.py
+scripts/asu_june_bot_search_v2.py
+```
+
+Реализовано:
+
+- отдельный embeddings cache: `data/asu_june_bot/embeddings_cache_v2.jsonl`;
+- отдельный numpy index: `data/asu_june_bot/numpy_index_v2/`;
+- resume для embeddings cache по `chunk_id`;
+- режим `--embed-only`;
+- режим `--index-only`;
+- режим `--limit` для smoke-проверки;
+- отчет `data/asu_june_bot/index_v2_report.json`;
+- отдельный CLI-поиск по v2 corpus: `scripts/asu_june_bot_search_v2.py`;
+- режимы поиска `bm25`, `vector`, `hybrid` по `chunks_v2` и `numpy_index_v2`.
+
 ## Команды Локальной Проверки v2.1
 
-### 1. Применить config v2.1
+### 1. Проверка отчетов с правильной кодировкой
+
+Windows PowerShell 5.1 требует `-Encoding UTF8`.
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_apply_config_v2_1.py --project-root "C:\Users\Сотрудник\Desktop\!Проектные документы АСУ"
+Get-Content .\data\asu_june_bot\extracted_v2\extraction_v2_report.json -Encoding UTF8
+Get-Content .\data\asu_june_bot\chunking_v2_report.json -Encoding UTF8
+Get-Content .\data\asu_june_bot\source_audit_v2_report.json -Encoding UTF8
 ```
 
-### 2. Dry-run extraction
+### 2. BM25 smoke до embeddings
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --dry-run --limit 5
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode bm25 --top-k 5
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какие интеграции заявлены в проекте?" --mode bm25 --top-k 5
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode bm25 --top-k 5
 ```
 
-### 3. Полная пересборка v2.1
+### 3. Smoke embeddings на 20 chunks
 
 ```powershell
-Remove-Item .\logs\asu_june_bot_rebuild_v2_*.done.txt -ErrorAction SilentlyContinue
-Remove-Item .\logs\asu_june_bot_rebuild_v2_*.failed.txt -ErrorAction SilentlyContinue
-
-.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --reset
-.\.venv\Scripts\python.exe scripts\asu_june_bot_build_chunks_v2.py
-.\.venv\Scripts\python.exe scripts\asu_june_bot_audit_sources_v2.py
+.\.venv\Scripts\python.exe scripts\asu_june_bot_build_index_v2.py --limit 20 --embed-only
+Get-Content .\data\asu_june_bot\index_v2_report.json -Encoding UTF8
 ```
 
-### 4. Проверка исключения шумных источников
+### 4. Полный embeddings cache v2
 
 ```powershell
-Select-String -Path .\data\asu_june_bot\extracted_v2\documents.jsonl -Pattern '/Система/'
-Select-String -Path .\data\asu_june_bot\extracted_v2\documents.jsonl -Pattern 'asu_admin_export|asu_docs_export|site_review_runs|playwright|\.har'
+.\.venv\Scripts\python.exe scripts\asu_june_bot_build_index_v2.py --embed-only
 ```
 
-Ожидаемо: строки не найдены.
-
-### 5. Проверка отчетов
+Проверка прогресса:
 
 ```powershell
-Get-Content .\data\asu_june_bot\extracted_v2\extraction_v2_report.json
-Get-Content .\data\asu_june_bot\chunking_v2_report.json
-Get-Content .\data\asu_june_bot\source_audit_v2_report.json
+(Get-Content .\data\asu_june_bot\embeddings_cache_v2.jsonl -Encoding UTF8).Count
+```
+
+### 5. Построить numpy_index_v2
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_build_index_v2.py --index-only
+Get-Content .\data\asu_june_bot\numpy_index_v2\manifest.json -Encoding UTF8
+```
+
+### 6. Hybrid smoke
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode hybrid --top-k 8
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какие интеграции заявлены в проекте?" --mode hybrid --top-k 8
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode hybrid --top-k 8
 ```
 
 ## Следующие Задачи Разработки
 
-### 1. Проверить Extraction/Chunking v2.1 Локально
+### 1. Проверить Search v2 Локально
 
-- Запустить `apply_config_v2_1`.
-- Запустить dry-run `--limit 5`.
-- Запустить full rebuild с `--reset`.
-- Проверить, что `data/asu_june_bot/extracted_v2/blocks.jsonl` создается.
-- Проверить, что `data/asu_june_bot/chunks_v2.jsonl` создается.
-- Проверить, что `data/asu_june_bot/source_audit_v2_report.json` создается.
-- Проверить, что DOCX сохраняет исходный порядок `paragraph/table`.
-- Проверить, что DOCX-таблицы дают `table` и `table_row` blocks.
-- Проверить, что XLSX дает `sheet` и `table_row` blocks.
-- Проверить наличие `headers` и `cells` у `table_row`.
-- Проверить, что `Система` исключена из основного корпуса.
+- Запустить BM25 smoke по baseline.
+- Проверить, что топ-5 содержит Паспорт ИС, ФТТ, ЦТА, ПР, СоИ для соответствующих вопросов.
+- Запустить `--limit 20 --embed-only`.
+- После успешного smoke запустить полный `--embed-only`.
+- После заполнения cache запустить `--index-only`.
+- Запустить hybrid smoke по baseline.
 
-### 2. Сравнить v1 и v2.1
-
-Минимальный baseline:
-
-```text
-ФТТ 4.2.5 НОВАДОК ЭЦП
-Какие интеграции заявлены в проекте?
-Что входит в Паспорт ИС?
-Как работает интеграция с AD?
-Какие справочники передаются через MDR?
-Какие сценарии ПМИ покрывают ФТТ 4.1?
-```
-
-Пока сравнение ручное:
-
-- v1: `scripts/asu_june_bot_search.py` по текущему `data/chunks.jsonl`.
-- v2.1: просмотр `blocks.jsonl`, `chunks_v2.jsonl`, `chunking_v2_report.json`.
-
-### 3. Подготовить Search По Chunks v2.1
-
-После локального smoke:
-
-- добавить CLI-флаг или отдельный скрипт для поиска по `chunks_v2.jsonl`;
-- сделать отдельный embeddings cache v2: `data/asu_june_bot/embeddings_cache_v2.jsonl`;
-- подготовить `data/asu_june_bot/numpy_index_v2/`, но не подключать его к основному search без сравнения.
-
-### 4. Подготовить API Search
+### 2. Подготовить API Search
 
 После CLI-smoke v2.1:
 
@@ -225,7 +221,7 @@ POST /search
 GET /health
 ```
 
-### 5. Подготовить Chat MVP Только После Search
+### 3. Подготовить Chat MVP Только После Search
 
 Реализовать:
 
@@ -258,23 +254,23 @@ GET /health
 6. Режимы нужны:
    - `strict` — только подтвержденные факты;
    - `analyst` — допускает выводы, но с явным отделением от фактов.
-7. Для v2 лучше сделать отдельный cache `data/asu_june_bot/embeddings_cache_v2.jsonl`, чтобы не смешивать chunk-id разных стратегий.
+7. Для v2 утвержден отдельный cache `data/asu_june_bot/embeddings_cache_v2.jsonl`, чтобы не смешивать chunk-id разных стратегий.
 8. `Система` не включать в основной корпус; при необходимости сделать отдельный корпус и отдельный режим поиска.
 
 ## Definition of Done для v2.1
 
-v2.1 считается готовым для перехода к index v2, если:
+v2.1 считается готовым для перехода к API search, если:
 
-- `scripts/asu_june_bot_apply_config_v2_1.py` успешно обновляет локальный `config.yaml`.
-- `scripts/asu_june_bot_extract_text_v2.py --dry-run --limit 5` работает без ошибок.
-- Full rebuild создает `blocks.jsonl`, `chunks_v2.jsonl`, `source_audit_v2_report.json`.
-- Старые `data/chunks.jsonl` и `data/numpy_index` не изменяются.
-- У всех v2 chunks есть `chunker_version = v2`.
-- Есть `parent` и `child` chunks.
+- `documents.jsonl` не содержит `/Система/`, `asu_admin_export`, `asu_docs_export`, `site_review_runs`, `playwright`, `.har`.
+- `chunking_v2_report.json` показывает отсутствие `system_export` в основном корпусе.
+- `chunks_v2.jsonl` содержит `parent` и `child` chunks.
 - Табличные child chunks имеют `table_id`, `row_id`, `headers`, `cells`.
 - ФТТ-пункты по возможности имеют `requirement_id`.
-- `documents.jsonl` не содержит `/Система/`, `asu_admin_export`, `asu_docs_export`, `site_review_runs`, `playwright`, `.har`.
-- `unknown` и `system_export` не доминируют в `chunking_v2_report.json`.
+- `embeddings_cache_v2.jsonl` создан.
+- `numpy_index_v2/manifest.json` создан.
+- `search_v2 --mode bm25` проходит baseline smoke.
+- `search_v2 --mode hybrid` проходит baseline smoke.
+- Старые `data/chunks.jsonl`, `data/embeddings_cache.jsonl`, `data/numpy_index` не изменяются.
 
 ## Не делать
 
