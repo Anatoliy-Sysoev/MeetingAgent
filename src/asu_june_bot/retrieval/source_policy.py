@@ -7,24 +7,28 @@ DEFAULT_ALLOWED_SOURCE_TYPES = ["project_doc", "meeting_artifact", "analytical_n
 DEFAULT_SOURCE_TYPE_WEIGHTS = {
     "project_doc": 1.0,
     "meeting_artifact": 0.9,
-    "analytical_note": 0.85,
-    "instruction": 0.8,
-    "system_export": 0.55,
-    "runtime_export": 0.4,
-    "code": 0.35,
+    "analytical_note": 0.82,
+    "instruction": 0.82,
+    "system_export": 0.12,
+    "runtime_export": 0.1,
+    "code": 0.25,
+    "unknown": 0.5,
 }
 
 DEFAULT_DOCUMENT_TYPE_WEIGHTS = {
-    "ЦТА": 1.18,
+    "ФТТ": 1.25,
+    "ЦТА": 1.22,
+    "ПР": 1.18,
     "СоИ AD": 1.16,
     "СоИ Справочники": 1.16,
-    "ФТТ": 1.12,
-    "ПР": 1.08,
-    "Паспорт ИС": 1.08,
-    "ПМИ": 1.0,
-    "Руководство": 0.96,
-    "Реестр НСИ": 0.86,
-    "Wiki": 0.74,
+    "Паспорт ИС": 1.12,
+    "ПМИ": 1.08,
+    "Руководство": 0.98,
+    "Протокол": 0.92,
+    "Реестр НСИ": 0.88,
+    "BPMN / Процесс": 0.84,
+    "API": 0.8,
+    "Wiki": 0.72,
 }
 
 
@@ -37,7 +41,22 @@ class SourcePolicy:
         self.document_type_weights = dict(DEFAULT_DOCUMENT_TYPE_WEIGHTS)
         self.document_type_weights.update(config.get("document_type_weights") or {})
         self.explicit_enable_markers = config.get("explicit_enable_markers") or {
-            "system_export": ["админ", "экспорт", "интерфейс", "страница", "токен", "пользователь", "роль"],
+            "system_export": [
+                "система",
+                "системная выгрузка",
+                "админка",
+                "django admin",
+                "asu_admin_export",
+                "asu_docs_export",
+                "site_review",
+                "html export",
+                "экспорт сайта",
+                "интерфейс",
+                "страница",
+                "токен",
+                "пользователь",
+                "роль",
+            ],
             "code": ["код", "скрипт", "python", "powershell", "ошибка в скрипте"],
         }
 
@@ -59,6 +78,6 @@ class SourcePolicy:
     def weight(self, metadata: dict[str, Any]) -> float:
         source_type = str(metadata.get("source_type") or "project_doc")
         document_type = metadata.get("document_type")
-        source_weight = float(self.weights.get(source_type, 0.5))
+        source_weight = float(self.weights.get(source_type, self.weights.get("unknown", 0.5)))
         document_weight = float(self.document_type_weights.get(str(document_type), 1.0)) if document_type else 1.0
         return source_weight * document_weight
