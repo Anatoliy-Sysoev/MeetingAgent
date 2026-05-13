@@ -1,38 +1,35 @@
 # set_asu_june_bot_project_root.ps1
-# Safely updates project_root in config.yaml for Asu June Bot / MeetingAgent.
+# Compatibility wrapper. Main config update logic lives in scripts/asu_june_bot_apply_config_v2_1.py.
+# Pass -Root explicitly to avoid PowerShell encoding issues with non-ASCII paths.
 
 [CmdletBinding()]
 param(
-    [string]$Root = 'C:\Users\Сотрудник\Desktop\!Проектные документы АСУ',
+    [Parameter(Mandatory = $true)]
+    [string]$Root,
+
     [string]$ConfigPath = '.\config.yaml'
 )
 
 $ErrorActionPreference = 'Stop'
-$Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
-[Console]::OutputEncoding = $Utf8NoBom
-$OutputEncoding = $Utf8NoBom
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 
-if (-not (Test-Path -LiteralPath $Root)) {
-    throw "Project root not found: $Root"
+$RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Python = Join-Path $RepoRoot '.venv\Scripts\python.exe'
+$ApplyScript = Join-Path $RepoRoot 'scripts\asu_june_bot_apply_config_v2_1.py'
+
+if (-not (Test-Path -LiteralPath $Python)) {
+    throw "Python venv not found: $Python"
 }
 
-if (-not (Test-Path -LiteralPath $ConfigPath)) {
-    throw "Config file not found: $ConfigPath"
+if (-not (Test-Path -LiteralPath $ApplyScript)) {
+    throw "Apply config script not found: $ApplyScript"
 }
 
-$RootForYaml = $Root.Replace('\', '/')
-$Raw = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8
-$Updated = [regex]::Replace($Raw, '(?m)^project_root:\s*".*"\s*$', "project_root: `"$RootForYaml`"")
-
-if ($Updated -eq $Raw) {
-    throw 'project_root line was not updated. Check config.yaml format.'
+& $Python $ApplyScript --project-root $Root --config $ConfigPath
+if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
 }
 
-$BackupPath = "$ConfigPath.bak_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
-Copy-Item -LiteralPath $ConfigPath -Destination $BackupPath -Force
-[System.IO.File]::WriteAllText((Resolve-Path -LiteralPath $ConfigPath), $Updated, $Utf8NoBom)
-
-Write-Host "Updated project_root: $RootForYaml"
-Write-Host "Backup: $BackupPath"
-Write-Host 'Verify:'
+Write-Host 'Verify project_root:'
 Select-String -Path $ConfigPath -Pattern '^project_root:'
