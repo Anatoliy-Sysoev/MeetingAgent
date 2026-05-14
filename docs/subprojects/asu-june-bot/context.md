@@ -1,6 +1,6 @@
 # Контекст Подпроекта Asu June Bot
 
-Обновлено: 2026-05-13.
+Обновлено: 2026-05-14.
 
 ## Назначение
 
@@ -14,7 +14,7 @@ Asu June Bot — отдельный подпроект внутри MeetingAgent
 - явно отделять подтвержденные факты от вывода;
 - отказывать на вопросы вне проекта или без источников.
 
-## Ключевое Решение По v2.1
+## Ключевое решение v2.1
 
 Asu June Bot строит собственный независимый pipeline v2.1 и не опирается на старый `scripts/02_extract_text.py`.
 
@@ -36,10 +36,11 @@ scripts/asu_june_bot_apply_config_v2_1.py
   -> scripts/asu_june_bot_build_chunks_v2.py
   -> scripts/asu_june_bot_audit_sources_v2.py
   -> scripts/asu_june_bot_build_index_v2.py
+  -> scripts/asu_june_bot_health_v2.py
   -> scripts/asu_june_bot_search_v2.py
 ```
 
-Все новые runtime-данные пишутся в:
+Все runtime-данные v2 пишутся в:
 
 ```text
 data/asu_june_bot/
@@ -59,7 +60,7 @@ data/numpy_index/
 
 Решение: не продолжать раздувать `09_chat.py`, а выделить Asu June Bot в отдельный подпроект с собственной архитектурой, документацией, API-контрактом и eval-набором.
 
-`09_chat.py` допускается оставить как prototype, но новая реализация должна идти модульно.
+`09_chat.py` остается prototype, но новая реализация должна идти модульно.
 
 ## Проектная область знаний
 
@@ -98,51 +99,13 @@ data/numpy_index/
 **/*.har
 ```
 
-Причина: это технические HTML/JSON/HAR выгрузки сайта/админки. Они создают много `system_export`, `html_text` и `unknown` chunks и ухудшают качество поиска по проектной документации.
+Причина: это технические HTML/JSON/HAR выгрузки сайта/админки. Они создают `system_export`, `html_text` и `unknown` chunks и ухудшают качество поиска по проектной документации.
 
 Если такие данные понадобятся, их нужно выделять в отдельный `system_export_corpus`, а не смешивать с основным корпусом проектной документации.
 
-## Что уже реализовано
+## Реализовано
 
-### 1. Search MVP v1
-
-Начат первый технический слой Asu June Bot: search MVP поверх текущего v1 corpus.
-
-Добавлено:
-
-```text
-src/asu_june_bot/
-  __init__.py
-  core/config.py
-  retrieval/models.py
-  retrieval/metadata.py
-  retrieval/source_policy.py
-  retrieval/bm25.py
-  retrieval/vector.py
-  retrieval/hybrid.py
-  retrieval/chunks.py
-  retrieval/query_expansion.py
-scripts/asu_june_bot_search.py
-configs/asu_june_bot/retrieval.yaml
-configs/asu_june_bot/source_policy.yaml
-configs/asu_june_bot/query_expansion.yaml
-configs/asu_june_bot/llm.yaml
-configs/asu_june_bot/guardrails.yaml
-```
-
-Что умеет текущий слой:
-
-- загружать основной `config.yaml` и конфиги Asu June Bot;
-- читать текущий `data/chunks.jsonl` MeetingAgent;
-- использовать существующий `data/numpy_index` через adapter;
-- строить BM25 in-memory без внешних зависимостей;
-- объединять vector и BM25 выдачу в `HybridRetriever`;
-- расширять запрос через `query_expansion.yaml`;
-- вычислять `source_type`, `document_type`, `module`, `stage`, `section`, `sections` эвристически по пути и тексту chunk;
-- применять `SourcePolicy`, чтобы по умолчанию отдавать приоритет проектным документам и не тащить `system_export` без явного запроса;
-- запускать CLI-поиск через `scripts/asu_june_bot_search.py`.
-
-### 2. Extraction v2.1
+### Extraction v2.1
 
 Добавлен самостоятельный extractor v2.1:
 
@@ -151,21 +114,17 @@ scripts/asu_june_bot_extract_text_v2.py
 src/asu_june_bot/ingestion/
 ```
 
-Extractor v2.1 заново сканирует `project_root` из `config.yaml` и не читает старую папку `data/extracted_text`.
+Extractor v2.1:
 
-Что делает extractor v2.1:
-
-- заново сканирует исходные файлы проекта;
+- заново сканирует `project_root` из `config.yaml`;
+- не читает старую папку `data/extracted_text`;
 - поддерживает DOCX, XLSX/XLSB, PDF, PPTX, HTML и текстовые форматы;
 - для DOCX читает paragraph/table в исходном порядке документа;
 - для DOCX таблиц определяет вероятную строку заголовков;
 - для DOCX таблиц создает blocks `table` и `table_row`;
 - для XLSX использует `openpyxl`, извлекает листы, строки, headers и cells;
 - для XLSB использует `pandas` + `pyxlsb`;
-- для PDF создает page blocks;
-- для PPTX создает slide/shape_text blocks;
-- жестко исключает шумные системные exports и временные файлы;
-- пишет структурный результат в `data/asu_june_bot/extracted_v2/`.
+- жестко исключает шумные system exports и временные файлы.
 
 Выход extractor v2.1:
 
@@ -176,21 +135,7 @@ data/asu_june_bot/extracted_v2/extraction_v2_report.json
 data/asu_june_bot/extracted_v2/extraction_v2_report.md
 ```
 
-### 3. Chunking v2.1
-
-Зафиксирована стратегия структурного chunking v2.1:
-
-```text
-docs/subprojects/asu-june-bot/chunking_strategy.md
-```
-
-Добавлен сборщик v2:
-
-```text
-scripts/asu_june_bot_build_chunks_v2.py
-run_asu_june_bot_chunks_v2.ps1
-run_asu_june_bot_rebuild_v2.ps1
-```
+### Chunking v2.1
 
 Chunking v2 читает только:
 
@@ -198,16 +143,16 @@ Chunking v2 читает только:
 data/asu_june_bot/extracted_v2/blocks.jsonl
 ```
 
-Что делает v2-сборщик:
+Сборщик:
 
 - строит parent/child chunks из blocks v2;
 - превращает строки таблиц в child chunks;
-- пытается заполнить `requirement_id`, `sections`, `document_type`, `source_type`, `integration`, `protocol`;
-- пишет результат в `data/asu_june_bot/chunks_v2.jsonl`;
-- пишет отчеты `chunking_v2_report.json` и `chunking_v2_report.md`;
-- не трогает `data/chunks.jsonl`, `data/embeddings_cache.jsonl`, `data/numpy_index` и `run_full_rag.ps1`.
+- заполняет `requirement_id`, `sections`, `document_type`, `source_type`, `integration`, `protocol`;
+- пишет `data/asu_june_bot/chunks_v2.jsonl`;
+- пишет `chunking_v2_report.json` и `chunking_v2_report.md`;
+- не трогает старые `data/chunks.jsonl`, `data/embeddings_cache.jsonl`, `data/numpy_index`.
 
-### 4. Config / audit v2.1
+### Config / audit v2.1
 
 Добавлено:
 
@@ -216,35 +161,23 @@ scripts/asu_june_bot_apply_config_v2_1.py
 scripts/asu_june_bot_audit_sources_v2.py
 ```
 
-`apply_config_v2_1` обновляет локальный `config.yaml`:
+`apply_config_v2_1` обновляет локальный `config.yaml` и делает backup.
 
-- выставляет `project_root`;
-- добавляет поддерживаемые расширения;
-- добавляет исключаемые директории;
-- добавляет исключаемые path patterns;
-- добавляет исключаемые расширения;
-- делает backup `config.yaml`.
+`audit_sources_v2` проверяет покрытие и причины исключения файлов.
 
-`audit_sources_v2` проверяет покрытие:
+### Index/Search v2
 
-- сколько файлов увидел `project_root`;
-- сколько прошло фильтры;
-- сколько записано в `documents.jsonl`;
-- сколько blocks/chunks создано;
-- почему файлы исключены.
-
-### 5. Index/Search v2
-
-Добавлены отдельные index/search-скрипты v2:
+Добавлены:
 
 ```text
 scripts/asu_june_bot_build_index_v2.py
+scripts/asu_june_bot_health_v2.py
 scripts/asu_june_bot_search_v2.py
 monitor_asu_june_bot_index_v2.ps1
 register_asu_june_bot_index_v2_watchdog.ps1
 ```
 
-`build_index_v2` пишет только в `data/asu_june_bot/`:
+Выходы index v2:
 
 ```text
 data/asu_june_bot/embeddings_cache_v2.jsonl
@@ -252,26 +185,87 @@ data/asu_june_bot/numpy_index_v2/
 data/asu_june_bot/index_v2_report.json
 ```
 
-Для долгого `--embed-only` добавлен отдельный watchdog `AsuJuneBotIndexV2Watchdog`.
-Он каждые 30 минут проверяет живой процесс `asu_june_bot_build_index_v2.py --embed-only`, считает строки `embeddings_cache_v2.jsonl` и перезапускает `--embed-only`, если процесс исчез до завершения cache.
+Индекс v2 использует только source types:
+
+```text
+project_doc
+meeting_artifact
+analytical_note
+instruction
+```
+
+`code`, `runtime_export`, `system_export`, `unknown` не индексируются в основном project-only индексе.
+
+## Текущий локальный результат
+
+### Corpus / index
+
+```text
+documents = 213
+blocks = 31076
+chunks_v2 = 31302
+indexed_chunks = 31285
+skipped_code_chunks = 17
+embedding_model = bge-m3
+embedding_dim = 1024
+```
+
+### Health
+
+`asu_june_bot_health_v2.py` показывает:
+
+```text
+status = ok
+vector_ready = true
+bm25_ready = true
+chunks_v2 = 31302
+embeddings_cache_v2 = 31285
+manifest_count = 31285
+index_metadata = 31285
+ollama_available = true
+embedding_model_installed = true
+```
+
+## Результаты search smoke
+
+### `Что входит в Паспорт ИС?`
+
+После rerank BM25 top-1/top-2 поднимает правильный chunk из Паспорт ИС с границами описания: архитектурные и эксплуатационные сведения, платформа ЦП УПКС, модуль СМР и базовые сервисы Front/Core/Disk/Building/Approvals/Notifications/Catalog/Help/Mdr.
+
+Проблема: в top-8 всё ещё есть chunks по программному обеспечению, поддержке и vector-only шум. Для Chat MVP нужен intent-aware context builder, а не прямая отправка всего top-k в LLM.
+
+### `Какие интеграции заявлены в проекте?`
+
+Retrieval достаточен для API Search MVP:
+
+- ЦТА поднимает `Blitz, AD, S3 Minio, Exchange, КШД`;
+- Паспорт ИС поднимает `Active Directory, Blitz IDP, MDR, почтовый сервер, SIEM`;
+- ФТТ поднимает КШД/SOAP;
+- ПР поднимает взаимодействие со смежными модулями.
+
+### `ФТТ 4.2.5 НОВАДОК ЭЦП`
+
+Retrieval практически пригоден:
+
+- BM25/hybrid поднимают ФТТ в top-1/top-2;
+- в top-5 есть интеграционная строка `ЦП УПКС -> НОВАДОК`;
+- встреча `ФТТ_ИД` поднимается как полезный аналитический источник;
+- проблема: metadata `section/requirement_id` шумит и иногда показывает `10.2`, хотя текст содержит `4.2.5`.
 
 ## Ближайшая цель
 
-Дождаться заполнения `embeddings_cache_v2.jsonl`, собрать `numpy_index_v2` и проверить `search_v2`.
+Не переходить напрямую к Chat MVP. Сначала выполнить Search Quality v2.2:
 
-Ожидаемый следующий шаг:
-
-```powershell
-.\register_asu_june_bot_index_v2_watchdog.ps1 -IntervalMinutes 30
-.\.venv\Scripts\python.exe scripts\asu_june_bot_build_index_v2.py --embed-only
-.\.venv\Scripts\python.exe scripts\asu_june_bot_build_index_v2.py --index-only
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode hybrid --top-k 8
+```text
+query_intent -> post_rerank -> context_builder -> search diagnostics -> smoke report
 ```
 
-После проверки:
+Нужно добавить:
 
-- убедиться, что `index_v2_report.json` показывает `missing_after = 0`;
-- убедиться, что `numpy_index_v2/manifest.json` создан и `count` соответствует целевому числу индексируемых chunks;
-- проверить hybrid smoke по Паспорту ИС, интеграциям и ФТТ 4.2.5;
-- сравнить v1 и v2.1 на baseline;
-- только потом подключать v2.1 к API `/search`.
+- `src/asu_june_bot/retrieval/query_intent.py`;
+- `src/asu_june_bot/retrieval/post_rerank.py`;
+- `src/asu_june_bot/retrieval/context_builder.py`;
+- diagnostics в JSON search output: `query_intent`, `rerank_labels`, `primary_sources`, `supporting_sources`;
+- markdown smoke-отчет `docs/subprojects/asu-june-bot/search_smoke_report_2026-05-14.md`.
+
+К API Search переходить только после успешного smoke с primary/supporting sources.
