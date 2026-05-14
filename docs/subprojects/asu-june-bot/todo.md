@@ -1,6 +1,6 @@
 # TODO Asu June Bot
 
-Обновлено: 2026-05-13.
+Обновлено: 2026-05-14.
 
 ## Сейчас
 
@@ -10,8 +10,10 @@
 - Не менять старый `run_full_rag.ps1`, `data/chunks.jsonl`, `data/embeddings_cache.jsonl` и `data/numpy_index` при проверке v2.1.
 - `Система`, `asu_docs_export`, `asu_admin_export`, `site_review_runs`, `playwright`, `exports`, `.har`, временные файлы и медиа/архивы исключены из основного корпуса.
 - Локальная проверка extraction/chunking v2.1 пройдена: `documents=213`, `blocks=31076`, `chunks=31302`, `system_export` отсутствует в `by_source_type`.
-- `embeddings_cache_v2` собирается через `scripts/asu_june_bot_build_index_v2.py --embed-only`; для него добавлен отдельный watchdog `AsuJuneBotIndexV2Watchdog` с интервалом 30 минут.
-- Следующий практический шаг: дождаться полного `embeddings_cache_v2`, затем собрать `numpy_index_v2` и прогнать hybrid smoke.
+- Полный `embeddings_cache_v2` собран: `cached_after=31285`, `missing_after=0`, `embedding_model=bge-m3`, `max_embedding_chars=3000`.
+- `numpy_index_v2` собран: `index_built=true`, `index_count=31285`, `embedding_dim=1024`.
+- Из индекса исключены `code` chunks: `chunks_skipped_by_source_type=17`.
+- Следующий практический шаг: прогнать `search_v2` в режимах `hybrid`, `vector`, `bm25`, оценить качество retrieval и после этого переходить к API Search.
 
 ## Сделано В Этом Срезе
 
@@ -141,8 +143,23 @@ register_asu_june_bot_index_v2_watchdog.ps1
 - режим `--limit` для smoke-проверки;
 - отчет `data/asu_june_bot/index_v2_report.json`;
 - отдельный CLI-поиск по v2 corpus: `scripts/asu_june_bot_search_v2.py`;
-- режимы поиска `bm25`, `vector`, `hybrid` по `chunks_v2` и `numpy_index_v2`.
-- отдельный watchdog для `--embed-only`: если процесс пропал до завершения cache, он перезапускается без удаления накопленных embeddings.
+- режимы поиска `bm25`, `vector`, `hybrid` по `chunks_v2` и `numpy_index_v2`;
+- отдельный watchdog для `--embed-only`: если процесс пропал до завершения cache, он перезапускается без удаления накопленных embeddings;
+- фильтрация индексируемых source types: `project_doc`, `meeting_artifact`, `analytical_note`, `instruction`.
+
+Локальный результат полного index v2:
+
+```text
+chunks_total_before_filter = 31302
+chunks_total = 31285
+chunks_skipped_by_source_type = 17
+cached_after = 31285
+missing_after = 0
+index_built = true
+index_count = 31285
+embedding_model = bge-m3
+embedding_dim = 1024
+```
 
 ## Команды Локальной Проверки v2.1
 
@@ -154,9 +171,11 @@ Windows PowerShell 5.1 требует `-Encoding UTF8`.
 Get-Content .\data\asu_june_bot\extracted_v2\extraction_v2_report.json -Encoding UTF8
 Get-Content .\data\asu_june_bot\chunking_v2_report.json -Encoding UTF8
 Get-Content .\data\asu_june_bot\source_audit_v2_report.json -Encoding UTF8
+Get-Content .\data\asu_june_bot\index_v2_report.json -Encoding UTF8
+Get-Content .\data\asu_june_bot\numpy_index_v2\manifest.json -Encoding UTF8
 ```
 
-### 2. BM25 smoke до embeddings
+### 2. BM25 smoke
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode bm25 --top-k 5
@@ -164,41 +183,15 @@ Get-Content .\data\asu_june_bot\source_audit_v2_report.json -Encoding UTF8
 .\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode bm25 --top-k 5
 ```
 
-### 3. Smoke embeddings на 20 chunks
+### 3. Vector smoke
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_build_index_v2.py --limit 20 --embed-only
-Get-Content .\data\asu_june_bot\index_v2_report.json -Encoding UTF8
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode vector --top-k 8
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какие интеграции заявлены в проекте?" --mode vector --top-k 8
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode vector --top-k 8
 ```
 
-### 4. Полный embeddings cache v2
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_build_index_v2.py --embed-only
-```
-
-Проверка прогресса:
-
-```powershell
-(Get-Content .\data\asu_june_bot\embeddings_cache_v2.jsonl -Encoding UTF8).Count
-```
-
-Watchdog на 30 минут:
-
-```powershell
-.\register_asu_june_bot_index_v2_watchdog.ps1 -IntervalMinutes 30
-Get-ScheduledTask -TaskName AsuJuneBotIndexV2Watchdog
-Get-Content .\logs\asu_june_bot_index_v2_watchdog.log -Encoding UTF8 -Tail 80
-```
-
-### 5. Построить numpy_index_v2
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_build_index_v2.py --index-only
-Get-Content .\data\asu_june_bot\numpy_index_v2\manifest.json -Encoding UTF8
-```
-
-### 6. Hybrid smoke
+### 4. Hybrid smoke
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode hybrid --top-k 8
@@ -206,16 +199,24 @@ Get-Content .\data\asu_june_bot\numpy_index_v2\manifest.json -Encoding UTF8
 .\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode hybrid --top-k 8
 ```
 
+### 5. JSON smoke для анализа качества retrieval
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какие интеграции заявлены в проекте?" --mode hybrid --top-k 12 --json > .\data\asu_june_bot\smoke_integrations_hybrid.json
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode hybrid --top-k 12 --json > .\data\asu_june_bot\smoke_passport_hybrid.json
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode hybrid --top-k 12 --json > .\data\asu_june_bot\smoke_ftt_425_hybrid.json
+```
+
 ## Следующие Задачи Разработки
 
 ### 1. Проверить Search v2 Локально
 
 - Запустить BM25 smoke по baseline.
-- Проверить, что топ-5 содержит Паспорт ИС, ФТТ, ЦТА, ПР, СоИ для соответствующих вопросов.
-- Запустить `--limit 20 --embed-only`.
-- После успешного smoke запустить полный `--embed-only` под `AsuJuneBotIndexV2Watchdog`.
-- После заполнения cache запустить `--index-only`.
+- Запустить vector smoke по baseline.
 - Запустить hybrid smoke по baseline.
+- Проверить, что топ-8 содержит Паспорт ИС, ФТТ, ЦТА, ПР, СоИ для соответствующих вопросов.
+- Сохранить JSON smoke для трех baseline-вопросов.
+- По результатам решить, нужен ли reranker перед API Search.
 
 ### 2. Подготовить API Search
 
@@ -253,8 +254,8 @@ GET /health
 4. Как формировать ссылки на Яндекс.Диск: вручную через `source_links.json` или через будущий connector?
 5. Какие документы первого приоритета должны быть в baseline?
 6. Нужен ли режим `strict` и `analyst` отдельно?
-7. Какой формат embeddings cache v2 утвердить?
-8. Нужно ли выделять `Система` в отдельный `system_export_corpus` позже?
+7. Нужно ли выделять `Система` в отдельный `system_export_corpus` позже?
+8. Нужен ли reranker до API Search или достаточно текущего hybrid на MVP?
 
 ## Рекомендуемые решения по вопросам
 
@@ -266,8 +267,8 @@ GET /health
 6. Режимы нужны:
    - `strict` — только подтвержденные факты;
    - `analyst` — допускает выводы, но с явным отделением от фактов.
-7. Для v2 утвержден отдельный cache `data/asu_june_bot/embeddings_cache_v2.jsonl`, чтобы не смешивать chunk-id разных стратегий.
-8. `Система` не включать в основной корпус; при необходимости сделать отдельный корпус и отдельный режим поиска.
+7. `Система` не включать в основной корпус; при необходимости сделать отдельный корпус и отдельный режим поиска.
+8. Reranker вводить только если hybrid smoke показывает смешивание нерелевантных chunks в top-5/top-8.
 
 ## Definition of Done для v2.1
 
@@ -281,6 +282,7 @@ v2.1 считается готовым для перехода к API search, е
 - `embeddings_cache_v2.jsonl` создан.
 - `numpy_index_v2/manifest.json` создан.
 - `search_v2 --mode bm25` проходит baseline smoke.
+- `search_v2 --mode vector` проходит baseline smoke.
 - `search_v2 --mode hybrid` проходит baseline smoke.
 - Старые `data/chunks.jsonl`, `data/embeddings_cache.jsonl`, `data/numpy_index` не изменяются.
 
