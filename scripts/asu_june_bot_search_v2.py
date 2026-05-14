@@ -18,6 +18,7 @@ if hasattr(sys.stdout, "reconfigure"):
 from asu_june_bot.core.config import load_config, resolve_work_path  # noqa: E402
 from asu_june_bot.retrieval.chunks import read_jsonl  # noqa: E402
 from asu_june_bot.retrieval.hybrid import build_hybrid_retriever  # noqa: E402
+from asu_june_bot.retrieval.vector import OllamaUnavailableError  # noqa: E402
 
 
 DEFAULT_CHUNKS_PATH = "data/asu_june_bot/chunks_v2.jsonl"
@@ -38,10 +39,20 @@ def get_path(item: dict[str, Any]) -> str | None:
     return item.get("relative_path") or item.get("document") or metadata.get("relative_path")
 
 
+def get_warning(item: dict[str, Any]) -> str | None:
+    diagnostics = item.get("diagnostics") or {}
+    warning = diagnostics.get("retrieval_warning")
+    return str(warning) if warning else None
+
+
 def print_human(payload: dict[str, Any]) -> None:
     print(f"Запрос: {payload['query']}")
     print(f"Корпус: {payload['corpus']}")
     print(f"Режим: {payload['mode']}")
+    if payload.get("warnings"):
+        print("Предупреждения:")
+        for warning in payload["warnings"]:
+            print(f"- {warning}")
     print(f"Результатов: {len(payload['results'])}")
     print()
     for item in payload["results"]:
@@ -51,12 +62,33 @@ def print_human(payload: dict[str, Any]) -> None:
             f"[{item['source_id']}] score={item['score']} "
             f"vector={item['vector_score']} bm25={item['bm25_score']} matched_by={','.join(item['matched_by'])}"
         )
+        warning = get_warning(item)
+        if warning:
+            print(f"Предупреждение: {warning}")
         print(f"Документ: {item.get('document')}")
         print(f"Тип: {item.get('document_type')} | Source type: {item.get('source_type')} | Модуль: {item.get('module')}")
         print(f"Раздел: {item.get('section')} | Requirement: {requirement_id} | Chunk: {item.get('chunk_index')}")
         print(f"Путь: {get_path(item)}")
         print(f"Фрагмент: {item.get('text_preview')}")
         print("-" * 100)
+
+
+def unavailable_payload(query: str, mode: str, exc: Exception) -> dict[str, Any]:
+    return {
+        "query": query,
+        "corpus": "asu_june_bot_v2",
+        "mode": mode,
+        "status": "error",
+        "error_code": "ollama_unavailable",
+        "error": str(exc),
+        "next_steps": [
+            "Запусти Ollama Desktop или команду: ollama serve",
+            "Проверь доступность: ollama list",
+            "Проверь, что модель embeddings установлена: ollama pull bge-m3",
+            "После запуска Ollama повтори vector/hybrid smoke",
+            "Для проверки без Ollama используй --mode bm25",
+        ],
+    }
 
 
 def main() -> None:
@@ -92,13 +124,30 @@ def main() -> None:
         )
 
     retriever = build_hybrid_retriever(cfg, rows, mode=args.mode)
-    results = retriever.search(
-        query=query,
-        top_k=args.top_k,
-        include_source_types=args.include_source_types,
-        mode=args.mode,
-    )
+    try:
+        results = retriever.search(
+            query=query,
+            top_k=args.top_k,
+            include_source_types=args.include_source_types,
+            mode=args.mode,
+        )
+    except OllamaUnavailableError as exc:
+        payload = unavailable_payload(query, args.mode, exc)
+        if args.json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+            return
+        raise SystemExit(
+            "Ollama недоступен, поэтому vector search не может построить embedding запроса.\n"
+            f"Деталь: {exc}\n\n"
+            "Что сделать:\n"
+            "1. Запусти Ollama Desktop или отдельное окно PowerShell: ollama serve\n"
+            "2. Проверь: ollama list\n"
+            "3. Проверь модель embeddings: ollama pull bge-m3\n"
+            "4. Повтори команду search_v2.\n\n"
+            "Временная альтернатива без Ollama: используй --mode bm25."
+        ) from exc
 
+    warnings = list(getattr(retriever, "last_warnings", []) or [])
     payload = {
         "query": query,
         "corpus": "asu_june_bot_v2",
@@ -106,6 +155,7 @@ def main() -> None:
         "top_k": args.top_k,
         "chunks_path": str(chunks_path),
         "index_dir": str(index_dir),
+        "warnings": warnings,
         "results": [result.to_dict() for result in results],
     }
 
