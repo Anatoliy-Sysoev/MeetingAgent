@@ -2,225 +2,138 @@
 
 Обновлено: 2026-05-14.
 
-## Сейчас
+## Текущий статус v2.1
 
-- Считать старый RAG MeetingAgent только v1/baseline.
-- Новый Asu June Bot v2.1 строить независимо: `apply_config_v2_1 -> extract_text_v2 -> chunks_v2 -> audit_sources_v2 -> build_index_v2 -> search_v2`.
-- Не опираться на старый `scripts/02_extract_text.py` для v2.1.
-- Не менять старый `run_full_rag.ps1`, `data/chunks.jsonl`, `data/embeddings_cache.jsonl` и `data/numpy_index` при проверке v2.1.
-- `Система`, `asu_docs_export`, `asu_admin_export`, `site_review_runs`, `playwright`, `exports`, `.har`, временные файлы и медиа/архивы исключены из основного корпуса.
-- Локальная проверка extraction/chunking v2.1 пройдена: `documents=213`, `blocks=31076`, `chunks=31302`, `system_export` отсутствует в `by_source_type`.
-- Полный `embeddings_cache_v2` собран: `cached_after=31285`, `missing_after=0`, `embedding_model=bge-m3`, `max_embedding_chars=3000`.
-- `numpy_index_v2` собран: `index_built=true`, `index_count=31285`, `embedding_dim=1024`.
-- Из индекса исключены `code` chunks: `chunks_skipped_by_source_type=17`.
-- Следующий практический шаг: прогнать `search_v2` в режимах `hybrid`, `vector`, `bm25`, оценить качество retrieval и после этого переходить к API Search.
+Asu June Bot v2.1 технически собран до уровня локального search MVP.
 
-## Сделано В Этом Срезе
+Готово:
 
-### Search MVP v1
+- независимый pipeline v2.1: `apply_config_v2_1 -> extract_text_v2 -> chunks_v2 -> audit_sources_v2 -> build_index_v2 -> health_v2 -> search_v2`;
+- основной корпус очищен от `Система`, `asu_docs_export`, `asu_admin_export`, `site_review_runs`, `playwright`, `exports`, `.har`, временных файлов и медиа/архивов;
+- extraction/chunking v2.1 пройдены: `documents=213`, `blocks=31076`, `chunks=31302`;
+- `system_export` отсутствует в основном корпусе;
+- полный `embeddings_cache_v2` собран: `cached_after=31285`, `missing_after=0`, `embedding_model=bge-m3`, `max_embedding_chars=3000`;
+- `numpy_index_v2` собран: `index_built=true`, `index_count=31285`, `embedding_dim=1024`;
+- из индекса исключены `code` chunks: `chunks_skipped_by_source_type=17`;
+- `scripts/asu_june_bot_health_v2.py` показывает `status=ok`, `bm25_ready=true`, `vector_ready=true`, `ollama_available=true`, `embedding_model_installed=true`;
+- `search_v2` поддерживает `bm25`, `vector`, `hybrid`;
+- `hybrid` умеет fallback на BM25 при недоступном Ollama;
+- BM25 получил deterministic rerank: intent boosts по `Паспорт ИС`, `ФТТ`, интеграциям, exact section/requirement и штрафы для глоссариев/front matter/software tables.
 
-Создано:
+## Результаты последнего smoke search
 
-```text
-src/asu_june_bot/
-  __init__.py
-  core/config.py
-  retrieval/models.py
-  retrieval/metadata.py
-  retrieval/source_policy.py
-  retrieval/bm25.py
-  retrieval/vector.py
-  retrieval/hybrid.py
-  retrieval/chunks.py
-  retrieval/query_expansion.py
-scripts/asu_june_bot_search.py
-configs/asu_june_bot/llm.yaml
-configs/asu_june_bot/retrieval.yaml
-configs/asu_june_bot/guardrails.yaml
-configs/asu_june_bot/query_expansion.yaml
-configs/asu_june_bot/source_policy.yaml
-```
+### Health
 
-Реализовано:
-
-- `VectorSearchAdapter` поверх текущего numpy index MeetingAgent.
-- `BM25SearchAdapter` поверх `data/chunks.jsonl`.
-- `HybridRetriever`.
-- `QueryExpander`.
-- `SourcePolicy`.
-- enrichment metadata: `source_type`, `document_type`, `module`, `stage`, `section`, `sections`.
-- CLI `scripts/asu_june_bot_search.py`.
-
-### Extraction v2.1
-
-Создано/обновлено:
+Проверка `scripts/asu_june_bot_health_v2.py` успешна:
 
 ```text
-src/asu_june_bot/ingestion/__init__.py
-src/asu_june_bot/ingestion/models.py
-src/asu_june_bot/ingestion/utils.py
-scripts/asu_june_bot_extract_text_v2.py
-scripts/asu_june_bot_apply_config_v2_1.py
-run_asu_june_bot_rebuild_v2.ps1
+status = ok
+vector_ready = true
+bm25_ready = true
+chunks_v2 = 31302
+embeddings_cache_v2 = 31285
+manifest_count = 31285
+index_metadata = 31285
+ollama_available = true
+embedding_model_installed = true
 ```
 
-Реализовано:
+### Запрос: `Что входит в Паспорт ИС?`
 
-- самостоятельное сканирование `project_root` из `config.yaml`;
-- локальное применение фильтров v2.1 к `config.yaml`;
-- жесткие исключения шумных источников на уровне ingestion-кода;
-- DOCX extraction в исходном порядке paragraph/table;
-- DOCX blocks: `heading`, `paragraph`, `table`, `table_row`;
-- эвристика определения заголовочной строки в DOCX-таблицах;
-- XLSX extraction через `openpyxl`;
-- XLSB extraction через `pandas` + `pyxlsb`;
-- эвристика определения заголовочной строки в Excel;
-- PDF blocks: `page`;
-- PPTX blocks: `slide`, `shape_text`;
-- text blocks для md/txt/json/yaml/drawio/puml/bpmn/srt;
-- `documents.jsonl`, `blocks.jsonl`, `extraction_v2_report.json`, `extraction_v2_report.md` в `data/asu_june_bot/extracted_v2/`.
+Состояние после rerank:
 
-### Chunking v2.1
+- BM25 top-1/top-2 поднимает нужный chunk из `ЦП УПКС_Паспорт ИС_v1.3.2` и `v1.3.3` с текстом про границы паспорта: архитектурные и эксплуатационные сведения, платформа ЦП УПКС, модуль СМР, базовые сервисы Front/Core/Disk/Building/Approvals/Notifications/Catalog/Help/Mdr.
+- Это уже пригодный источник для обзорного ответа.
+- В top-8 всё ещё присутствуют chunks по `Программному обеспечению информационной системы` и поддержке. Для search это допустимо, но для Chat MVP нужен context builder, который будет отбирать обзорные chunks, а не все top-k.
+- Hybrid top-1 корректный, но дальше попадают vector-only chunks из ПР и таблицы ПО. Нужно добавить post-rerank/intent filtering на уровне hybrid/context builder.
 
-Создано/обновлено:
+Вывод: вопрос стал проходить лучше, но ещё не готов для прямой генерации без фильтрации контекста.
+
+### Запрос: `Какие интеграции заявлены в проекте?`
+
+Состояние:
+
+- Hybrid top-1 — ЦТА: `Blitz, AD, S3 Minio, Exchange, КШД`.
+- Hybrid top-2 — Паспорт ИС: `Active Directory, Blitz IDP, MDR, почтовый сервер, SIEM`.
+- Дополнительно поднимаются ЦТА по `S3 Minio/SIEM`, ФТТ по КШД/SOAP и ПР по взаимодействию со смежными модулями.
+
+Вывод: retrieval для вопроса по интеграциям достаточен для API Search MVP.
+
+### Запрос: `ФТТ 4.2.5 НОВАДОК ЭЦП`
+
+Состояние после rerank:
+
+- BM25/hybrid подняли ФТТ в top-1/top-2.
+- В top-5 есть ФТТ с интеграционной строкой `ЦП УПКС -> НОВАДОК`: сформированные документы передаются для согласования и подписания ЭЦП.
+- Встреча `ФТТ_ИД` поднимается как полезный аналитический источник по уточнению НОВАДОК/ЭЦП.
+- Metadata всё ещё шумит: для части chunks поле `requirement_id` показывает `10.2`, хотя текст содержит `4.2.5`; это нужно исправлять в metadata extraction/chunking или компенсировать на уровне rerank.
+
+Вывод: retrieval по ФТТ 4.2.5 практически пригоден, но metadata по section/requirement нужно улучшить до Chat MVP.
+
+## Главные дефекты до API Search / Chat MVP
+
+1. Hybrid top-k может подмешивать vector-only noise.
+   - Пример: по Паспорту ИС после корректного top-1 идут ПР и таблицы ПО.
+   - Решение: добавить post-rerank и intent-aware context builder.
+
+2. Обзорные вопросы требуют не просто top-k retrieval, а document overview mode.
+   - Пример: `Что входит в Паспорт ИС?` должен отдавать состав/границы/разделы, а не строки таблицы ПО.
+   - Решение: определить `query_intent=document_overview`, затем брать chunks типа `scope/structure/heading/section_summary`, а таблицы ПО использовать только как вторичный контекст.
+
+3. Metadata section/requirement шумит.
+   - Пример: запрос по `4.2.5` возвращает chunks с `requirement_id=10.2`, хотя в тексте есть `4.2.5`.
+   - Решение: улучшить extraction/chunking metadata; отдельно отличать `document_version`, `contract_section`, `requirement_id` и `mentioned_requirement_ids`.
+
+4. Нужно формально сохранить smoke JSON.
+   - Уже создаются файлы `data/asu_june_bot/smoke_*_hybrid.json`, но они runtime и не должны коммититься.
+   - Нужно добавить markdown-отчет в `docs/subprojects/asu-june-bot/search_smoke_report_2026-05-14.md`.
+
+## Следующий практический шаг
+
+Перед API Search выполнить Search Quality v2.2:
 
 ```text
-docs/subprojects/asu-june-bot/chunking_strategy.md
-scripts/asu_june_bot_build_chunks_v2.py
-scripts/asu_june_bot_audit_sources_v2.py
-run_asu_june_bot_chunks_v2.ps1
-run_asu_june_bot_rebuild_v2.ps1
+1. Добавить query intent classifier без LLM:
+   - document_overview
+   - integration_overview
+   - requirement_lookup
+   - general_project_question
+   - out_of_scope_candidate
+
+2. Добавить post-rerank после hybrid merge:
+   - штраф vector-only chunks без BM25 для exact/overview queries;
+   - штраф software/support/glossary tables для document_overview;
+   - boost exact document_type по intent;
+   - boost exact requirement mentions;
+   - дедупликация версий одного документа или приоритет latest version.
+
+3. Добавить ContextBuilder MVP:
+   - не отдавать LLM весь top-k как есть;
+   - выбирать 3-6 chunks по intent;
+   - отделять primary sources от supporting sources;
+   - отдавать diagnostics.
+
+4. Повторить smoke:
+   - Паспорт ИС overview;
+   - интеграции;
+   - ФТТ 4.2.5;
+   - внепроектный вопрос.
 ```
 
-Реализовано:
+## Следующие задачи разработки
 
-- сборка chunks v2 из `data/asu_june_bot/extracted_v2/blocks.jsonl`;
-- parent/child chunks;
-- child chunks по строкам таблиц;
-- metadata v2: `chunker_version`, `chunk_level`, `parent_chunk_id`, `block_id`, `block_type`, `requirement_id`, `sections`, `table_id`, `row_id`, `headers`, `cells`, `integration`, `protocol`;
-- отчеты `chunking_v2_report.json` и `chunking_v2_report.md`;
-- аудит покрытия `source_audit_v2_report.json`;
-- детальные причины исключений: `hard_excluded_path`, `hard_excluded_directory`, `hard_excluded_extension`, `office_temp_file`, `extension_not_in_config`;
-- dry-run режим без записи файлов;
-- отдельные wrappers со своими логами.
+### A. Search Quality v2.2
 
-### Source Policy v2.1
+- [ ] Добавить `src/asu_june_bot/retrieval/query_intent.py`.
+- [ ] Добавить `src/asu_june_bot/retrieval/post_rerank.py`.
+- [ ] Добавить `src/asu_june_bot/retrieval/context_builder.py`.
+- [ ] Добавить диагностику `query_intent`, `rerank_labels`, `primary_sources`, `supporting_sources` в JSON-ответ `search_v2`.
+- [ ] Добавить markdown smoke-отчет по текущему срезу.
+- [ ] Повторить baseline после rerank/context builder.
 
-Обновлено:
+### B. API Search
 
-```text
-configs/asu_june_bot/source_policy.yaml
-src/asu_june_bot/retrieval/source_policy.py
-src/asu_june_bot/retrieval/metadata.py
-```
-
-Реализовано:
-
-- `system_export` не входит в default corpus;
-- `system_export` получает низкий вес `0.12`;
-- `system_export` подключается только при явном запросе по маркерам;
-- усилены веса ФТТ, ЦТА, ПР, СоИ, Паспорт ИС, ПМИ;
-- улучшено распознавание `document_type` по имени файла и пути.
-
-### Index/Search v2
-
-Создано:
-
-```text
-scripts/asu_june_bot_build_index_v2.py
-scripts/asu_june_bot_search_v2.py
-monitor_asu_june_bot_index_v2.ps1
-register_asu_june_bot_index_v2_watchdog.ps1
-```
-
-Реализовано:
-
-- отдельный embeddings cache: `data/asu_june_bot/embeddings_cache_v2.jsonl`;
-- отдельный numpy index: `data/asu_june_bot/numpy_index_v2/`;
-- resume для embeddings cache по `chunk_id`;
-- режим `--embed-only`;
-- режим `--index-only`;
-- режим `--limit` для smoke-проверки;
-- отчет `data/asu_june_bot/index_v2_report.json`;
-- отдельный CLI-поиск по v2 corpus: `scripts/asu_june_bot_search_v2.py`;
-- режимы поиска `bm25`, `vector`, `hybrid` по `chunks_v2` и `numpy_index_v2`;
-- отдельный watchdog для `--embed-only`: если процесс пропал до завершения cache, он перезапускается без удаления накопленных embeddings;
-- фильтрация индексируемых source types: `project_doc`, `meeting_artifact`, `analytical_note`, `instruction`.
-
-Локальный результат полного index v2:
-
-```text
-chunks_total_before_filter = 31302
-chunks_total = 31285
-chunks_skipped_by_source_type = 17
-cached_after = 31285
-missing_after = 0
-index_built = true
-index_count = 31285
-embedding_model = bge-m3
-embedding_dim = 1024
-```
-
-## Команды Локальной Проверки v2.1
-
-### 1. Проверка отчетов с правильной кодировкой
-
-Windows PowerShell 5.1 требует `-Encoding UTF8`.
-
-```powershell
-Get-Content .\data\asu_june_bot\extracted_v2\extraction_v2_report.json -Encoding UTF8
-Get-Content .\data\asu_june_bot\chunking_v2_report.json -Encoding UTF8
-Get-Content .\data\asu_june_bot\source_audit_v2_report.json -Encoding UTF8
-Get-Content .\data\asu_june_bot\index_v2_report.json -Encoding UTF8
-Get-Content .\data\asu_june_bot\numpy_index_v2\manifest.json -Encoding UTF8
-```
-
-### 2. BM25 smoke
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode bm25 --top-k 5
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какие интеграции заявлены в проекте?" --mode bm25 --top-k 5
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode bm25 --top-k 5
-```
-
-### 3. Vector smoke
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode vector --top-k 8
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какие интеграции заявлены в проекте?" --mode vector --top-k 8
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode vector --top-k 8
-```
-
-### 4. Hybrid smoke
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode hybrid --top-k 8
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какие интеграции заявлены в проекте?" --mode hybrid --top-k 8
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode hybrid --top-k 8
-```
-
-### 5. JSON smoke для анализа качества retrieval
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какие интеграции заявлены в проекте?" --mode hybrid --top-k 12 --json > .\data\asu_june_bot\smoke_integrations_hybrid.json
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode hybrid --top-k 12 --json > .\data\asu_june_bot\smoke_passport_hybrid.json
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode hybrid --top-k 12 --json > .\data\asu_june_bot\smoke_ftt_425_hybrid.json
-```
-
-## Следующие Задачи Разработки
-
-### 1. Проверить Search v2 Локально
-
-- Запустить BM25 smoke по baseline.
-- Запустить vector smoke по baseline.
-- Запустить hybrid smoke по baseline.
-- Проверить, что топ-8 содержит Паспорт ИС, ФТТ, ЦТА, ПР, СоИ для соответствующих вопросов.
-- Сохранить JSON smoke для трех baseline-вопросов.
-- По результатам решить, нужен ли reranker перед API Search.
-
-### 2. Подготовить API Search
-
-После CLI-smoke v2.1:
+После Search Quality v2.2:
 
 ```text
 src/asu_june_bot/api/app.py
@@ -230,71 +143,49 @@ src/asu_june_bot/api/routes_search.py
 Endpoint:
 
 ```text
-POST /search
 GET /health
+POST /search
 ```
 
-### 3. Подготовить Chat MVP Только После Search
+К API Search переходить только если:
 
-Реализовать:
+- `Паспорт ИС overview` top/context не забит таблицей ПО;
+- `Интеграции` возвращают ЦТА/Паспорт/ФТТ/СоИ;
+- `ФТТ 4.2.5` возвращает ФТТ с НОВАДОК/ЭЦП в primary sources;
+- JSON содержит пригодные diagnostics.
 
-- `ProjectGuard`.
-- `ContextBuilder`.
-- `PromptBuilder`.
-- `LLMClient`.
-- `AnswerValidator`.
-- `ResponseFormatter`.
-- CLI `scripts/asu_june_bot_chat.py`.
+### C. Chat MVP
 
-## Вопросы для решения
+После API Search:
 
-1. Оставляем ли название `Asu June Bot`?
-2. Нужно ли сразу добавлять Qdrant local или стартуем с numpy index v2?
-3. Нужен ли отдельный BM25 storage или достаточно строить BM25 in-memory при запуске?
-4. Как формировать ссылки на Яндекс.Диск: вручную через `source_links.json` или через будущий connector?
-5. Какие документы первого приоритета должны быть в baseline?
-6. Нужен ли режим `strict` и `analyst` отдельно?
-7. Нужно ли выделять `Система` в отдельный `system_export_corpus` позже?
-8. Нужен ли reranker до API Search или достаточно текущего hybrid на MVP?
+- [ ] `ProjectGuard`.
+- [ ] `PromptBuilder`.
+- [ ] `LLMClient` через OpenAI-compatible API.
+- [ ] `AnswerValidator`.
+- [ ] `ResponseFormatter`.
+- [ ] CLI `scripts/asu_june_bot_chat.py`.
 
-## Рекомендуемые решения по вопросам
+## Рекомендуемые решения
 
-1. Название можно оставить временно, но в коде использовать нейтральный пакет `asu_june_bot`.
-2. Стартовать с numpy index v2, Qdrant добавить после стабилизации API.
-3. BM25 строить in-memory по `chunks_v2.jsonl` на старте.
-4. Ссылки на Яндекс.Диск сначала через ручной `data/asu_june_bot/source_links.json`.
-5. В baseline включить ФТТ, ЦТА, ПР СМР, СоИ AD, СоИ Справочники, Паспорт ИС, ПМИ.
-6. Режимы нужны:
-   - `strict` — только подтвержденные факты;
-   - `analyst` — допускает выводы, но с явным отделением от фактов.
-7. `Система` не включать в основной корпус; при необходимости сделать отдельный корпус и отдельный режим поиска.
-8. Reranker вводить только если hybrid smoke показывает смешивание нерелевантных chunks в top-5/top-8.
+- Qdrant пока не подключать; numpy index v2 достаточен для MVP.
+- BM25 in-memory оставить до API Search; storage потребуется позже.
+- `Система` не возвращать в основной corpus; при необходимости сделать отдельный `system_export_corpus`.
+- Ссылки на Яндекс.Диск добавлять позже через `data/asu_june_bot/source_links.json`.
+- До Chat MVP не делать fine-tuning, UI и agentic tool-use.
 
-## Definition of Done для v2.1
+## Definition of Done для перехода к API Search
 
-v2.1 считается готовым для перехода к API search, если:
-
-- `documents.jsonl` не содержит `/Система/`, `asu_admin_export`, `asu_docs_export`, `site_review_runs`, `playwright`, `.har`.
-- `chunking_v2_report.json` показывает отсутствие `system_export` в основном корпусе.
-- `chunks_v2.jsonl` содержит `parent` и `child` chunks.
-- Табличные child chunks имеют `table_id`, `row_id`, `headers`, `cells`.
-- ФТТ-пункты по возможности имеют `requirement_id`.
-- `embeddings_cache_v2.jsonl` создан.
-- `numpy_index_v2/manifest.json` создан.
-- `search_v2 --mode bm25` проходит baseline smoke.
-- `search_v2 --mode vector` проходит baseline smoke.
-- `search_v2 --mode hybrid` проходит baseline smoke.
-- Старые `data/chunks.jsonl`, `data/embeddings_cache.jsonl`, `data/numpy_index` не изменяются.
+- `health_v2`: `status=ok`, `vector_ready=true`, `bm25_ready=true`.
+- `search_v2 --mode hybrid` проходит 3 baseline-запроса.
+- Для каждого baseline-запроса есть primary sources.
+- В JSON выдаче есть diagnostics по intent/rerank.
+- В top/context нет критического шума, который может увести LLM в неверный ответ.
+- Старые `data/chunks.jsonl`, `data/embeddings_cache.jsonl`, `data/numpy_index` не меняются.
 
 ## Не делать
 
-- Не добавлять новые if/regex прямо в старый `09_chat.py`.
-- Не менять старый `run_full_rag.ps1` под v2.
-- Не использовать старый `data/extracted_text/_metadata.jsonl` как вход для v2.
-- Не перезаписывать `data/chunks.jsonl` при сборке v2.
-- Не считать embeddings v2 в том же скрипте `asu_june_bot_build_chunks_v2.py`.
-- Не переносить Dify/RAGFlow в основной runtime.
-- Не начинать UI до API.
-- Не делать fine-tuning.
-- Не делать agentic tool-use до стабилизации project-only RAG.
-- Не индексировать `Система` в основной project-only corpus.
+- Не переходить к Chat MVP напрямую от текущего hybrid top-k.
+- Не отправлять в LLM все top-8 как есть.
+- Не индексировать `Система` в основной corpus.
+- Не раздувать старый `scripts/09_chat.py`.
+- Не делать UI до API Search.
