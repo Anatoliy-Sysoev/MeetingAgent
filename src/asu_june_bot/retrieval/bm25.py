@@ -30,6 +30,11 @@ def extract_query_sections(query: str) -> list[str]:
     return sections
 
 
+def has_exact_section_in_text(text: str, section: str) -> bool:
+    escaped = re.escape(section)
+    return re.search(rf"(?<!\d){escaped}(?:\.|\b)", text or "") is not None
+
+
 @dataclass(slots=True)
 class BM25Document:
     row_id: int
@@ -81,10 +86,59 @@ class BM25SearchAdapter:
         if not query_sections:
             return 1.0, []
         doc_sections = set(str(section) for section in (doc.metadata.get("sections") or []))
-        matched = [section for section in query_sections if section in doc_sections]
+        requirement_id = str(doc.metadata.get("requirement_id") or "")
+        matched: list[str] = []
+        for section in query_sections:
+            if section in doc_sections or section == requirement_id or has_exact_section_in_text(doc.text, section):
+                matched.append(section)
         if not matched:
             return 1.0, []
+        if any(section == requirement_id for section in matched):
+            return 2.1, matched
+        if any(section in doc_sections for section in matched):
+            return 1.75, matched
         return 1.45, matched
+
+    def _intent_boost(self, query: str, doc: BM25Document) -> tuple[float, list[str]]:
+        lowered = query.lower()
+        document_type = str(doc.metadata.get("document_type") or "")
+        text_lower = doc.text.lower()
+        boosts: list[tuple[str, float]] = []
+
+        if "паспорт" in lowered and "ис" in lowered:
+            boosts.append(("intent:passport", 2.0 if document_type == "Паспорт ИС" else 0.72))
+
+        if "фтт" in lowered:
+            if document_type == "ФТТ":
+                boosts.append(("intent:ftt", 1.85))
+            elif document_type == "ПМИ":
+                boosts.append(("intent:ftt_penalty_pmi", 0.68))
+            elif document_type == "ПР":
+                boosts.append(("intent:ftt_penalty_pr", 0.82))
+
+        if "интеграц" in lowered or "взаимодейств" in lowered:
+            if document_type in {"ЦТА", "СоИ AD", "СоИ Справочники", "Паспорт ИС", "ФТТ"}:
+                boosts.append(("intent:integrations", 1.25))
+            elif document_type == "Wiki":
+                boosts.append(("intent:integrations_wiki_penalty", 0.72))
+
+        if "глоссарий" not in lowered and (
+            "контекст: глоссарий" in text_lower
+            or "таблица 5 контекст: глоссарий" in text_lower
+            or "таблица 7 контекст: глоссарий" in text_lower
+            or "используемые сокращения" in text_lower[:700]
+        ):
+            boosts.append(("penalty:glossary", 0.25))
+
+        if "история изменений" in text_lower[:800] and "история" not in lowered:
+            boosts.append(("penalty:change_history", 0.55))
+
+        multiplier = 1.0
+        labels: list[str] = []
+        for label, boost in boosts:
+            multiplier *= boost
+            labels.append(label)
+        return multiplier, labels
 
     def search(self, query: str, top_k: int, include_source_types: list[str] | None = None) -> list[SearchResult]:
         query_terms = tokenize(query)
@@ -100,8 +154,11 @@ class BM25SearchAdapter:
             if score <= 0:
                 continue
             section_boost, matched_sections = self._exact_section_boost(query_sections, doc)
+            intent_boost, intent_labels = self._intent_boost(query, doc)
             policy_weight = self.source_policy.weight(doc.metadata)
-            final_score = score * policy_weight * section_boost
+            final_score = score * policy_weight * section_boost * intent_boost
+            if final_score <= 0:
+                continue
             scored.append(
                 (
                     final_score,
@@ -111,6 +168,8 @@ class BM25SearchAdapter:
                         "policy_weight": policy_weight,
                         "section_boost": section_boost,
                         "matched_sections": matched_sections,
+                        "intent_boost": intent_boost,
+                        "intent_labels": intent_labels,
                     },
                 )
             )
