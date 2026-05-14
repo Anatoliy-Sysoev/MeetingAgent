@@ -146,7 +146,115 @@ BM25 не требует Ollama.
 .\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode hybrid --top-k 12 --json > .\data\asu_june_bot\smoke_ftt_425_hybrid.json
 ```
 
-## 8. Полная пересборка v2.1 при изменении корпуса
+Файлы `data/asu_june_bot/smoke_*_hybrid.json` являются runtime-данными и не коммитятся. Для фиксации результата нужно создать markdown-отчет в `docs/subprojects/asu-june-bot/`.
+
+## 8. Текущий результат smoke от 2026-05-14
+
+### Health
+
+```text
+status = ok
+vector_ready = true
+bm25_ready = true
+chunks_v2 = 31302
+embeddings_cache_v2 = 31285
+manifest_count = 31285
+index_metadata = 31285
+ollama_available = true
+embedding_model_installed = true
+```
+
+### Паспорт ИС overview
+
+Запрос:
+
+```text
+Что входит в Паспорт ИС?
+```
+
+Результат:
+
+- BM25 top-1/top-2 корректно поднимает `ЦП УПКС_Паспорт ИС_v1.3.2` и `v1.3.3` с фрагментом про границы описания паспорта.
+- Hybrid top-1 корректный.
+- Hybrid дальше подмешивает vector-only noise: ПР, таблицы ПО, строки поддержки.
+
+Статус: не передавать весь top-k в LLM без context builder.
+
+### Интеграции
+
+Запрос:
+
+```text
+Какие интеграции заявлены в проекте?
+```
+
+Результат:
+
+- поднимаются ЦТА, Паспорт ИС, ФТТ, ПР;
+- ЦТА содержит `Blitz`, `AD`, `S3 Minio`, `Exchange`, `КШД`;
+- Паспорт ИС содержит `Active Directory`, `Blitz IDP`, `MDR`, почтовый сервер, `SIEM`.
+
+Статус: пригодно для API Search MVP.
+
+### ФТТ 4.2.5 НОВАДОК ЭЦП
+
+Запрос:
+
+```text
+ФТТ 4.2.5 НОВАДОК ЭЦП
+```
+
+Результат:
+
+- ФТТ поднимается в top-1/top-2;
+- в top-5 есть интеграционная строка `ЦП УПКС -> НОВАДОК`;
+- встреча `ФТТ_ИД` поднимается как полезный аналитический источник;
+- metadata `section/requirement_id` всё ещё шумит: встречаются значения `10.2` вместо фактического упоминания `4.2.5`.
+
+Статус: пригодно для search, но metadata надо улучшить до Chat MVP.
+
+## 9. Search Quality v2.2 перед API Search
+
+Перед API Search нужно добавить слой качества:
+
+```text
+query_intent -> post_rerank -> context_builder -> diagnostics -> smoke_report
+```
+
+Файлы:
+
+```text
+src/asu_june_bot/retrieval/query_intent.py
+src/asu_june_bot/retrieval/post_rerank.py
+src/asu_june_bot/retrieval/context_builder.py
+```
+
+Минимальные intent:
+
+```text
+document_overview
+integration_overview
+requirement_lookup
+general_project_question
+out_of_scope_candidate
+```
+
+Post-rerank должен:
+
+- штрафовать vector-only chunks без BM25 для exact/overview queries;
+- штрафовать software/support/glossary/front matter tables для `document_overview`;
+- усиливать exact document_type по intent;
+- усиливать exact requirement mentions;
+- дедуплицировать версии одного документа или отдавать приоритет latest version.
+
+ContextBuilder должен:
+
+- выбирать 3-6 chunks по intent;
+- отделять `primary_sources` от `supporting_sources`;
+- не отправлять LLM все top-8 без фильтрации;
+- возвращать diagnostics.
+
+## 10. Полная пересборка v2.1 при изменении корпуса
 
 Если меняются фильтры, список файлов или правила extraction/chunking, пересобрать с нуля:
 
@@ -159,7 +267,7 @@ BM25 не требует Ollama.
 .\.venv\Scripts\python.exe scripts\asu_june_bot_health_v2.py
 ```
 
-## 9. Проверка extraction/chunking
+## 11. Проверка extraction/chunking
 
 Для Windows PowerShell 5.1 всегда указывать `-Encoding UTF8` при чтении отчетов.
 
@@ -171,7 +279,7 @@ Get-Content .\data\asu_june_bot\index_v2_report.json -Encoding UTF8
 Get-Content .\data\asu_june_bot\numpy_index_v2\manifest.json -Encoding UTF8
 ```
 
-## 10. Watchdog для долгого embeddings cache
+## 12. Watchdog для долгого embeddings cache
 
 Для долгого `--embed-only` использовать отдельный watchdog. Он не запускает extraction/chunking и не трогает старые RAG-файлы.
 
@@ -191,7 +299,7 @@ Get-Content .\logs\asu_june_bot_index_v2_watchdog.log -Encoding UTF8 -Tail 80
 Unregister-ScheduledTask -TaskName AsuJuneBotIndexV2Watchdog -Confirm:$false
 ```
 
-## 11. Что считать успешным завершением
+## 13. Что считать успешным завершением
 
 Успешное завершение extraction/chunking:
 
@@ -211,11 +319,22 @@ manifest.count = 31285
 search_v2 --mode hybrid возвращает релевантные ФТТ/ЦТА/ПР/Паспорт/СоИ
 ```
 
-## 12. Не делать
+Успешное завершение перед API Search:
+
+```text
+query_intent определен
+primary_sources сформированы
+supporting_sources сформированы
+критический vector-only шум не попадает в primary context
+smoke report сохранен в docs/subprojects/asu-june-bot/
+```
+
+## 14. Не делать
 
 - Не удалять `data/asu_june_bot/`, если нужно продолжить после прерывания.
 - Не запускать `--reset`, если нужна resume-сборка.
 - Не менять старый `run_full_rag.ps1`.
 - Не перезаписывать `data/chunks.jsonl`.
 - Не индексировать `Система` в основной project-only корпус.
-- Не переходить к Chat MVP до успешного hybrid smoke.
+- Не переходить к Chat MVP до успешного Search Quality v2.2.
+- Не отправлять в LLM сырой hybrid top-k.
