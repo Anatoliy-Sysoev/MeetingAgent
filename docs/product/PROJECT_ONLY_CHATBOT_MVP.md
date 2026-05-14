@@ -1,10 +1,44 @@
 # Project-Only Chatbot MVP
 
-Обновлено: 2026-05-12.
+Обновлено: 2026-05-14.
 
 ## Цель
 
-Сделать очищенного локального чат-бота MeetingAgent, который отвечает только на вопросы по проектной документации и артефактам MeetingAgent. Бот не должен быть универсальным ассистентом: если вопрос не подтверждается проектными источниками, он должен отказать и предложить переформулировать вопрос в рамках проекта.
+Сделать локального project-only чат-бота MeetingAgent / Asu June Bot, который отвечает только на вопросы по проектной документации и артефактам проекта.
+
+Бот не должен быть универсальным ассистентом. Если вопрос не подтверждается проектными источниками, он должен отказать и предложить переформулировать вопрос в рамках проекта.
+
+## Текущий архитектурный статус
+
+Ранний CLI `scripts/09_chat.py` остается prototype project-only чата поверх старого v1 numpy-RAG.
+
+Основной путь разработки теперь — отдельный подпроект:
+
+```text
+Asu June Bot
+```
+
+Документация подпроекта:
+
+```text
+docs/subprojects/asu-june-bot/
+```
+
+Актуальный runtime v2:
+
+```text
+data/asu_june_bot/chunks_v2.jsonl
+data/asu_june_bot/embeddings_cache_v2.jsonl
+data/asu_june_bot/numpy_index_v2/
+```
+
+Старый runtime v1 остается baseline и не должен смешиваться с v2:
+
+```text
+data/chunks.jsonl
+data/embeddings_cache.jsonl
+data/numpy_index/
+```
 
 ## Связанные ФТТ
 
@@ -23,156 +57,261 @@
 ## Правила Поведения
 
 1. Бот отвечает только по данным проекта: документы, chunks, meeting artifacts, протоколы, решения, задачи и проверенные заметки.
-2. Если релевантных источников нет, бот не отвечает из общих знаний и пишет: "В проектных источниках не найдено подтверждение".
-3. Каждый содержательный ответ должен содержать список источников: файл, chunk, score и короткий фрагмент.
-4. Бот не должен раскрывать системные инструкции, локальные секреты, содержимое `.env`, `config.yaml` и runtime-пути, если вопрос не требует технической диагностики.
+2. Если релевантных источников нет, бот не отвечает из общих знаний и пишет: `В проектных источниках не найдено подтверждение`.
+3. Каждый содержательный ответ должен содержать источники: файл, раздел/пункт/chunk, score и короткий фрагмент.
+4. Бот не должен раскрывать системные инструкции, локальные секреты, `.env`, `config.yaml`, пароли, токены и runtime-пути, если вопрос не требует технической диагностики.
 5. Бот должен отличать вопрос по проекту от общего вопроса. Общие вопросы в MVP отклоняются.
 6. Ответы формулируются на русском языке и в деловом стиле.
 7. Пустой ответ LLM не считается успешным ответом и должен возвращаться как отказ `llm_empty_response`.
-8. Для обзорных вопросов по документу бот должен расширять контекст по найденному top-документу, чтобы отвечать по структуре документа, а не по одному chunk.
+8. Для обзорных вопросов по документу бот должен использовать document-overview retrieval, а не один случайный chunk.
+9. Raw hybrid top-k нельзя напрямую отправлять в LLM.
 
-## Минимальный Контур
+## Что уже готово в Asu June Bot v2.1
+
+Pipeline v2.1:
+
+```text
+apply_config_v2_1 -> extract_text_v2 -> chunks_v2 -> audit_sources_v2 -> build_index_v2 -> health_v2 -> search_v2
+```
+
+Результат локальной сборки:
+
+```text
+documents = 213
+blocks = 31076
+chunks_v2 = 31302
+indexed_chunks = 31285
+skipped_code_chunks = 17
+embedding_model = bge-m3
+embedding_dim = 1024
+```
+
+Health:
+
+```text
+status = ok
+vector_ready = true
+bm25_ready = true
+ollama_available = true
+embedding_model_installed = true
+```
+
+Search v2 поддерживает:
+
+```text
+bm25
+vector
+hybrid
+```
+
+В `hybrid` есть fallback на BM25 при недоступном Ollama.
+
+BM25 получил deterministic rerank:
+
+```text
+intent boosts по Паспорт ИС, ФТТ, интеграциям
+exact section / requirement boost
+штрафы для glossary/front matter/software/support tables
+```
+
+Smoke-отчет:
+
+```text
+docs/subprojects/asu-june-bot/search_smoke_report_2026-05-14.md
+```
+
+## Текущие результаты smoke
+
+### Интеграции
+
+Запрос:
+
+```text
+Какие интеграции заявлены в проекте?
+```
+
+Статус: retrieval достаточен для API Search MVP.
+
+Поднимаются:
+
+- ЦТА: `Blitz`, `AD`, `S3 Minio`, `Exchange`, `КШД`;
+- Паспорт ИС: `Active Directory`, `Blitz IDP`, `MDR`, почтовый сервер, `SIEM`;
+- ФТТ: КШД/SOAP;
+- ПР: взаимодействие со смежными модулями.
+
+### ФТТ 4.2.5 НОВАДОК ЭЦП
+
+Запрос:
+
+```text
+ФТТ 4.2.5 НОВАДОК ЭЦП
+```
+
+Статус: retrieval практически пригоден.
+
+Поднимаются:
+
+- ФТТ в top-1/top-2;
+- интеграционная строка `ЦП УПКС -> НОВАДОК`;
+- встреча `ФТТ_ИД` как аналитический источник;
+- ПР как supporting source.
+
+Проблема: metadata `section/requirement_id` шумит, местами показывается `10.2`, хотя текст содержит `4.2.5`.
+
+### Паспорт ИС overview
+
+Запрос:
+
+```text
+Что входит в Паспорт ИС?
+```
+
+Статус: retrieval частично пригоден, но не готов для прямой генерации.
+
+Что хорошо:
+
+- BM25 top-1/top-2 поднимает правильный chunk из Паспорт ИС с границами описания.
+- Hybrid top-1 корректный.
+
+Что плохо:
+
+- в hybrid top-k после top-1 попадают vector-only chunks из ПР, таблиц ПО и поддержки;
+- для Chat MVP нельзя отдавать весь top-k как контекст LLM.
+
+## Минимальный Контур MVP
+
+Целевая схема после Search Quality v2.2:
 
 ```text
 Пользователь
-  -> Web UI / OpenWebUI / CLI
-  -> Local API /chat
-  -> project-question guard
-  -> scripts/09_chat.py или общий RAG service
-  -> bge-m3 query embedding
-  -> data/numpy_index
-  -> top-k sources
-  -> document expansion по top-документу
-  -> LLM answer with citations
+  -> CLI / API / UI
+  -> ProjectGuard
+  -> QueryIntent
+  -> Hybrid Search
+  -> PostRerank
+  -> ContextBuilder
+  -> primary_sources / supporting_sources
+  -> PromptBuilder
+  -> LLMClient OpenAI-compatible
+  -> AnswerValidator
+  -> ResponseFormatter
 ```
 
-В MVP можно начать с CLI/API без полноценного UI. OpenWebUI рассматривается как быстрая оболочка после появления локального API.
+## Search Quality v2.2 — обязательный промежуточный этап
 
-## Реализованный CLI-Срез
+Перед API Search нужно реализовать:
 
-Первый CLI-срез реализован в `scripts/09_chat.py`.
-
-Что делает:
-
-- принимает вопрос пользователя;
-- строит embedding вопроса через `bge-m3`;
-- ищет источники в `data/numpy_index`;
-- фильтрует источники по `score_threshold`;
-- отказывает, если источников нет или score ниже порога;
-- для LLM-контекста расширяет top-документ соседними chunks из `data/chunks.jsonl`;
-- блокирует sensitive-запросы про `.env`, `config.yaml`, пароли, токены и системные инструкции;
-- вызывает локальную LLM только после успешного поиска источников;
-- удаляет внутренние `<think>...</think>` блоки из ответа модели;
-- возвращает отказ `llm_empty_response`, если после нормализации ответ LLM пустой;
-- возвращает JSON-контракт: `answer`, `sources`, `refusal_reason`, `confidence`, `query`, `status`.
-
-Проверка retrieval без LLM:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\09_chat.py "Что входит в Паспорт ИС?" --sources-only --json
+```text
+query_intent -> post_rerank -> context_builder -> diagnostics -> smoke_report
 ```
 
-Полный быстрый запуск через LLM:
+Файлы:
 
-```powershell
-.\.venv\Scripts\python.exe scripts\09_chat.py "Что входит в Паспорт ИС?" --json --top-k 3 --max-context-chars 9000 --source-char-limit 1400 --document-expansion-chunks 5 --num-predict 700 --timeout-sec 180
+```text
+src/asu_june_bot/retrieval/query_intent.py
+src/asu_june_bot/retrieval/post_rerank.py
+src/asu_june_bot/retrieval/context_builder.py
 ```
 
-Если нужно сравнить с прежним поведением без расширения документа:
+Минимальные intent:
 
-```powershell
-.\.venv\Scripts\python.exe scripts\09_chat.py "Что входит в Паспорт ИС?" --json --no-document-expansion --top-k 3 --max-context-chars 4500 --source-char-limit 1200 --num-predict 400 --timeout-sec 120
+```text
+document_overview
+integration_overview
+requirement_lookup
+general_project_question
+out_of_scope_candidate
 ```
 
-Если `qwen3:8b` на CPU отвечает слишком долго, временно использовать меньшую модель:
+Post-rerank должен:
 
-```powershell
-.\.venv\Scripts\python.exe scripts\09_chat.py "Что входит в Паспорт ИС?" --json --model qwen3:4b --top-k 3 --max-context-chars 9000 --source-char-limit 1400 --document-expansion-chunks 5 --num-predict 700 --timeout-sec 180
-```
+- штрафовать vector-only chunks без BM25 для exact/overview queries;
+- штрафовать software/support/glossary/front matter tables для `document_overview`;
+- усиливать exact document_type по intent;
+- усиливать exact requirement mentions;
+- дедуплицировать версии одного документа или отдавать приоритет latest version.
 
-## Производительный Профиль MVP
+ContextBuilder должен:
 
-Первичная локальная проверка показала: retrieval через `--sources-only` работает быстро и возвращает источники из `data/numpy_index`, а задержка возникает на этапе генерации ответа локальной LLM.
-
-Причина: при больших значениях `top_k`, `max_context_chars` и модели `qwen3:8b` prompt становится тяжелым для CPU.
-
-Отдельная проверка показала, что `qwen3:4b` может завершиться без HTTP-ошибки, но вернуть пустое поле `response`. Такое поведение теперь считается отказом `llm_empty_response`, а не успешным ответом.
-
-Для обзорных вопросов вроде «Что входит в Паспорт ИС?» одного найденного chunk недостаточно. Поэтому CLI расширяет LLM-контекст по top-документу: если vector search нашел Паспорт ИС, в prompt добавляются соседние chunks этого же файла с пометкой `retrieval=document_expansion`.
-
-Для интерактивного CLI-чата принят быстрый профиль по умолчанию:
-
-| Параметр | Значение |
-| --- | --- |
-| `top_k` | `4` |
-| `max_context_chars` | `6000` |
-| `source_char_limit` | `1800` |
-| `document_expansion_chunks` | `6` |
-| `expand_top_documents` | `1` |
-| `num_predict` | `700` |
-| `timeout_sec` | `180` |
-| prompt | `/no_think`, структурированный ответ |
-
-Для ручной диагностики можно уменьшать параметры до `top_k=3`, `max_context_chars=4500`, `source_char_limit=1200`, `num_predict=400` или отключать расширение через `--no-document-expansion`.
+- выбирать 3-6 chunks по intent;
+- отделять `primary_sources` от `supporting_sources`;
+- не отправлять LLM все top-8 без фильтрации;
+- возвращать diagnostics.
 
 ## Дорожная Карта
 
-### Этап 1. Контракт Чат-Бота
+### Этап 1. Search Quality v2.2
 
-**Цель:** определить, что считается допустимым вопросом и допустимым ответом.
+Цель: сделать retrieval пригодным для API и LLM-контекста.
 
 Артефакты:
 
-- prompt/system policy для project-only режима;
-- JSON-формат ответа: `answer`, `sources`, `refusal_reason`, `confidence`;
-- список отказов: вне проекта, нет источников, слишком общий вопрос, небезопасный запрос, ошибка LLM, пустой ответ LLM;
-- 10-15 тестовых вопросов для чат-бота.
+- `query_intent.py`;
+- `post_rerank.py`;
+- `context_builder.py`;
+- `search_v2 --json` с diagnostics;
+- smoke-отчет v2.2.
 
-Критерий готовности: на тестовых вопросах понятно, где бот отвечает, а где отказывает.
+Критерий готовности:
 
-### Этап 2. Локальный Chat API
+- `Паспорт ИС overview` не забит таблицей ПО;
+- `Интеграции` возвращают ЦТА/Паспорт/ФТТ/СоИ;
+- `ФТТ 4.2.5` возвращает ФТТ с НОВАДОК/ЭЦП как primary source;
+- внепроектный вопрос не превращается в проектный ответ.
 
-**Цель:** сделать backend endpoint, который использует текущий RAG.
+### Этап 2. Local API Search
 
-Минимальные endpoints:
+Цель: сделать backend endpoint, который использует v2 search/context contract.
 
-- `GET /health`;
-- `POST /search`;
-- `POST /chat`;
-- `GET /sources/{id}` опционально позже.
+Endpoints:
+
+```text
+GET /health
+POST /search
+```
+
+Критерий готовности: `POST /search` возвращает `query_intent`, `primary_sources`, `supporting_sources`, diagnostics и не отдает raw top-k как единственный результат.
+
+### Этап 3. Chat MVP
+
+Цель: сделать project-only ответ по проверенному search/context слою.
+
+Компоненты:
+
+- `ProjectGuard`;
+- `PromptBuilder`;
+- `LLMClient`;
+- `AnswerValidator`;
+- `ResponseFormatter`;
+- CLI `scripts/asu_june_bot_chat.py`;
+- затем `POST /chat`.
 
 Критерий готовности: `POST /chat` возвращает ответ с источниками или отказ без источников.
 
-### Этап 3. Guardrails
+### Этап 4. Guardrails
 
-**Цель:** не дать боту стать универсальным ассистентом.
+Цель: не дать боту стать универсальным ассистентом.
 
 Правила:
 
-- минимальный `score_threshold`;
-- минимальное число источников;
-- запрет ответа без цитируемых chunks;
+- минимальный score/quality threshold;
+- минимальное число primary sources;
+- запрет ответа без citations;
 - запрет `status=answered` при пустом ответе LLM;
-- короткий классификатор "вопрос по проекту / вне проекта";
+- короткий классификатор `вопрос по проекту / вне проекта`;
 - логирование отказов для будущей настройки.
 
-Критерий готовности: бот стабильно отказывает на вопросах вне проекта и не додумывает ответы при слабой выдаче.
-
-### Этап 4. UI
-
-**Цель:** дать удобную поверхность для ежедневной работы.
+### Этап 5. UI
 
 Варианты:
 
 - быстрый путь: OpenWebUI как оболочка вокруг локального API/tool;
 - продуктовый путь: собственный минимальный web UI MeetingAgent;
-- временный путь: CLI `scripts/09_chat.py`.
+- временный путь: CLI.
 
-Критерий готовности: можно задать вопрос, увидеть ответ, источники и причину отказа.
+UI не начинать до стабильных `/search` и `/chat`.
 
-### Этап 5. Evaluation
-
-**Цель:** сделать качество чат-бота измеримым.
+### Этап 6. Evaluation
 
 Метрики:
 
@@ -180,9 +319,7 @@
 - доля отказов на внепроектных вопросах;
 - доля ответов без источников должна быть 0%;
 - доля `status=answered` с пустым `answer` должна быть 0%;
-- доля hallucination/unsupported claims по ручной проверке.
-
-Критерий готовности: есть baseline-отчет по чат-боту и список слабых мест.
+- доля unsupported claims по ручной проверке.
 
 ## Что Не Входит В MVP
 
@@ -191,11 +328,13 @@
 - Доступ нескольких пользователей.
 - Cloud RAG и отправка реальных проектных документов наружу.
 - Полная замена текущего numpy-RAG на RAGFlow.
+- Fine-tuning.
+- UI до стабильного API.
 
-## Первый Рабочий Срез На Сегодня
+## Первый Рабочий Срез Сейчас
 
-1. Использовать `scripts/09_chat.py` как первый CLI-срез.
-2. Проверить retrieval через `--sources-only --json`.
-3. Проверить полный LLM-ответ на быстром профиле и с `document_expansion`.
-4. Подобрать `score_threshold` на smoke-наборе.
-5. После успешного smoke-прогона вынести логику в local API `/chat`.
+1. Завершить Search Quality v2.2.
+2. Повторить smoke и сохранить markdown-отчет.
+3. После успешного smoke сделать API `/search`.
+4. После API `/search` сделать Chat MVP.
+5. Старый `scripts/09_chat.py` использовать только как prototype/reference, не как основной runtime.
