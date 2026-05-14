@@ -99,6 +99,31 @@ class BM25SearchAdapter:
             return 1.75, matched
         return 1.45, matched
 
+    @staticmethod
+    def _is_passport_overview_query(lowered: str) -> bool:
+        return "паспорт" in lowered and "ис" in lowered and any(marker in lowered for marker in ["что входит", "состав", "структур", "раздел", "включает", "из чего"])
+
+    @staticmethod
+    def _is_passport_software_table(text_lower: str) -> bool:
+        return (
+            "контекст: программное обеспечение информационной системы" in text_lower
+            or "заголовки: наименование по | тип по" in text_lower
+            or "строка" in text_lower[:350] and "postgresql" in text_lower
+            or "строка" in text_lower[:350] and "kubernetes" in text_lower
+            or "строка" in text_lower[:350] and "nginx" in text_lower
+        )
+
+    @staticmethod
+    def _is_passport_scope_chunk(text_lower: str) -> bool:
+        return (
+            "настоящий паспорт ис подготовлен" in text_lower
+            or "в границы описания включены" in text_lower
+            or "общие сведения" in text_lower[:700]
+            or "назначение и область применения" in text_lower[:900]
+            or "архитектурные и эксплуатационные сведения" in text_lower
+            or "сведения по базовым сервисам платформы" in text_lower
+        )
+
     def _intent_boost(self, query: str, doc: BM25Document) -> tuple[float, list[str]]:
         lowered = query.lower()
         document_type = str(doc.metadata.get("document_type") or "")
@@ -107,6 +132,13 @@ class BM25SearchAdapter:
 
         if "паспорт" in lowered and "ис" in lowered:
             boosts.append(("intent:passport", 2.0 if document_type == "Паспорт ИС" else 0.72))
+            if self._is_passport_overview_query(lowered):
+                if self._is_passport_scope_chunk(text_lower):
+                    boosts.append(("intent:passport_overview_scope", 2.6))
+                if self._is_passport_software_table(text_lower):
+                    boosts.append(("penalty:passport_software_table_for_overview", 0.18))
+                if "история изменений" in text_lower[:1000] or "связанные документы" in text_lower[:1200]:
+                    boosts.append(("penalty:passport_front_matter_for_overview", 0.35))
 
         if "фтт" in lowered:
             if document_type == "ФТТ":
