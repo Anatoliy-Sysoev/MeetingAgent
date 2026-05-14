@@ -20,19 +20,28 @@ if str(SCRIPTS_DIR) not in sys.path:
 from rag_numpy_backend import index_exists, load_index  # noqa: E402
 
 
+class OllamaUnavailableError(RuntimeError):
+    pass
+
+
 def ollama_embed(base_url: str, model: str, text: str, num_ctx: int = 8192, keep_alive: str = "24h") -> list[float]:
-    resp = requests.post(
-        f"{base_url.rstrip('/')}/api/embeddings",
-        json={
-            "model": model,
-            "prompt": text,
-            "keep_alive": keep_alive,
-            "options": {"num_ctx": num_ctx},
-        },
-        timeout=120,
-    )
-    resp.raise_for_status()
-    return resp.json()["embedding"]
+    try:
+        resp = requests.post(
+            f"{base_url.rstrip('/')}/api/embeddings",
+            json={
+                "model": model,
+                "prompt": text,
+                "keep_alive": keep_alive,
+                "options": {"num_ctx": num_ctx},
+            },
+            timeout=120,
+        )
+        resp.raise_for_status()
+        return resp.json()["embedding"]
+    except requests.exceptions.ConnectionError as exc:
+        raise OllamaUnavailableError(
+            f"Ollama недоступен по адресу {base_url}. Запусти Ollama и проверь модель embeddings: ollama list"
+        ) from exc
 
 
 class VectorSearchAdapter:
@@ -73,7 +82,8 @@ class VectorSearchAdapter:
             if not self.source_policy.is_allowed(metadata, query, include_source_types):
                 continue
             vector_score = float(ctx.get("score", 0.0))
-            weighted_score = vector_score * self.source_policy.weight(metadata)
+            policy_weight = self.source_policy.weight(metadata)
+            weighted_score = vector_score * policy_weight
             results.append(
                 SearchResult(
                     source_id=f"VEC-{len(results) + 1:03d}",
@@ -83,6 +93,7 @@ class VectorSearchAdapter:
                     bm25_score=None,
                     metadata=metadata,
                     matched_by=["vector"],
+                    diagnostics={"policy_weight": policy_weight},
                 )
             )
             if len(results) >= top_k:
