@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+ROOT = Path(__file__).resolve().parents[3]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 
 from asu_june_bot.guardrails.project_guard import GuardDecision, ProjectGuardResult
 from asu_june_bot.retrieval.models import SearchResult
