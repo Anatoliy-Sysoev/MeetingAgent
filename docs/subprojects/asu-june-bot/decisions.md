@@ -1,6 +1,6 @@
 # Решения Подпроекта Asu June Bot
 
-Обновлено: 2026-05-13.
+Обновлено: 2026-05-15.
 
 ## ADR-001. Выделить Asu June Bot как отдельный подпроект
 
@@ -84,12 +84,28 @@ partial
 error
 ```
 
-Расшифровка:
+Для search/API также использовать служебные статусы:
+
+```text
+ok
+refused
+clarify
+error
+```
+
+Расшифровка chat-статусов:
 
 - `answered` — полноценный ответ по источникам.
 - `refused` — корректный отказ: вне проекта, нет источников, sensitive-запрос.
 - `partial` — частичный ответ: источники есть, но LLM не ответила или данных недостаточно.
 - `error` — техническая ошибка, не бизнес-отказ.
+
+Расшифровка search-статусов:
+
+- `ok` — guard разрешил запрос, retrieval выполнен.
+- `refused` — guard отказал, retrieval не выполнен.
+- `clarify` — запрос неоднозначный, retrieval не выполнен.
+- `error` — техническая ошибка.
 
 Причина:
 
@@ -168,25 +184,6 @@ code
 - Нельзя каждый новый термин добавлять правкой Python-кода.
 - Аналитик должен иметь возможность редактировать словарь без разработки.
 
-Пример:
-
-```yaml
-integrations:
-  triggers:
-    - интеграции
-    - системные взаимодействия
-  expansions:
-    - MDR
-    - КШД
-    - СОИ
-    - Active Directory
-    - AD
-    - LDAPS
-    - Blitz IDP
-    - SMTP
-    - SIEM
-```
-
 ## ADR-008. Eval обязателен до развития UI
 
 Дата: 2026-05-12.
@@ -200,9 +197,9 @@ integrations:
 
 Следствие:
 
-- Создать `eval_questions.md` и затем машинный `eval_questions.yaml`.
 - Минимум 30 вопросов для MVP.
-- Целевой уровень: 0 ответов без источников; отказ на 100% очевидно внепроектных вопросов; не менее 80% корректных источников в top-5 для проектных вопросов.
+- Guard v2 regression suite должен запускаться до API/Chat изменений.
+- Целевой уровень для guard: `false_allow = 0`.
 
 ## ADR-009. Не индексировать папку `Система` в основном project-only корпусе
 
@@ -314,3 +311,90 @@ register_asu_june_bot_index_v2_watchdog.ps1
 - завершение определяется по `data/asu_june_bot/index_v2_report.json`: `embed_only = true`, `missing_after = 0`, `chunks_total` соответствует целевому числу индексируемых chunks;
 - после завершения monitor отключает свою scheduled task;
 - старые `AsuJuneBotV2Watchdog` и `MeetingAgent_Watchdog` не включаются для index v2.
+
+## ADR-013. Search Quality v2.2: LLM получает не raw top-k, а подготовленный context
+
+Дата: 2026-05-15.
+
+Решение: между retrieval и будущим LLM-ответом обязателен слой:
+
+```text
+QueryIntent -> PostReranker -> ContextBuilder
+```
+
+Причина:
+
+- raw hybrid top-k может содержать vector-only noise;
+- overview-запросы по Паспорту ИС могут поднимать таблицы ПО и поддержку;
+- exact requirement-запросы могут смешивать точный пункт и смежные требования;
+- LLM не должен сам выбирать, какие chunks считать primary.
+
+Следствие:
+
+- `search_v2` возвращает `primary_sources`, `supporting_sources`, `excluded_sources`;
+- для `document_overview` primary содержит обзорный chunk, а не таблицы ПО/поддержки;
+- для `requirement_lookup` с точным пунктом primary содержит точное совпадение по пункту;
+- Chat MVP должен использовать только подготовленный context, а не raw `results`.
+
+## ADR-014. ProjectGuard v2 вместо бесконечного расширения OUT_OF_SCOPE_MARKERS
+
+Дата: 2026-05-15.
+
+Решение: защита project-only режима строится как segmentation-based pipeline:
+
+```text
+QuerySegmenter -> RuleBasedScopeClassifier -> ScopeAggregator -> GuardPolicy -> ProjectGuard
+```
+
+Причина:
+
+- один общий словарь out-of-scope не масштабируется;
+- mixed-scope запросы могут содержать валидную проектную часть и внепроектную/опасную часть;
+- простая логика `есть проектный маркер -> allow` пропускает опасные запросы;
+- нужен проверяемый слой до retrieval.
+
+Следствие:
+
+- `ProjectGuard v2` запускается до retrieval;
+- при `refused` и `clarify` retrieval не вызывается;
+- результат guard содержит `guard_v2.aggregate.segments[]`;
+- guard regression suite обязателен перед API/Chat изменениями;
+- критерий качества guard: `false_allow = 0`.
+
+Финальный regression результат:
+
+```json
+{
+  "total": 44,
+  "passed": 44,
+  "failed": 0,
+  "false_allow": 0,
+  "false_refuse": 0,
+  "false_clarify": 0
+}
+```
+
+## ADR-015. API Search должен повторять CLI search_v2 pipeline
+
+Дата: 2026-05-15.
+
+Решение: следующий этап — API Search MVP. API `/search` не должен реализовывать отдельную логику поиска. Он должен использовать тот же pipeline, что `scripts/asu_june_bot_search_v2.py`.
+
+Pipeline:
+
+```text
+QueryIntent -> ProjectGuard v2 -> Retrieval -> PostReranker -> ContextBuilder -> JSON response
+```
+
+Причина:
+
+- CLI pipeline уже проверен smoke/regression;
+- дублирование логики CLI/API приведёт к расхождениям;
+- API должен быть thin HTTP layer над готовыми компонентами.
+
+Следствие:
+
+- вынести общую search orchestration в reusable module до или во время реализации API;
+- `POST /search` должен возвращать те же diagnostics, что `search_v2 --json`;
+- `GET /health` должен переиспользовать health v2 checks;
+- при `refused` или `clarify` retrieval не должен вызываться.
