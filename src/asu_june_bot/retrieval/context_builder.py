@@ -44,6 +44,30 @@ def has_noise_label(result: SearchResult) -> bool:
     return any(label.startswith("penalty:software") or label.startswith("penalty:front_matter") for label in labels)
 
 
+def result_sections(result: SearchResult) -> set[str]:
+    sections: set[str] = set()
+    raw_sections = result.metadata.get("sections") or []
+    if isinstance(raw_sections, list):
+        sections.update(str(section).strip().rstrip(".") for section in raw_sections if str(section).strip())
+    raw_section = result.metadata.get("section")
+    if raw_section:
+        sections.add(str(raw_section).strip().rstrip("."))
+    cells = result.metadata.get("cells") or {}
+    if isinstance(cells, dict):
+        for key in ("№", "N", "Номер", "Требование ФТТ"):
+            value = cells.get(key)
+            if value:
+                sections.add(str(value).strip().rstrip("."))
+    return {section for section in sections if section}
+
+
+def has_exact_mentioned_section(result: SearchResult, intent: QueryIntentResult) -> bool:
+    mentioned = {str(section).strip().rstrip(".") for section in intent.mentioned_sections if str(section).strip()}
+    if not mentioned:
+        return False
+    return bool(result_sections(result) & mentioned)
+
+
 class ContextBuilder:
     def __init__(self, primary_limit: int = 5, supporting_limit: int = 5):
         self.primary_limit = primary_limit
@@ -104,6 +128,15 @@ class ContextBuilder:
             return "excluded" if is_vector_only(result) else "supporting"
 
         if intent.intent == QueryIntent.REQUIREMENT_LOOKUP:
+            # Если пользователь указал конкретный пункт, primary должен содержать только точное попадание
+            # в этот пункт. Смежные ФТТ/ПР/ПМИ/встречи нужны как supporting context, но не как primary.
+            if intent.mentioned_sections:
+                if dt == "ФТТ" and has_exact_mentioned_section(result, intent):
+                    return "primary"
+                if dt in {"ФТТ", "ПР", "ПМИ"}:
+                    return "supporting"
+                return "excluded" if is_vector_only(result) else "supporting"
+
             if dt == "ФТТ" and (has_label(result, "boost:exact_section_mention") or not is_vector_only(result)):
                 return "primary"
             if dt in {"ПР", "ПМИ"}:
