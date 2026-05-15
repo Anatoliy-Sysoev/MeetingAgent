@@ -13,6 +13,11 @@ CLARIFY_MESSAGE = (
     "Не удалось однозначно определить, относится ли запрос к проектной документации ЦП УПКС. "
     "Сформулируйте вопрос через конкретный документ, модуль, требование, интеграцию или раздел проекта."
 )
+IN_PROJECT_WITH_UNCLEAR_TAIL_MESSAGE = (
+    "Запрос содержит проектную часть и дополнительную часть, которую нельзя надежно отнести к документации ЦП УПКС. "
+    "Я не запускаю поиск по смешанному или неоднозначному запросу. "
+    "Оставьте только вопрос по документу, модулю, требованию, интеграции или разделу проекта."
+)
 META_ONLY_MESSAGE = (
     "Уточните проектный объект поиска: документ, модуль, требование, интеграцию или раздел ЦП УПКС."
 )
@@ -39,9 +44,9 @@ class GuardPolicy:
         if aggregate.scope == SegmentScope.IN_PROJECT:
             if aggregate.has_ambiguous:
                 return GuardPolicyResult(
-                    action=GuardAction.CLARIFY,
-                    reason="in_project_with_ambiguous_segment",
-                    message=CLARIFY_MESSAGE,
+                    action=GuardAction.REFUSE,
+                    reason="in_project_query_contains_unclassified_segment",
+                    message=IN_PROJECT_WITH_UNCLEAR_TAIL_MESSAGE,
                     aggregate=aggregate,
                 )
             return GuardPolicyResult(
