@@ -1,10 +1,10 @@
 # TODO Asu June Bot
 
-Обновлено: 2026-05-14.
+Обновлено: 2026-05-15.
 
-## Текущий статус v2.1
+## Текущий статус v2.2
 
-Asu June Bot v2.1 технически собран до уровня локального search MVP.
+Asu June Bot v2.1 технически собран до уровня локального search MVP, а Search Quality v2.2 начат отдельными модулями, без превращения `search_v2` в монолит.
 
 Готово:
 
@@ -18,9 +18,59 @@ Asu June Bot v2.1 технически собран до уровня локал
 - `scripts/asu_june_bot_health_v2.py` показывает `status=ok`, `bm25_ready=true`, `vector_ready=true`, `ollama_available=true`, `embedding_model_installed=true`;
 - `search_v2` поддерживает `bm25`, `vector`, `hybrid`;
 - `hybrid` умеет fallback на BM25 при недоступном Ollama;
-- BM25 получил deterministic rerank: intent boosts по `Паспорт ИС`, `ФТТ`, интеграциям, exact section/requirement и штрафы для глоссариев/front matter/software tables.
+- BM25 получил deterministic rerank: intent boosts по `Паспорт ИС`, `ФТТ`, интеграциям, exact section/requirement и штрафы для глоссариев/front matter/software tables;
+- добавлен `src/asu_june_bot/retrieval/query_intent.py`;
+- добавлен `src/asu_june_bot/guardrails/project_guard.py`;
+- `scripts/asu_june_bot_search_v2.py` подключает `QueryIntent` и `ProjectGuard`;
+- для явно внепроектных вопросов `search_v2` возвращает `status=refused`, пустой `results` и не выполняет retrieval;
+- добавлен диагностический флаг `--no-guard`, чтобы временно посмотреть retrieval без защиты.
 
-## Результаты последнего smoke search
+## Что изменилось в ProjectGuard / QueryIntent
+
+`QueryIntent` классифицирует запросы в минимальные intent:
+
+```text
+document_overview
+integration_overview
+requirement_lookup
+general_project_question
+out_of_scope_candidate
+```
+
+`ProjectGuard` принимает решение:
+
+```text
+allow
+refuse
+```
+
+Правило MVP:
+
+- если вопрос явно вне проекта и не содержит проектных маркеров, `search_v2` сразу возвращает отказ;
+- если вопрос содержит проектные маркеры, retrieval разрешается;
+- отказ не вызывает BM25/vector/hybrid и не возвращает случайные chunks.
+
+Проверочный пример:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какая погода завтра в Москве?" --mode hybrid --top-k 12
+```
+
+Ожидаемо:
+
+```text
+status = refused
+intent = out_of_scope_candidate
+results = 0
+```
+
+Для диагностики retrieval без guard:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какая погода завтра в Москве?" --mode hybrid --top-k 12 --no-guard
+```
+
+## Результаты последнего smoke search до ProjectGuard
 
 ### Health
 
@@ -84,21 +134,20 @@ embedding_model_installed = true
    - Пример: запрос по `4.2.5` возвращает chunks с `requirement_id=10.2`, хотя в тексте есть `4.2.5`.
    - Решение: улучшить extraction/chunking metadata; отдельно отличать `document_version`, `contract_section`, `requirement_id` и `mentioned_requirement_ids`.
 
-4. Нужно формально сохранить smoke JSON.
-   - Уже создаются файлы `data/asu_june_bot/smoke_*_hybrid.json`, но они runtime и не должны коммититься.
-   - Нужно добавить markdown-отчет в `docs/subprojects/asu-june-bot/search_smoke_report_2026-05-14.md`.
+4. Post-rerank и ContextBuilder ещё не реализованы.
+   - `QueryIntent` и `ProjectGuard` уже добавлены.
+   - Осталось добавить post-rerank и context builder.
 
 ## Следующий практический шаг
 
-Перед API Search выполнить Search Quality v2.2:
+Перед API Search завершить Search Quality v2.2:
 
 ```text
-1. Добавить query intent classifier без LLM:
-   - document_overview
-   - integration_overview
-   - requirement_lookup
-   - general_project_question
-   - out_of_scope_candidate
+1. Проверить QueryIntent + ProjectGuard smoke:
+   - Паспорт ИС overview;
+   - интеграции;
+   - ФТТ 4.2.5;
+   - внепроектный вопрос.
 
 2. Добавить post-rerank после hybrid merge:
    - штраф vector-only chunks без BM25 для exact/overview queries;
@@ -124,11 +173,14 @@ embedding_model_installed = true
 
 ### A. Search Quality v2.2
 
-- [ ] Добавить `src/asu_june_bot/retrieval/query_intent.py`.
+- [x] Добавить `src/asu_june_bot/retrieval/query_intent.py`.
+- [x] Добавить `src/asu_june_bot/guardrails/project_guard.py`.
+- [x] Подключить `QueryIntent` и `ProjectGuard` в `scripts/asu_june_bot_search_v2.py`.
+- [x] Добавить `--no-guard` для диагностического retrieval без отказа.
 - [ ] Добавить `src/asu_june_bot/retrieval/post_rerank.py`.
 - [ ] Добавить `src/asu_june_bot/retrieval/context_builder.py`.
-- [ ] Добавить диагностику `query_intent`, `rerank_labels`, `primary_sources`, `supporting_sources` в JSON-ответ `search_v2`.
-- [ ] Добавить markdown smoke-отчет по текущему срезу.
+- [ ] Добавить диагностику `rerank_labels`, `primary_sources`, `supporting_sources` в JSON-ответ `search_v2`.
+- [ ] Обновить markdown smoke-отчет после проверки ProjectGuard.
 - [ ] Повторить baseline после rerank/context builder.
 
 ### B. API Search
@@ -152,13 +204,13 @@ POST /search
 - `Паспорт ИС overview` top/context не забит таблицей ПО;
 - `Интеграции` возвращают ЦТА/Паспорт/ФТТ/СоИ;
 - `ФТТ 4.2.5` возвращает ФТТ с НОВАДОК/ЭЦП в primary sources;
+- внепроектный вопрос возвращает `status=refused` и `results=[]`;
 - JSON содержит пригодные diagnostics.
 
 ### C. Chat MVP
 
 После API Search:
 
-- [ ] `ProjectGuard`.
 - [ ] `PromptBuilder`.
 - [ ] `LLMClient` через OpenAI-compatible API.
 - [ ] `AnswerValidator`.
@@ -177,6 +229,7 @@ POST /search
 
 - `health_v2`: `status=ok`, `vector_ready=true`, `bm25_ready=true`.
 - `search_v2 --mode hybrid` проходит 3 baseline-запроса.
+- Внепроектный вопрос возвращает `status=refused` и не вызывает retrieval.
 - Для каждого baseline-запроса есть primary sources.
 - В JSON выдаче есть diagnostics по intent/rerank.
 - В top/context нет критического шума, который может увести LLM в неверный ответ.
