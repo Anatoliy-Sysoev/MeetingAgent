@@ -1,84 +1,82 @@
 # Список Задач
 
-Обновлено: 2026-05-14.
+Обновлено: 2026-05-15.
 
 ## Сейчас
 
-### Приоритет 1. Asu June Bot Search Quality v2.2
+### Приоритет 1. Asu June Bot API Search MVP
 
-Asu June Bot v2.1 технически собран до уровня локального search MVP:
+Asu June Bot v2.1/v2.2 технически готов к переходу на API Search MVP.
+
+Готово:
 
 ```text
 corpus/chunks/index/health/search готовы
+Search Quality v2.2 готов
+ProjectGuard v2 готов
 chunks_v2 = 31302
 indexed_chunks = 31285
 embedding_model = bge-m3
 vector_ready = true
 bm25_ready = true
+ProjectGuard v2 regression = 44/44
+false_allow = 0
 ```
-
-Но к Chat MVP переходить рано: raw hybrid top-k всё ещё содержит vector-only noise для обзорных вопросов.
 
 Следующий практический шаг:
 
 ```text
-query_intent -> post_rerank -> context_builder -> diagnostics -> smoke_report
+src/asu_june_bot/api/app.py
+src/asu_june_bot/api/routes_health.py
+src/asu_june_bot/api/routes_search.py
 ```
 
 Сделать:
 
-- [ ] `src/asu_june_bot/retrieval/query_intent.py`.
-- [ ] `src/asu_june_bot/retrieval/post_rerank.py`.
-- [ ] `src/asu_june_bot/retrieval/context_builder.py`.
-- [ ] Добавить в `search_v2 --json`: `query_intent`, `rerank_labels`, `primary_sources`, `supporting_sources`.
-- [ ] Повторить smoke по вопросам:
-  - `Что входит в Паспорт ИС?`
-  - `Какие интеграции заявлены в проекте?`
-  - `ФТТ 4.2.5 НОВАДОК ЭЦП`
-  - очевидный внепроектный вопрос.
-- [ ] Обновить `docs/subprojects/asu-june-bot/search_smoke_report_2026-05-14.md` или создать новый smoke-отчет v2.2.
+- [ ] Вынести общую orchestration-логику из `scripts/asu_june_bot_search_v2.py` в reusable module, если потребуется.
+- [ ] Реализовать `GET /health`.
+- [ ] Реализовать `POST /search`.
+- [ ] Обеспечить тот же JSON-смысл, что у `search_v2 --json`.
+- [ ] Проверить, что `refused` и `clarify` не вызывают retrieval.
+- [ ] Добавить API smoke-команды PowerShell/curl.
+- [ ] Обновить `RUNBOOK_V2.md` после реализации API.
+- [ ] Создать API smoke report в `docs/subprojects/asu-june-bot/`.
 
-Критерий перехода к API Search:
+Критерий перехода к Chat MVP:
 
-- `Паспорт ИС overview` не забит таблицей ПО и поддержкой;
+- `GET /health` показывает corpus/index/guard status;
+- `POST /search` возвращает `ok/refused/clarify/error`;
+- `Паспорт ИС overview` возвращает primary overview source;
+- `ФТТ 4.2.5` возвращает точную строку ФТТ в primary;
 - `Интеграции` возвращают ЦТА/Паспорт/ФТТ/СоИ как primary/supporting sources;
-- `ФТТ 4.2.5` возвращает ФТТ с НОВАДОК/ЭЦП как primary source;
-- JSON содержит diagnostics;
-- в LLM-контекст не попадает критический vector-only noise.
+- внепроектные/mixed/ambiguous запросы не запускают retrieval;
+- формат API пригоден для будущего `/chat`.
 
-### Приоритет 2. API Search
+### Приоритет 2. Search / Retrieval hardening
 
-После Search Quality v2.2:
+После API `/search`:
 
-```text
-src/asu_june_bot/api/app.py
-src/asu_june_bot/api/routes_search.py
-```
-
-Endpoints:
-
-```text
-GET /health
-POST /search
-```
-
-Не начинать `/chat`, пока `/search` не возвращает `primary_sources` и `supporting_sources`.
+- [ ] Улучшить metadata extraction/chunking для `requirement_id`, `mentioned_requirement_ids`, `contract_section`, `document_version`.
+- [ ] Добавить search eval cases для exact section lookup, document overview, integration overview, cross-document traceability.
+- [ ] Добавить runner для search eval после появления API.
+- [ ] Добавить source links через `data/asu_june_bot/source_links.json`.
+- [ ] Рассмотреть дедупликацию семейств интеграций.
 
 ### Приоритет 3. Chat MVP
 
 После стабильного API Search:
 
-- [ ] `ProjectGuard`.
 - [ ] `PromptBuilder`.
 - [ ] `LLMClient` через OpenAI-compatible API.
+- [ ] `AnswerGenerator`.
 - [ ] `AnswerValidator`.
 - [ ] `ResponseFormatter`.
 - [ ] CLI `scripts/asu_june_bot_chat.py`.
-- [ ] Затем локальный API `/chat`.
+- [ ] API `POST /chat`.
 
-Правило: не отправлять raw hybrid top-k напрямую в LLM.
+Правило: не отправлять raw hybrid top-k напрямую в LLM. Использовать только `ContextBuilder` context.
 
-## Статус Asu June Bot v2.1
+## Статус Asu June Bot v2.1/v2.2
 
 Готово:
 
@@ -89,7 +87,12 @@ POST /search
 - `embeddings_cache_v2` собран: `cached_after=31285`, `missing_after=0`;
 - `numpy_index_v2` собран: `index_built=true`, `index_count=31285`, `embedding_dim=1024`;
 - `health_v2`: `status=ok`, `vector_ready=true`, `bm25_ready=true`, `ollama_available=true`, `embedding_model_installed=true`;
-- smoke-отчет сохранен: `docs/subprojects/asu-june-bot/search_smoke_report_2026-05-14.md`.
+- `QueryIntent` реализован;
+- `PostReranker` реализован;
+- `ContextBuilder` реализован;
+- `ProjectGuard v2` реализован;
+- guard regression suite: `44/44`, `false_allow=0`;
+- smoke-отчёт сохранён: `docs/subprojects/asu-june-bot/smoke_report_project_guard_v2.md`.
 
 ## Статус старого RAG / Meeting pipeline
 
@@ -104,14 +107,8 @@ POST /search
 
 ## Далее
 
-- После Search Quality v2.2 реализовать API `/search`.
 - После API `/search` реализовать Chat MVP.
-- Добавить markdown smoke-отчеты после каждого важного среза retrieval.
-- Улучшить metadata extraction/chunking для:
-  - `requirement_id`;
-  - `mentioned_requirement_ids`;
-  - `contract_section`;
-  - `document_version`.
+- Добавить markdown smoke-отчеты после каждого важного среза retrieval/API/chat.
 - Добавить инкрементальный `update_rag.ps1` для новых, измененных и удаленных документов.
 - В `update_rag.ps1` обязательно обработать deletion: удаленные и попавшие под `exclude_path_patterns` документы должны исчезать из актуального индекса.
 - Добавить watcher/скрипт загрузки встреч из `watched_folder/` поверх уже готового `06_transcribe_meeting.py`.
@@ -128,19 +125,16 @@ POST /search
 
 - Использовать `docs/product/PRODUCT_VISION_AND_PLAN.md` как основную карту продукта.
 - Использовать `docs/product/PROJECT_STAGES_AND_FTT.md` как рабочий чек-лист: этап -> ФТТ -> артефакт -> критерий готовности.
-- Использовать `docs/product/PROJECT_ONLY_CHATBOT_MVP.md` как дорожную карту project-only чат-бота.
-- Использовать `docs/subprojects/asu-june-bot/architecture.md`, `mvp.md`, `roadmap.md`, `todo.md`, `RUNBOOK_V2.md` и `search_smoke_report_2026-05-14.md` как основной план реализации AI-агента.
+- Использовать `docs/subprojects/asu-june-bot/architecture.md`, `mvp.md`, `roadmap.md`, `todo.md`, `RUNBOOK_V2.md` и `smoke_report_project_guard_v2.md` как основной план реализации AI-агента.
 - Позже добавить политику обновления схемы в код: при появлении `schema_version = 2` нужен явный скрипт миграции.
-- Для UI сначала рассмотреть OpenWebUI как оболочку над локальным API, но не подключать его до появления project-only guardrail.
+- Для UI сначала рассмотреть OpenWebUI как оболочку над локальным API, но не подключать его до появления стабильного project-only API.
 
 ## Известные Риски
 
-- Raw hybrid top-k может содержать vector-only noise.
-- Обзорные вопросы требуют document-overview retrieval, а не обычный top-k.
 - Metadata `section/requirement_id` пока шумит на табличных chunks.
+- API `/search` может продублировать CLI-логику, если не вынести orchestration аккуратно.
 - ChromaDB локально нестабилен на загрузке HNSW-индекса, поэтому не должен быть критической зависимостью для поиска.
 - Сгенерированные документы требуют строгого ревью источников.
-- Project-only отказ по одному `score_threshold` может быть слишком мягким или слишком жестким; порог нужно подобрать на smoke-наборе.
 - `qwen3:8b` на CPU может быть слишком медленным для интерактивного чата при большом prompt.
 - `qwen3:4b` может вернуть пустой `response` без HTTP-ошибки; такой случай должен считаться отказом `llm_empty_response`, а не успешным ответом.
 
