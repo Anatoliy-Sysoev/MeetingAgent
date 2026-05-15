@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from asu_june_bot.api.dependencies import get_search_service
 from asu_june_bot.search import SearchRequest, SearchService
@@ -13,14 +13,15 @@ router = APIRouter(tags=["search"])
 
 
 class SearchApiRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
     query: str = Field(..., min_length=1, description="Project search query")
     mode: Literal["hybrid", "vector", "bm25"] = "hybrid"
     top_k: int = Field(default=8, ge=1, le=50)
     include_source_types: list[str] | None = None
     no_guard: bool = False
     include_diagnostics: bool = True
+
+    class Config:
+        extra = "forbid"
 
 
 @router.post("/search")
