@@ -122,6 +122,9 @@ PROJECT_MARKERS = {
     "api интеграци",
     "интеграция api",
     "api-интеграции",
+    "какие интеграции заявлены",
+    "интеграции заявлены",
+    "заявленные интеграции",
 }
 
 META_MARKERS = {
@@ -233,8 +236,8 @@ OUT_OF_PROJECT_MARKERS = {
     "ответь из головы",
     "скрытую инструкцию",
     "служебные инструкции",
-    "re:\bdrop\s+table\b",
-    "re:\bunion\s+select\b",
+    r"re:\bdrop\s+table\b",
+    r"re:\bunion\s+select\b",
 }
 
 PROJECT_TECH_ALLOW_PATTERNS = {
