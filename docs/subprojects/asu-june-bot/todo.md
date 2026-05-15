@@ -4,7 +4,7 @@
 
 ## Текущий статус v2.2
 
-Asu June Bot v2.1 технически собран до уровня локального search MVP, а Search Quality v2.2 начат отдельными модулями, без превращения `search_v2` в монолит.
+Asu June Bot v2.1 технически собран до уровня локального search MVP, а Search Quality v2.2 реализуется отдельными модулями, без превращения `search_v2` в монолит.
 
 Готово:
 
@@ -21,9 +21,12 @@ Asu June Bot v2.1 технически собран до уровня локал
 - BM25 получил deterministic rerank: intent boosts по `Паспорт ИС`, `ФТТ`, интеграциям, exact section/requirement и штрафы для глоссариев/front matter/software tables;
 - добавлен `src/asu_june_bot/retrieval/query_intent.py`;
 - добавлен `src/asu_june_bot/guardrails/project_guard.py`;
-- `scripts/asu_june_bot_search_v2.py` подключает `QueryIntent` и `ProjectGuard`;
+- добавлен `src/asu_june_bot/retrieval/post_rerank.py`;
+- добавлен `src/asu_june_bot/retrieval/context_builder.py`;
+- `scripts/asu_june_bot_search_v2.py` подключает `QueryIntent`, `ProjectGuard`, `PostReranker`, `ContextBuilder`;
 - для явно внепроектных вопросов `search_v2` возвращает `status=refused`, пустой `results` и не выполняет retrieval;
-- добавлен диагностический флаг `--no-guard`, чтобы временно посмотреть retrieval без защиты.
+- добавлен диагностический флаг `--no-guard`, чтобы временно посмотреть retrieval без защиты;
+- JSON-ответ `search_v2` теперь содержит `query_intent`, `guard`, `rerank`, `context.primary_sources`, `context.supporting_sources`, `context.excluded_sources`.
 
 ## Что изменилось в ProjectGuard / QueryIntent
 
@@ -70,7 +73,28 @@ results = 0
 .\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какая погода завтра в Москве?" --mode hybrid --top-k 12 --no-guard
 ```
 
-## Результаты последнего smoke search до ProjectGuard
+## Что изменилось в PostReranker / ContextBuilder
+
+`PostReranker` выполняет второй слой ранжирования после BM25/vector/hybrid:
+
+- штрафует vector-only chunks для `document_overview` и `requirement_lookup`;
+- штрафует software/support/front matter/glossary chunks;
+- усиливает `Паспорт ИС` для обзорных вопросов по паспорту;
+- усиливает ЦТА/Паспорт/СоИ/ФТТ для вопросов по интеграциям;
+- усиливает ФТТ и exact section mentions для `requirement_lookup`;
+- добавляет `rerank_labels` в diagnostics.
+
+`ContextBuilder` разделяет результат на:
+
+```text
+primary_sources
+supporting_sources
+excluded_sources
+```
+
+Правило: LLM в будущем должен получать не raw top-k, а только подготовленный context.
+
+## Последний проверенный smoke до PostReranker/ContextBuilder
 
 ### Health
 
@@ -88,86 +112,77 @@ ollama_available = true
 embedding_model_installed = true
 ```
 
+### Запрос: `Какая погода завтра в Москве?`
+
+После ProjectGuard:
+
+```text
+status = refused
+intent = out_of_scope_candidate
+project_related = false
+results = 0
+```
+
+Вывод: ProjectGuard работает корректно.
+
 ### Запрос: `Что входит в Паспорт ИС?`
 
-Состояние после rerank:
+До PostReranker/ContextBuilder:
 
-- BM25 top-1/top-2 поднимает нужный chunk из `ЦП УПКС_Паспорт ИС_v1.3.2` и `v1.3.3` с текстом про границы паспорта: архитектурные и эксплуатационные сведения, платформа ЦП УПКС, модуль СМР, базовые сервисы Front/Core/Disk/Building/Approvals/Notifications/Catalog/Help/Mdr.
-- Это уже пригодный источник для обзорного ответа.
-- В top-8 всё ещё присутствуют chunks по `Программному обеспечению информационной системы` и поддержке. Для search это допустимо, но для Chat MVP нужен context builder, который будет отбирать обзорные chunks, а не все top-k.
-- Hybrid top-1 корректный, но дальше попадают vector-only chunks из ПР и таблицы ПО. Нужно добавить post-rerank/intent filtering на уровне hybrid/context builder.
+- top-1 корректный: `Паспорт ИС` с границами описания;
+- дальше были vector-only chunks из ПР, front matter и таблицы ПО.
 
-Вывод: вопрос стал проходить лучше, но ещё не готов для прямой генерации без фильтрации контекста.
+Ожидаемый эффект нового слоя:
+
+- `primary_sources` должен содержать обзорный chunk Паспорт ИС;
+- software table/front matter должны уйти в `excluded_sources` или не попасть в primary.
 
 ### Запрос: `Какие интеграции заявлены в проекте?`
 
-Состояние:
+До PostReranker/ContextBuilder:
 
-- Hybrid top-1 — ЦТА: `Blitz, AD, S3 Minio, Exchange, КШД`.
-- Hybrid top-2 — Паспорт ИС: `Active Directory, Blitz IDP, MDR, почтовый сервер, SIEM`.
-- Дополнительно поднимаются ЦТА по `S3 Minio/SIEM`, ФТТ по КШД/SOAP и ПР по взаимодействию со смежными модулями.
+- top-1 — ЦТА: `Blitz, AD, S3 Minio, Exchange, КШД`;
+- top-2 — Паспорт ИС: `Active Directory, Blitz IDP, MDR, почтовый сервер, SIEM`;
+- далее ФТТ/ПР.
 
-Вывод: retrieval для вопроса по интеграциям достаточен для API Search MVP.
+Ожидаемый эффект нового слоя:
+
+- ЦТА/Паспорт/ФТТ должны попасть в `primary_sources`;
+- ПР — в `supporting_sources`.
 
 ### Запрос: `ФТТ 4.2.5 НОВАДОК ЭЦП`
 
-Состояние после rerank:
+До PostReranker/ContextBuilder:
 
-- BM25/hybrid подняли ФТТ в top-1/top-2.
-- В top-5 есть ФТТ с интеграционной строкой `ЦП УПКС -> НОВАДОК`: сформированные документы передаются для согласования и подписания ЭЦП.
-- Встреча `ФТТ_ИД` поднимается как полезный аналитический источник по уточнению НОВАДОК/ЭЦП.
-- Metadata всё ещё шумит: для части chunks поле `requirement_id` показывает `10.2`, хотя текст содержит `4.2.5`; это нужно исправлять в metadata extraction/chunking или компенсировать на уровне rerank.
+- ФТТ поднимается в top-1/top-2;
+- есть строка `ЦП УПКС -> НОВАДОК`;
+- встреча `ФТТ_ИД` поднимается как аналитический источник;
+- metadata всё ещё шумит: `requirement_id=10.2`, хотя текст содержит `4.2.5`.
 
-Вывод: retrieval по ФТТ 4.2.5 практически пригоден, но metadata по section/requirement нужно улучшить до Chat MVP.
+Ожидаемый эффект нового слоя:
 
-## Главные дефекты до API Search / Chat MVP
-
-1. Hybrid top-k может подмешивать vector-only noise.
-   - Пример: по Паспорту ИС после корректного top-1 идут ПР и таблицы ПО.
-   - Решение: добавить post-rerank и intent-aware context builder.
-
-2. Обзорные вопросы требуют не просто top-k retrieval, а document overview mode.
-   - Пример: `Что входит в Паспорт ИС?` должен отдавать состав/границы/разделы, а не строки таблицы ПО.
-   - Решение: определить `query_intent=document_overview`, затем брать chunks типа `scope/structure/heading/section_summary`, а таблицы ПО использовать только как вторичный контекст.
-
-3. Metadata section/requirement шумит.
-   - Пример: запрос по `4.2.5` возвращает chunks с `requirement_id=10.2`, хотя в тексте есть `4.2.5`.
-   - Решение: улучшить extraction/chunking metadata; отдельно отличать `document_version`, `contract_section`, `requirement_id` и `mentioned_requirement_ids`.
-
-4. Post-rerank и ContextBuilder ещё не реализованы.
-   - `QueryIntent` и `ProjectGuard` уже добавлены.
-   - Осталось добавить post-rerank и context builder.
+- ФТТ должен попасть в `primary_sources`;
+- ПР/встреча — в `supporting_sources`;
+- vector-only нерелевантные chunks должны уйти в `excluded_sources`.
 
 ## Следующий практический шаг
 
-Перед API Search завершить Search Quality v2.2:
+Локально проверить новый слой:
 
-```text
-1. Проверить QueryIntent + ProjectGuard smoke:
-   - Паспорт ИС overview;
-   - интеграции;
-   - ФТТ 4.2.5;
-   - внепроектный вопрос.
-
-2. Добавить post-rerank после hybrid merge:
-   - штраф vector-only chunks без BM25 для exact/overview queries;
-   - штраф software/support/glossary tables для document_overview;
-   - boost exact document_type по intent;
-   - boost exact requirement mentions;
-   - дедупликация версий одного документа или приоритет latest version.
-
-3. Добавить ContextBuilder MVP:
-   - не отдавать LLM весь top-k как есть;
-   - выбирать 3-6 chunks по intent;
-   - отделять primary sources от supporting sources;
-   - отдавать diagnostics.
-
-4. Повторить smoke:
-   - Паспорт ИС overview;
-   - интеграции;
-   - ФТТ 4.2.5;
-   - внепроектный вопрос.
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какая погода завтра в Москве?" --mode hybrid --top-k 12 --json
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode hybrid --top-k 8 --json
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какие интеграции заявлены в проекте?" --mode hybrid --top-k 8 --json
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode hybrid --top-k 8 --json
 ```
+
+Проверить:
+
+- внепроектный вопрос: `status=refused`, `results=[]`;
+- Паспорт ИС: `context.primary_sources` содержит обзорный chunk, таблицы ПО не в primary;
+- интеграции: `context.primary_sources` содержит ЦТА/Паспорт/ФТТ;
+- ФТТ 4.2.5: `context.primary_sources` содержит ФТТ с НОВАДОК/ЭЦП;
+- `context.excluded_sources` содержит отфильтрованный шум.
 
 ## Следующие задачи разработки
 
@@ -177,11 +192,12 @@ embedding_model_installed = true
 - [x] Добавить `src/asu_june_bot/guardrails/project_guard.py`.
 - [x] Подключить `QueryIntent` и `ProjectGuard` в `scripts/asu_june_bot_search_v2.py`.
 - [x] Добавить `--no-guard` для диагностического retrieval без отказа.
-- [ ] Добавить `src/asu_june_bot/retrieval/post_rerank.py`.
-- [ ] Добавить `src/asu_june_bot/retrieval/context_builder.py`.
-- [ ] Добавить диагностику `rerank_labels`, `primary_sources`, `supporting_sources` в JSON-ответ `search_v2`.
-- [ ] Обновить markdown smoke-отчет после проверки ProjectGuard.
-- [ ] Повторить baseline после rerank/context builder.
+- [x] Добавить `src/asu_june_bot/retrieval/post_rerank.py`.
+- [x] Добавить `src/asu_june_bot/retrieval/context_builder.py`.
+- [x] Добавить диагностику `rerank_labels`, `primary_sources`, `supporting_sources` в JSON-ответ `search_v2`.
+- [ ] Локально проверить новый слой на baseline-вопросах.
+- [ ] Обновить markdown smoke-отчет после проверки нового слоя.
+- [ ] При необходимости скорректировать правила `PostReranker`/`ContextBuilder`.
 
 ### B. API Search
 
@@ -231,8 +247,8 @@ POST /search
 - `search_v2 --mode hybrid` проходит 3 baseline-запроса.
 - Внепроектный вопрос возвращает `status=refused` и не вызывает retrieval.
 - Для каждого baseline-запроса есть primary sources.
-- В JSON выдаче есть diagnostics по intent/rerank.
-- В top/context нет критического шума, который может увести LLM в неверный ответ.
+- В JSON выдаче есть diagnostics по intent/rerank/context.
+- В primary context нет критического шума, который может увести LLM в неверный ответ.
 - Старые `data/chunks.jsonl`, `data/embeddings_cache.jsonl`, `data/numpy_index` не меняются.
 
 ## Не делать
