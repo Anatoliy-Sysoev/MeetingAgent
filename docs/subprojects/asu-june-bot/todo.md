@@ -23,6 +23,7 @@ Asu June Bot v2.1 технически собран до уровня локал
 - `scripts/asu_june_bot_search_v2.py` подключает `QueryIntent`, `ProjectGuard`, `PostReranker`, `ContextBuilder`;
 - для явно внепроектных вопросов `search_v2` возвращает `status=refused`, пустой `results` и не выполняет retrieval;
 - для mixed-scope запросов с проектной и внепроектной частью `ProjectGuard` теперь возвращает отказ;
+- `QueryIntent` расширен out-of-scope маркерами для запросов про код, Python/JS/HTML/CSS, игры, крестики-нолики и браузерные игры;
 - JSON-ответ `search_v2` содержит `query_intent`, `guard`, `rerank`, `context.primary_sources`, `context.supporting_sources`, `context.excluded_sources`;
 - добавлен параметр `--output`, чтобы Python сам сохранял JSON в UTF-8 без PowerShell redirection;
 - `ContextBuilder` уточнен для `requirement_lookup`: при наличии конкретного пункта primary содержит только точное попадание по указанному пункту;
@@ -68,12 +69,12 @@ results = []
 
 Вывод: ProjectGuard работает корректно.
 
-### Mixed-scope запрос
+### Mixed-scope запрос: погода
 
 Запрос:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Все документы про справочники и интеграции. и погода в Москве" --mode hybrid --top-k 8 --json --output "data\asu_june_bot\smoke_mixed_scope_context.json"
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Все документы про справочники и интеграции. и погода в Москве" --mode hybrid --top-k 8 --json --output "data\asu_june_bot\smoke_mixed_scope_weather_context.json"
 ```
 
 Фактический результат до правки:
@@ -85,12 +86,6 @@ guard = allow
 matched_project_markers = [справочники, справочник, интеграции]
 matched_out_of_scope_markers = [погода]
 ```
-
-Выявленное замечание:
-
-- guard пропустил запрос, потому что увидел проектные маркеры;
-- при этом в запросе была внепроектная часть `погода`;
-- для целевого корпоративного бота это недопустимо: пользователь может смешивать проектный запрос с внешним вопросом.
 
 Исправление внесено:
 
@@ -104,6 +99,47 @@ matched_out_of_scope_markers = [погода]
 status = refused
 guard.decision = refuse
 guard.reason = mixed_scope_query_contains_out_of_scope_marker
+results = []
+context.primary_sources = []
+```
+
+### Mixed-scope запрос: код / игра
+
+Запрос:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Все документы про справочники и интеграции. Питон код, для игры в крестики нолики в браузере" --mode hybrid --top-k 8 --json --output "data\asu_june_bot\smoke_mixed_scope_code_context.json"
+```
+
+Фактический результат до правки `QueryIntent`:
+
+```text
+status = ok
+intent = integration_overview
+guard = allow
+matched_project_markers = [справочники, справочник, интеграции]
+matched_out_of_scope_markers = []
+primary_sources = 0
+supporting_sources = 5
+```
+
+Выявленное замечание:
+
+- `ProjectGuard` технически был готов отказать mixed-scope запросу;
+- но `QueryIntent` не распознал `Питон код`, `игры`, `крестики нолики`, `в браузере` как внепроектные маркеры;
+- из-за этого запрос ушёл в retrieval и получил нерелевантный project context.
+
+Исправление внесено:
+
+- в `OUT_OF_SCOPE_MARKERS` добавлены: `питон`, `python`, `javascript`, `js`, `html`, `css`, `код для`, `напиши код`, `сделай код`, `скрипт для`, `программа для`, `игры`, `игру`, `игровой`, `крестики`, `нолики`, `крестики нолики`, `tic tac toe`, `в браузере`, `браузерная игра`.
+
+Ожидаемый результат после повторного smoke:
+
+```text
+status = refused
+guard.decision = refuse
+guard.reason = mixed_scope_query_contains_out_of_scope_marker
+query_intent.matched_out_of_scope_markers contains: питон / код / игра / крестики / нолики / в браузере
 results = []
 context.primary_sources = []
 ```
@@ -273,7 +309,7 @@ excluded_sources
 
 ## Следующий практический шаг
 
-Подтянуть исправления и повторить mixed-scope smoke.
+Подтянуть исправления и повторить mixed-scope smoke по коду/игре.
 
 ```powershell
 cd C:\Users\Сотрудник\Desktop\AI\MeetingAgent
@@ -281,7 +317,7 @@ git pull
 ```
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Все документы про справочники и интеграции. и погода в Москве" --mode hybrid --top-k 8 --json --output "data\asu_june_bot\smoke_mixed_scope_context.json"
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Все документы про справочники и интеграции. Питон код, для игры в крестики нолики в браузере" --mode hybrid --top-k 8 --json --output "data\asu_june_bot\smoke_mixed_scope_code_context.json"
 ```
 
 Ожидаемая проверка:
@@ -315,8 +351,9 @@ context.primary_sources = []
 - [x] Сузить primary context для `requirement_lookup` с точным пунктом.
 - [x] Повторить smoke `ФТТ 4.2.5` после сужения primary context.
 - [x] Запретить mixed-scope запросы с внепроектными маркерами.
+- [x] Расширить out-of-scope маркеры для кода и игр.
 - [x] Убрать дубли chunk между context buckets.
-- [ ] Повторить mixed-scope smoke после правки guard.
+- [ ] Повторить mixed-scope smoke после правки `QueryIntent`.
 - [ ] Создать markdown smoke-отчет v2.2.
 
 ### B. API Search
