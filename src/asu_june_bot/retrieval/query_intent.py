@@ -163,6 +163,26 @@ OUT_OF_SCOPE_MARKERS = {
     "программа для",
     "в браузере",
     "браузерная игра",
+    # offensive / security abuse markers. Defensive questions must be phrased as protection/audit tasks.
+    "sql инъекц",
+    "sql-инъекц",
+    "sqli",
+    "sql injection",
+    "инъекцию",
+    "инъекция",
+    "инъекции",
+    "дай инъекцию",
+    "payload",
+    "exploit",
+    "эксплойт",
+    "взлом",
+    "взломать",
+    "обойти защиту",
+    "обход защиты",
+    "jailbreak",
+    "ignore previous instructions",
+    "игнорируй предыдущие инструкции",
+    "system prompt",
 }
 
 SAFE_GENERIC_PROJECT_WORDS = {
