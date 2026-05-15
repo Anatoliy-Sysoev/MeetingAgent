@@ -23,9 +23,28 @@ Asu June Bot v2.1 технически собран до уровня локал
 - `scripts/asu_june_bot_search_v2.py` подключает `QueryIntent`, `ProjectGuard`, `PostReranker`, `ContextBuilder`;
 - для явно внепроектных вопросов `search_v2` возвращает `status=refused`, пустой `results` и не выполняет retrieval;
 - JSON-ответ `search_v2` содержит `query_intent`, `guard`, `rerank`, `context.primary_sources`, `context.supporting_sources`, `context.excluded_sources`;
-- добавлен параметр `--output`, чтобы Python сам сохранял JSON в UTF-8 без PowerShell redirection.
+- добавлен параметр `--output`, чтобы Python сам сохранял JSON в UTF-8 без PowerShell redirection;
+- `ContextBuilder` уточнен для `requirement_lookup`: при наличии конкретного пункта primary содержит только точное попадание по указанному пункту.
 
 ## Проверенный smoke 2026-05-15
+
+### Кодировка JSON
+
+Проверены smoke-файлы, сохранённые через `--output`:
+
+```text
+smoke_passport_context.json
+smoke_ftt_425_context.json
+```
+
+Результат:
+
+```text
+mojibake markers = 0
+русский текст читается корректно
+```
+
+Вывод: проблема PowerShell redirection закрыта. Для smoke JSON использовать только `--output`.
 
 ### Внепроектный вопрос
 
@@ -51,17 +70,19 @@ results = []
 Запрос:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode hybrid --top-k 8 --json
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode hybrid --top-k 8 --json --output data\asu_june_bot\smoke_passport_context.json
 ```
 
-Итог после корректировки support filtering:
+Итог:
 
 ```text
 status = ok
 intent = document_overview
+guard = allow
 primary_sources = 1
 supporting_sources = 0
 excluded_sources = 15
+mojibake markers = 0
 ```
 
 Вывод:
@@ -71,49 +92,52 @@ excluded_sources = 15
 - таблицы ПО и support/qualification/application support chunks ушли в `excluded_sources`;
 - результат пригоден для передачи в LLM-контекст.
 
-Замечание:
-
-- приложенный smoke-файл был сохранён с mojibake из-за PowerShell redirection/кодовой страницы;
-- retrieval при этом отработал корректно;
-- для следующих проверок использовать `--output`, а не `>`.
-
 ### ФТТ 4.2.5 НОВАДОК ЭЦП
 
 Запрос:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode hybrid --top-k 8 --json
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode hybrid --top-k 8 --json --output data\asu_june_bot\smoke_ftt_425_context.json
 ```
 
-Итог:
+Фактический результат до последней правки `ContextBuilder`:
 
 ```text
 status = ok
 intent = requirement_lookup
+guard = allow
 mentioned_sections = [4.2.5]
 primary_sources = 5
 supporting_sources = 3
 excluded_sources = 8
+mojibake markers = 0
 ```
 
-Ключевой primary source:
+Ключевой источник найден правильно:
 
 - ФТТ, Таблица 8, строка 44, № `4.2.5`;
 - текст требования: формирование актов проверки, предписаний об устранении недостатков/о приостановке работ, актов устранения недостатков; интеграция с НОВАДОК с использованием ЭЦП;
 - признак объёма: `Входит в объём проекта = Х`;
-- примечание: в части конфигурационных файлов и самой интеграции с НОВАДОК.
+- примечание: в части конфигурационных файлов и самой интеграции с системой НОВАДОК.
 
-Дополнительные источники:
+Выявленное замечание:
 
-- ПР СМР, печатные формы, соответствие ФТТ 4.2.5;
-- ПМИ, покрытие требования 4.2.5 сценарием `СФТ 6`;
-- ФТТ, Таблица 11, интеграция `ЦП УПКС -> НОВАДОК`;
-- встреча ФТТ_ИД как аналитический/контекстный источник по вопросу квалифицированной ЭЦП в НОВАДОК.
+- `primary_sources` был слишком широким;
+- в primary попадали ФТТ 5.1, ФТТ интеграции и встреча ФТТ_ИД;
+- для Chat MVP это риск: LLM может смешивать точное требование 4.2.5 со смежным требованием 5.1.
 
-Замечание для следующего шага:
+Исправление внесено:
 
-- `primary_sources` для requirement lookup сейчас широковат: туда попадают не только точный ФТТ 4.2.5, но и ФТТ 5.1 / встреча ФТТ_ИД / таблица интеграций;
-- для API Search MVP это не блокер, но для Chat MVP лучше сузить `primary_sources`: exact requirement в primary, остальные — supporting.
+- `ContextBuilder` теперь при `requirement_lookup` и наличии `mentioned_sections` кладёт в `primary_sources` только точное совпадение по указанному пункту;
+- ФТТ/ПР/ПМИ/встречи без точного совпадения должны уходить в `supporting_sources` или `excluded_sources`.
+
+Ожидаемый результат после повторного smoke:
+
+```text
+primary_sources = 1
+primary_sources[0] = ФТТ / Таблица 8 / строка 44 / № 4.2.5
+supporting_sources = ПР, ПМИ, ФТТ интеграция, встреча ФТТ_ИД при наличии места
+```
 
 ### Интеграции
 
@@ -205,26 +229,32 @@ supporting_sources
 excluded_sources
 ```
 
-Правило: LLM в будущем должен получать не raw top-k, а только подготовленный context.
+Правила:
+
+- LLM должен получать не raw top-k, а только подготовленный context;
+- для `document_overview` primary должен содержать обзорный chunk, а не таблицы ПО/поддержки;
+- для `requirement_lookup` с конкретным пунктом primary должен содержать точное попадание по этому пункту.
 
 ## Следующий практический шаг
 
-Подтянуть исправление и повторить smoke уже через `--output`.
+Подтянуть исправление и повторить только smoke по ФТТ 4.2.5.
 
 ```powershell
 cd C:\Users\Сотрудник\Desktop\AI\MeetingAgent
 git pull
 ```
 
-Проверить два запроса:
-
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode hybrid --top-k 8 --json --output data\asu_june_bot\smoke_passport_context.json
-
 .\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode hybrid --top-k 8 --json --output data\asu_june_bot\smoke_ftt_425_context.json
 ```
 
-Проверить, что в файлах нет `╨Я`, `╨д`, `╤В` и подобных mojibake-последовательностей.
+Ожидаемая проверка:
+
+```text
+context.diagnostics.primary_count = 1
+context.primary_sources[0].metadata.cells["№"] = 4.2.5.
+context.primary_sources[0].document_type = ФТТ
+```
 
 ## Следующие задачи разработки
 
@@ -240,9 +270,10 @@ git pull
 - [x] Локально проверить ProjectGuard и baseline-вопросы.
 - [x] Скорректировать support filtering для `document_overview`.
 - [x] Проверить `Паспорт ИС overview` после support filtering.
-- [x] Проверить `ФТТ 4.2.5` после context builder.
 - [x] Добавить `--output` для UTF-8 JSON без PowerShell redirection.
-- [ ] Повторить smoke через `--output` и убедиться, что JSON читаемый.
+- [x] Повторить smoke через `--output` и убедиться, что JSON читаемый.
+- [x] Сузить primary context для `requirement_lookup` с точным пунктом.
+- [ ] Повторить smoke `ФТТ 4.2.5` после сужения primary context.
 - [ ] Создать markdown smoke-отчет v2.2.
 
 ### B. API Search
@@ -261,7 +292,7 @@ GET /health
 POST /search
 ```
 
-К API Search переходить можно после читаемого smoke через `--output`.
+К API Search переходить после контрольного smoke `ФТТ 4.2.5` с `primary_count = 1`.
 
 ### C. Chat MVP
 
@@ -288,6 +319,7 @@ POST /search
 - Для каждого baseline-запроса есть primary sources.
 - В JSON выдаче есть diagnostics по intent/rerank/context.
 - В primary/supporting context нет критического шума, который может увести LLM в неверный ответ.
+- Для точного requirement lookup primary содержит точный пункт, а не смежные требования.
 - JSON smoke-файлы сохраняются в UTF-8 без mojibake.
 - Старые `data/chunks.jsonl`, `data/embeddings_cache.jsonl`, `data/numpy_index` не меняются.
 
