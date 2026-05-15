@@ -80,6 +80,12 @@ Query
 
 При `refused` или `clarify` retrieval не вызывается.
 
+## Product Package
+
+- [x] Подготовить отдельную папку `docs/subprojects/asu-june-bot/product/` для продуктовой документации.
+- [ ] Синхронизировать product package с фактической реализацией после готовности API Search MVP.
+- [ ] После появления `/chat` обновить продуктовую архитектуру и roadmap под chat/runtime reality.
+
 ## Проверено
 
 ### ProjectGuard v2

@@ -171,6 +171,7 @@ src/asu_june_bot/guardrails/project_guard.py
 - `eval_questions.md` — набор проверочных вопросов.
 - `ideas.md` — research backlog.
 - `RUNBOOK_V2.md` — команды запуска, мониторинга и восстановления pipeline v2.
+- `product/` — отдельный комплект продуктовой документации для размещения в Git.
 - `smoke_report_project_guard_v2.md` — финальный smoke-отчёт ProjectGuard v2.
 
 ## Связь с MeetingAgent

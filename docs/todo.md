@@ -64,6 +64,10 @@ Chat MVP
 
 Chat MVP должен использовать `SearchService`, а не дублировать retrieval/guard/context.
 
+Дополнительно:
+
+- [ ] После API Search MVP синхронизировать `docs/subprojects/asu-june-bot/product/` с фактической реализацией API.
+
 ### Приоритет 2. Search / Retrieval hardening
 
 После первого Chat MVP:

@@ -425,3 +425,24 @@ Chat MVP должен использовать уже готовый `SearchServ
 - Не развивать старый `scripts/09_chat.py` как основной runtime.
 - Не индексировать `Система` в основной project-only корпус.
 - Не подключать NeMo Guardrails, LangGraph, Dify/RAGFlow как runtime MVP.
+
+## Product Documentation
+
+Для `Asu June Bot` подготовлен отдельный продуктовый пакет:
+
+```text
+docs/subprojects/asu-june-bot/product/
+```
+
+Он покрывает:
+
+- проблему и opportunity;
+- vision и product strategy;
+- personas и JTBD;
+- value proposition и goals;
+- customer discovery guide;
+- BABOK business requirements;
+- продуктовую архитектуру и взаимосвязи в графиках;
+- roadmap и release stages.
+
+Этот пакет не заменяет технические документы подпроекта, а дополняет их отдельным уровнем product documentation.
