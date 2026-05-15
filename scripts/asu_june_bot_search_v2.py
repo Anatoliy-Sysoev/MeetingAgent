@@ -16,8 +16,10 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from asu_june_bot.core.config import load_config, resolve_work_path  # noqa: E402
+from asu_june_bot.guardrails.project_guard import ProjectGuard  # noqa: E402
 from asu_june_bot.retrieval.chunks import read_jsonl  # noqa: E402
 from asu_june_bot.retrieval.hybrid import build_hybrid_retriever  # noqa: E402
+from asu_june_bot.retrieval.query_intent import classify_query_intent  # noqa: E402
 from asu_june_bot.retrieval.vector import OllamaUnavailableError  # noqa: E402
 
 
@@ -49,13 +51,22 @@ def print_human(payload: dict[str, Any]) -> None:
     print(f"Запрос: {payload['query']}")
     print(f"Корпус: {payload['corpus']}")
     print(f"Режим: {payload['mode']}")
+    print(f"Статус: {payload.get('status', 'ok')}")
+    guard = payload.get("guard") or {}
+    query_intent = payload.get("query_intent") or {}
+    if query_intent:
+        print(f"Intent: {query_intent.get('intent')} | project_related={query_intent.get('is_project_related')} | confidence={query_intent.get('confidence')}")
+    if guard:
+        print(f"Guard: {guard.get('decision')} | reason={guard.get('reason')}")
+    if payload.get("answer"):
+        print(f"Ответ: {payload['answer']}")
     if payload.get("warnings"):
         print("Предупреждения:")
         for warning in payload["warnings"]:
             print(f"- {warning}")
-    print(f"Результатов: {len(payload['results'])}")
+    print(f"Результатов: {len(payload.get('results', []))}")
     print()
-    for item in payload["results"]:
+    for item in payload.get("results", []):
         metadata = item.get("metadata") or {}
         requirement_id = item.get("requirement_id") or metadata.get("requirement_id")
         print(
@@ -73,7 +84,7 @@ def print_human(payload: dict[str, Any]) -> None:
         print("-" * 100)
 
 
-def unavailable_payload(query: str, mode: str, exc: Exception) -> dict[str, Any]:
+def unavailable_payload(query: str, mode: str, exc: Exception, query_intent: dict[str, Any] | None = None, guard: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
         "query": query,
         "corpus": "asu_june_bot_v2",
@@ -81,6 +92,8 @@ def unavailable_payload(query: str, mode: str, exc: Exception) -> dict[str, Any]
         "status": "error",
         "error_code": "ollama_unavailable",
         "error": str(exc),
+        "query_intent": query_intent,
+        "guard": guard,
         "next_steps": [
             "Запусти Ollama Desktop или команду: ollama serve",
             "Проверь доступность: ollama list",
@@ -105,11 +118,35 @@ def main() -> None:
         help="Явно разрешить source_type. Можно указать несколько раз",
     )
     parser.add_argument("--json", action="store_true", help="Вывод JSON")
+    parser.add_argument("--no-guard", action="store_true", help="Отключить ProjectGuard для диагностики retrieval")
     args = parser.parse_args()
 
     query = " ".join(args.query).strip()
     if not query:
         raise SystemExit("Пустой запрос")
+
+    query_intent_result = classify_query_intent(query)
+    guard_result = ProjectGuard().evaluate(query, query_intent_result)
+    query_intent_payload = query_intent_result.to_dict()
+    guard_payload = guard_result.to_dict()
+
+    if not args.no_guard and not guard_result.allowed:
+        payload = {
+            "query": query,
+            "corpus": "asu_june_bot_v2",
+            "mode": args.mode,
+            "status": "refused",
+            "answer": guard_result.message,
+            "query_intent": query_intent_payload,
+            "guard": guard_payload,
+            "warnings": [],
+            "results": [],
+        }
+        if args.json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            print_human(payload)
+        return
 
     cfg = load_config()
     cfg = make_v2_cfg(cfg, args.chunks_path, args.index_dir)
@@ -132,7 +169,7 @@ def main() -> None:
             mode=args.mode,
         )
     except OllamaUnavailableError as exc:
-        payload = unavailable_payload(query, args.mode, exc)
+        payload = unavailable_payload(query, args.mode, exc, query_intent_payload, guard_payload)
         if args.json:
             print(json.dumps(payload, ensure_ascii=False, indent=2))
             return
@@ -152,9 +189,12 @@ def main() -> None:
         "query": query,
         "corpus": "asu_june_bot_v2",
         "mode": args.mode,
+        "status": "ok",
         "top_k": args.top_k,
         "chunks_path": str(chunks_path),
         "index_dir": str(index_dir),
+        "query_intent": query_intent_payload,
+        "guard": guard_payload,
         "warnings": warnings,
         "results": [result.to_dict() for result in results],
     }
