@@ -14,6 +14,8 @@ if str(SRC_DIR) not in sys.path:
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
 
 from asu_june_bot.core.config import load_config, resolve_work_path  # noqa: E402
 from asu_june_bot.guardrails.project_guard import ProjectGuard  # noqa: E402
@@ -47,6 +49,19 @@ def get_warning(item: dict[str, Any]) -> str | None:
     diagnostics = item.get("diagnostics") or {}
     warning = diagnostics.get("retrieval_warning")
     return str(warning) if warning else None
+
+
+def write_json_output(payload: dict[str, Any], output_path: str | None) -> None:
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    if output_path:
+        path = Path(output_path)
+        if not path.is_absolute():
+            path = WORK_ROOT / path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text + "\n", encoding="utf-8", newline="\n")
+        print(f"JSON сохранён: {path}")
+        return
+    print(text)
 
 
 def print_human(payload: dict[str, Any]) -> None:
@@ -132,12 +147,16 @@ def main() -> None:
         help="Явно разрешить source_type. Можно указать несколько раз",
     )
     parser.add_argument("--json", action="store_true", help="Вывод JSON")
+    parser.add_argument("--output", help="Путь для безопасной записи JSON в UTF-8 без PowerShell redirection")
     parser.add_argument("--no-guard", action="store_true", help="Отключить ProjectGuard для диагностики retrieval")
     args = parser.parse_args()
 
     query = " ".join(args.query).strip()
     if not query:
         raise SystemExit("Пустой запрос")
+
+    if args.output and not args.json:
+        args.json = True
 
     query_intent_result = classify_query_intent(query)
     guard_result = ProjectGuard().evaluate(query, query_intent_result)
@@ -158,7 +177,7 @@ def main() -> None:
             "context": {"primary_sources": [], "supporting_sources": [], "excluded_sources": [], "diagnostics": {}},
         }
         if args.json:
-            print(json.dumps(payload, ensure_ascii=False, indent=2))
+            write_json_output(payload, args.output)
         else:
             print_human(payload)
         return
@@ -186,7 +205,7 @@ def main() -> None:
     except OllamaUnavailableError as exc:
         payload = unavailable_payload(query, args.mode, exc, query_intent_payload, guard_payload)
         if args.json:
-            print(json.dumps(payload, ensure_ascii=False, indent=2))
+            write_json_output(payload, args.output)
             return
         raise SystemExit(
             "Ollama недоступен, поэтому vector search не может построить embedding запроса.\n"
@@ -219,7 +238,7 @@ def main() -> None:
     }
 
     if args.json:
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        write_json_output(payload, args.output)
     else:
         print_human(payload)
 
