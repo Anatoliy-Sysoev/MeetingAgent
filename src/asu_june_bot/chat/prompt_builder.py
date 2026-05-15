@@ -8,9 +8,10 @@ from .models import ChatSource
 SYSTEM_PROMPT = """Ты — проектный ассистент системного аналитика по проекту ЦП УПКС.
 Отвечай только на основании переданного контекста.
 Не используй внешние знания и не додумывай факты.
-Если данных недостаточно, прямо напиши, что в переданных источниках данных недостаточно.
+Если данных недостаточно, прямо напиши: "В переданных источниках данных недостаточно для ответа".
 Отвечай на русском языке.
-В ответе обязательно используй ссылки на источники вида [S1], [S2].
+Каждое фактическое утверждение подкрепляй ссылкой на источник вида [S1], [S2].
+Не используй ссылки на источники, которых нет в контексте.
 """.strip()
 
 
@@ -41,9 +42,16 @@ def _metadata_value(source: dict[str, Any], *keys: str) -> str | None:
     return None
 
 
-def source_to_chat_source(source: dict[str, Any], source_ref: str) -> ChatSource:
+def _truncate_on_word_boundary(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    truncated = text[:limit].rsplit(" ", 1)[0].strip()
+    return (truncated or text[:limit]).rstrip() + "…"
+
+
+def source_to_chat_source(source: dict[str, Any], source_ref: str, bucket: str) -> ChatSource:
     text = _text_from_source(source)
-    preview = text[:500] if text else None
+    preview = _truncate_on_word_boundary(text, 500) if text else None
     score_raw = source.get("score") or source.get("hybrid_score") or source.get("rerank_score")
     try:
         score = float(score_raw) if score_raw is not None else None
@@ -53,48 +61,82 @@ def source_to_chat_source(source: dict[str, Any], source_ref: str) -> ChatSource
         source_ref=source_ref,
         source_id=_metadata_value(source, "source_id", "document_id"),
         chunk_id=_metadata_value(source, "chunk_id", "id"),
-        title=_metadata_value(source, "title", "document_title", "file_name", "filename"),
-        path=_metadata_value(source, "path", "source_path", "file_path"),
+        title=_metadata_value(source, "title", "document_title", "file_name", "filename", "document"),
+        path=_metadata_value(source, "path", "source_path", "file_path", "relative_path"),
         section=_metadata_value(source, "section", "section_title", "section_path"),
         requirement_id=_metadata_value(source, "requirement_id"),
         source_type=_metadata_value(source, "source_type"),
         score=score,
         text_preview=preview,
+        bucket=bucket,
     )
 
 
 class PromptBuilder:
-    def build_sources(self, context: dict[str, Any], max_sources: int = 6) -> tuple[list[ChatSource], str]:
-        raw_sources: list[dict[str, Any]] = []
+    def __init__(self, max_sources: int = 6, max_context_chars: int = 9000, max_chars_per_source: int = 1800) -> None:
+        self.max_sources = max_sources
+        self.max_context_chars = max_context_chars
+        self.max_chars_per_source = max_chars_per_source
+
+    def build_sources(self, context: dict[str, Any], max_sources: int | None = None) -> tuple[list[ChatSource], str, dict[str, Any]]:
+        source_limit = max_sources or self.max_sources
+        ordered: list[tuple[str, dict[str, Any]]] = []
         for bucket in ("primary_sources", "supporting_sources"):
             for item in context.get(bucket) or []:
                 if isinstance(item, dict):
-                    raw_sources.append(item)
+                    ordered.append((bucket, item))
 
         sources: list[ChatSource] = []
         blocks: list[str] = []
         seen: set[str] = set()
-        for item in raw_sources:
+        used_chars = 0
+        skipped_by_budget = 0
+        skipped_duplicate = 0
+        skipped_empty = 0
+
+        for bucket, item in ordered:
             source_key = str(item.get("chunk_id") or item.get("id") or item.get("source_id") or repr(item))
             if source_key in seen:
+                skipped_duplicate += 1
                 continue
             seen.add(source_key)
-            ref = f"S{len(sources) + 1}"
-            chat_source = source_to_chat_source(item, ref)
             text = _text_from_source(item)
             if not text:
+                skipped_empty += 1
                 continue
-            sources.append(chat_source)
+
+            ref = f"S{len(sources) + 1}"
+            chat_source = source_to_chat_source(item, ref, bucket)
+            text = _truncate_on_word_boundary(text, self.max_chars_per_source)
             meta_parts = [part for part in [chat_source.title, chat_source.section, chat_source.requirement_id] if part]
             meta_line = " | ".join(meta_parts) if meta_parts else "metadata unavailable"
-            blocks.append(f"[{ref}] {meta_line}\n{text[:2500]}")
-            if len(sources) >= max_sources:
+            bucket_label = "ОСНОВНОЙ ИСТОЧНИК" if bucket == "primary_sources" else "ДОПОЛНИТЕЛЬНЫЙ ИСТОЧНИК"
+            block = f"[{ref}] {bucket_label}\n{meta_line}\n{text}"
+
+            if used_chars + len(block) > self.max_context_chars and sources:
+                skipped_by_budget += 1
+                continue
+
+            sources.append(chat_source)
+            blocks.append(block)
+            used_chars += len(block)
+            if len(sources) >= source_limit:
                 break
 
-        return sources, "\n\n".join(blocks)
+        diagnostics = {
+            "max_sources": source_limit,
+            "max_context_chars": self.max_context_chars,
+            "max_chars_per_source": self.max_chars_per_source,
+            "used_context_chars": used_chars,
+            "selected_sources": len(sources),
+            "skipped_by_budget": skipped_by_budget,
+            "skipped_duplicate": skipped_duplicate,
+            "skipped_empty": skipped_empty,
+        }
+        return sources, "\n\n".join(blocks), diagnostics
 
-    def build_prompt(self, query: str, context: dict[str, Any]) -> tuple[str, list[ChatSource]]:
-        sources, source_text = self.build_sources(context)
+    def build_prompt(self, query: str, context: dict[str, Any]) -> tuple[str, list[ChatSource], dict[str, Any]]:
+        sources, source_text, diagnostics = self.build_sources(context)
         prompt = f"""Вопрос пользователя:
 {query}
 
@@ -103,14 +145,17 @@ class PromptBuilder:
 
 Сформируй ответ строго по контексту.
 
+Правила ответа:
+1. Отвечай только фактами из источников выше.
+2. Каждое фактическое утверждение заверши ссылкой [Sx].
+3. Не используй excluded sources и внешние знания.
+4. Если данных недостаточно, напиши: "В переданных источниках данных недостаточно для ответа".
+
 Формат:
 Краткий ответ
-<1-3 предложения>
+<1-3 предложения со ссылками [Sx]>
 
 Обоснование
 <2-5 пунктов, каждый пункт со ссылкой [Sx]>
-
-Источники
-<перечисли использованные [Sx]>
 """.strip()
-        return prompt, sources
+        return prompt, sources, diagnostics
