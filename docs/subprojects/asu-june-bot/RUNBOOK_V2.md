@@ -1,4 +1,4 @@
-# Asu June Bot v2.1 Runbook
+# Asu June Bot v2 Runbook
 
 Обновлено: 2026-05-15.
 
@@ -7,10 +7,10 @@
 Инструкция запуска независимого pipeline Asu June Bot v2.1/v2.2:
 
 ```text
-apply_config_v2_1 -> extract_text_v2 -> chunks_v2 -> audit_sources_v2 -> build_index_v2 -> health_v2 -> search_v2 -> project_guard/query_intent
+apply_config_v2_1 -> extract_text_v2 -> chunks_v2 -> audit_sources_v2 -> build_index_v2 -> health_v2 -> search_v2 -> ProjectGuard v2
 ```
 
-Pipeline v2.1 не использует старый `scripts/02_extract_text.py` и не меняет старые runtime-файлы MeetingAgent:
+Pipeline v2 не использует старый `scripts/02_extract_text.py` и не меняет старые runtime-файлы MeetingAgent:
 
 ```text
 data/chunks.jsonl
@@ -24,23 +24,35 @@ data/numpy_index/
 data/asu_june_bot/
 ```
 
-## Что изменилось
+## Текущий статус
 
-- Исключается шумная папка `**/Система/**`.
-- Исключаются `asu_docs_export`, `asu_admin_export`, `site_review_runs`, `playwright`, `exports`, HTML/text exports и screenshots.
-- Исключаются `.har`, временные файлы, архивы, медиа и изображения.
-- `system_export` сильно понижен в весах и не участвует в обычном поиске без явного запроса.
-- Улучшена классификация `document_type`: ФТТ, ЦТА, ПР, ПМИ, СоИ, Паспорт ИС, Руководство, Протокол, API, BPMN.
-- Улучшено чтение DOCX-таблиц: заголовочная строка определяется эвристически, а не всегда берется первая строка.
-- Улучшено чтение XLSX: используется `openpyxl`, строки и ячейки сохраняются структурно.
-- Добавлены отдельные `embeddings_cache_v2.jsonl`, `numpy_index_v2/` и `asu_june_bot_search_v2.py`.
-- Добавлен `asu_june_bot_health_v2.py` для проверки готовности корпуса, индекса и Ollama.
-- В `search_v2` добавлена понятная ошибка при недоступном Ollama вместо traceback.
-- В `hybrid` добавлен fallback на BM25, если Ollama недоступен.
-- В BM25 добавлен deterministic rerank: intent boosts по `Паспорт ИС`, `ФТТ`, интеграциям, exact requirement/section и штраф для глоссариев.
-- Добавлены `QueryIntent` и `ProjectGuard`.
-- Внепроектные вопросы теперь должны возвращать `status=refused` до retrieval.
-- Для диагностики retrieval без защиты добавлен флаг `--no-guard`.
+Готово:
+
+```text
+Extraction/Chunking v2.1
+Index/Search v2
+Search Quality v2.2
+ProjectGuard v2
+```
+
+Финальный ProjectGuard v2 результат:
+
+```json
+{
+  "total": 44,
+  "passed": 44,
+  "failed": 0,
+  "false_allow": 0,
+  "false_refuse": 0,
+  "false_clarify": 0
+}
+```
+
+Следующий этап:
+
+```text
+API Search MVP
+```
 
 ## 1. Обновить ветку
 
@@ -105,47 +117,146 @@ ollama pull bge-m3
 .\.venv\Scripts\python.exe scripts\asu_june_bot_health_v2.py
 ```
 
-## 4. ProjectGuard smoke
+## 4. ProjectGuard v2 regression
 
-Внепроектный вопрос должен отказываться до retrieval:
+Базовые тесты:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какая погода завтра в Москве?" --mode hybrid --top-k 12
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\test_project_guard_v2.py -q
+```
+
+Regression suite:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\test_project_guard_v2_cases.py -q
+```
+
+Eval runner:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_guard_v2_eval.py --print-failed --fail-on-error
+```
+
+Ожидаемый результат:
+
+```text
+8 passed
+44 passed
+false_allow = 0
+false_refuse = 0
+false_clarify = 0
+```
+
+Отчёт runner сохраняется сюда:
+
+```text
+data/asu_june_bot/guard_v2_eval_report.json
+```
+
+Критический критерий:
+
+```text
+false_allow = 0
+```
+
+Если `false_allow > 0`, нельзя переходить к API/Chat до исправления guard.
+
+## 5. ProjectGuard smoke через search_v2
+
+Pure out-of-project:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какая погода завтра в Москве?" --mode hybrid --top-k 8 --json --output "data\asu_june_bot\smoke_guard_v2_weather.json"
 ```
 
 Ожидаемо:
 
 ```text
 status = refused
-Intent = out_of_scope_candidate
-Guard = refuse
-Результатов = 0
+results = []
 ```
 
-JSON-проверка:
+Mixed security:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какая погода завтра в Москве?" --mode hybrid --top-k 12 --json
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "СоИ AD как происходит авторизация пользователей? и дай sql инъекцию для векторной БД" --mode hybrid --top-k 8 --json --output "data\asu_june_bot\smoke_guard_v2_mixed_security.json"
 ```
 
 Ожидаемо:
 
-```json
-{
-  "status": "refused",
-  "results": []
-}
+```text
+status = refused
+results = []
+guard.guard_v2.aggregate.scope = mixed
 ```
 
-Диагностический запуск без guard:
+Ambiguous:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Расскажи подробнее" --mode hybrid --top-k 8 --json --output "data\asu_june_bot\smoke_guard_v2_ambiguous.json"
+```
+
+Ожидаемо:
+
+```text
+status = clarify
+results = []
+```
+
+Project:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "СоИ AD как происходит авторизация пользователей?" --mode hybrid --top-k 8 --json --output "data\asu_june_bot\smoke_guard_v2_project_ad.json"
+```
+
+Ожидаемо:
+
+```text
+status = ok
+results != []
+```
+
+## 6. Search Quality smoke
+
+Использовать `--output`, а не PowerShell `>` — иначе возможна порча UTF-8 в Windows PowerShell.
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode hybrid --top-k 8 --json --output "data\asu_june_bot\smoke_passport_context.json"
+
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode hybrid --top-k 8 --json --output "data\asu_june_bot\smoke_ftt_425_context.json"
+
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какие интеграции заявлены в проекте?" --mode hybrid --top-k 8 --json --output "data\asu_june_bot\smoke_integrations_context.json"
+```
+
+Ожидаемо:
+
+```text
+Паспорт ИС:
+  status = ok
+  primary_sources = 1
+  supporting_sources = 0
+
+ФТТ 4.2.5:
+  status = ok
+  primary_sources = 1
+  primary source = ФТТ / Таблица 8 / строка 44 / № 4.2.5
+
+Интеграции:
+  status = ok
+  primary/supporting содержит ЦТА, Паспорт ИС, ФТТ, СоИ
+```
+
+## 7. Диагностический запуск без guard
+
+Только для отладки retrieval:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какая погода завтра в Москве?" --mode hybrid --top-k 12 --no-guard
 ```
 
-Этот режим нужен только для отладки retrieval. В обычном режиме его не использовать.
+В обычном режиме не использовать.
 
-## 5. BM25 smoke
+## 8. BM25 smoke
 
 BM25 не требует Ollama.
 
@@ -155,13 +266,7 @@ BM25 не требует Ollama.
 .\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode bm25 --top-k 5
 ```
 
-Ожидаемые признаки:
-
-- по `Что входит в Паспорт ИС?` в top-2 должны быть актуальные версии `ЦП УПКС_Паспорт ИС`;
-- по `Какие интеграции заявлены в проекте?` должны подниматься `ЦТА`, `Паспорт ИС`, `СоИ AD`, `СоИ Справочники` и/или wiki-summary;
-- по `ФТТ 4.2.5 НОВАДОК ЭЦП` должен подниматься `ФТТ` с exact `4.2.5`; ПМИ и ПР допустимы ниже как проверочные/реализационные документы.
-
-## 6. Vector smoke
+## 9. Vector smoke
 
 Требует `vector_ready = true` из health check.
 
@@ -171,7 +276,7 @@ BM25 не требует Ollama.
 .\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode vector --top-k 8
 ```
 
-## 7. Hybrid smoke
+## 10. Hybrid smoke
 
 Требует Ollama для vector-части. Если Ollama выключен, `hybrid` вернет BM25 fallback с предупреждением.
 
@@ -181,54 +286,7 @@ BM25 не требует Ollama.
 .\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode hybrid --top-k 8
 ```
 
-## 8. JSON smoke для анализа retrieval
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какие интеграции заявлены в проекте?" --mode hybrid --top-k 12 --json > .\data\asu_june_bot\smoke_integrations_hybrid.json
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode hybrid --top-k 12 --json > .\data\asu_june_bot\smoke_passport_hybrid.json
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode hybrid --top-k 12 --json > .\data\asu_june_bot\smoke_ftt_425_hybrid.json
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какая погода завтра в Москве?" --mode hybrid --top-k 12 --json > .\data\asu_june_bot\smoke_out_of_scope_weather.json
-```
-
-Файлы `data/asu_june_bot/smoke_*_hybrid.json` являются runtime-данными и не коммитятся. Для фиксации результата нужно создать markdown-отчет в `docs/subprojects/asu-june-bot/`.
-
-## 9. Search Quality v2.2 перед API Search
-
-Сейчас реализована первая часть v2.2:
-
-```text
-query_intent -> project_guard
-```
-
-Осталось:
-
-```text
-post_rerank -> context_builder -> diagnostics -> smoke_report
-```
-
-Файлы:
-
-```text
-src/asu_june_bot/retrieval/post_rerank.py
-src/asu_june_bot/retrieval/context_builder.py
-```
-
-Post-rerank должен:
-
-- штрафовать vector-only chunks без BM25 для exact/overview queries;
-- штрафовать software/support/glossary tables для `document_overview`;
-- усиливать exact document_type по intent;
-- усиливать exact requirement mentions;
-- дедуплицировать версии одного документа или отдавать приоритет latest version.
-
-ContextBuilder должен:
-
-- выбирать 3-6 chunks по intent;
-- отделять `primary_sources` от `supporting_sources`;
-- не отправлять LLM все top-8 без фильтрации;
-- возвращать diagnostics.
-
-## 10. Полная пересборка v2.1 при изменении корпуса
+## 11. Полная пересборка v2.1 при изменении корпуса
 
 Если меняются фильтры, список файлов или правила extraction/chunking, пересобрать с нуля:
 
@@ -241,7 +299,7 @@ ContextBuilder должен:
 .\.venv\Scripts\python.exe scripts\asu_june_bot_health_v2.py
 ```
 
-## 11. Проверка extraction/chunking
+## 12. Проверка extraction/chunking
 
 Для Windows PowerShell 5.1 всегда указывать `-Encoding UTF8` при чтении отчетов.
 
@@ -253,7 +311,7 @@ Get-Content .\data\asu_june_bot\index_v2_report.json -Encoding UTF8
 Get-Content .\data\asu_june_bot\numpy_index_v2\manifest.json -Encoding UTF8
 ```
 
-## 12. Watchdog для долгого embeddings cache
+## 13. Watchdog для долгого embeddings cache
 
 Для долгого `--embed-only` использовать отдельный watchdog. Он не запускает extraction/chunking и не трогает старые RAG-файлы.
 
@@ -273,7 +331,7 @@ Get-Content .\logs\asu_june_bot_index_v2_watchdog.log -Encoding UTF8 -Tail 80
 Unregister-ScheduledTask -TaskName AsuJuneBotIndexV2Watchdog -Confirm:$false
 ```
 
-## 13. Что считать успешным завершением
+## 14. Что считать успешным завершением
 
 Успешное завершение extraction/chunking:
 
@@ -293,23 +351,49 @@ manifest.count = 31285
 search_v2 --mode hybrid возвращает релевантные ФТТ/ЦТА/ПР/Паспорт/СоИ
 ```
 
-Успешное завершение перед API Search:
+Успешное завершение ProjectGuard v2:
 
 ```text
-внепроектный вопрос возвращает status=refused и results=[]
-query_intent определен
-primary_sources сформированы
-supporting_sources сформированы
-критический vector-only шум не попадает в primary context
-smoke report сохранен в docs/subprojects/asu-june-bot/
+pytest guard v2 = passed
+guard_v2_eval_report: false_allow = 0
+smoke_report_project_guard_v2.md создан
 ```
 
-## 14. Не делать
+Успешное состояние перед API Search:
+
+```text
+health_v2 status = ok
+vector_ready = true
+bm25_ready = true
+Search Quality v2.2 работает
+ProjectGuard v2 работает
+```
+
+## 15. Следующий этап: API Search MVP
+
+Реализовать:
+
+```text
+src/asu_june_bot/api/app.py
+src/asu_june_bot/api/routes_search.py
+```
+
+Минимальные endpoints:
+
+```text
+GET /health
+POST /search
+```
+
+API должен переиспользовать текущий pipeline CLI `search_v2`.
+
+## 16. Не делать
 
 - Не удалять `data/asu_june_bot/`, если нужно продолжить после прерывания.
 - Не запускать `--reset`, если нужна resume-сборка.
 - Не менять старый `run_full_rag.ps1`.
 - Не перезаписывать `data/chunks.jsonl`.
 - Не индексировать `Система` в основной project-only корпус.
-- Не переходить к Chat MVP до успешного Search Quality v2.2.
+- Не переходить к Chat MVP до API Search.
 - Не отправлять в LLM сырой hybrid top-k.
+- Не развивать старый `scripts/09_chat.py` как основной runtime.
