@@ -105,6 +105,7 @@ class ChatService:
 
         answer = (llm_response.text or "").strip()
         diagnostics["llm_model"] = llm_response.model
+        diagnostics["llm_finish_reason"] = llm_response.finish_reason
         if not answer:
             return ChatResponse(
                 status=ChatStatus.LLM_EMPTY_RESPONSE.value,
