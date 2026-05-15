@@ -15,18 +15,90 @@ Asu June Bot v2.1 технически собран до уровня локал
 - полный `embeddings_cache_v2` собран: `cached_after=31285`, `missing_after=0`, `embedding_model=bge-m3`, `max_embedding_chars=3000`;
 - `numpy_index_v2` собран: `index_built=true`, `index_count=31285`, `embedding_dim=1024`;
 - из индекса исключены `code` chunks: `chunks_skipped_by_source_type=17`;
-- `scripts/asu_june_bot_health_v2.py` показывает `status=ok`, `bm25_ready=true`, `vector_ready=true`, `ollama_available=true`, `embedding_model_installed=true`;
 - `search_v2` поддерживает `bm25`, `vector`, `hybrid`;
-- `hybrid` умеет fallback на BM25 при недоступном Ollama;
-- BM25 получил deterministic rerank: intent boosts по `Паспорт ИС`, `ФТТ`, интеграциям, exact section/requirement и штрафы для глоссариев/front matter/software tables;
 - добавлен `src/asu_june_bot/retrieval/query_intent.py`;
 - добавлен `src/asu_june_bot/guardrails/project_guard.py`;
 - добавлен `src/asu_june_bot/retrieval/post_rerank.py`;
 - добавлен `src/asu_june_bot/retrieval/context_builder.py`;
 - `scripts/asu_june_bot_search_v2.py` подключает `QueryIntent`, `ProjectGuard`, `PostReranker`, `ContextBuilder`;
 - для явно внепроектных вопросов `search_v2` возвращает `status=refused`, пустой `results` и не выполняет retrieval;
-- добавлен диагностический флаг `--no-guard`, чтобы временно посмотреть retrieval без защиты;
-- JSON-ответ `search_v2` теперь содержит `query_intent`, `guard`, `rerank`, `context.primary_sources`, `context.supporting_sources`, `context.excluded_sources`.
+- JSON-ответ `search_v2` содержит `query_intent`, `guard`, `rerank`, `context.primary_sources`, `context.supporting_sources`, `context.excluded_sources`.
+
+## Проверенный smoke 2026-05-15
+
+### Внепроектный вопрос
+
+Запрос:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какая погода завтра в Москве?" --mode hybrid --top-k 12 --json
+```
+
+Результат:
+
+```text
+status = refused
+intent = out_of_scope_candidate
+project_related = false
+results = []
+```
+
+Вывод: ProjectGuard работает корректно.
+
+### Паспорт ИС overview
+
+Запрос:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode hybrid --top-k 8 --json
+```
+
+Результат после первого PostReranker/ContextBuilder:
+
+```text
+primary_sources = 1
+supporting_sources = 1
+excluded_sources = 14
+```
+
+Хорошо:
+
+- `primary_sources[0]` — корректный обзорный chunk `Границы описания` из `ЦП УПКС_Паспорт ИС_v1.3.2`;
+- таблицы ПО PostgreSQL/РЕД ОС/АСУ-С ушли в `excluded_sources`;
+- vector-only ПР и ЦТА не попали в primary.
+
+Дефект:
+
+- в `supporting_sources` попал chunk `Требования к квалификации и численности сотрудников, обслуживающих систему`, строка про поддержку приложения;
+- для обзорного вопроса `Что входит в Паспорт ИС?` такой chunk не должен попадать в LLM-контекст.
+
+Коррекция внесена:
+
+- в `post_rerank.py` усилена функция `_is_software_or_support_table`;
+- добавлены маркеры `поддержка приложения`, `устранение ошибок`, `доработка приложения`, `требования к квалификации и численности сотрудников`, `сотрудников, обслуживающих систему`, `роль | минимальные требования`;
+- штраф для software/support chunks в `document_overview` усилен с `0.16` до `0.08`;
+- устранено дублирование `rerank_labels` для overflow excluded chunks.
+
+Требуется повторная проверка только по `Паспорт ИС overview`.
+
+### Интеграции
+
+Запрос:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какие интеграции заявлены в проекте?" --mode hybrid --top-k 8 --json
+```
+
+Результат:
+
+- `primary_sources` содержит ЦТА, Паспорт ИС, ФТТ, ЦТА/SIEM/S3;
+- `supporting_sources` содержит дополнительные ФТТ/ЦТА chunks по КШД/SOAP, LDAP/SMTP, S3/Minio;
+- результат пригоден для API Search MVP.
+
+Замечание:
+
+- `primary_sources` сейчас может содержать слишком много похожих ЦТА chunks по S3/Minio/SIEM;
+- для Chat MVP позже нужна дедупликация по семейству интеграции, но для API Search MVP это не блокер.
 
 ## Что изменилось в ProjectGuard / QueryIntent
 
@@ -53,26 +125,6 @@ refuse
 - если вопрос содержит проектные маркеры, retrieval разрешается;
 - отказ не вызывает BM25/vector/hybrid и не возвращает случайные chunks.
 
-Проверочный пример:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какая погода завтра в Москве?" --mode hybrid --top-k 12
-```
-
-Ожидаемо:
-
-```text
-status = refused
-intent = out_of_scope_candidate
-results = 0
-```
-
-Для диагностики retrieval без guard:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какая погода завтра в Москве?" --mode hybrid --top-k 12 --no-guard
-```
-
 ## Что изменилось в PostReranker / ContextBuilder
 
 `PostReranker` выполняет второй слой ранжирования после BM25/vector/hybrid:
@@ -94,95 +146,27 @@ excluded_sources
 
 Правило: LLM в будущем должен получать не raw top-k, а только подготовленный context.
 
-## Последний проверенный smoke до PostReranker/ContextBuilder
-
-### Health
-
-Проверка `scripts/asu_june_bot_health_v2.py` успешна:
-
-```text
-status = ok
-vector_ready = true
-bm25_ready = true
-chunks_v2 = 31302
-embeddings_cache_v2 = 31285
-manifest_count = 31285
-index_metadata = 31285
-ollama_available = true
-embedding_model_installed = true
-```
-
-### Запрос: `Какая погода завтра в Москве?`
-
-После ProjectGuard:
-
-```text
-status = refused
-intent = out_of_scope_candidate
-project_related = false
-results = 0
-```
-
-Вывод: ProjectGuard работает корректно.
-
-### Запрос: `Что входит в Паспорт ИС?`
-
-До PostReranker/ContextBuilder:
-
-- top-1 корректный: `Паспорт ИС` с границами описания;
-- дальше были vector-only chunks из ПР, front matter и таблицы ПО.
-
-Ожидаемый эффект нового слоя:
-
-- `primary_sources` должен содержать обзорный chunk Паспорт ИС;
-- software table/front matter должны уйти в `excluded_sources` или не попасть в primary.
-
-### Запрос: `Какие интеграции заявлены в проекте?`
-
-До PostReranker/ContextBuilder:
-
-- top-1 — ЦТА: `Blitz, AD, S3 Minio, Exchange, КШД`;
-- top-2 — Паспорт ИС: `Active Directory, Blitz IDP, MDR, почтовый сервер, SIEM`;
-- далее ФТТ/ПР.
-
-Ожидаемый эффект нового слоя:
-
-- ЦТА/Паспорт/ФТТ должны попасть в `primary_sources`;
-- ПР — в `supporting_sources`.
-
-### Запрос: `ФТТ 4.2.5 НОВАДОК ЭЦП`
-
-До PostReranker/ContextBuilder:
-
-- ФТТ поднимается в top-1/top-2;
-- есть строка `ЦП УПКС -> НОВАДОК`;
-- встреча `ФТТ_ИД` поднимается как аналитический источник;
-- metadata всё ещё шумит: `requirement_id=10.2`, хотя текст содержит `4.2.5`.
-
-Ожидаемый эффект нового слоя:
-
-- ФТТ должен попасть в `primary_sources`;
-- ПР/встреча — в `supporting_sources`;
-- vector-only нерелевантные chunks должны уйти в `excluded_sources`.
-
 ## Следующий практический шаг
 
-Локально проверить новый слой:
+Подтянуть исправление и повторить smoke.
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какая погода завтра в Москве?" --mode hybrid --top-k 12 --json
+cd C:\Users\Сотрудник\Desktop\AI\MeetingAgent
+git pull
+```
+
+Проверить только два запроса:
+
+```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Что входит в Паспорт ИС?" --mode hybrid --top-k 8 --json
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какие интеграции заявлены в проекте?" --mode hybrid --top-k 8 --json
 .\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode hybrid --top-k 8 --json
 ```
 
 Проверить:
 
-- внепроектный вопрос: `status=refused`, `results=[]`;
-- Паспорт ИС: `context.primary_sources` содержит обзорный chunk, таблицы ПО не в primary;
-- интеграции: `context.primary_sources` содержит ЦТА/Паспорт/ФТТ;
-- ФТТ 4.2.5: `context.primary_sources` содержит ФТТ с НОВАДОК/ЭЦП;
-- `context.excluded_sources` содержит отфильтрованный шум.
+- Паспорт ИС: support/qualification/application support chunks не должны быть в `primary_sources` и `supporting_sources`;
+- Паспорт ИС: обзорный chunk `Границы описания` должен оставаться в `primary_sources`;
+- ФТТ 4.2.5: `primary_sources` должен содержать ФТТ с НОВАДОК/ЭЦП, ПР/встреча должны быть в `supporting_sources`.
 
 ## Следующие задачи разработки
 
@@ -195,9 +179,11 @@ results = 0
 - [x] Добавить `src/asu_june_bot/retrieval/post_rerank.py`.
 - [x] Добавить `src/asu_june_bot/retrieval/context_builder.py`.
 - [x] Добавить диагностику `rerank_labels`, `primary_sources`, `supporting_sources` в JSON-ответ `search_v2`.
-- [ ] Локально проверить новый слой на baseline-вопросах.
-- [ ] Обновить markdown smoke-отчет после проверки нового слоя.
-- [ ] При необходимости скорректировать правила `PostReranker`/`ContextBuilder`.
+- [x] Локально проверить ProjectGuard и часть baseline-вопросов.
+- [x] Скорректировать support filtering для `document_overview`.
+- [ ] Повторно проверить `Паспорт ИС overview` после support filtering.
+- [ ] Проверить `ФТТ 4.2.5` после context builder.
+- [ ] Создать markdown smoke-отчет v2.2.
 
 ### B. API Search
 
@@ -217,7 +203,7 @@ POST /search
 
 К API Search переходить только если:
 
-- `Паспорт ИС overview` top/context не забит таблицей ПО;
+- `Паспорт ИС overview` top/context не забит таблицей ПО или поддержкой;
 - `Интеграции` возвращают ЦТА/Паспорт/ФТТ/СоИ;
 - `ФТТ 4.2.5` возвращает ФТТ с НОВАДОК/ЭЦП в primary sources;
 - внепроектный вопрос возвращает `status=refused` и `results=[]`;
@@ -244,11 +230,10 @@ POST /search
 ## Definition of Done для перехода к API Search
 
 - `health_v2`: `status=ok`, `vector_ready=true`, `bm25_ready=true`.
-- `search_v2 --mode hybrid` проходит 3 baseline-запроса.
 - Внепроектный вопрос возвращает `status=refused` и не вызывает retrieval.
 - Для каждого baseline-запроса есть primary sources.
 - В JSON выдаче есть diagnostics по intent/rerank/context.
-- В primary context нет критического шума, который может увести LLM в неверный ответ.
+- В primary/supporting context нет критического шума, который может увести LLM в неверный ответ.
 - Старые `data/chunks.jsonl`, `data/embeddings_cache.jsonl`, `data/numpy_index` не меняются.
 
 ## Не делать
