@@ -68,8 +68,9 @@ class ChatService:
             )
 
         context = search_response.context
-        prompt, sources = self.prompt_builder.build_prompt(request.query, context)
+        prompt, sources, prompt_diagnostics = self.prompt_builder.build_prompt(request.query, context)
         diagnostics["prompt_sources"] = len(sources)
+        diagnostics["prompt"] = prompt_diagnostics
         if not sources:
             return ChatResponse(
                 status=ChatStatus.NO_SOURCES.value,
