@@ -69,6 +69,51 @@ Query
 
 При `refused` или `clarify` retrieval не вызывается.
 
+## Commit 1. SearchService без API
+
+Статус: реализовано, требуется локальный прогон.
+
+Добавлено:
+
+```text
+src/asu_june_bot/search/__init__.py
+src/asu_june_bot/search/models.py
+src/asu_june_bot/search/service.py
+tests/asu_june_bot/search/test_search_service.py
+```
+
+Обновлено:
+
+```text
+scripts/asu_june_bot_search_v2.py
+```
+
+Что изменилось:
+
+- orchestration вынесена в `SearchService`;
+- CLI `search_v2` стал thin wrapper;
+- `SearchService` возвращает JSON payload, совместимый по смыслу с прежним `search_v2 --json`;
+- добавлены diagnostics `diagnostics.search_service`;
+- unit tests проверяют, что `refused` и `clarify` не вызывают retrieval;
+- unit tests проверяют, что `allow` вызывает retrieval/rerank/context;
+- `--no-guard` сохраняет диагностический режим и принудительно запускает retrieval.
+
+Проверить локально:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\search\test_search_service.py -q
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какая погода завтра в Москве?" --mode hybrid --top-k 8 --json --output data\asu_june_bot\smoke_service_refused_weather.json
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "СоИ AD как происходит авторизация пользователей?" --mode hybrid --top-k 8 --json --output data\asu_june_bot\smoke_service_project_ad.json
+```
+
+Ожидаемо:
+
+```text
+pytest: passed
+weather: status=refused, diagnostics.search_service.retrieval_called=false
+project_ad: status=ok, diagnostics.search_service.retrieval_called=true
+```
+
 ## Готово в v2.1 / Search Quality v2.2
 
 - независимый pipeline v2.1: `apply_config_v2_1 -> extract_text_v2 -> chunks_v2 -> audit_sources_v2 -> build_index_v2 -> health_v2 -> search_v2`;
@@ -176,17 +221,6 @@ Retrieval/context пригоден для API Search MVP:
 
 ## Следующий этап: API Search MVP
 
-### Commit 1. SearchService без API
-
-- [ ] Создать `src/asu_june_bot/search/__init__.py`.
-- [ ] Создать `src/asu_june_bot/search/models.py`.
-- [ ] Создать `src/asu_june_bot/search/service.py`.
-- [ ] Перенести orchestration из `scripts/asu_june_bot_search_v2.py` в `SearchService`.
-- [ ] Добавить unit tests `tests/asu_june_bot/search/test_search_service.py`.
-- [ ] Проверить, что `refused/clarify` не вызывают retrieval.
-- [ ] Проверить, что `allow` вызывает retrieval.
-- [ ] Сохранить совместимость CLI `search_v2 --json`.
-
 ### Commit 2. FastAPI skeleton
 
 - [ ] Создать `src/asu_june_bot/api/__init__.py`.
@@ -256,8 +290,8 @@ diagnostics
 
 ## Definition of Done для API Search
 
-- [ ] `SearchService` создан и покрыт unit tests.
-- [ ] CLI `search_v2` работает через `SearchService` или полностью совместим по output semantics.
+- [x] `SearchService` создан и покрыт unit tests.
+- [x] CLI `search_v2` работает через `SearchService` или полностью совместим по output semantics.
 - [ ] `GET /health` работает локально.
 - [ ] `POST /search` работает локально.
 - [ ] `POST /search` возвращает `refused` без retrieval для внепроектных запросов.
