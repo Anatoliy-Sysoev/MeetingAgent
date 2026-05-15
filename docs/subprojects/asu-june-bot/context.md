@@ -1,6 +1,6 @@
 # Контекст Подпроекта Asu June Bot
 
-Обновлено: 2026-05-14.
+Обновлено: 2026-05-15.
 
 ## Назначение
 
@@ -12,7 +12,50 @@ Asu June Bot — отдельный подпроект внутри MeetingAgent
 - давать структурированные ответы;
 - ссылаться на документы, разделы, пункты и фрагменты;
 - явно отделять подтвержденные факты от вывода;
-- отказывать на вопросы вне проекта или без источников.
+- отказывать на вопросы вне проекта или без источников;
+- не запускать retrieval для внепроектных, mixed-scope и ambiguous-запросов.
+
+## Текущий статус
+
+Asu June Bot v2.1/v2.2 технически готов к переходу от CLI Search MVP к API Search MVP.
+
+Завершены этапы:
+
+```text
+Extraction/Chunking v2.1
+Index/Search v2
+Search Quality v2.2
+ProjectGuard v2
+```
+
+Финальный результат ProjectGuard v2:
+
+```json
+{
+  "total": 44,
+  "passed": 44,
+  "failed": 0,
+  "false_allow": 0,
+  "false_refuse": 0,
+  "false_clarify": 0,
+  "failed_ids": [],
+  "false_allow_ids": [],
+  "false_refuse_ids": [],
+  "false_clarify_ids": []
+}
+```
+
+Финальный отчёт:
+
+```text
+docs/subprojects/asu-june-bot/smoke_report_project_guard_v2.md
+```
+
+Следующий этап:
+
+```text
+API Search MVP
+```
 
 ## Ключевое решение v2.1
 
@@ -196,6 +239,65 @@ instruction
 
 `code`, `runtime_export`, `system_export`, `unknown` не индексируются в основном project-only индексе.
 
+### Search Quality v2.2
+
+Реализовано:
+
+```text
+src/asu_june_bot/retrieval/query_intent.py
+src/asu_june_bot/retrieval/post_rerank.py
+src/asu_june_bot/retrieval/context_builder.py
+```
+
+`search_v2` теперь возвращает:
+
+```text
+query_intent
+guard
+rerank
+context.primary_sources
+context.supporting_sources
+context.excluded_sources
+results
+warnings
+```
+
+Проверено:
+
+- `Паспорт ИС overview` возвращает обзорный chunk в `primary_sources`;
+- `ФТТ 4.2.5` возвращает точную строку ФТТ в `primary_sources`;
+- `Интеграции` возвращают ЦТА/Паспорт ИС/ФТТ/СоИ как primary/supporting context;
+- JSON сохраняется через `--output` без mojibake.
+
+### ProjectGuard v2
+
+Реализовано:
+
+```text
+src/asu_june_bot/guardrails/models.py
+src/asu_june_bot/guardrails/segmenter.py
+src/asu_june_bot/guardrails/scope_classifier.py
+src/asu_june_bot/guardrails/aggregator.py
+src/asu_june_bot/guardrails/policy.py
+src/asu_june_bot/guardrails/project_guard.py
+```
+
+Тесты и eval:
+
+```text
+tests/asu_june_bot/test_project_guard_v2.py
+tests/asu_june_bot/guard_v2_cases.jsonl
+tests/asu_june_bot/test_project_guard_v2_cases.py
+scripts/asu_june_bot_guard_v2_eval.py
+```
+
+Проверено:
+
+```text
+44/44 regression cases passed
+false_allow = 0
+```
+
 ## Текущий локальный результат
 
 ### Corpus / index
@@ -226,46 +328,34 @@ ollama_available = true
 embedding_model_installed = true
 ```
 
-## Результаты search smoke
-
-### `Что входит в Паспорт ИС?`
-
-После rerank BM25 top-1/top-2 поднимает правильный chunk из Паспорт ИС с границами описания: архитектурные и эксплуатационные сведения, платформа ЦП УПКС, модуль СМР и базовые сервисы Front/Core/Disk/Building/Approvals/Notifications/Catalog/Help/Mdr.
-
-Проблема: в top-8 всё ещё есть chunks по программному обеспечению, поддержке и vector-only шум. Для Chat MVP нужен intent-aware context builder, а не прямая отправка всего top-k в LLM.
-
-### `Какие интеграции заявлены в проекте?`
-
-Retrieval достаточен для API Search MVP:
-
-- ЦТА поднимает `Blitz, AD, S3 Minio, Exchange, КШД`;
-- Паспорт ИС поднимает `Active Directory, Blitz IDP, MDR, почтовый сервер, SIEM`;
-- ФТТ поднимает КШД/SOAP;
-- ПР поднимает взаимодействие со смежными модулями.
-
-### `ФТТ 4.2.5 НОВАДОК ЭЦП`
-
-Retrieval практически пригоден:
-
-- BM25/hybrid поднимают ФТТ в top-1/top-2;
-- в top-5 есть интеграционная строка `ЦП УПКС -> НОВАДОК`;
-- встреча `ФТТ_ИД` поднимается как полезный аналитический источник;
-- проблема: metadata `section/requirement_id` шумит и иногда показывает `10.2`, хотя текст содержит `4.2.5`.
-
 ## Ближайшая цель
 
-Не переходить напрямую к Chat MVP. Сначала выполнить Search Quality v2.2:
+Следующий шаг — API Search MVP:
 
 ```text
-query_intent -> post_rerank -> context_builder -> search diagnostics -> smoke report
+src/asu_june_bot/api/app.py
+src/asu_june_bot/api/routes_search.py
 ```
 
-Нужно добавить:
+Минимальные endpoints:
 
-- `src/asu_june_bot/retrieval/query_intent.py`;
-- `src/asu_june_bot/retrieval/post_rerank.py`;
-- `src/asu_june_bot/retrieval/context_builder.py`;
-- diagnostics в JSON search output: `query_intent`, `rerank_labels`, `primary_sources`, `supporting_sources`;
-- markdown smoke-отчет `docs/subprojects/asu-june-bot/search_smoke_report_2026-05-14.md`.
+```text
+GET /health
+POST /search
+```
 
-К API Search переходить только после успешного smoke с primary/supporting sources.
+API `/search` должен использовать тот же pipeline, что CLI `search_v2`:
+
+```text
+QueryIntent -> ProjectGuard v2 -> Retrieval -> PostReranker -> ContextBuilder -> JSON response
+```
+
+При `refused` или `clarify` retrieval не вызывается.
+
+## Не делать дальше
+
+- Не переходить напрямую к Chat MVP без API `/search`.
+- Не отправлять raw hybrid top-k в LLM.
+- Не развивать старый `scripts/09_chat.py` как основной runtime.
+- Не индексировать `Система` в основной project-only корпус.
+- Не подключать NeMo Guardrails, LangGraph, Dify/RAGFlow как runtime MVP.
