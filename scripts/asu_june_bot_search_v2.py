@@ -18,7 +18,7 @@ if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
 from asu_june_bot.core.config import load_config, resolve_work_path  # noqa: E402
-from asu_june_bot.guardrails.project_guard import ProjectGuard  # noqa: E402
+from asu_june_bot.guardrails.project_guard import GuardDecision, ProjectGuard  # noqa: E402
 from asu_june_bot.retrieval.chunks import read_jsonl  # noqa: E402
 from asu_june_bot.retrieval.context_builder import ContextBuilder  # noqa: E402
 from asu_june_bot.retrieval.hybrid import build_hybrid_retriever  # noqa: E402
@@ -62,6 +62,10 @@ def write_json_output(payload: dict[str, Any], output_path: str | None) -> None:
         print(f"JSON сохранён: {path}")
         return
     print(text)
+
+
+def empty_context() -> dict[str, Any]:
+    return {"primary_sources": [], "supporting_sources": [], "excluded_sources": [], "diagnostics": {}}
 
 
 def print_human(payload: dict[str, Any]) -> None:
@@ -164,17 +168,18 @@ def main() -> None:
     guard_payload = guard_result.to_dict()
 
     if not args.no_guard and not guard_result.allowed:
+        status = "clarify" if guard_result.decision == GuardDecision.CLARIFY else "refused"
         payload = {
             "query": query,
             "corpus": "asu_june_bot_v2",
             "mode": args.mode,
-            "status": "refused",
+            "status": status,
             "answer": guard_result.message,
             "query_intent": query_intent_payload,
             "guard": guard_payload,
             "warnings": [],
             "results": [],
-            "context": {"primary_sources": [], "supporting_sources": [], "excluded_sources": [], "diagnostics": {}},
+            "context": empty_context(),
         }
         if args.json:
             write_json_output(payload, args.output)
