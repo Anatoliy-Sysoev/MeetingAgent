@@ -7,7 +7,6 @@ from .models import ChatSource
 
 SOURCE_REF_RE = re.compile(r"\[(S\d+(?:\s*,\s*S\d+)*)\]")
 SINGLE_SOURCE_RE = re.compile(r"S\d+")
-SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?。！？])\s+|\n+")
 NO_ANSWER_MARKERS = (
     "в переданных источниках данных недостаточно",
     "в предоставленных источниках информации для ответа",
@@ -23,6 +22,12 @@ EXTERNAL_KNOWLEDGE_MARKERS = (
     "в целом такие системы",
     "вообще говоря",
 )
+STRUCTURAL_HEADINGS = {
+    "краткий ответ",
+    "обоснование",
+    "источники",
+    "ответ",
+}
 
 
 def extract_source_refs(text: str) -> list[str]:
@@ -38,8 +43,27 @@ def _word_count(text: str) -> int:
     return len(re.findall(r"[A-Za-zА-Яа-я0-9_]+", text or ""))
 
 
-def _sentences(text: str) -> list[str]:
-    return [part.strip() for part in SENTENCE_SPLIT_RE.split(text or "") if part.strip()]
+def _citation_units(text: str) -> list[str]:
+    """Return claim-like units for citation coverage checks.
+
+    The check intentionally avoids splitting by punctuation because valid model output
+    often puts citations after a sentence as: "Факт. [S1]". Splitting on the dot would
+    detach [S1] into a separate fragment and create a false validation failure.
+    """
+    units: list[str] = []
+    for raw_line in (text or "").splitlines():
+        line = raw_line.strip(" -\t")
+        if not line:
+            continue
+        normalized = line.lower().rstrip(":")
+        if normalized in STRUCTURAL_HEADINGS:
+            continue
+        if SOURCE_REF_RE.fullmatch(line):
+            continue
+        if _word_count(line) < 3 and not extract_source_refs(line):
+            continue
+        units.append(line)
+    return units
 
 
 class AnswerValidator:
@@ -85,10 +109,10 @@ class AnswerValidator:
             if words >= 80 and citation_density < self.min_citation_density:
                 errors.append(f"citation_density_too_low:{citation_density:.3f}")
 
-            sentences = _sentences(text)
-            if len(sentences) >= 3:
-                cited_sentences = sum(1 for sentence in sentences if extract_source_refs(sentence))
-                coverage = cited_sentences / len(sentences)
+            units = _citation_units(text)
+            if len(units) >= 3:
+                cited_units = sum(1 for unit in units if extract_source_refs(unit))
+                coverage = cited_units / len(units)
                 if coverage < 0.35:
                     errors.append(f"citation_coverage_too_low:{coverage:.3f}")
 
