@@ -38,7 +38,7 @@ def main() -> None:
     config = load_config()
     ollama_cfg = config.get("ollama", {}) if isinstance(config.get("ollama"), dict) else {}
     llm_base_url = args.llm_base_url or str(ollama_cfg.get("chat_base_url") or "http://127.0.0.1:11434/v1")
-    model = args.model or str(ollama_cfg.get("chat_model") or "qwen3:8b")
+    model = args.model or str(ollama_cfg.get("chat_model") or "qwen2.5:7b-instruct")
 
     chat_service = ChatService(
         search_service=SearchService(config=config),
