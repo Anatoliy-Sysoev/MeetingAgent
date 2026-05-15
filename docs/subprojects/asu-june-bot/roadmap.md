@@ -1,16 +1,34 @@
 # Roadmap Asu June Bot
 
-Обновлено: 2026-05-12.
+Обновлено: 2026-05-15.
 
 ## Принцип roadmap
 
 Развитие должно идти не от UI и не от модели, а от качества project-only контура:
 
 ```text
-источники -> поиск -> ответ -> проверка -> API -> UI -> GPU
+источники -> поиск -> guard -> context -> API -> ответ -> проверка -> UI -> GPU
+```
+
+## Статус этапов
+
+```text
+Этап 0. Документация и архитектурный reset — выполнено
+Этап 1. Базовый Project-only Search — выполнено
+Этап 1.1. Search Quality v2.2 — выполнено
+Этап 1.2. ProjectGuard v2 — выполнено
+Этап 1.3. API Search MVP — следующий этап
+Этап 2. Project-only Chat MVP — после API Search
+Этап 3. Evaluation baseline — частично выполнено для guard, расширить для search/chat
+Этап 4. Улучшение качества retrieval — продолжается итерационно
+Этап 5. FastAPI + Open WebUI — после /chat
+Этап 6. GPU migration path — позже
+Этап 7. Enterprise-hardening — позже
 ```
 
 ## Этап 0. Документация и архитектурный reset
+
+Статус: выполнено.
 
 Цель: отделить Asu June Bot от общего MeetingAgent и остановить разрастание `scripts/09_chat.py`.
 
@@ -23,7 +41,9 @@
 - mvp.md;
 - roadmap.md;
 - todo.md;
-- eval_questions.md.
+- eval_questions.md;
+- ideas.md;
+- RUNBOOK_V2.md.
 
 Критерий готовности:
 
@@ -32,70 +52,190 @@
 
 ## Этап 1. Базовый Project-only Search
 
-Цель: получить надежный `/search` до генерации ответов.
+Статус: выполнено.
 
-Работы:
+Цель: получить надежный search CLI до генерации ответов.
 
-1. Описать chunk schema.
-2. Добавить metadata extraction:
+Реализовано:
+
+1. Extraction/Chunking v2.1.
+2. Metadata extraction:
    - document_type;
    - module;
    - stage;
    - section;
    - title;
    - source_type.
-3. Реализовать vector search adapter поверх текущего numpy index.
-4. Реализовать BM25 search.
-5. Реализовать hybrid merge.
-6. Реализовать source policy.
-7. Сделать CLI `asu_june_bot_search.py`.
+3. Vector search adapter поверх `numpy_index_v2`.
+4. BM25 search.
+5. Hybrid merge.
+6. Source type filtering.
+7. CLI `scripts/asu_june_bot_search_v2.py`.
+8. Health check `scripts/asu_june_bot_health_v2.py`.
 
 Критерий готовности:
 
-- `/search` и CLI возвращают релевантные источники по 15 контрольным вопросам;
-- точные запросы по пунктам ФТТ/ЦТА не теряются;
-- `system_export` не вытесняет проектные документы без необходимости.
+- corpus/index/search готовы;
+- exact queries по ФТТ не теряются;
+- `system_export` исключён из основного корпуса;
+- `health_v2` показывает `status=ok`, `vector_ready=true`, `bm25_ready=true`.
+
+## Этап 1.1. Search Quality v2.2
+
+Статус: выполнено.
+
+Цель: не отправлять raw hybrid top-k в будущий LLM.
+
+Реализовано:
+
+```text
+src/asu_june_bot/retrieval/query_intent.py
+src/asu_june_bot/retrieval/post_rerank.py
+src/asu_june_bot/retrieval/context_builder.py
+```
+
+Результат:
+
+- `search_v2` возвращает `query_intent`, `rerank`, `context.primary_sources`, `context.supporting_sources`, `context.excluded_sources`;
+- `Паспорт ИС overview` получает обзорный chunk в primary;
+- `ФТТ 4.2.5` получает точную строку ФТТ в primary;
+- `Интеграции` получают ЦТА/Паспорт ИС/ФТТ/СоИ как primary/supporting context;
+- software/support/front matter noise выводится в excluded/supporting и не попадает в primary.
+
+## Этап 1.2. ProjectGuard v2
+
+Статус: выполнено.
+
+Цель: project-only pre-retrieval guard без бесконечного расширения одного словаря out-of-scope.
+
+Реализовано:
+
+```text
+src/asu_june_bot/guardrails/models.py
+src/asu_june_bot/guardrails/segmenter.py
+src/asu_june_bot/guardrails/scope_classifier.py
+src/asu_june_bot/guardrails/aggregator.py
+src/asu_june_bot/guardrails/policy.py
+src/asu_june_bot/guardrails/project_guard.py
+```
+
+Тесты и eval:
+
+```text
+tests/asu_june_bot/test_project_guard_v2.py
+tests/asu_june_bot/guard_v2_cases.jsonl
+tests/asu_june_bot/test_project_guard_v2_cases.py
+scripts/asu_june_bot_guard_v2_eval.py
+```
+
+Финальный результат:
+
+```json
+{
+  "total": 44,
+  "passed": 44,
+  "failed": 0,
+  "false_allow": 0,
+  "false_refuse": 0,
+  "false_clarify": 0
+}
+```
+
+Критерий готовности:
+
+- pure project -> allow;
+- pure out-of-project -> refused;
+- mixed-scope -> refused;
+- offensive/security -> refused;
+- jailbreak/prompt-injection -> refused;
+- ambiguous -> clarify;
+- `false_allow = 0`.
+
+## Этап 1.3. API Search MVP
+
+Статус: следующий этап.
+
+Цель: дать HTTP API над готовым search pipeline.
+
+Работы:
+
+1. Вынести search orchestration из CLI в reusable module, если потребуется.
+2. Реализовать FastAPI app:
+
+```text
+src/asu_june_bot/api/app.py
+src/asu_june_bot/api/routes_health.py
+src/asu_june_bot/api/routes_search.py
+```
+
+3. Реализовать endpoints:
+
+```text
+GET /health
+POST /search
+```
+
+4. `/search` должен повторять CLI pipeline:
+
+```text
+QueryIntent -> ProjectGuard v2 -> Retrieval -> PostReranker -> ContextBuilder -> JSON response
+```
+
+5. При `refused` и `clarify` retrieval не вызывается.
+6. Добавить smoke-команды PowerShell/curl.
+7. Обновить runbook.
+
+Критерий готовности:
+
+- `GET /health` возвращает состояние corpus/index/Ollama/guard;
+- `POST /search` возвращает тот же формат, что CLI `search_v2 --json`;
+- project-запросы возвращают `status=ok` и context;
+- out-of-project/mixed/ambiguous возвращают `refused/clarify` без retrieval;
+- API smoke пройден.
 
 ## Этап 2. Project-only Chat MVP
+
+Статус: после API Search.
 
 Цель: получить `/chat` с ответом или отказом.
 
 Работы:
 
-1. Project guard.
-2. Query expansion из YAML.
-3. Context builder.
-4. Prompt builder.
-5. LLM client через OpenAI-compatible API.
-6. Answer validator.
-7. Response formatter.
-8. CLI `asu_june_bot_chat.py`.
+1. PromptBuilder.
+2. LLM client через OpenAI-compatible API.
+3. Answer generator.
+4. Answer validator.
+5. Response formatter.
+6. CLI `scripts/asu_june_bot_chat.py`.
+7. API `POST /chat`.
 
 Критерий готовности:
 
 - вопрос по проекту получает ответ с sources;
 - вопрос вне проекта получает отказ;
 - ответ без sources невозможен;
-- timeout LLM не превращается в ложный `answered`.
+- timeout LLM не превращается в ложный `answered`;
+- LLM получает только `ContextBuilder` context, а не raw top-k.
 
 ## Этап 3. Evaluation baseline
 
-Цель: сделать качество измеримым.
+Статус: частично выполнено для guard, расширить для search/chat.
 
-Работы:
+Готово:
 
-1. Описать 30–50 вопросов.
-2. Разделить вопросы:
+- ProjectGuard v2 regression suite: 44 кейса.
+
+Нужно расширить:
+
+1. Search eval cases:
    - project factual;
-   - project analytical;
    - exact section lookup;
    - cross-document;
-   - out-of-scope;
-   - sensitive;
+   - integration overview;
    - no-answer.
-3. Сделать runner.
-4. Сохранять результаты в Markdown и JSON.
-5. Считать метрики.
+2. Chat eval cases после `/chat`.
+3. Runner для сохранения Markdown/JSON.
+4. Метрики retrieval/context/answer.
 
 Критерий готовности:
 
@@ -104,20 +244,20 @@
 
 ## Этап 4. Улучшение качества retrieval
 
-Цель: ответы по проекту становятся точнее и глубже.
+Статус: продолжается итерационно.
 
 Работы:
 
-1. Reranker.
-2. Better document expansion.
-3. Фильтры по типам документов.
-4. Специальные retrieval modes:
+1. Better document expansion.
+2. Фильтры по типам документов.
+3. Специальные retrieval modes:
    - exact_section;
    - document_overview;
    - integration_answer;
    - cross_document_traceability;
    - meeting_decisions.
-5. Source links mapping.
+4. Source links mapping.
+5. Дедупликация семейств интеграций.
 
 Критерий готовности:
 
@@ -125,6 +265,8 @@
 - бот может объяснить, где требование описано, где реализовано и где проверяется.
 
 ## Этап 5. FastAPI + Open WebUI
+
+Статус: после `/chat`.
 
 Цель: дать удобный пользовательский доступ.
 
@@ -143,6 +285,8 @@
 
 ## Этап 6. GPU migration path
 
+Статус: позже.
+
 Цель: перенести инференс LLM на GPU без переписывания агента.
 
 Работы:
@@ -160,6 +304,8 @@
 
 ## Этап 7. Enterprise-hardening
 
+Статус: позже.
+
 Цель: подготовка к корпоративному использованию.
 
 Работы:
@@ -172,6 +318,7 @@
 6. SIEM/export logs.
 7. Human review mode.
 8. Права на документы и контуры.
+9. NeMo Guardrails / Guardrails AI как possible hardening.
 
 Критерий готовности:
 
@@ -187,3 +334,4 @@
 - Не делать мультиагентность.
 - Не делать fine-tuning.
 - Не добавлять новые regex-патчи в старый `09_chat.py` вместо архитектурной реализации.
+- Не возвращаться к бесконечному расширению одного списка regex как основной guard-архитектуре.
