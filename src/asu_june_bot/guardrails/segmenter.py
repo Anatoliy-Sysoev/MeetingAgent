@@ -5,8 +5,12 @@ import re
 from .models import QuerySegment
 
 
+# Do not split requirement numbers like 4.2.5 by dots.
+# Split by sentence punctuation only when the punctuation is not between digits.
 SPLIT_RE = re.compile(
-    r"(?:\s*[.!?;]+\s*|\s+и\s+(?=(?:дай|напиши|сделай|покажи|расскажи|какая|какой|какие|курс|погода|sql|питон|python|код|игра|игры)\b))",
+    r"(?:\s*(?<!\d)[.!?;]+(?!\d)\s*|"
+    r"\s+и\s+(?=(?:дай|напиши|сделай|покажи|расскажи|какая|какой|какие|курс|погода|sql|питон|python|код|игра|игры|как\s+обойти|как\s+скрыть)\b)|"
+    r"\s+(?:потом|затем|в\s+конце|после\s+этого|между\s+делом|если\s+не\s+можешь)\s+)",
     re.IGNORECASE | re.UNICODE,
 )
 
