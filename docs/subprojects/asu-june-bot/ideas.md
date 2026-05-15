@@ -4,40 +4,53 @@
 
 ## Назначение
 
-Документ фиксирует идеи, которые полезны для Asu June Bot, но не должны попадать в текущий MVP без отдельной проверки. Цель — не раздувать локальный CPU-first контур и не превращать `search_v2` / `/chat` в монолит.
+Документ фиксирует идеи, которые полезны для Asu June Bot, но не должны попадать в текущий MVP без отдельной проверки. Цель — не раздувать локальный CPU-first контур и не превращать `search_v2`, `/search` или `/chat` в монолит.
 
-## Основной вывод по анализу external answers
+## Текущий вывод после ProjectGuard v2
 
-Для текущего MVP не нужно внедрять тяжёлую guardrails-платформу. Нужно развить собственный маленький guard-пайплайн:
+Ранее рассматривался риск бесконечного расширения `OUT_OF_SCOPE_MARKERS`. Решение найдено и реализовано: **ProjectGuard v2**.
+
+Реализованный guard-пайплайн:
 
 ```text
 Segmenter -> PerSegmentScopeClassifier -> Aggregator -> Policy -> ProjectGuard
 ```
 
-Это закрывает главную проблему mixed-scope запросов: запрос может содержать одновременно проектную часть и внепроектную просьбу. Простая логика `есть проектный маркер -> allow` недостаточна. Нужна логика:
+Финальный regression результат:
 
-```text
-allow = есть проектный scope И нет внепроектного scope
-refuse_mixed_scope = есть проектный scope И есть внепроектный scope
-refuse_out_of_scope = нет проектного scope И есть внепроектный scope
-clarify = scope неясен
+```json
+{
+  "total": 44,
+  "passed": 44,
+  "failed": 0,
+  "false_allow": 0,
+  "false_refuse": 0,
+  "false_clarify": 0
+}
 ```
 
-## В MVP / CPU-first
+Следствие:
+
+- ProjectGuard v2 больше не является research-идеей — это runtime-компонент MVP.
+- Следующий этап — API Search MVP.
+- Внешние guardrails-фреймворки не подключаются в runtime MVP.
+
+## Уже реализовано в MVP / CPU-first
 
 ### 1. Segmentation-based ProjectGuard v2
 
-Статус: включить в ближайший MVP.
+Статус: реализовано.
 
 Суть:
 
-- разбивать запрос на предложения / clauses;
-- классифицировать каждый сегмент независимо;
-- агрегировать результат;
-- запускать retrieval только если все значимые сегменты `in_project` или `meta`;
-- если есть `out_of_project`, отказывать или просить уточнение.
+- разбивает запрос на предложения / clauses;
+- классифицирует каждый сегмент независимо;
+- агрегирует результат;
+- запускает retrieval только если запрос разрешён;
+- отказывает на `out_of_project` и `mixed`;
+- возвращает `clarify` для ambiguous.
 
-Минимальная структура:
+Файлы:
 
 ```text
 src/asu_june_bot/guardrails/models.py
@@ -48,108 +61,60 @@ src/asu_june_bot/guardrails/policy.py
 src/asu_june_bot/guardrails/project_guard.py
 ```
 
-CPU-оценка:
-
-- нормально работает на CPU;
-- rule-based классификация быстрая;
-- LLM не нужен для fast path.
-
 ### 2. Rule-based fast path
 
-Статус: включить в MVP.
+Статус: реализовано как deterministic CPU-first слой.
 
 Суть:
 
-- использовать regex / keyword паттерны для `PROJECT_MARKERS`, `OUT_OF_PROJECT_MARKERS`, `GENERATION_VERBS`, `CODE_NOUNS`;
-- отдельно обрабатывать границу `вопрос по проектной технологии` vs `просьба написать произвольный код`;
-- не использовать только OR-логику.
-
-Ключевое правило:
-
-```text
-Если в сегменте есть project marker и out-of-project marker -> segment = mixed/ambiguous.
-Если в запросе есть in_project segment и out_of_project segment -> refuse_mixed_scope.
-```
-
-CPU-оценка:
-
-- полностью CPU-friendly;
-- без новых внешних сервисов.
+- regex / keyword patterns для project/out/meta/generation/security/jailbreak;
+- отдельная обработка коротких технических маркеров `AD`, `API`, `БД`, `ИБ`, чтобы они не срабатывали внутри слов;
+- отдельная граница `вопрос по проектной технологии` vs `просьба написать произвольный код`;
+- отказ до retrieval при mixed/out-of-project.
 
 ### 3. Deterministic Aggregator + Policy
 
-Статус: включить в MVP.
+Статус: реализовано.
 
-Суть:
-
-- `Aggregator` — чистая функция над сегментами;
-- `Policy` решает `allow`, `refuse`, `clarify`, `meta_response`;
-- вся логика тестируется без LLM и без retrieval.
-
-Рекомендуемая политика MVP:
+Правила MVP:
 
 ```text
 pure in_project -> allow
 pure out_of_project -> refuse
-mixed_scope high confidence -> refuse_with_explanation
-mixed_scope low confidence -> request_clarification
-ambiguous -> request_clarification
+mixed_scope -> refuse
+ambiguous -> clarify
 ```
-
-CPU-оценка:
-
-- полностью CPU-friendly.
 
 ### 4. Pytest guard suite
 
-Статус: включить в MVP до `/chat`.
+Статус: реализовано.
 
-Минимальные категории:
-
-```text
-pure_in_project
-pure_out_of_project
-mixed_scope_weather
-mixed_scope_code
-mixed_scope_jailbreak
-ambiguous
-project_tech_vs_general_code
-```
-
-Обязательные проверки:
+Файлы:
 
 ```text
-refuse -> retrieval_called == False
-mixed_scope -> status == refused или clarify
-in_project -> retrieval_called == True
+tests/asu_june_bot/test_project_guard_v2.py
+tests/asu_june_bot/guard_v2_cases.jsonl
+tests/asu_june_bot/test_project_guard_v2_cases.py
+scripts/asu_june_bot_guard_v2_eval.py
 ```
 
-CPU-оценка:
-
-- полностью CPU-friendly;
-- критично для регрессионной защиты.
-
-### 5. Structured guard logs
-
-Статус: включить в MVP.
-
-Логировать:
+Критерий:
 
 ```text
-query_hash
-raw_query
-segments
-segment_scope
-matched_markers
-guard_decision
-guard_reason
-retrieval_called
-latency_ms
+false_allow = 0
 ```
 
-CPU-оценка:
+### 5. Structured guard diagnostics
 
-- полностью CPU-friendly.
+Статус: реализовано в JSON-ответе `search_v2`.
+
+Доступно:
+
+```text
+guard.guard_v2.aggregate.segments[]
+```
+
+Показывает segment text, scope, confidence, matched markers и labels.
 
 ## Можно развернуть локально как research/lab
 
@@ -160,35 +125,20 @@ CPU-оценка:
 Зачем смотреть:
 
 - локальная semantic routing классификация на embeddings;
-- подходит для быстрых маршрутов `project`, `out_of_scope`, `coding`, `weather`, `chitchat`, `jailbreak`;
+- маршруты `project`, `out_of_scope`, `coding`, `weather`, `chitchat`, `jailbreak`;
 - может заменить или усилить rule-based classifier после MVP.
 
-Как использовать в лаборатории:
+Когда вернуться:
 
-```text
-routes/project_docs
-routes/general_coding
-routes/weather
-routes/chitchat
-routes/jailbreak
-routes/meta
-```
-
-Ожидаемая польза:
-
-- меньше ручных regex;
-- лучше ловит перефразированные out-of-scope запросы;
-- работает до retrieval.
+- после API Search;
+- если rule-based ProjectGuard v2 начнёт давать много false_refuse/false_clarify на реальных запросах;
+- если появится набор 100–200 размеченных guard-запросов.
 
 CPU-оценка:
 
-- должно работать локально на CPU, если использовать local encoder / текущий bge-m3 через существующий embeddings client или легкий локальный encoder;
-- требует отдельного benchmark на latency.
-
-Риск:
-
-- добавляет зависимость и слой конфигурации;
-- может ошибаться на узких проектных терминах без curated route examples.
+- возможно локально на CPU при лёгком encoder;
+- с bge-m3 через Ollama может быть медленно для каждого запроса;
+- нужен benchmark latency.
 
 Решение:
 
@@ -197,24 +147,24 @@ CPU-оценка:
 
 ### 2. instructor + pydantic для LLM fallback
 
-Статус: research/lab, можно подготовить после API Search.
+Статус: research/lab после API Search.
 
 Зачем смотреть:
 
 - structured JSON из Qwen/Ollama;
-- полезно для ambiguous segment fallback;
+- fallback для ambiguous segments;
 - уменьшает риск битого JSON от локальной LLM.
 
 CPU-оценка:
 
 - библиотека лёгкая;
-- сам fallback через Qwen на CPU может быть медленным, поэтому только для ambiguous cases;
-- обязательно нужен SQLite cache по hash(segment).
+- LLM fallback на CPU может быть медленным;
+- нужен SQLite cache по hash(segment).
 
 Решение:
 
 - не использовать в fast path;
-- добавить как optional fallback после того, как rule-based/semantic-router покажут свои границы.
+- добавить как optional fallback только после стабилизации API Search.
 
 ### 3. RAGAS / DeepEval
 
@@ -222,19 +172,19 @@ CPU-оценка:
 
 Зачем смотреть:
 
-- автоматическая оценка context relevancy, faithfulness, answer relevancy;
-- полезно для regression reports по `/search` и `/chat`.
+- context relevancy;
+- faithfulness;
+- answer relevancy;
+- regression reports по `/search` и `/chat`.
 
 CPU-оценка:
 
-- вычисление метрик может требовать LLM judge;
-- на CPU будет медленно, если запускать много кейсов;
+- метрики с LLM judge будут медленными на CPU;
 - можно запускать редко и маленькими наборами.
 
 Решение:
 
-- не блокировать MVP;
-- сначала сделать собственные deterministic pytest asserts;
+- сначала собственные deterministic pytest asserts;
 - RAGAS/DeepEval — после появления `/chat`.
 
 ### 4. Guardrails AI
@@ -243,20 +193,21 @@ CPU-оценка:
 
 Зачем смотреть:
 
-- input/output validation;
+- output validation;
 - декларативные validators;
-- может быть полезен для output guard: запрет ответов без источников, запрет внепроектного кода.
+- запрет ответов без источников;
+- запрет внепроектного кода в ответе.
 
 CPU-оценка:
 
 - сама библиотека не тяжёлая;
-- validators, которые требуют LLM, будут медленными на CPU;
+- LLM validators на CPU будут медленными;
 - integration overhead выше, чем у текущего кастомного guard.
 
 Решение:
 
 - не подключать до API Search;
-- рассмотреть для output guard после первого `/chat`.
+- рассмотреть после первого `/chat` как output guard.
 
 ## За пределами MVP
 
@@ -274,14 +225,8 @@ CPU-оценка:
 Почему не сейчас:
 
 - добавляет DSL, конфигурации и отдельный runtime layer;
-- может быть избыточен до стабилизации собственного `/search` и `/chat`;
-- потребует времени на изучение Colang и интеграцию.
-
-CPU-оценка:
-
-- сам framework можно запустить локально;
-- guardrails на LLM/self-check будут медленными на CPU;
-- практично оценивать после появления GPU или после стабилизации API.
+- текущий ProjectGuard v2 уже закрыл MVP-критерий `false_allow = 0`;
+- LLM/self-check rails на CPU будут медленными.
 
 Решение:
 
@@ -301,7 +246,7 @@ CPU-оценка:
 
 - отдельная модель рядом с Qwen и bge-m3;
 - на CPU может быть медленно;
-- не решает всю project-only специфику без собственной таксономии проекта.
+- не решает project-only специфику без собственной таксономии проекта.
 
 Решение:
 
@@ -341,7 +286,7 @@ CPU-оценка:
 Почему не сейчас:
 
 - текущий проект уже имеет собственный extraction/chunking/index/search v2.1;
-- перенос в готовую платформу усложнит контроль source policy, guard policy и traceability;
+- перенос в готовую платформу усложнит source policy, guard policy и traceability;
 - есть риск потерять точную трассировку ФТТ/ЦТА/ПР/ПМИ.
 
 Решение:
@@ -370,7 +315,7 @@ CPU-оценка:
 
 ## Итоговое решение
 
-### Берём сейчас
+### Уже взяли в MVP
 
 ```text
 Segmenter
@@ -379,7 +324,8 @@ Aggregator
 Policy
 ProjectGuard v2
 pytest guard suite
-structured guard logs
+guard eval runner
+structured guard diagnostics
 ```
 
 ### Проверяем локально потом
@@ -403,32 +349,20 @@ LangGraph / agentic RAG
 
 ## Следующий практический шаг
 
-После прохождения текущего mixed-scope smoke перейти к реализации `ProjectGuard v2`:
+Переход к API Search MVP:
 
 ```text
-guardrails/models.py
-guardrails/segmenter.py
-guardrails/scope_classifier.py
-guardrails/aggregator.py
-guardrails/policy.py
-guardrails/project_guard.py
-```
-
-Сразу добавить pytest-набор:
-
-```text
-tests/asu_june_bot/test_project_guard_v2.py
+src/asu_june_bot/api/app.py
+src/asu_june_bot/api/routes_health.py
+src/asu_june_bot/api/routes_search.py
 ```
 
 Минимальный критерий готовности:
 
 ```text
-pure in_project -> allow
-pure out_of_project -> refuse
-mixed weather -> refuse
-mixed code/game -> refuse
-ambiguous -> clarify
-project technical question -> allow
-arbitrary code generation -> refuse
-retrieval_called == False при refuse/clarify
+GET /health работает
+POST /search работает
+POST /search повторяет CLI search_v2 JSON semantics
+refused/clarify не запускают retrieval
+project queries возвращают primary/supporting context
 ```
