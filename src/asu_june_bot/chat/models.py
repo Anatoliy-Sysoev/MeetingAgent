@@ -22,7 +22,7 @@ class ChatRequest:
     top_k: int = 8
     include_source_types: list[str] | None = None
     model: str | None = None
-    temperature: float = 0.1
+    temperature: float = 0.0
     max_tokens: int = 1200
     timeout_sec: int = 120
     include_diagnostics: bool = True
@@ -47,6 +47,7 @@ class ChatSource:
     source_type: str | None = None
     score: float | None = None
     text_preview: str | None = None
+    bucket: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -60,6 +61,7 @@ class ChatSource:
             "source_type": self.source_type,
             "score": self.score,
             "text_preview": self.text_preview,
+            "bucket": self.bucket,
         }
 
 
