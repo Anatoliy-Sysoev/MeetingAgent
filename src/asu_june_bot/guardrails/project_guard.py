@@ -4,20 +4,19 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
-from asu_june_bot.retrieval.query_intent import QueryIntent, QueryIntentResult
+from asu_june_bot.retrieval.query_intent import QueryIntentResult
+
+from .aggregator import ScopeAggregator
+from .models import GuardAction, GuardPolicyResult
+from .policy import GuardPolicy
+from .scope_classifier import RuleBasedScopeClassifier
+from .segmenter import QuerySegmenter
 
 
 class GuardDecision(StrEnum):
     ALLOW = "allow"
     REFUSE = "refuse"
-
-
-DEFAULT_REFUSAL_MESSAGE = "Я отвечаю только по материалам проекта ЦП УПКС. Вопрос не относится к проектной базе знаний."
-DEFAULT_MIXED_SCOPE_MESSAGE = (
-    "Запрос содержит проектную и внепроектную части. "
-    "Я отвечаю только по материалам проекта ЦП УПКС. "
-    "Уберите внепроектную часть запроса и повторите вопрос по документации проекта."
-)
+    CLARIFY = "clarify"
 
 
 @dataclass(slots=True)
@@ -26,6 +25,7 @@ class ProjectGuardResult:
     reason: str
     message: str | None
     query_intent: QueryIntentResult
+    guard_v2: GuardPolicyResult | None = None
 
     @property
     def allowed(self) -> bool:
@@ -38,46 +38,44 @@ class ProjectGuardResult:
             "reason": self.reason,
             "message": self.message,
             "query_intent": self.query_intent.to_dict(),
+            "guard_v2": self.guard_v2.to_dict() if self.guard_v2 else None,
         }
 
 
 class ProjectGuard:
     def __init__(
         self,
-        refusal_message: str = DEFAULT_REFUSAL_MESSAGE,
-        mixed_scope_message: str = DEFAULT_MIXED_SCOPE_MESSAGE,
+        segmenter: QuerySegmenter | None = None,
+        classifier: RuleBasedScopeClassifier | None = None,
+        aggregator: ScopeAggregator | None = None,
+        policy: GuardPolicy | None = None,
     ):
-        self.refusal_message = refusal_message
-        self.mixed_scope_message = mixed_scope_message
+        self.segmenter = segmenter or QuerySegmenter()
+        self.classifier = classifier or RuleBasedScopeClassifier()
+        self.aggregator = aggregator or ScopeAggregator()
+        self.policy = policy or GuardPolicy()
 
     def evaluate(self, query: str, query_intent: QueryIntentResult) -> ProjectGuardResult:
-        if query_intent.intent == QueryIntent.OUT_OF_SCOPE_CANDIDATE and not query_intent.is_project_related:
-            return ProjectGuardResult(
-                decision=GuardDecision.REFUSE,
-                reason="out_of_scope_candidate_without_project_signal",
-                message=self.refusal_message,
-                query_intent=query_intent,
-            )
-
-        if query_intent.matched_out_of_scope_markers and query_intent.matched_project_markers:
-            return ProjectGuardResult(
-                decision=GuardDecision.REFUSE,
-                reason="mixed_scope_query_contains_out_of_scope_marker",
-                message=self.mixed_scope_message,
-                query_intent=query_intent,
-            )
-
-        if query_intent.matched_out_of_scope_markers and not query_intent.matched_project_markers:
-            return ProjectGuardResult(
-                decision=GuardDecision.REFUSE,
-                reason="out_of_scope_marker_without_project_marker",
-                message=self.refusal_message,
-                query_intent=query_intent,
-            )
-
+        policy_result = self.evaluate_v2(query)
+        decision = self._to_legacy_decision(policy_result.action)
         return ProjectGuardResult(
-            decision=GuardDecision.ALLOW,
-            reason="project_signal_detected",
-            message=None,
+            decision=decision,
+            reason=policy_result.reason,
+            message=policy_result.message,
             query_intent=query_intent,
+            guard_v2=policy_result,
         )
+
+    def evaluate_v2(self, query: str) -> GuardPolicyResult:
+        segments = self.segmenter.split(query)
+        classifications = [self.classifier.classify(segment) for segment in segments]
+        aggregate = self.aggregator.aggregate(classifications)
+        return self.policy.decide(aggregate)
+
+    @staticmethod
+    def _to_legacy_decision(action: GuardAction) -> GuardDecision:
+        if action == GuardAction.ALLOW:
+            return GuardDecision.ALLOW
+        if action == GuardAction.CLARIFY:
+            return GuardDecision.CLARIFY
+        return GuardDecision.REFUSE
