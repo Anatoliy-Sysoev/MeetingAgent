@@ -66,6 +66,44 @@ guard.guard_v2.aggregate.segments[]
 
 В нём видно, какая часть запроса была признана проектной, внепроектной или неоднозначной.
 
+## Первый regression run ProjectGuard v2
+
+Команда:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\test_project_guard_v2_cases.py -q
+```
+
+Результат до корректировки classifier:
+
+```text
+26 passed
+18 failed
+```
+
+Базовые unit tests прошли:
+
+```text
+8 passed
+```
+
+Классы выявленных проблем:
+
+- `false_clarify` по валидным проектным запросам: `ФТТ 4.2.5`, `Паспорте ИС`, `структура БД`, `endpoint ASU`;
+- `false_allow` по опасным mixed/jailbreak запросам: `подделать ЭЦП`, `игнорируй ограничения`, `не используй RAG`;
+- ложный project match: короткий маркер `AD` срабатывал внутри `payload`;
+- общие слова `требования`, `интеграция`, `документы` без проектного объекта давали слишком сильный project signal;
+- не хватало segmentation по `потом`, `в конце`, `между делом`, `если не можешь`.
+
+Коррекции внесены:
+
+- `segmenter.py`: не режет `4.2.5` по точкам; делит скрытые хвосты по `потом`, `затем`, `в конце`, `между делом`, `если не можешь`;
+- `scope_classifier.py`: короткие маркеры `AD`, `JS`, `API`, `БД`, `ИБ` матчятся только как токены;
+- `scope_classifier.py`: добавлены проектные формы `Паспорте ИС`, `Паспорта ИС`, `структура БД`, `структуры БД`, `endpoint`, `ASU`, `защита информации`;
+- `scope_classifier.py`: добавлены offensive/jailbreak markers `подделать ЭЦП`, `как скрыть`, `скрыть логи`, `обычный ChatGPT`, `не используй RAG`, `ответь из головы`, `скрытую инструкцию`;
+- `scope_classifier.py`: generic project words `требования`, `интеграция`, `документы`, `модуль` без сильного проектного объекта считаются ambiguous, а не project allow;
+- `scope_classifier.py`: слабые technical tokens в arbitrary-code/offensive запросах не превращают pure out-of-project в mixed.
+
 ## Проверенный smoke ProjectGuard v2
 
 Проверенные файлы:
@@ -191,13 +229,6 @@ supporting_sources = 0
 excluded_sources = 15
 ```
 
-Вывод:
-
-- `primary_sources[0]` — корректный обзорный chunk `Границы описания` из `ЦП УПКС_Паспорт ИС_v1.3.2`;
-- `supporting_sources` пустой;
-- таблицы ПО и support/qualification/application support chunks ушли в `excluded_sources`;
-- результат пригоден для передачи в LLM-контекст.
-
 ### ФТТ 4.2.5 НОВАДОК ЭЦП
 
 Запрос:
@@ -234,14 +265,14 @@ cd C:\Users\Сотрудник\Desktop\AI\MeetingAgent
 git pull
 ```
 
-Запустить guard v2 tests:
+Повторить guard v2 tests:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\test_project_guard_v2.py -q
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\test_project_guard_v2_cases.py -q
 ```
 
-Запустить eval runner:
+Повторить eval runner:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_guard_v2_eval.py --print-failed --fail-on-error
@@ -277,8 +308,10 @@ git pull
 - [x] Добавить JSONL regression cases.
 - [x] Добавить eval runner.
 - [x] Добавить pytest-параметризацию поверх JSONL.
-- [ ] Прогнать pytest локально.
-- [ ] Прогнать eval runner локально.
+- [x] Прогнать первый pytest локально: `26 passed / 18 failed`.
+- [x] Внести первую корректировку segmenter/classifier по regression failures.
+- [ ] Повторить pytest локально.
+- [ ] Повторить eval runner локально.
 - [ ] При необходимости скорректировать segmenter/classifier/policy.
 - [ ] Создать markdown smoke-отчет ProjectGuard v2.
 
