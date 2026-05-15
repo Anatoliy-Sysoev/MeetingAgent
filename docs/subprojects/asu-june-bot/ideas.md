@@ -6,34 +6,50 @@
 
 Документ фиксирует идеи, которые полезны для Asu June Bot, но не должны попадать в текущий MVP без отдельной проверки. Цель — не раздувать локальный CPU-first контур и не превращать `search_v2`, `/search` или `/chat` в монолит.
 
-## Текущий вывод после ProjectGuard v2
+## Текущий вывод после анализа API Search MVP предложений
 
-Ранее рассматривался риск бесконечного расширения `OUT_OF_SCOPE_MARKERS`. Решение найдено и реализовано: **ProjectGuard v2**.
-
-Реализованный guard-пайплайн:
+Следующий этап — **API Search MVP**. Выбрана реализация через Service Layer:
 
 ```text
-Segmenter -> PerSegmentScopeClassifier -> Aggregator -> Policy -> ProjectGuard
+SearchService = единственная orchestration-точка
+CLI = thin adapter
+API = thin adapter
 ```
 
-Финальный regression результат:
+Финальный дизайн зафиксирован:
 
-```json
-{
-  "total": 44,
-  "passed": 44,
-  "failed": 0,
-  "false_allow": 0,
-  "false_refuse": 0,
-  "false_clarify": 0
-}
+```text
+docs/subprojects/asu-june-bot/api_search_mvp_design.md
 ```
 
-Следствие:
+В MVP входят:
 
-- ProjectGuard v2 больше не является research-идеей — это runtime-компонент MVP.
-- Следующий этап — API Search MVP.
-- Внешние guardrails-фреймворки не подключаются в runtime MVP.
+- `SearchService`;
+- Pydantic `SearchRequest/SearchResponse`;
+- FastAPI `GET /health`;
+- FastAPI `POST /search`;
+- application factory;
+- singleton AppState;
+- request_id middleware;
+- базовый error handling;
+- unit test: `refused/clarify` не вызывают retrieval;
+- API smoke tests.
+
+Не входят в текущий MVP:
+
+- новый top-level `app/` пакет;
+- перенос существующих модулей в `core_search/`;
+- async-first рефакторинг всего pipeline;
+- structlog как обязательная зависимость;
+- CORS/auth;
+- OpenTelemetry;
+- `/chat`;
+- conversation store;
+- streaming/SSE;
+- OpenAI-compatible `/v1/chat/completions`;
+- pagination;
+- admin endpoints;
+- MCP.
 
 ## Уже реализовано в MVP / CPU-first
 
@@ -115,6 +131,149 @@ guard.guard_v2.aggregate.segments[]
 ```
 
 Показывает segment text, scope, confidence, matched markers и labels.
+
+## Можно реализовать позже после API Search MVP
+
+### 1. CORS
+
+Статус: после появления браузерного UI.
+
+Решение:
+
+- не включать в локальный API Search MVP;
+- если потребуется UI, добавить `CORSMiddleware` с allow-list origins;
+- не использовать `allow_origins=["*"]` для production.
+
+### 2. Auth / API Key
+
+Статус: после локального API MVP или перед внешним доступом.
+
+Решение:
+
+- для локального пилота можно без auth;
+- перед публикацией API добавить dependency `require_api_key`;
+- позже — OAuth/AD/Keycloak, если появится enterprise-сценарий.
+
+### 3. OpenTelemetry / advanced observability
+
+Статус: позже.
+
+MVP:
+
+- request_id;
+- elapsed_ms;
+- basic access log;
+- diagnostics в ответе по флагу.
+
+Позже:
+
+- OpenTelemetry;
+- metrics endpoint;
+- traces;
+- structured JSON logs.
+
+### 4. structlog
+
+Статус: optional позже.
+
+Решение:
+
+- MVP на stdlib logging;
+- structlog можно добавить, если появится потребность в контекстных JSON-логах.
+
+### 5. `/health/live`
+
+Статус: позже или в API MVP, если быстро.
+
+Решение:
+
+- основной MVP endpoint — `GET /health`;
+- `/health/live` полезен для Docker/K8s/process manager;
+- не блокирует API Search MVP.
+
+### 6. Pagination / offset / limit
+
+Статус: позже.
+
+Решение:
+
+- в MVP достаточно `top_k`;
+- pagination нужна, если UI будет показывать много источников.
+
+### 7. Admin endpoints
+
+Статус: позже.
+
+Возможные endpoints:
+
+```text
+POST /admin/reindex
+GET /admin/stats
+GET /admin/source-types
+```
+
+Решение:
+
+- не делать до стабильного `/search` и `/chat`;
+- обязательно защищать auth dependency.
+
+### 8. `/chat`
+
+Статус: следующий крупный этап после API Search MVP.
+
+Будущие компоненты:
+
+```text
+ChatService
+PromptBuilder
+LLMClient
+AnswerGenerator
+AnswerValidator
+ResponseFormatter
+ConversationStore
+```
+
+Правило:
+
+```text
+ChatService использует SearchService, не дублирует retrieval/guard.
+```
+
+### 9. Streaming / SSE
+
+Статус: после базового `/chat`.
+
+Решение:
+
+- не делать в первой версии chat;
+- сначала получить корректный non-streaming answer с citations.
+
+### 10. OpenAI-compatible `/v1/chat/completions`
+
+Статус: позже, если нужно подключение OpenWebUI/LibreChat/клиентов.
+
+Решение:
+
+- сначала собственный `/search` и `/chat`;
+- затем adapter endpoint под OpenAI-compatible API.
+
+### 11. MCP server для Codex
+
+Статус: позже после API Search.
+
+Идея:
+
+```text
+asu-june-bot-mcp
+  search_project_docs(query, mode, top_k)
+  get_source(chunk_id)
+  health()
+```
+
+Решение:
+
+- не делать до API `/search`;
+- API должен стать источником истины, MCP — только обёртка.
 
 ## Можно развернуть локально как research/lab
 
@@ -313,48 +472,12 @@ CPU-оценка:
 
 - не внедрять до стабилизации `/search`, `/chat`, guard logs и eval.
 
-## Итоговое решение
-
-### Уже взяли в MVP
-
-```text
-Segmenter
-RuleBasedScopeClassifier
-Aggregator
-Policy
-ProjectGuard v2
-pytest guard suite
-guard eval runner
-structured guard diagnostics
-```
-
-### Проверяем локально потом
-
-```text
-semantic-router lab
-instructor + pydantic для ambiguous LLM fallback
-RAGAS / DeepEval для evaluation
-Guardrails AI для output validation
-```
-
-### Оставляем за пределами MVP
-
-```text
-NVIDIA NeMo Guardrails
-LlamaGuard / ShieldGemma
-fine-tuned classifier
-RAGFlow/Dify/AnythingLLM как основной backend
-LangGraph / agentic RAG
-```
-
 ## Следующий практический шаг
 
-Переход к API Search MVP:
+Реализация API Search MVP по документу:
 
 ```text
-src/asu_june_bot/api/app.py
-src/asu_june_bot/api/routes_health.py
-src/asu_june_bot/api/routes_search.py
+docs/subprojects/asu-june-bot/api_search_mvp_design.md
 ```
 
 Минимальный критерий готовности:
