@@ -22,9 +22,11 @@ Asu June Bot v2.1 технически собран до уровня локал
 - добавлен `src/asu_june_bot/retrieval/context_builder.py`;
 - `scripts/asu_june_bot_search_v2.py` подключает `QueryIntent`, `ProjectGuard`, `PostReranker`, `ContextBuilder`;
 - для явно внепроектных вопросов `search_v2` возвращает `status=refused`, пустой `results` и не выполняет retrieval;
+- для mixed-scope запросов с проектной и внепроектной частью `ProjectGuard` теперь возвращает отказ;
 - JSON-ответ `search_v2` содержит `query_intent`, `guard`, `rerank`, `context.primary_sources`, `context.supporting_sources`, `context.excluded_sources`;
 - добавлен параметр `--output`, чтобы Python сам сохранял JSON в UTF-8 без PowerShell redirection;
-- `ContextBuilder` уточнен для `requirement_lookup`: при наличии конкретного пункта primary содержит только точное попадание по указанному пункту.
+- `ContextBuilder` уточнен для `requirement_lookup`: при наличии конкретного пункта primary содержит только точное попадание по указанному пункту;
+- `ContextBuilder` больше не должен дублировать один и тот же chunk между `primary_sources`, `supporting_sources`, `excluded_sources`.
 
 ## Проверенный smoke 2026-05-15
 
@@ -35,6 +37,7 @@ Asu June Bot v2.1 технически собран до уровня локал
 ```text
 smoke_passport_context.json
 smoke_ftt_425_context.json
+smoke_погода в москве_context.json
 ```
 
 Результат:
@@ -64,6 +67,46 @@ results = []
 ```
 
 Вывод: ProjectGuard работает корректно.
+
+### Mixed-scope запрос
+
+Запрос:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Все документы про справочники и интеграции. и погода в Москве" --mode hybrid --top-k 8 --json --output "data\asu_june_bot\smoke_mixed_scope_context.json"
+```
+
+Фактический результат до правки:
+
+```text
+status = ok
+intent = integration_overview
+guard = allow
+matched_project_markers = [справочники, справочник, интеграции]
+matched_out_of_scope_markers = [погода]
+```
+
+Выявленное замечание:
+
+- guard пропустил запрос, потому что увидел проектные маркеры;
+- при этом в запросе была внепроектная часть `погода`;
+- для целевого корпоративного бота это недопустимо: пользователь может смешивать проектный запрос с внешним вопросом.
+
+Исправление внесено:
+
+- `ProjectGuard` теперь возвращает отказ, если одновременно найдены `matched_project_markers` и `matched_out_of_scope_markers`;
+- reason: `mixed_scope_query_contains_out_of_scope_marker`;
+- retrieval для такого запроса выполняться не должен.
+
+Ожидаемый результат после повторного smoke:
+
+```text
+status = refused
+guard.decision = refuse
+guard.reason = mixed_scope_query_contains_out_of_scope_marker
+results = []
+context.primary_sources = []
+```
 
 ### Паспорт ИС overview
 
@@ -100,16 +143,16 @@ mojibake markers = 0
 .\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode hybrid --top-k 8 --json --output data\asu_june_bot\smoke_ftt_425_context.json
 ```
 
-Фактический результат до последней правки `ContextBuilder`:
+Фактический результат после правки `ContextBuilder`:
 
 ```text
 status = ok
 intent = requirement_lookup
 guard = allow
 mentioned_sections = [4.2.5]
-primary_sources = 5
-supporting_sources = 3
-excluded_sources = 8
+primary_sources = 1
+supporting_sources = 5
+excluded_sources = 10
 mojibake markers = 0
 ```
 
@@ -118,26 +161,17 @@ mojibake markers = 0
 - ФТТ, Таблица 8, строка 44, № `4.2.5`;
 - текст требования: формирование актов проверки, предписаний об устранении недостатков/о приостановке работ, актов устранения недостатков; интеграция с НОВАДОК с использованием ЭЦП;
 - признак объёма: `Входит в объём проекта = Х`;
-- примечание: в части конфигурационных файлов и самой интеграции с системой НОВАДОК.
+- примечание: в части конфигурационных файлов для работы с интеграцией и сама интеграция с системой НОВАДОК.
 
-Выявленное замечание:
+Supporting context:
 
-- `primary_sources` был слишком широким;
-- в primary попадали ФТТ 5.1, ФТТ интеграции и встреча ФТТ_ИД;
-- для Chat MVP это риск: LLM может смешивать точное требование 4.2.5 со смежным требованием 5.1.
+- ПР СМР, печатные формы / соответствие ФТТ 4.2.5;
+- ПМИ, покрытие требования 4.2.5 сценарием `СФТ 6`;
+- ФТТ 5.1 как смежное требование по НОВАДОК/ЭЦП;
+- встреча ФТТ_ИД как аналитический контекст по НОВАДОК/ЭЦП;
+- ФТТ, Таблица 11, интеграция `ЦП УПКС -> НОВАДОК`.
 
-Исправление внесено:
-
-- `ContextBuilder` теперь при `requirement_lookup` и наличии `mentioned_sections` кладёт в `primary_sources` только точное совпадение по указанному пункту;
-- ФТТ/ПР/ПМИ/встречи без точного совпадения должны уходить в `supporting_sources` или `excluded_sources`.
-
-Ожидаемый результат после повторного smoke:
-
-```text
-primary_sources = 1
-primary_sources[0] = ФТТ / Таблица 8 / строка 44 / № 4.2.5
-supporting_sources = ПР, ПМИ, ФТТ интеграция, встреча ФТТ_ИД при наличии места
-```
+Вывод: точный `requirement_lookup` пройден.
 
 ### Интеграции
 
@@ -204,10 +238,11 @@ allow
 refuse
 ```
 
-Правило MVP:
+Правила MVP:
 
 - если вопрос явно вне проекта и не содержит проектных маркеров, `search_v2` сразу возвращает отказ;
-- если вопрос содержит проектные маркеры, retrieval разрешается;
+- если вопрос содержит проектные и внепроектные маркеры одновременно, `search_v2` возвращает отказ как mixed-scope;
+- если вопрос содержит проектные маркеры без внепроектной примеси, retrieval разрешается;
 - отказ не вызывает BM25/vector/hybrid и не возвращает случайные chunks.
 
 ## Что изменилось в PostReranker / ContextBuilder
@@ -233,11 +268,12 @@ excluded_sources
 
 - LLM должен получать не raw top-k, а только подготовленный context;
 - для `document_overview` primary должен содержать обзорный chunk, а не таблицы ПО/поддержки;
-- для `requirement_lookup` с конкретным пунктом primary должен содержать точное попадание по этому пункту.
+- для `requirement_lookup` с конкретным пунктом primary должен содержать точное попадание по этому пункту;
+- один и тот же chunk не должен одновременно находиться в нескольких bucket context.
 
 ## Следующий практический шаг
 
-Подтянуть исправление и повторить только smoke по ФТТ 4.2.5.
+Подтянуть исправления и повторить mixed-scope smoke.
 
 ```powershell
 cd C:\Users\Сотрудник\Desktop\AI\MeetingAgent
@@ -245,16 +281,20 @@ git pull
 ```
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode hybrid --top-k 8 --json --output data\asu_june_bot\smoke_ftt_425_context.json
+.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Все документы про справочники и интеграции. и погода в Москве" --mode hybrid --top-k 8 --json --output "data\asu_june_bot\smoke_mixed_scope_context.json"
 ```
 
 Ожидаемая проверка:
 
 ```text
-context.diagnostics.primary_count = 1
-context.primary_sources[0].metadata.cells["№"] = 4.2.5.
-context.primary_sources[0].document_type = ФТТ
+status = refused
+guard.decision = refuse
+guard.reason = mixed_scope_query_contains_out_of_scope_marker
+results = []
+context.primary_sources = []
 ```
+
+Если mixed-scope smoke пройдет, можно переходить к API Search.
 
 ## Следующие задачи разработки
 
@@ -273,7 +313,10 @@ context.primary_sources[0].document_type = ФТТ
 - [x] Добавить `--output` для UTF-8 JSON без PowerShell redirection.
 - [x] Повторить smoke через `--output` и убедиться, что JSON читаемый.
 - [x] Сузить primary context для `requirement_lookup` с точным пунктом.
-- [ ] Повторить smoke `ФТТ 4.2.5` после сужения primary context.
+- [x] Повторить smoke `ФТТ 4.2.5` после сужения primary context.
+- [x] Запретить mixed-scope запросы с внепроектными маркерами.
+- [x] Убрать дубли chunk между context buckets.
+- [ ] Повторить mixed-scope smoke после правки guard.
 - [ ] Создать markdown smoke-отчет v2.2.
 
 ### B. API Search
@@ -292,7 +335,7 @@ GET /health
 POST /search
 ```
 
-К API Search переходить после контрольного smoke `ФТТ 4.2.5` с `primary_count = 1`.
+К API Search переходить после контрольного mixed-scope smoke с `status = refused`.
 
 ### C. Chat MVP
 
@@ -316,10 +359,12 @@ POST /search
 
 - `health_v2`: `status=ok`, `vector_ready=true`, `bm25_ready=true`.
 - Внепроектный вопрос возвращает `status=refused` и не вызывает retrieval.
+- Mixed-scope запрос возвращает `status=refused` и не вызывает retrieval.
 - Для каждого baseline-запроса есть primary sources.
 - В JSON выдаче есть diagnostics по intent/rerank/context.
 - В primary/supporting context нет критического шума, который может увести LLM в неверный ответ.
 - Для точного requirement lookup primary содержит точный пункт, а не смежные требования.
+- Один chunk не дублируется между context buckets.
 - JSON smoke-файлы сохраняются в UTF-8 без mojibake.
 - Старые `data/chunks.jsonl`, `data/embeddings_cache.jsonl`, `data/numpy_index` не меняются.
 
