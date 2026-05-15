@@ -6,9 +6,334 @@
 
 Документ фиксирует идеи, которые полезны для Asu June Bot, но не должны попадать в текущий MVP без отдельной проверки. Цель — не раздувать локальный CPU-first контур и не превращать `search_v2`, `/search` или `/chat` в монолит.
 
+## Текущий вывод после анализа внешнего ревью Chat MVP
+
+Внешние ответы по Chat MVP сходятся в нескольких позициях:
+
+```text
+оставить линейный pipeline SearchService -> PromptBuilder -> LLMClient -> AnswerValidator -> ResponseFormatter;
+не делать монолит и не дублировать retrieval/guard/context внутри ChatService;
+LLM не вызывается при refused/clarify/no_sources;
+LLM получает только primary_sources + supporting_sources;
+excluded_sources не попадают в prompt;
+ответ без источников не считается answered;
+пустой ответ LLM не считается answered;
+для MVP достаточно deterministic validation, без LLM-judge/NLI;
+до POST /chat сначала стабилизировать CLI Chat MVP.
+```
+
+Что решено внедрять сейчас:
+
+```text
+Context budget / truncation в PromptBuilder;
+явная разметка primary/supporting sources в prompt;
+temperature=0.0 по умолчанию;
+более строгий AnswerValidator: unknown citations, external phrases, length, citation density, citation coverage;
+дополнительные unit tests для context budget и unknown citations.
+```
+
+Что решено не внедрять сейчас, а оставить в backlog:
+
+```text
+JSON-mode structured output;
+S0 / formal no_answer contract;
+1 retry на no_citations/invalid_json;
+GroundedContext / GenerationGuard как отдельные классы;
+LLM-as-judge;
+NLI / sentence-to-source groundedness;
+multi-turn / query condensation;
+streaming/SSE;
+telemetry dashboard;
+LangGraph / Dify / RAGFlow / NeMo Guardrails.
+```
+
+## Реализовано по итогам ревью Chat MVP
+
+### 1. Context budget / truncation
+
+Статус: реализовано.
+
+Файл:
+
+```text
+src/asu_june_bot/chat/prompt_builder.py
+```
+
+Решение:
+
+- `PromptBuilder(max_sources=6, max_context_chars=9000, max_chars_per_source=1800)`;
+- источники режутся по границе слова;
+- суммарный prompt context ограничен;
+- primary/supporting явно размечаются как `ОСНОВНОЙ ИСТОЧНИК` / `ДОПОЛНИТЕЛЬНЫЙ ИСТОЧНИК`;
+- `excluded_sources` не передаются в LLM;
+- diagnostics содержит `used_context_chars`, `selected_sources`, `skipped_by_budget`, `skipped_duplicate`, `skipped_empty`.
+
+### 2. Deterministic mode для LLM
+
+Статус: реализовано.
+
+Файл:
+
+```text
+src/asu_june_bot/chat/models.py
+```
+
+Решение:
+
+```text
+ChatRequest.temperature = 0.0
+```
+
+Причина: для RAG по проектной документации нужна детерминированность, а не креативность.
+
+### 3. Усиленный AnswerValidator
+
+Статус: реализовано.
+
+Файл:
+
+```text
+src/asu_june_bot/chat/answer_validator.py
+```
+
+Реализовано:
+
+- извлечение ссылок `[S1]`, `[S1, S2]`;
+- проверка unknown source references;
+- проверка пустого/слишком короткого/слишком длинного ответа;
+- блок-лист фраз внешнего знания;
+- citation density для длинных ответов;
+- citation coverage по предложениям;
+- no-answer markers пока приводят к `validation_failed`, а не `answered`.
+
+Важно: семантический groundedness не реализован. Validator пока подтверждает citation contract, а не фактическую истинность каждого утверждения.
+
+## Backlog после внешнего ревью Chat MVP
+
+### 1. JSON-mode structured output
+
+Статус: идея / next hardening после CLI smoke.
+
+Суть:
+
+Заставить LLM возвращать JSON вида:
+
+```json
+{
+  "answer": "текст ответа с [S1]",
+  "sources": ["S1"],
+  "insufficient": false
+}
+```
+
+Плюсы:
+
+- меньше неоднозначности parsing;
+- проще deterministic validation;
+- можно валидировать Pydantic-схемой.
+
+Минусы / риски:
+
+- нужно проверить, насколько стабильно текущая локальная модель в Ollama соблюдает JSON contract;
+- OpenAI-compatible JSON mode у Ollama может отличаться по моделям и версиям;
+- может ухудшить качество естественного ответа.
+
+Решение:
+
+- не включать до первого CLI smoke;
+- сделать отдельный эксперимент `chat_json_mode_lab`;
+- сравнить plain markdown vs JSON на 20 project questions.
+
+### 2. Formal NO_ANSWER / S0 contract
+
+Статус: идея / после первого smoke.
+
+Суть:
+
+Ввести отдельный статус:
+
+```text
+no_answer
+```
+
+или `insufficient_data`, если sources есть, но LLM честно говорит, что в них нет ответа.
+
+Вариант prompt-contract:
+
+```text
+Если в источниках нет ответа, напиши ровно: "В переданных источниках данных недостаточно для ответа".
+```
+
+Риск:
+
+- локальная модель может формулировать no-answer по-разному;
+- расширение markers может стать новым раздуванием rules, если не собирать реальные логи.
+
+Решение:
+
+- пока no-answer markers приводят к `validation_failed`, не к `answered`;
+- после smoke собрать реальные no-answer формулировки и решить, нужен ли отдельный `ChatStatus.NO_ANSWER`.
+
+### 3. One retry
+
+Статус: later после сбора статистики validation failures.
+
+Суть:
+
+Делать максимум 1 retry только при:
+
+```text
+missing_source_references
+invalid JSON / unparsable structured output
+empty answer
+```
+
+Не делать retry при:
+
+```text
+unknown citations
+external knowledge markers
+low citation density
+low citation coverage
+```
+
+Причина:
+
+- на CPU retry удваивает latency;
+- retry может скрыть системную проблему prompt/validator;
+- сначала нужны метрики причин validation_failed.
+
+### 4. GroundedContext / GenerationGuard
+
+Статус: later / refactor after smoke.
+
+Суть:
+
+Добавить отдельный промежуточный объект между `SearchResponse` и `PromptBuilder`:
+
+```text
+GroundedContext
+  primary_sources
+  supporting_sources
+  citation_map
+  budget_diagnostics
+```
+
+И отдельную проверку:
+
+```text
+GenerationGuard
+  can_generate(search_response) -> yes/no/reason
+```
+
+Плюсы:
+
+- ChatService станет тоньше;
+- проще тестировать no_sources/budget/source mapping отдельно.
+
+Решение:
+
+- не делать до первого smoke, чтобы не рефакторить преждевременно;
+- вернуться, если `ChatService` начнет разрастаться.
+
+### 5. NLI / sentence-to-source groundedness
+
+Статус: production hardening, не MVP.
+
+Суть:
+
+Проверять каждое утверждение ответа против цитируемого источника.
+
+Почему не сейчас:
+
+- нужна отдельная модель или второй LLM pass;
+- latency на CPU вырастет кратно;
+- без реальных диалогов невозможно настроить thresholds;
+- возможны ложные отказы на валидные перефразированные ответы.
+
+Решение:
+
+- вернуться после 50–100 реальных диалогов;
+- сначала оценить, сколько `answered` фактически галлюцинируют.
+
+### 6. LLM-as-judge
+
+Статус: production/lab, не MVP.
+
+Плюсы:
+
+- может ловить смысловые галлюцинации лучше regex;
+- полезен для offline eval.
+
+Минусы:
+
+- удваивает latency;
+- judge на той же модели может подтвердить собственную галлюцинацию;
+- требует отдельного eval набора.
+
+Решение:
+
+- не использовать inline в Chat MVP;
+- рассмотреть offline evaluation track после накопления smoke cases.
+
+### 7. Multi-turn / Query condensation
+
+Статус: later.
+
+Суть:
+
+Поддержка вопросов типа:
+
+```text
+А кто это утвердил?
+А где это написано?
+```
+
+Почему не сейчас:
+
+- текущий MVP должен быть single-turn;
+- multi-turn требует ConversationStore и QueryCondensation перед SearchService;
+- повышает риск неправильного scope carry-over.
+
+Решение:
+
+- явно считать Chat MVP single-turn;
+- добавить multi-turn только после стабильного `/chat`.
+
+### 8. Telemetry / validation logs
+
+Статус: after CLI smoke, до расширенного пилота.
+
+Идея:
+
+Писать JSONL diagnostics:
+
+```text
+request_id
+query
+chat_status
+search_status
+prompt_sources
+llm_model
+llm_called
+validation_errors
+latency_ms
+```
+
+Польза:
+
+- понять долю `validation_failed`;
+- калибровать prompt и validator;
+- увидеть топ причин отказов.
+
+MVP-решение:
+
+- пока diagnostics возвращается в JSON;
+- после smoke добавить `chat_runs.jsonl` под флагом.
+
 ## Текущий вывод после анализа API Search MVP предложений
 
-Следующий этап — **API Search MVP**. Выбрана реализация через Service Layer:
+API Search MVP закрыт. Выбрана реализация через Service Layer:
 
 ```text
 SearchService = единственная orchestration-точка
@@ -22,10 +347,9 @@ API = thin adapter
 docs/subprojects/asu-june-bot/api_search_mvp_design.md
 ```
 
-В MVP входят:
+Реализовано:
 
 - `SearchService`;
-- Pydantic `SearchRequest/SearchResponse`;
 - FastAPI `GET /health`;
 - FastAPI `POST /search`;
 - application factory;
@@ -34,22 +358,6 @@ docs/subprojects/asu-june-bot/api_search_mvp_design.md
 - базовый error handling;
 - unit test: `refused/clarify` не вызывают retrieval;
 - API smoke tests.
-
-Не входят в текущий MVP:
-
-- новый top-level `app/` пакет;
-- перенос существующих модулей в `core_search/`;
-- async-first рефакторинг всего pipeline;
-- structlog как обязательная зависимость;
-- CORS/auth;
-- OpenTelemetry;
-- `/chat`;
-- conversation store;
-- streaming/SSE;
-- OpenAI-compatible `/v1/chat/completions`;
-- pagination;
-- admin endpoints;
-- MCP.
 
 ## Уже реализовано в MVP / CPU-first
 
@@ -64,7 +372,8 @@ docs/subprojects/asu-june-bot/api_search_mvp_design.md
 - агрегирует результат;
 - запускает retrieval только если запрос разрешён;
 - отказывает на `out_of_project` и `mixed`;
-- возвращает `clarify` для ambiguous.
+- возвращает `clarify` для ambiguous;
+- блокирует `project + unknown tail` на уровне policy без раздувания marker DB.
 
 Файлы:
 
@@ -99,6 +408,7 @@ pure in_project -> allow
 pure out_of_project -> refuse
 mixed_scope -> refuse
 ambiguous -> clarify
+project + unknown tail -> refuse
 ```
 
 ### 4. Pytest guard suite
@@ -122,7 +432,7 @@ false_allow = 0
 
 ### 5. Structured guard diagnostics
 
-Статус: реализовано в JSON-ответе `search_v2`.
+Статус: реализовано в JSON-ответе `search_v2` и `/search`.
 
 Доступно:
 
@@ -132,7 +442,7 @@ guard.guard_v2.aggregate.segments[]
 
 Показывает segment text, scope, confidence, matched markers и labels.
 
-## Можно реализовать позже после API Search MVP
+## Можно реализовать позже после Chat MVP
 
 ### 1. CORS
 
@@ -183,13 +493,13 @@ MVP:
 
 ### 5. `/health/live`
 
-Статус: позже или в API MVP, если быстро.
+Статус: позже.
 
 Решение:
 
 - основной MVP endpoint — `GET /health`;
 - `/health/live` полезен для Docker/K8s/process manager;
-- не блокирует API Search MVP.
+- не блокирует Chat MVP.
 
 ### 6. Pagination / offset / limit
 
@@ -217,29 +527,7 @@ GET /admin/source-types
 - не делать до стабильного `/search` и `/chat`;
 - обязательно защищать auth dependency.
 
-### 8. `/chat`
-
-Статус: следующий крупный этап после API Search MVP.
-
-Будущие компоненты:
-
-```text
-ChatService
-PromptBuilder
-LLMClient
-AnswerGenerator
-AnswerValidator
-ResponseFormatter
-ConversationStore
-```
-
-Правило:
-
-```text
-ChatService использует SearchService, не дублирует retrieval/guard.
-```
-
-### 9. Streaming / SSE
+### 8. Streaming / SSE
 
 Статус: после базового `/chat`.
 
@@ -248,7 +536,7 @@ ChatService использует SearchService, не дублирует retrieva
 - не делать в первой версии chat;
 - сначала получить корректный non-streaming answer с citations.
 
-### 10. OpenAI-compatible `/v1/chat/completions`
+### 9. OpenAI-compatible `/v1/chat/completions`
 
 Статус: позже, если нужно подключение OpenWebUI/LibreChat/клиентов.
 
@@ -257,7 +545,7 @@ ChatService использует SearchService, не дублирует retrieva
 - сначала собственный `/search` и `/chat`;
 - затем adapter endpoint под OpenAI-compatible API.
 
-### 11. MCP server для Codex
+### 10. MCP server для Codex
 
 Статус: позже после API Search.
 
@@ -272,7 +560,7 @@ asu-june-bot-mcp
 
 Решение:
 
-- не делать до API `/search`;
+- не делать до стабильного `/search` и `/chat`;
 - API должен стать источником истины, MCP — только обёртка.
 
 ## Можно развернуть локально как research/lab
@@ -289,7 +577,6 @@ asu-june-bot-mcp
 
 Когда вернуться:
 
-- после API Search;
 - если rule-based ProjectGuard v2 начнёт давать много false_refuse/false_clarify на реальных запросах;
 - если появится набор 100–200 размеченных guard-запросов.
 
@@ -302,11 +589,11 @@ CPU-оценка:
 Решение:
 
 - не внедрять в основной MVP;
-- сделать отдельный эксперимент `guard_semantic_router_lab` после API Search.
+- сделать отдельный эксперимент `guard_semantic_router_lab` после Chat MVP.
 
 ### 2. instructor + pydantic для LLM fallback
 
-Статус: research/lab после API Search.
+Статус: research/lab после Chat MVP.
 
 Зачем смотреть:
 
@@ -323,7 +610,7 @@ CPU-оценка:
 Решение:
 
 - не использовать в fast path;
-- добавить как optional fallback только после стабилизации API Search.
+- добавить как optional fallback только после стабилизации Chat MVP.
 
 ### 3. RAGAS / DeepEval
 
@@ -365,7 +652,7 @@ CPU-оценка:
 
 Решение:
 
-- не подключать до API Search;
+- не подключать до стабильного `/chat`;
 - рассмотреть после первого `/chat` как output guard.
 
 ## За пределами MVP
@@ -471,21 +758,3 @@ CPU-оценка:
 Решение:
 
 - не внедрять до стабилизации `/search`, `/chat`, guard logs и eval.
-
-## Следующий практический шаг
-
-Реализация API Search MVP по документу:
-
-```text
-docs/subprojects/asu-june-bot/api_search_mvp_design.md
-```
-
-Минимальный критерий готовности:
-
-```text
-GET /health работает
-POST /search работает
-POST /search повторяет CLI search_v2 JSON semantics
-refused/clarify не запускают retrieval
-project queries возвращают primary/supporting context
-```
