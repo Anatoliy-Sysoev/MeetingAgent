@@ -18,7 +18,9 @@ if hasattr(sys.stdout, "reconfigure"):
 from asu_june_bot.core.config import load_config, resolve_work_path  # noqa: E402
 from asu_june_bot.guardrails.project_guard import ProjectGuard  # noqa: E402
 from asu_june_bot.retrieval.chunks import read_jsonl  # noqa: E402
+from asu_june_bot.retrieval.context_builder import ContextBuilder  # noqa: E402
 from asu_june_bot.retrieval.hybrid import build_hybrid_retriever  # noqa: E402
+from asu_june_bot.retrieval.post_rerank import PostReranker  # noqa: E402
 from asu_june_bot.retrieval.query_intent import classify_query_intent  # noqa: E402
 from asu_june_bot.retrieval.vector import OllamaUnavailableError  # noqa: E402
 
@@ -58,6 +60,15 @@ def print_human(payload: dict[str, Any]) -> None:
         print(f"Intent: {query_intent.get('intent')} | project_related={query_intent.get('is_project_related')} | confidence={query_intent.get('confidence')}")
     if guard:
         print(f"Guard: {guard.get('decision')} | reason={guard.get('reason')}")
+    if payload.get("context"):
+        context = payload["context"]
+        diagnostics = context.get("diagnostics") or {}
+        print(
+            "Context: "
+            f"primary={diagnostics.get('primary_count')} "
+            f"supporting={diagnostics.get('supporting_count')} "
+            f"excluded={diagnostics.get('excluded_count')}"
+        )
     if payload.get("answer"):
         print(f"Ответ: {payload['answer']}")
     if payload.get("warnings"):
@@ -76,6 +87,9 @@ def print_human(payload: dict[str, Any]) -> None:
         warning = get_warning(item)
         if warning:
             print(f"Предупреждение: {warning}")
+        rerank_labels = (item.get("diagnostics") or {}).get("rerank_labels") or []
+        if rerank_labels:
+            print(f"Rerank: {', '.join(rerank_labels)}")
         print(f"Документ: {item.get('document')}")
         print(f"Тип: {item.get('document_type')} | Source type: {item.get('source_type')} | Модуль: {item.get('module')}")
         print(f"Раздел: {item.get('section')} | Requirement: {requirement_id} | Chunk: {item.get('chunk_index')}")
@@ -141,6 +155,7 @@ def main() -> None:
             "guard": guard_payload,
             "warnings": [],
             "results": [],
+            "context": {"primary_sources": [], "supporting_sources": [], "excluded_sources": [], "diagnostics": {}},
         }
         if args.json:
             print(json.dumps(payload, ensure_ascii=False, indent=2))
@@ -162,9 +177,9 @@ def main() -> None:
 
     retriever = build_hybrid_retriever(cfg, rows, mode=args.mode)
     try:
-        results = retriever.search(
+        raw_results = retriever.search(
             query=query,
-            top_k=args.top_k,
+            top_k=max(args.top_k * 2, args.top_k + 8),
             include_source_types=args.include_source_types,
             mode=args.mode,
         )
@@ -184,6 +199,8 @@ def main() -> None:
             "Временная альтернатива без Ollama: используй --mode bm25."
         ) from exc
 
+    rerank_result = PostReranker().rerank(query, query_intent_result, raw_results, top_k=args.top_k)
+    built_context = ContextBuilder().build(query, query_intent_result, rerank_result.results, rerank_result.excluded)
     warnings = list(getattr(retriever, "last_warnings", []) or [])
     payload = {
         "query": query,
@@ -196,7 +213,9 @@ def main() -> None:
         "query_intent": query_intent_payload,
         "guard": guard_payload,
         "warnings": warnings,
-        "results": [result.to_dict() for result in results],
+        "rerank": rerank_result.diagnostics,
+        "context": built_context.to_dict(),
+        "results": [result.to_dict() for result in rerank_result.results],
     }
 
     if args.json:
