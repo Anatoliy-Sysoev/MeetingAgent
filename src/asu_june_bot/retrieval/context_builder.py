@@ -35,6 +35,10 @@ def is_vector_only(result: SearchResult) -> bool:
     return "vector" in result.matched_by and "bm25" not in result.matched_by
 
 
+def result_key(result: SearchResult) -> str:
+    return str(result.metadata.get("chunk_id") or result.metadata.get("db_id") or result.source_id)
+
+
 def has_label(result: SearchResult, label: str) -> bool:
     return label in set(result.diagnostics.get("rerank_labels") or [])
 
@@ -76,22 +80,37 @@ class ContextBuilder:
     def build(self, query: str, intent: QueryIntentResult, results: list[SearchResult], excluded: list[SearchResult] | None = None) -> BuiltContext:
         primary: list[SearchResult] = []
         supporting: list[SearchResult] = []
-        excluded_sources: list[SearchResult] = list(excluded or [])
+        excluded_sources: list[SearchResult] = []
+        used_keys: set[str] = set()
 
         for result in results:
+            key = result_key(result)
+            if key in used_keys:
+                continue
             bucket = self._bucket(query, intent, result)
             if bucket == "primary" and len(primary) < self.primary_limit:
                 primary.append(result)
+                used_keys.add(key)
             elif bucket == "supporting" and len(supporting) < self.supporting_limit:
                 supporting.append(result)
+                used_keys.add(key)
             else:
                 excluded_sources.append(result)
+                used_keys.add(key)
 
         if not primary and results:
             for result in results:
-                if not has_noise_label(result):
+                key = result_key(result)
+                if key not in used_keys and not has_noise_label(result):
                     primary.append(result)
+                    used_keys.add(key)
                     break
+
+        for result in excluded or []:
+            key = result_key(result)
+            if key not in used_keys:
+                excluded_sources.append(result)
+                used_keys.add(key)
 
         return BuiltContext(
             primary_sources=primary,
