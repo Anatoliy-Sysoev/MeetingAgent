@@ -17,27 +17,12 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
-from asu_june_bot.core.config import load_config, resolve_work_path  # noqa: E402
-from asu_june_bot.guardrails.project_guard import GuardDecision, ProjectGuard  # noqa: E402
-from asu_june_bot.retrieval.chunks import read_jsonl  # noqa: E402
-from asu_june_bot.retrieval.context_builder import ContextBuilder  # noqa: E402
-from asu_june_bot.retrieval.hybrid import build_hybrid_retriever  # noqa: E402
-from asu_june_bot.retrieval.post_rerank import PostReranker  # noqa: E402
-from asu_june_bot.retrieval.query_intent import classify_query_intent  # noqa: E402
-from asu_june_bot.retrieval.vector import OllamaUnavailableError  # noqa: E402
+from asu_june_bot.search.models import SearchRequest  # noqa: E402
+from asu_june_bot.search.service import SearchService  # noqa: E402
 
 
 DEFAULT_CHUNKS_PATH = "data/asu_june_bot/chunks_v2.jsonl"
 DEFAULT_INDEX_DIR = "data/asu_june_bot/numpy_index_v2"
-
-
-def make_v2_cfg(cfg: dict[str, Any], chunks_path: str, index_dir: str) -> dict[str, Any]:
-    patched = dict(cfg)
-    paths = dict(patched.get("paths") or {})
-    paths["chunks"] = chunks_path
-    paths["numpy_index"] = index_dir
-    patched["paths"] = paths
-    return patched
 
 
 def get_path(item: dict[str, Any]) -> str | None:
@@ -62,10 +47,6 @@ def write_json_output(payload: dict[str, Any], output_path: str | None) -> None:
         print(f"JSON сохранён: {path}")
         return
     print(text)
-
-
-def empty_context() -> dict[str, Any]:
-    return {"primary_sources": [], "supporting_sources": [], "excluded_sources": [], "diagnostics": {}}
 
 
 def print_human(payload: dict[str, Any]) -> None:
@@ -94,6 +75,9 @@ def print_human(payload: dict[str, Any]) -> None:
         print("Предупреждения:")
         for warning in payload["warnings"]:
             print(f"- {warning}")
+    service_diag = ((payload.get("diagnostics") or {}).get("search_service") or {})
+    if service_diag:
+        print(f"Retrieval called: {service_diag.get('retrieval_called')} | elapsed={service_diag.get('total_elapsed_ms')} ms")
     print(f"Результатов: {len(payload.get('results', []))}")
     print()
     for item in payload.get("results", []):
@@ -117,28 +101,8 @@ def print_human(payload: dict[str, Any]) -> None:
         print("-" * 100)
 
 
-def unavailable_payload(query: str, mode: str, exc: Exception, query_intent: dict[str, Any] | None = None, guard: dict[str, Any] | None = None) -> dict[str, Any]:
-    return {
-        "query": query,
-        "corpus": "asu_june_bot_v2",
-        "mode": mode,
-        "status": "error",
-        "error_code": "ollama_unavailable",
-        "error": str(exc),
-        "query_intent": query_intent,
-        "guard": guard,
-        "next_steps": [
-            "Запусти Ollama Desktop или команду: ollama serve",
-            "Проверь доступность: ollama list",
-            "Проверь, что модель embeddings установлена: ollama pull bge-m3",
-            "После запуска Ollama повтори vector/hybrid smoke",
-            "Для проверки без Ollama используй --mode bm25",
-        ],
-    }
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Asu June Bot v2 search CLI over chunks_v2 and numpy_index_v2")
+    parser = argparse.ArgumentParser(description="Asu June Bot v2 search CLI over SearchService")
     parser.add_argument("query", nargs="+", help="Поисковый запрос")
     parser.add_argument("--top-k", type=int, default=10, help="Количество результатов")
     parser.add_argument("--mode", choices=["hybrid", "vector", "bm25"], default="hybrid", help="Режим поиска")
@@ -162,85 +126,17 @@ def main() -> None:
     if args.output and not args.json:
         args.json = True
 
-    query_intent_result = classify_query_intent(query)
-    guard_result = ProjectGuard().evaluate(query, query_intent_result)
-    query_intent_payload = query_intent_result.to_dict()
-    guard_payload = guard_result.to_dict()
-
-    if not args.no_guard and not guard_result.allowed:
-        status = "clarify" if guard_result.decision == GuardDecision.CLARIFY else "refused"
-        payload = {
-            "query": query,
-            "corpus": "asu_june_bot_v2",
-            "mode": args.mode,
-            "status": status,
-            "answer": guard_result.message,
-            "query_intent": query_intent_payload,
-            "guard": guard_payload,
-            "warnings": [],
-            "results": [],
-            "context": empty_context(),
-        }
-        if args.json:
-            write_json_output(payload, args.output)
-        else:
-            print_human(payload)
-        return
-
-    cfg = load_config()
-    cfg = make_v2_cfg(cfg, args.chunks_path, args.index_dir)
-    chunks_path = resolve_work_path(cfg, args.chunks_path)
-    index_dir = resolve_work_path(cfg, args.index_dir)
-
-    rows = read_jsonl(chunks_path)
-    if args.mode in {"hybrid", "vector"} and not (index_dir / "manifest.json").exists():
-        raise SystemExit(
-            f"numpy_index_v2 не найден: {index_dir}. "
-            "Сначала запусти scripts/asu_june_bot_build_index_v2.py или используй --mode bm25."
-        )
-
-    retriever = build_hybrid_retriever(cfg, rows, mode=args.mode)
-    try:
-        raw_results = retriever.search(
-            query=query,
-            top_k=max(args.top_k * 2, args.top_k + 8),
-            include_source_types=args.include_source_types,
-            mode=args.mode,
-        )
-    except OllamaUnavailableError as exc:
-        payload = unavailable_payload(query, args.mode, exc, query_intent_payload, guard_payload)
-        if args.json:
-            write_json_output(payload, args.output)
-            return
-        raise SystemExit(
-            "Ollama недоступен, поэтому vector search не может построить embedding запроса.\n"
-            f"Деталь: {exc}\n\n"
-            "Что сделать:\n"
-            "1. Запусти Ollama Desktop или отдельное окно PowerShell: ollama serve\n"
-            "2. Проверь: ollama list\n"
-            "3. Проверь модель embeddings: ollama pull bge-m3\n"
-            "4. Повтори команду search_v2.\n\n"
-            "Временная альтернатива без Ollama: используй --mode bm25."
-        ) from exc
-
-    rerank_result = PostReranker().rerank(query, query_intent_result, raw_results, top_k=args.top_k)
-    built_context = ContextBuilder().build(query, query_intent_result, rerank_result.results, rerank_result.excluded)
-    warnings = list(getattr(retriever, "last_warnings", []) or [])
-    payload = {
-        "query": query,
-        "corpus": "asu_june_bot_v2",
-        "mode": args.mode,
-        "status": "ok",
-        "top_k": args.top_k,
-        "chunks_path": str(chunks_path),
-        "index_dir": str(index_dir),
-        "query_intent": query_intent_payload,
-        "guard": guard_payload,
-        "warnings": warnings,
-        "rerank": rerank_result.diagnostics,
-        "context": built_context.to_dict(),
-        "results": [result.to_dict() for result in rerank_result.results],
-    }
+    request = SearchRequest(
+        query=query,
+        mode=args.mode,
+        top_k=args.top_k,
+        chunks_path=args.chunks_path,
+        index_dir=args.index_dir,
+        include_source_types=args.include_source_types,
+        no_guard=args.no_guard,
+        include_diagnostics=True,
+    )
+    payload = SearchService(work_root=WORK_ROOT).search(request).to_dict()
 
     if args.json:
         write_json_output(payload, args.output)
