@@ -71,7 +71,7 @@ Query
 
 ## Commit 1. SearchService без API
 
-Статус: реализовано, требуется локальный прогон.
+Статус: реализовано и локально проверено.
 
 Добавлено:
 
@@ -88,30 +88,114 @@ tests/asu_june_bot/search/test_search_service.py
 scripts/asu_june_bot_search_v2.py
 ```
 
-Что изменилось:
+Проверено:
 
-- orchestration вынесена в `SearchService`;
-- CLI `search_v2` стал thin wrapper;
-- `SearchService` возвращает JSON payload, совместимый по смыслу с прежним `search_v2 --json`;
-- добавлены diagnostics `diagnostics.search_service`;
-- unit tests проверяют, что `refused` и `clarify` не вызывают retrieval;
-- unit tests проверяют, что `allow` вызывает retrieval/rerank/context;
-- `--no-guard` сохраняет диагностический режим и принудительно запускает retrieval.
+```text
+SearchService unit tests: 4 passed
+ProjectGuard base tests: 8 passed
+ProjectGuard regression cases: 44 passed
+refused smoke: retrieval_called=false
+project smoke: retrieval_called=true
+```
+
+Отчёт:
+
+```text
+docs/subprojects/asu-june-bot/smoke_report_search_service_commit1.md
+```
+
+## Commit 2. FastAPI skeleton
+
+Статус: реализовано, требуется локальный прогон.
+
+Добавлено reusable health layer:
+
+```text
+src/asu_june_bot/health/__init__.py
+src/asu_june_bot/health/service.py
+```
+
+Добавлен API layer:
+
+```text
+src/asu_june_bot/api/__init__.py
+src/asu_june_bot/api/app.py
+src/asu_june_bot/api/dependencies.py
+src/asu_june_bot/api/errors.py
+src/asu_june_bot/api/middleware.py
+src/asu_june_bot/api/routes_health.py
+src/asu_june_bot/api/routes_search.py
+```
+
+Добавлен запуск API:
+
+```text
+scripts/asu_june_bot_api.py
+```
+
+Добавлены tests:
+
+```text
+tests/asu_june_bot/api/test_health.py
+tests/asu_june_bot/api/test_search_smoke.py
+```
+
+Что реализовано:
+
+- FastAPI application factory `create_app()`;
+- application lifespan с `AppState`;
+- singleton `SearchService` и `HealthService` на приложение;
+- request id middleware: `X-Request-Id`;
+- elapsed time header: `X-Elapsed-Ms`;
+- error handlers: validation/api/internal;
+- `GET /health` через `HealthService`;
+- `POST /search` через `SearchService`;
+- Pydantic request model для `/search`, совместимый с Pydantic v1;
+- API tests с fake services без реального индекса.
 
 Проверить локально:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\search\test_search_service.py -q
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какая погода завтра в Москве?" --mode hybrid --top-k 8 --json --output data\asu_june_bot\smoke_service_refused_weather.json
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "СоИ AD как происходит авторизация пользователей?" --mode hybrid --top-k 8 --json --output data\asu_june_bot\smoke_service_project_ad.json
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_health.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_search_smoke.py -q
+```
+
+Если FastAPI/uvicorn не установлены:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install fastapi uvicorn
+```
+
+Запуск API:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_api.py --host 127.0.0.1 --port 8000
+```
+
+Smoke после запуска:
+
+```powershell
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/health"
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://127.0.0.1:8000/search" `
+  -ContentType "application/json" `
+  -Body '{"query":"Какая погода завтра в Москве?","mode":"hybrid","top_k":8}'
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://127.0.0.1:8000/search" `
+  -ContentType "application/json" `
+  -Body '{"query":"СоИ AD как происходит авторизация пользователей?","mode":"hybrid","top_k":8}'
 ```
 
 Ожидаемо:
 
 ```text
-pytest: passed
-weather: status=refused, diagnostics.search_service.retrieval_called=false
-project_ad: status=ok, diagnostics.search_service.retrieval_called=true
+/health: status=ok, service=asu_june_bot
+weather search: status=refused, results=[], retrieval_called=false
+project search: status=ok, results!=[], retrieval_called=true
 ```
 
 ## Готово в v2.1 / Search Quality v2.2
@@ -219,26 +303,13 @@ Retrieval/context пригоден для API Search MVP:
 - СоИ Справочники;
 - дополнительные supporting chunks по КШД/SOAP, LDAPS/SMTP, S3/Minio, SIEM.
 
-## Следующий этап: API Search MVP
+## Commit 3. API smoke + docs
 
-### Commit 2. FastAPI skeleton
+Следующий этап после локальной проверки Commit 2:
 
-- [ ] Создать `src/asu_june_bot/api/__init__.py`.
-- [ ] Создать `src/asu_june_bot/api/app.py`.
-- [ ] Создать `src/asu_june_bot/api/dependencies.py`.
-- [ ] Создать `src/asu_june_bot/api/errors.py`.
-- [ ] Создать `src/asu_june_bot/api/middleware.py`.
-- [ ] Создать `src/asu_june_bot/api/routes_health.py`.
-- [ ] Создать `src/asu_june_bot/api/routes_search.py`.
-- [ ] Создать `scripts/asu_june_bot_api.py`.
-
-### Commit 3. API smoke + docs
-
-- [ ] Добавить `tests/asu_june_bot/api/test_health.py`.
-- [ ] Добавить `tests/asu_june_bot/api/test_search_smoke.py`.
 - [ ] Добавить PowerShell smoke-команды в `RUNBOOK_V2.md`.
 - [ ] Создать `docs/subprojects/asu-june-bot/smoke_report_api_search_mvp.md`.
-- [ ] Обновить `docs/context.md` и `docs/todo.md`.
+- [ ] Обновить `docs/context.md` и `docs/todo.md` по результатам API smoke.
 
 ## Минимальные endpoints
 
@@ -292,6 +363,8 @@ diagnostics
 
 - [x] `SearchService` создан и покрыт unit tests.
 - [x] CLI `search_v2` работает через `SearchService` или полностью совместим по output semantics.
+- [x] `GET /health` реализован.
+- [x] `POST /search` реализован.
 - [ ] `GET /health` работает локально.
 - [ ] `POST /search` работает локально.
 - [ ] `POST /search` возвращает `refused` без retrieval для внепроектных запросов.
