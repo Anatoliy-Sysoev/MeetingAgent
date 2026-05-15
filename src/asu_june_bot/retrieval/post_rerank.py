@@ -67,6 +67,12 @@ def _is_software_or_support_table(text: str) -> bool:
             "операционная система серверов",
             "служба технической поддержки",
             "поддержка пользователей",
+            "поддержка приложения",
+            "устранение ошибок",
+            "доработка приложения",
+            "требования к квалификации и численности сотрудников",
+            "сотрудников, обслуживающих систему",
+            "роль | минимальные требования",
         ]
     )
 
@@ -127,7 +133,7 @@ class PostReranker:
                     multiplier *= 1.55
                     labels.append("boost:document_overview_passport")
                 if _is_software_or_support_table(text):
-                    multiplier *= 0.16
+                    multiplier *= 0.08
                     labels.append("penalty:software_or_support_table_for_overview")
                 if _is_glossary_or_front_matter(text):
                     multiplier *= 0.28
@@ -170,7 +176,7 @@ class PostReranker:
             overflow = adjusted[top_k:]
             adjusted = adjusted[:top_k]
             excluded.extend(
-                self._with_rerank(item, item.score, [*item.diagnostics.get("rerank_labels", []), "excluded:overflow_after_rerank"])
+                self._with_rerank(item, item.score, ["excluded:overflow_after_rerank"])
                 for item in overflow
             )
 
