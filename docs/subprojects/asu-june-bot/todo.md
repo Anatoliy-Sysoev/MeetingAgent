@@ -37,6 +37,24 @@ false_allow = 0
 docs/subprojects/asu-june-bot/smoke_report_project_guard_v2.md
 ```
 
+## Выбранный дизайн API Search MVP
+
+Дизайн зафиксирован:
+
+```text
+docs/subprojects/asu-june-bot/api_search_mvp_design.md
+```
+
+Выбранный принцип:
+
+```text
+SearchService = единственная orchestration-точка
+CLI = thin adapter
+API = thin adapter
+```
+
+Не делаем две разные реализации поиска для CLI и API.
+
 ## Текущий runtime-пайплайн
 
 ```text
@@ -158,14 +176,37 @@ Retrieval/context пригоден для API Search MVP:
 
 ## Следующий этап: API Search MVP
 
-Следующий практический шаг:
+### Commit 1. SearchService без API
 
-```text
-src/asu_june_bot/api/app.py
-src/asu_june_bot/api/routes_search.py
-```
+- [ ] Создать `src/asu_june_bot/search/__init__.py`.
+- [ ] Создать `src/asu_june_bot/search/models.py`.
+- [ ] Создать `src/asu_june_bot/search/service.py`.
+- [ ] Перенести orchestration из `scripts/asu_june_bot_search_v2.py` в `SearchService`.
+- [ ] Добавить unit tests `tests/asu_june_bot/search/test_search_service.py`.
+- [ ] Проверить, что `refused/clarify` не вызывают retrieval.
+- [ ] Проверить, что `allow` вызывает retrieval.
+- [ ] Сохранить совместимость CLI `search_v2 --json`.
 
-Минимальные endpoints:
+### Commit 2. FastAPI skeleton
+
+- [ ] Создать `src/asu_june_bot/api/__init__.py`.
+- [ ] Создать `src/asu_june_bot/api/app.py`.
+- [ ] Создать `src/asu_june_bot/api/dependencies.py`.
+- [ ] Создать `src/asu_june_bot/api/errors.py`.
+- [ ] Создать `src/asu_june_bot/api/middleware.py`.
+- [ ] Создать `src/asu_june_bot/api/routes_health.py`.
+- [ ] Создать `src/asu_june_bot/api/routes_search.py`.
+- [ ] Создать `scripts/asu_june_bot_api.py`.
+
+### Commit 3. API smoke + docs
+
+- [ ] Добавить `tests/asu_june_bot/api/test_health.py`.
+- [ ] Добавить `tests/asu_june_bot/api/test_search_smoke.py`.
+- [ ] Добавить PowerShell smoke-команды в `RUNBOOK_V2.md`.
+- [ ] Создать `docs/subprojects/asu-june-bot/smoke_report_api_search_mvp.md`.
+- [ ] Обновить `docs/context.md` и `docs/todo.md`.
+
+## Минимальные endpoints
 
 ```text
 GET /health
@@ -215,12 +256,14 @@ diagnostics
 
 ## Definition of Done для API Search
 
+- [ ] `SearchService` создан и покрыт unit tests.
+- [ ] CLI `search_v2` работает через `SearchService` или полностью совместим по output semantics.
 - [ ] `GET /health` работает локально.
 - [ ] `POST /search` работает локально.
 - [ ] `POST /search` возвращает `refused` без retrieval для внепроектных запросов.
 - [ ] `POST /search` возвращает `clarify` без retrieval для ambiguous-запросов.
 - [ ] `POST /search` возвращает `ok` и context для проектных запросов.
-- [ ] Формат ответа совпадает с CLI `search_v2 --json`.
+- [ ] Формат ответа совпадает с CLI `search_v2 --json` semantics.
 - [ ] Есть smoke-команды curl/PowerShell для API.
 - [ ] Документация API добавлена в runbook.
 
@@ -254,3 +297,5 @@ diagnostics
 - Не развивать старый `scripts/09_chat.py` как основной runtime.
 - Не делать UI до API Search.
 - Не подключать NeMo Guardrails, LangGraph, Dify/RAGFlow как runtime MVP.
+- Не вводить top-level `app/` / `core_search/` структуру в текущем репозитории.
+- Не делать async-first рефакторинг всего pipeline в API Search MVP.
