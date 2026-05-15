@@ -17,7 +17,7 @@ Asu June Bot — отдельный подпроект внутри MeetingAgent
 
 ## Текущий статус
 
-Asu June Bot v2.1/v2.2 технически готов к переходу от CLI Search MVP к API Search MVP.
+Asu June Bot v2.1/v2.2 доведён до уровня **API Search MVP**.
 
 Завершены этапы:
 
@@ -26,35 +26,65 @@ Extraction/Chunking v2.1
 Index/Search v2
 Search Quality v2.2
 ProjectGuard v2
+SearchService Commit 1
+FastAPI skeleton Commit 2
+API smoke/docs Commit 3
 ```
 
-Финальный результат ProjectGuard v2:
-
-```json
-{
-  "total": 44,
-  "passed": 44,
-  "failed": 0,
-  "false_allow": 0,
-  "false_refuse": 0,
-  "false_clarify": 0,
-  "failed_ids": [],
-  "false_allow_ids": [],
-  "false_refuse_ids": [],
-  "false_clarify_ids": []
-}
-```
-
-Финальный отчёт:
+Финальные отчёты:
 
 ```text
 docs/subprojects/asu-june-bot/smoke_report_project_guard_v2.md
+docs/subprojects/asu-june-bot/smoke_report_search_service_commit1.md
+docs/subprojects/asu-june-bot/smoke_report_api_search_mvp.md
 ```
 
 Следующий этап:
 
 ```text
-API Search MVP
+Chat MVP
+```
+
+## Почему /search не даёт осмысленный ответ
+
+`POST /search` — это endpoint поиска, а не чат.
+
+Он возвращает:
+
+```text
+query_intent
+guard
+context.primary_sources
+context.supporting_sources
+context.excluded_sources
+results
+warnings
+diagnostics
+```
+
+Его задача — доказать, что retrieval безопасен и качественен:
+
+```text
+project query -> sources/context
+out-of-project query -> refused без retrieval
+ambiguous query -> clarify без retrieval
+project + unknown tail -> refused без retrieval
+```
+
+Осмысленный ответ должен появиться на следующем этапе — **Chat MVP**.
+
+Chat MVP будет использовать `/search`/`SearchService` как источник evidence/context:
+
+```text
+Question
+  -> SearchService.search()
+  -> ContextBuilder context
+  -> PromptBuilder
+  -> LLMClient
+  -> AnswerGenerator
+  -> AnswerValidator
+  -> ResponseFormatter
+  -> answer with citations
 ```
 
 ## Ключевое решение v2.1
@@ -81,6 +111,8 @@ scripts/asu_june_bot_apply_config_v2_1.py
   -> scripts/asu_june_bot_build_index_v2.py
   -> scripts/asu_june_bot_health_v2.py
   -> scripts/asu_june_bot_search_v2.py
+  -> src/asu_june_bot/search/service.py
+  -> src/asu_june_bot/api/app.py
 ```
 
 Все runtime-данные v2 пишутся в:
@@ -195,19 +227,6 @@ data/asu_june_bot/extracted_v2/blocks.jsonl
 - пишет `chunking_v2_report.json` и `chunking_v2_report.md`;
 - не трогает старые `data/chunks.jsonl`, `data/embeddings_cache.jsonl`, `data/numpy_index`.
 
-### Config / audit v2.1
-
-Добавлено:
-
-```text
-scripts/asu_june_bot_apply_config_v2_1.py
-scripts/asu_june_bot_audit_sources_v2.py
-```
-
-`apply_config_v2_1` обновляет локальный `config.yaml` и делает backup.
-
-`audit_sources_v2` проверяет покрытие и причины исключения файлов.
-
 ### Index/Search v2
 
 Добавлены:
@@ -294,8 +313,67 @@ scripts/asu_june_bot_guard_v2_eval.py
 Проверено:
 
 ```text
-44/44 regression cases passed
+45 regression cases passed
 false_allow = 0
+```
+
+Важное policy-level правило:
+
+```text
+project + unknown tail -> refused / in_project_query_contains_unclassified_segment
+```
+
+### SearchService
+
+Реализовано:
+
+```text
+src/asu_june_bot/search/__init__.py
+src/asu_june_bot/search/models.py
+src/asu_june_bot/search/service.py
+```
+
+CLI `scripts/asu_june_bot_search_v2.py` теперь является thin wrapper над `SearchService`.
+
+Проверено:
+
+```text
+SearchService unit tests: 4 passed
+refused smoke: retrieval_called=false
+project smoke: retrieval_called=true
+```
+
+### API Search MVP
+
+Реализовано:
+
+```text
+src/asu_june_bot/health/__init__.py
+src/asu_june_bot/health/service.py
+src/asu_june_bot/api/__init__.py
+src/asu_june_bot/api/app.py
+src/asu_june_bot/api/dependencies.py
+src/asu_june_bot/api/errors.py
+src/asu_june_bot/api/middleware.py
+src/asu_june_bot/api/routes_health.py
+src/asu_june_bot/api/routes_search.py
+scripts/asu_june_bot_api.py
+```
+
+Endpoints:
+
+```text
+GET /health
+POST /search
+```
+
+Проверено:
+
+```text
+API health tests: 1 passed
+API search smoke tests: 3 passed
+API server starts successfully
+POST /search works
 ```
 
 ## Текущий локальный результат
@@ -330,31 +408,19 @@ embedding_model_installed = true
 
 ## Ближайшая цель
 
-Следующий шаг — API Search MVP:
+Следующий шаг — Chat MVP:
 
 ```text
-src/asu_june_bot/api/app.py
-src/asu_june_bot/api/routes_search.py
+src/asu_june_bot/chat/
+src/asu_june_bot/llm/
+scripts/asu_june_bot_chat.py
 ```
 
-Минимальные endpoints:
-
-```text
-GET /health
-POST /search
-```
-
-API `/search` должен использовать тот же pipeline, что CLI `search_v2`:
-
-```text
-QueryIntent -> ProjectGuard v2 -> Retrieval -> PostReranker -> ContextBuilder -> JSON response
-```
-
-При `refused` или `clarify` retrieval не вызывается.
+Chat MVP должен использовать уже готовый `SearchService`, а не дублировать guard/retrieval/context.
 
 ## Не делать дальше
 
-- Не переходить напрямую к Chat MVP без API `/search`.
+- Не пытаться заставить `/search` писать осмысленные ответы.
 - Не отправлять raw hybrid top-k в LLM.
 - Не развивать старый `scripts/09_chat.py` как основной runtime.
 - Не индексировать `Система` в основной project-only корпус.
