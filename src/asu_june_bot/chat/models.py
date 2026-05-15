@@ -23,8 +23,8 @@ class ChatRequest:
     include_source_types: list[str] | None = None
     model: str | None = None
     temperature: float = 0.0
-    max_tokens: int = 1200
-    timeout_sec: int = 120
+    max_tokens: int = 900
+    timeout_sec: int = 300
     include_diagnostics: bool = True
 
     def __post_init__(self) -> None:
