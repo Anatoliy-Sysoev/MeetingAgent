@@ -4,9 +4,9 @@
 
 ## Текущий статус
 
-API Search MVP закрыт. Начат Chat MVP. После внешнего ревью Chat MVP усилен без смены архитектуры.
+API Search MVP закрыт. CLI Chat MVP технически прошёл первый smoke на локальной LLM.
 
-Завершены этапы:
+Завершено:
 
 ```text
 Extraction/Chunking v2.1
@@ -14,219 +14,123 @@ Index/Search v2
 Search Quality v2.2
 ProjectGuard v2
 SearchService Commit 1
-FastAPI skeleton Commit 2
-API smoke/docs Commit 3
-Chat design Commit 4
-LLMClient + PromptBuilder Commit 5
-ChatService + CLI skeleton Commit 6
+FastAPI /health и /search
+API Search MVP smoke/docs
+Chat MVP design
+LLMClient + PromptBuilder
+ChatService + CLI skeleton
 Chat MVP hardening после внешнего ревью
+Chat MVP smoke на qwen2.5:7b-instruct
 ```
 
-Финальные отчёты по закрытым этапам:
+Финальные отчёты:
 
 ```text
 docs/subprojects/asu-june-bot/smoke_report_project_guard_v2.md
 docs/subprojects/asu-june-bot/smoke_report_search_service_commit1.md
 docs/subprojects/asu-june-bot/smoke_report_api_search_mvp.md
+docs/subprojects/asu-june-bot/smoke_report_chat_mvp.md
 ```
 
-Новый дизайн:
+## Подтверждено
 
-```text
-docs/subprojects/asu-june-bot/chat_mvp_design.md
-```
-
-Идеи и backlog после внешнего ревью:
-
-```text
-docs/subprojects/asu-june-bot/ideas.md
-```
-
-## Важное уточнение: почему /search не даёт осмысленный ответ
-
-`POST /search` — это не чат и не генератор ответа. Это диагностический и инфраструктурный endpoint, который возвращает найденные источники:
-
-```text
-query_intent
-guard
-context.primary_sources
-context.supporting_sources
-context.excluded_sources
-results
-warnings
-diagnostics
-```
-
-Осмысленный ответ должен формировать Chat MVP:
-
-```text
-Question
-  -> SearchService.search()
-  -> ContextBuilder context
-  -> PromptBuilder
-  -> LLMClient
-  -> ChatService
-  -> AnswerValidator
-  -> ResponseFormatter
-  -> answer with citations
-```
-
-## Реализовано в Chat MVP skeleton
-
-### LLM layer
-
-```text
-src/asu_june_bot/llm/__init__.py
-src/asu_june_bot/llm/client.py
-src/asu_june_bot/llm/ollama_openai.py
-```
-
-Реализовано:
-
-- `LLMClient` protocol;
-- `LLMRequest`;
-- `LLMResponse`;
-- `LLMError`;
-- `OllamaOpenAIClient` через `/v1/chat/completions`.
-
-### Chat layer
-
-```text
-src/asu_june_bot/chat/__init__.py
-src/asu_june_bot/chat/models.py
-src/asu_june_bot/chat/service.py
-src/asu_june_bot/chat/prompt_builder.py
-src/asu_june_bot/chat/answer_validator.py
-src/asu_june_bot/chat/response_formatter.py
-```
-
-Реализовано:
-
-- `ChatRequest`;
-- `ChatResponse`;
-- `ChatStatus`;
-- `ChatSource`;
-- `PromptBuilder`;
-- `AnswerValidator`;
-- `ResponseFormatter`;
-- `ChatService`.
-
-### CLI
-
-```text
-scripts/asu_june_bot_chat.py
-```
-
-### Tests
-
-```text
-tests/asu_june_bot/chat/test_chat_service.py
-```
-
-## Усиление Chat MVP после внешнего ревью
-
-Реализовано сейчас:
-
-```text
-Context budget / truncation в PromptBuilder
-primary/supporting bucket labels в prompt
-ChatRequest.temperature = 0.0
-AnswerValidator: unknown citations
-AnswerValidator: answer length checks
-AnswerValidator: external knowledge phrase checks
-AnswerValidator: citation density для длинных ответов
-AnswerValidator: citation coverage по предложениям
-unit tests для context budget и unknown citations
-```
-
-Не реализовано сейчас, записано в backlog:
-
-```text
-JSON-mode structured output
-formal NO_ANSWER / S0 contract
-1 retry на bad LLM response
-GroundedContext / GenerationGuard как отдельные классы
-LLM-as-judge
-NLI / sentence-to-source groundedness
-multi-turn / query condensation
-streaming/SSE
-telemetry dashboard
-```
-
-Причина: текущий MVP должен сначала стабильно пройти CLI-smoke на реальной локальной LLM. Сложные проверки и structured output будут добавляться только после фактических логов ошибок.
-
-## Следующий локальный прогон
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\chat\test_chat_service.py -q
-```
-
-Ожидаемо:
+### ChatService tests
 
 ```text
 7 passed
 ```
 
-Smoke с реальной LLM:
+Проверено:
 
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_chat.py "СоИ AD как происходит авторизация пользователей?" --mode hybrid --top-k 8 --json --output data\asu_june_bot\smoke_chat_ad.json
+```text
+refused -> LLM не вызывается
+clarify -> LLM не вызывается
+ok -> LLM вызывается
+LLM получает context, не excluded_sources
+пустой ответ LLM != answered
+ответ без [Sx] != answered
+unknown source reference != answered
+context budget diagnostics работают
 ```
 
-Ожидаемо:
+### Project smoke / qwen2.5
+
+Команда:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_chat.py "СоИ AD как происходит авторизация пользователей?" --mode hybrid --top-k 5 --model qwen2.5:7b-instruct --max-tokens 500 --timeout-sec 300 --json --output data\asu_june_bot\smoke_chat_ad_qwen25_7b.json
+```
+
+Результат:
 
 ```text
 status = answered
-answer содержит [S1] или другие [Sx]
-sources != []
-diagnostics.llm_called = true
-diagnostics.prompt.used_context_chars <= diagnostics.prompt.max_context_chars
+llm_called = true
+llm_model = qwen2.5:7b-instruct
+llm_finish_reason = stop
+validation_errors = []
+prompt_sources = 5
+selected_sources = 5
+used_context_chars = 1162
 ```
 
-Если вернулся `validation_failed`, это не авария. Нужно посмотреть:
+Вывод:
 
 ```text
-diagnostics.validation_errors
+qwen2.5:7b-instruct — рекомендуемая chat-модель для текущего MVP.
 ```
 
-Типовые причины:
+### Project smoke / qwen3
 
-```text
-missing_source_references
-unknown_source_references:S99
-external_knowledge_markers:...
-citation_density_too_low:...
-citation_coverage_too_low:...
-```
-
-Refused smoke:
+Команда:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_chat.py "Какая погода завтра в Москве?" --mode hybrid --top-k 8 --json --output data\asu_june_bot\smoke_chat_weather_refused.json
+.\.venv\Scripts\python.exe scripts\asu_june_bot_chat.py "СоИ AD как происходит авторизация пользователей?" --mode hybrid --top-k 5 --model qwen3:4b --max-tokens 500 --timeout-sec 300 --json --output data\asu_june_bot\smoke_chat_ad_qwen3_4b_nothink.json
 ```
 
-Ожидаемо:
+Результат:
 
 ```text
-status = refused
-diagnostics.llm_called = false
+status = llm_empty_response
+llm_called = true
+llm_model = qwen3:4b
+llm_finish_reason = length
 ```
 
-## Текущий runtime-пайплайн /search
+Вывод:
 
 ```text
-Query
-  -> QueryIntent
-  -> ProjectGuard v2
-  -> BM25/vector/hybrid retrieval
-  -> PostReranker
-  -> ContextBuilder
-  -> JSON response with sources
+qwen3:4b даже с /no_think нестабилен для Chat MVP на текущем prompt/max_tokens.
+qwen3:8b ранее давал timeout/обрыв на локальном CPU runtime.
 ```
 
-При `refused` или `clarify` retrieval не вызывается.
+## Важное ограничение результата
 
-## Текущий runtime-пайплайн chat skeleton
+Chat MVP smoke прошёл как structural validation, но не как полноценная semantic/factual validation.
+
+Текущий `AnswerValidator` проверяет:
+
+```text
+пустой ответ
+наличие источников
+наличие ссылок [Sx]
+unknown citations
+external knowledge markers
+answer length
+citation density / coverage
+```
+
+Он не проверяет:
+
+```text
+поддерживается ли каждое утверждение конкретным source text;
+не делает ли модель спорный вывод из короткого UML/heading chunk;
+нет ли semantic hallucination при формально корректных [Sx].
+```
+
+Для smoke-вопроса по AD модель дала валидный структурно ответ, но часть формулировок по коротким UML-фрагментам `[S2]`, `[S3]` требует ручного ревью. Это фиксируется как quality debt, а не runtime blocker.
+
+## Текущая архитектура Chat MVP
 
 ```text
 User question
@@ -240,100 +144,45 @@ User question
   -> ChatResponse
 ```
 
-## Product Package
-
-- [x] Подготовить отдельную папку `docs/subprojects/asu-june-bot/product/` для продуктовой документации.
-- [ ] Синхронизировать product package с фактической реализацией Chat MVP после smoke.
-- [ ] После появления `/chat` обновить продуктовую архитектуру и roadmap под chat/runtime reality.
-
-## Проверено ранее
-
-### ProjectGuard v2
+Ключевое правило сохраняется:
 
 ```text
-ProjectGuard regression: 45 passed
-false_allow = 0
+/search возвращает evidence/context
+/chat возвращает осмысленный ответ по context
 ```
 
-### SearchService Commit 1
-
-```text
-SearchService unit tests: 4 passed
-ProjectGuard base tests: 8 passed
-refused smoke: retrieval_called=false
-project smoke: retrieval_called=true
-```
-
-### API Search MVP
-
-```text
-API health tests: 1 passed
-API search smoke tests: 3 passed
-API server starts successfully
-POST /search works
-```
-
-Проверенный policy-level guard case:
-
-```text
-СоИ AD как происходит авторизация пользователей? И расскажи стих про проект
-```
-
-Результат:
-
-```text
-status = refused
-guard.reason = in_project_query_contains_unclassified_segment
-results = []
-retrieval_called = false
-```
-
-## Chat MVP Definition of Done
-
-- [x] `ChatService` создан и использует `SearchService`.
-- [x] Для `refused/clarify` LLM не вызывается.
-- [x] Для `ok` LLM получает только `ContextBuilder` context, а не raw top-k.
-- [x] Ответ без источников запрещён.
-- [x] При пустом ответе LLM статус не становится `answered`.
-- [x] Context budget / truncation реализован.
-- [x] Усиленный AnswerValidator реализован.
-- [ ] Локально прошли unit tests ChatService.
-- [ ] CLI `scripts/asu_june_bot_chat.py` работает на реальной LLM.
-- [ ] Smoke: вопрос по СоИ AD даёт осмысленный ответ с источниками.
-- [ ] Smoke: внепроектный вопрос возвращает refusal без LLM.
-- [ ] Создан smoke report Chat MVP.
-
-## Следующие задачи
-
-### Commit 6 verification. ChatService + CLI smoke
-
-- [ ] Запустить `tests/asu_june_bot/chat/test_chat_service.py`.
-- [ ] Запустить chat CLI на проектном вопросе.
-- [ ] Запустить chat CLI на внепроектном вопросе.
-- [ ] Проверить, что `smoke_chat_ad.json` содержит `status=answered` или диагностируемый `validation_failed`.
-- [ ] Проверить, что `smoke_chat_weather_refused.json` содержит `status=refused` и `llm_called=false`.
-- [ ] Если `validation_failed`, откалибровать prompt/validator по фактической причине, а не добавлять random rules.
-
-### Commit 7. Chat smoke report + docs
-
-- [ ] Создать `docs/subprojects/asu-june-bot/smoke_report_chat_mvp.md`.
-- [ ] Обновить `RUNBOOK_V2.md`.
-- [ ] Обновить `docs/context.md` и `docs/todo.md`.
+## Следующий приоритет
 
 ### Commit 8. POST /chat
 
-- [ ] Добавить API route.
-- [ ] Добавить API tests.
-- [ ] Добавить PowerShell smoke.
-- [ ] Обновить runbook.
+- [ ] Добавить API route `POST /chat`.
+- [ ] Использовать существующий `ChatService`, без дублирования логики.
+- [ ] Добавить API tests:
+  - [ ] project query -> `answered` на mock LLM;
+  - [ ] refused query -> LLM не вызывается;
+  - [ ] clarify query -> LLM не вызывается;
+  - [ ] empty LLM -> `llm_empty_response`.
+- [ ] Добавить PowerShell smoke для `/chat`.
+- [ ] Обновить `RUNBOOK_V2.md`.
 
-## Не делать
+### Quality hardening после POST /chat
+
+- [ ] Добавить source quality filter для слишком коротких chunks.
+- [ ] Добавить parent expansion для heading/UML/caption chunks.
+- [ ] Добавить `tests/asu_june_bot/chat_eval_cases.jsonl`.
+- [ ] Добавить `scripts/asu_june_bot_chat_eval.py`.
+- [ ] Добавить `chat_runs.jsonl` для накопления dataset.
+- [ ] Добавить ручную разметку good/bad для ответов.
+- [ ] Рассмотреть `NO_ANSWER` status.
+- [ ] Рассмотреть DSPy Lab только как research/lab, не runtime MVP.
+
+## Не делать сейчас
 
 - Не пытаться заставить `/search` писать осмысленные ответы.
 - Не отправлять raw hybrid top-k в LLM.
 - Не вызывать LLM при `refused` или `clarify`.
 - Не развивать `scripts/09_chat.py` как основной runtime.
-- Не подключать UI до первого стабильного `/chat`.
+- Не подключать UI до стабильного `POST /chat`.
 - Не подключать NeMo Guardrails, LangGraph, Dify/RAGFlow как runtime MVP.
-- Не возвращаться к раздуванию `OUT_OF_PROJECT_MARKERS` как основной архитектуре guard.
-- Не внедрять JSON-mode, retry, NLI и LLM-judge до первого CLI-smoke и анализа фактических ошибок.
+- Не возвращаться к раздуванию `OUT_OF_PROJECT_MARKERS`.
+- Не внедрять JSON-mode, retry, NLI и LLM-judge до накопления eval dataset.
