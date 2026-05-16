@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from fastapi import Request
 
 from asu_june_bot.chat import ChatService
+from asu_june_bot.core.config import load_config
 from asu_june_bot.health import HealthService
 from asu_june_bot.llm.ollama_openai import OllamaOpenAIClient
+from asu_june_bot.observability import ChatRunsLogger
 from asu_june_bot.search import SearchService
-from asu_june_bot.core.config import load_config
 
 
 @dataclass(slots=True)
@@ -33,6 +35,7 @@ def build_app_state() -> AppState:
         chat_service=ChatService(
             search_service=search_service,
             llm_client=OllamaOpenAIClient(base_url=chat_base_url, model=chat_model),
+            runs_logger=ChatRunsLogger(Path("data/asu_june_bot/chat_runs.jsonl")),
         ),
     )
 
