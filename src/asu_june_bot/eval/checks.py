@@ -57,8 +57,6 @@ def check_must_not_include(case: EvalCase, response: ChatResponse) -> CheckResul
 def check_citations(case: EvalCase, response: ChatResponse) -> CheckResult:
     if not case.expected_citation_required:
         return CheckResult("citations", True, "skipped")
-    if response.status != "answered":
-        return CheckResult("citations", True, "skipped: not answered")
     answer = response.answer or ""
     if SOURCE_REF_RE.search(answer):
         return CheckResult("citations", True)
