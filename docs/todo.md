@@ -4,9 +4,9 @@
 
 ## Сейчас
 
-### Приоритет 1. Asu June Bot Chat MVP
+### Приоритет 1. Asu June Bot POST /chat
 
-Asu June Bot v2.1/v2.2 доведён до API Search MVP.
+Asu June Bot v2.1/v2.2 доведён до CLI Chat MVP.
 
 Закрыто:
 
@@ -16,7 +16,10 @@ Search Quality v2.2 готов
 ProjectGuard v2 готов
 SearchService готов
 FastAPI /health и /search готовы
-API smoke пройден
+API Search MVP smoke пройден
+ChatService готов
+CLI scripts/asu_june_bot_chat.py готов
+Chat MVP smoke пройден на qwen2.5:7b-instruct
 chunks_v2 = 31302
 indexed_chunks = 31285
 embedding_model = bge-m3
@@ -24,6 +27,7 @@ vector_ready = true
 bm25_ready = true
 ProjectGuard v2 regression = 45 cases
 false_allow = 0
+ChatService tests = 7 passed
 ```
 
 Финальные отчёты:
@@ -32,27 +36,48 @@ false_allow = 0
 docs/subprojects/asu-june-bot/smoke_report_project_guard_v2.md
 docs/subprojects/asu-june-bot/smoke_report_search_service_commit1.md
 docs/subprojects/asu-june-bot/smoke_report_api_search_mvp.md
+docs/subprojects/asu-june-bot/smoke_report_chat_mvp.md
+```
+
+Рекомендуемая chat-модель MVP:
+
+```text
+qwen2.5:7b-instruct
+```
+
+Не использовать как default для Chat MVP:
+
+```text
+qwen3:4b
+qwen3:8b
+```
+
+Причины:
+
+```text
+qwen3:4b -> llm_empty_response / finish_reason=length даже с /no_think
+qwen3:8b -> timeout/обрыв на локальном CPU runtime
 ```
 
 Следующий практический шаг:
 
 ```text
-Chat MVP
+POST /chat
 ```
 
 Сделать:
 
-- [ ] Зафиксировать `docs/subprojects/asu-june-bot/chat_mvp_design.md`.
-- [ ] Реализовать `src/asu_june_bot/chat/models.py`.
-- [ ] Реализовать `src/asu_june_bot/chat/prompt_builder.py`.
-- [ ] Реализовать `src/asu_june_bot/llm/client.py`.
-- [ ] Реализовать OpenAI-compatible Ollama client.
-- [ ] Реализовать `src/asu_june_bot/chat/service.py`.
-- [ ] Реализовать `AnswerValidator`.
-- [ ] Реализовать `ResponseFormatter`.
-- [ ] Добавить CLI `scripts/asu_june_bot_chat.py`.
-- [ ] Добавить smoke tests.
-- [ ] Создать smoke report Chat MVP.
+- [ ] Добавить `src/asu_june_bot/api/routes_chat.py`.
+- [ ] Подключить route в `src/asu_june_bot/api/app.py`.
+- [ ] Использовать существующий `ChatService`, без дублирования логики.
+- [ ] Добавить API request/response models для `/chat`.
+- [ ] Добавить API tests:
+  - [ ] project query -> `answered` на mock LLM;
+  - [ ] refused query -> LLM не вызывается;
+  - [ ] clarify query -> LLM не вызывается;
+  - [ ] empty LLM -> `llm_empty_response`.
+- [ ] Добавить PowerShell smoke для `/chat`.
+- [ ] Обновить `RUNBOOK_V2.md`.
 
 Ключевое правило:
 
@@ -62,30 +87,30 @@ Chat MVP
 /chat генерирует осмысленный ответ по context.
 ```
 
-Chat MVP должен использовать `SearchService`, а не дублировать retrieval/guard/context.
+`POST /chat` должен быть thin API adapter над `ChatService`.
 
-Дополнительно:
+### Приоритет 2. Chat quality hardening
 
-- [ ] После API Search MVP синхронизировать `docs/subprojects/asu-june-bot/product/` с фактической реализацией API.
+После `POST /chat`:
 
-### Приоритет 2. Search / Retrieval hardening
+- [ ] Добавить `tests/asu_june_bot/chat_eval_cases.jsonl`.
+- [ ] Добавить `scripts/asu_june_bot_chat_eval.py`.
+- [ ] Добавить `chat_runs.jsonl` для накопления dataset.
+- [ ] Добавить ручную разметку good/bad для ответов.
+- [ ] Добавить source quality filter для слишком коротких chunks.
+- [ ] Добавить parent expansion для heading/UML/caption chunks.
+- [ ] Рассмотреть `NO_ANSWER` status.
+- [ ] Рассмотреть DSPy Lab только как research/lab, не runtime MVP.
 
-После первого Chat MVP:
+### Приоритет 3. Search / Retrieval hardening
+
+После первого `/chat`:
 
 - [ ] Улучшить metadata extraction/chunking для `requirement_id`, `mentioned_requirement_ids`, `contract_section`, `document_version`.
 - [ ] Добавить search eval cases для exact section lookup, document overview, integration overview, cross-document traceability.
-- [ ] Добавить runner для search eval после появления API.
+- [ ] Добавить runner для search eval.
 - [ ] Добавить source links через `data/asu_june_bot/source_links.json`.
 - [ ] Рассмотреть дедупликацию семейств интеграций.
-
-### Приоритет 3. API /chat
-
-После стабильного CLI Chat MVP:
-
-- [ ] Добавить API `POST /chat`.
-- [ ] Добавить API tests.
-- [ ] Добавить PowerShell smoke-команды.
-- [ ] Обновить `RUNBOOK_V2.md`.
 
 ## Статус Asu June Bot v2.1/v2.2
 
@@ -106,7 +131,36 @@ Chat MVP должен использовать `SearchService`, а не дубл
 - `SearchService` реализован;
 - CLI `search_v2` работает через `SearchService`;
 - FastAPI `GET /health` и `POST /search` реализованы;
-- API smoke пройден.
+- API Search MVP smoke пройден;
+- `ChatService` реализован;
+- CLI `scripts/asu_june_bot_chat.py` реализован;
+- Chat MVP smoke пройден на `qwen2.5:7b-instruct`.
+
+## Ограничение Chat MVP
+
+Текущий `AnswerValidator` выполняет structural validation, но не semantic/factual validation.
+
+Проверяется:
+
+```text
+пустой ответ
+наличие sources
+наличие ссылок [Sx]
+unknown citations
+external knowledge markers
+answer length
+citation density / coverage
+```
+
+Не проверяется:
+
+```text
+поддерживается ли каждое утверждение конкретным source text;
+не сделала ли модель спорный вывод из короткого UML/heading/caption chunk;
+нет ли semantic hallucination при формально корректных [Sx].
+```
+
+Это quality debt, а не blocker для добавления `POST /chat`.
 
 ## Статус старого RAG / Meeting pipeline
 
@@ -121,13 +175,13 @@ Chat MVP должен использовать `SearchService`, а не дубл
 
 ## Далее
 
-- После Chat MVP добавить API `POST /chat`.
+- Добавить API `POST /chat`.
 - Добавить markdown smoke-отчеты после каждого важного среза retrieval/API/chat.
 - Добавить инкрементальный `update_rag.ps1` для новых, измененных и удаленных документов.
 - В `update_rag.ps1` обязательно обработать deletion: удаленные и попавшие под `exclude_path_patterns` документы должны исчезать из актуального индекса.
 - Добавить watcher/скрипт загрузки встреч из `watched_folder/` поверх уже готового `06_transcribe_meeting.py`.
 - Для future: добавить source links через `data/asu_june_bot/source_links.json`.
-- Для future: рассмотреть Qdrant только после стабилизации numpy index/API Search.
+- Для future: рассмотреть Qdrant только после стабилизации numpy index/API Search/Chat API.
 
 ## Когда Вернуться
 
@@ -145,12 +199,12 @@ Chat MVP должен использовать `SearchService`, а не дубл
 
 ## Известные Риски
 
-- `/search` возвращает источники, а не осмысленный ответ; это нормально до реализации Chat MVP.
 - Metadata `section/requirement_id` пока шумит на табличных chunks.
 - ChromaDB локально нестабилен на загрузке HNSW-индекса, поэтому не должен быть критической зависимостью для поиска.
 - Сгенерированные документы требуют строгого ревью источников.
 - `qwen3:8b` на CPU может быть слишком медленным для интерактивного чата при большом prompt.
 - `qwen3:4b` может вернуть пустой `response` без HTTP-ошибки; такой случай должен считаться отказом `llm_empty_response`, а не успешным ответом.
+- Structural validation не ловит все semantic hallucinations.
 
 ## Восстановление Контекста В Новом Треде
 
