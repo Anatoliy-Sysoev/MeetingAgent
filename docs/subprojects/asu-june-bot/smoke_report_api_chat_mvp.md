@@ -1,6 +1,6 @@
 # Smoke report — API Chat MVP
 
-Дата: 2026-05-15.
+Дата: 2026-05-16.
 
 ## Назначение проверки
 
@@ -179,7 +179,9 @@ API chat: 5 passed
 .\.venv\Scripts\python.exe scripts\asu_june_bot_api.py --host 127.0.0.1 --port 8000
 ```
 
-Project chat request:
+### Project chat request
+
+Команда:
 
 ```powershell
 Invoke-RestMethod `
@@ -189,17 +191,25 @@ Invoke-RestMethod `
   -Body '{"query":"СоИ AD как происходит авторизация пользователей?","mode":"hybrid","top_k":5,"model":"qwen2.5:7b-instruct","max_tokens":500,"timeout_sec":300}'
 ```
 
-Ожидаемо:
+Фактический результат локального runtime smoke:
 
 ```text
 status = answered
+query = СоИ AD как происходит авторизация пользователей?
 answer != null
 sources != []
+search.status = ok
 diagnostics.llm_called = true
+diagnostics.search_status = ok
+diagnostics.prompt_sources = 5
 diagnostics.llm_model = qwen2.5:7b-instruct
+diagnostics.llm_finish_reason = stop
+diagnostics.validation_errors = []
 ```
 
-Out-of-project chat request:
+### Out-of-project chat request
+
+Команда:
 
 ```powershell
 Invoke-RestMethod `
@@ -209,23 +219,48 @@ Invoke-RestMethod `
   -Body '{"query":"Какая погода завтра в Москве?","mode":"hybrid","top_k":5,"model":"qwen2.5:7b-instruct","max_tokens":500,"timeout_sec":300}'
 ```
 
-Ожидаемо:
+Фактический результат локального runtime smoke:
 
 ```text
 status = refused
-diagnostics.llm_called = false
+query = Какая погода завтра в Москве?
+answer = Я отвечаю только по материалам проекта ЦП УПКС. Вопрос не относится к проектной базе знаний.
 sources = []
+search.status = refused
+diagnostics.llm_called = false
+diagnostics.search_status = refused
 ```
+
+## Примечание по PowerShell
+
+Первая попытка project chat smoke упала из-за склеенной команды:
+
+```text
+-Body '{...}'с(Set-ExecutionPolicy ...)
+```
+
+PowerShell воспринял лишний символ `с` и следующую команду как позиционный аргумент `Invoke-RestMethod`.
+
+Это не ошибка API и не ошибка `/chat`.
 
 ## Статус
 
-Кодовый статус:
+Кодовый и runtime статус:
 
 ```text
-IMPLEMENTED_PENDING_LOCAL_VERIFICATION
+PASSED_WITH_NOTES
 ```
 
-Причина: route и tests добавлены в GitHub, но фактический локальный pytest/runtime smoke должен быть запущен на рабочей машине с установленными зависимостями и локальной Ollama.
+Подтверждено:
+
+```text
+POST /chat route работает
+project query -> answered
+out-of-project query -> refused
+refused -> LLM не вызывается
+request_id возвращается в diagnostics
+qwen2.5:7b-instruct пригодна как chat-модель MVP
+```
 
 ## Ограничения
 
