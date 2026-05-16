@@ -13,11 +13,12 @@ Asu June Bot — отдельный подпроект внутри MeetingAgent
 - ссылаться на документы, разделы, пункты и фрагменты;
 - явно отделять подтвержденные факты от вывода;
 - отказывать на вопросы вне проекта или без источников;
-- не запускать retrieval для внепроектных, mixed-scope и ambiguous-запросов.
+- не запускать retrieval для внепроектных, mixed-scope и ambiguous-запросов;
+- генерировать ответы только по `primary_sources` и `supporting_sources`.
 
 ## Текущий статус
 
-Asu June Bot v2.1/v2.2 доведён до уровня **API Search MVP**.
+Asu June Bot v2.1/v2.2 доведён до уровня **CLI Chat MVP**.
 
 Завершены этапы:
 
@@ -29,6 +30,11 @@ ProjectGuard v2
 SearchService Commit 1
 FastAPI skeleton Commit 2
 API smoke/docs Commit 3
+Chat design
+LLMClient + PromptBuilder
+ChatService + CLI skeleton
+Chat MVP hardening после внешнего ревью
+Chat MVP smoke на qwen2.5:7b-instruct
 ```
 
 Финальные отчёты:
@@ -37,12 +43,13 @@ API smoke/docs Commit 3
 docs/subprojects/asu-june-bot/smoke_report_project_guard_v2.md
 docs/subprojects/asu-june-bot/smoke_report_search_service_commit1.md
 docs/subprojects/asu-june-bot/smoke_report_api_search_mvp.md
+docs/subprojects/asu-june-bot/smoke_report_chat_mvp.md
 ```
 
 Следующий этап:
 
 ```text
-Chat MVP
+POST /chat
 ```
 
 ## Почему /search не даёт осмысленный ответ
@@ -71,9 +78,7 @@ ambiguous query -> clarify без retrieval
 project + unknown tail -> refused без retrieval
 ```
 
-Осмысленный ответ должен появиться на следующем этапе — **Chat MVP**.
-
-Chat MVP будет использовать `/search`/`SearchService` как источник evidence/context:
+Осмысленный ответ даёт Chat MVP:
 
 ```text
 Question
@@ -81,11 +86,99 @@ Question
   -> ContextBuilder context
   -> PromptBuilder
   -> LLMClient
-  -> AnswerGenerator
+  -> ChatService
   -> AnswerValidator
   -> ResponseFormatter
   -> answer with citations
 ```
+
+## Chat MVP runtime
+
+Реализовано:
+
+```text
+src/asu_june_bot/chat/__init__.py
+src/asu_june_bot/chat/models.py
+src/asu_june_bot/chat/service.py
+src/asu_june_bot/chat/prompt_builder.py
+src/asu_june_bot/chat/answer_validator.py
+src/asu_june_bot/chat/response_formatter.py
+src/asu_june_bot/llm/__init__.py
+src/asu_june_bot/llm/client.py
+src/asu_june_bot/llm/ollama_openai.py
+scripts/asu_june_bot_chat.py
+```
+
+Текущий pipeline:
+
+```text
+User question
+  -> ChatService
+  -> SearchService.search()
+  -> if refused/clarify/error: return without LLM
+  -> if ok: PromptBuilder(context.primary_sources + context.supporting_sources)
+  -> context budget / truncation
+  -> LLMClient.generate()
+  -> AnswerValidator
+  -> ChatResponse
+```
+
+Проверено:
+
+```text
+ChatService unit tests: 7 passed
+```
+
+Project smoke на `qwen2.5:7b-instruct`:
+
+```text
+status = answered
+llm_called = true
+llm_finish_reason = stop
+validation_errors = []
+prompt_sources = 5
+used_context_chars = 1162
+```
+
+Модельное решение:
+
+```text
+Рекомендуемая chat-модель MVP: qwen2.5:7b-instruct
+Не использовать как default: qwen3:4b, qwen3:8b
+```
+
+Причины:
+
+```text
+qwen3:4b -> llm_empty_response / finish_reason=length даже с /no_think
+qwen3:8b -> timeout/обрыв на локальном CPU runtime
+```
+
+## Ограничение Chat MVP
+
+Текущий `AnswerValidator` выполняет structural validation, но не semantic/factual validation.
+
+Проверяется:
+
+```text
+пустой ответ
+наличие sources
+наличие ссылок [Sx]
+unknown citations
+external knowledge markers
+answer length
+citation density / coverage
+```
+
+Не проверяется:
+
+```text
+поддерживается ли каждое утверждение конкретным source text;
+не сделала ли модель спорный вывод из короткого UML/heading/caption chunk;
+нет ли semantic hallucination при формально корректных [Sx].
+```
+
+Для smoke-вопроса по AD ответ был структурно валиден, но отдельные выводы по коротким UML-фрагментам `[S2]`, `[S3]` требуют ручного ревью. Это quality debt, а не runtime blocker.
 
 ## Ключевое решение v2.1
 
@@ -113,6 +206,7 @@ scripts/asu_june_bot_apply_config_v2_1.py
   -> scripts/asu_june_bot_search_v2.py
   -> src/asu_june_bot/search/service.py
   -> src/asu_june_bot/api/app.py
+  -> src/asu_june_bot/chat/service.py
 ```
 
 Все runtime-данные v2 пишутся в:
@@ -201,15 +295,6 @@ Extractor v2.1:
 - для XLSB использует `pandas` + `pyxlsb`;
 - жестко исключает шумные system exports и временные файлы.
 
-Выход extractor v2.1:
-
-```text
-data/asu_june_bot/extracted_v2/documents.jsonl
-data/asu_june_bot/extracted_v2/blocks.jsonl
-data/asu_june_bot/extracted_v2/extraction_v2_report.json
-data/asu_june_bot/extracted_v2/extraction_v2_report.md
-```
-
 ### Chunking v2.1
 
 Chunking v2 читает только:
@@ -239,14 +324,6 @@ monitor_asu_june_bot_index_v2.ps1
 register_asu_june_bot_index_v2_watchdog.ps1
 ```
 
-Выходы index v2:
-
-```text
-data/asu_june_bot/embeddings_cache_v2.jsonl
-data/asu_june_bot/numpy_index_v2/
-data/asu_june_bot/index_v2_report.json
-```
-
 Индекс v2 использует только source types:
 
 ```text
@@ -268,26 +345,6 @@ src/asu_june_bot/retrieval/post_rerank.py
 src/asu_june_bot/retrieval/context_builder.py
 ```
 
-`search_v2` теперь возвращает:
-
-```text
-query_intent
-guard
-rerank
-context.primary_sources
-context.supporting_sources
-context.excluded_sources
-results
-warnings
-```
-
-Проверено:
-
-- `Паспорт ИС overview` возвращает обзорный chunk в `primary_sources`;
-- `ФТТ 4.2.5` возвращает точную строку ФТТ в `primary_sources`;
-- `Интеграции` возвращают ЦТА/Паспорт ИС/ФТТ/СоИ как primary/supporting context;
-- JSON сохраняется через `--output` без mojibake.
-
 ### ProjectGuard v2
 
 Реализовано:
@@ -299,15 +356,6 @@ src/asu_june_bot/guardrails/scope_classifier.py
 src/asu_june_bot/guardrails/aggregator.py
 src/asu_june_bot/guardrails/policy.py
 src/asu_june_bot/guardrails/project_guard.py
-```
-
-Тесты и eval:
-
-```text
-tests/asu_june_bot/test_project_guard_v2.py
-tests/asu_june_bot/guard_v2_cases.jsonl
-tests/asu_june_bot/test_project_guard_v2_cases.py
-scripts/asu_june_bot_guard_v2_eval.py
 ```
 
 Проверено:
@@ -333,16 +381,6 @@ src/asu_june_bot/search/models.py
 src/asu_june_bot/search/service.py
 ```
 
-CLI `scripts/asu_june_bot_search_v2.py` теперь является thin wrapper над `SearchService`.
-
-Проверено:
-
-```text
-SearchService unit tests: 4 passed
-refused smoke: retrieval_called=false
-project smoke: retrieval_called=true
-```
-
 ### API Search MVP
 
 Реализовано:
@@ -365,15 +403,6 @@ Endpoints:
 ```text
 GET /health
 POST /search
-```
-
-Проверено:
-
-```text
-API health tests: 1 passed
-API search smoke tests: 3 passed
-API server starts successfully
-POST /search works
 ```
 
 ## Текущий локальный результат
@@ -408,15 +437,13 @@ embedding_model_installed = true
 
 ## Ближайшая цель
 
-Следующий шаг — Chat MVP:
+Следующий шаг — `POST /chat`:
 
 ```text
-src/asu_june_bot/chat/
-src/asu_june_bot/llm/
-scripts/asu_june_bot_chat.py
+src/asu_june_bot/api/routes_chat.py
 ```
 
-Chat MVP должен использовать уже готовый `SearchService`, а не дублировать guard/retrieval/context.
+`POST /chat` должен использовать уже готовый `ChatService`, а не дублировать guard/retrieval/context/generation.
 
 ## Не делать дальше
 
@@ -425,6 +452,7 @@ Chat MVP должен использовать уже готовый `SearchServ
 - Не развивать старый `scripts/09_chat.py` как основной runtime.
 - Не индексировать `Система` в основной project-only корпус.
 - Не подключать NeMo Guardrails, LangGraph, Dify/RAGFlow как runtime MVP.
+- Не внедрять JSON-mode, retry, NLI и LLM-judge до накопления eval dataset.
 
 ## Product Documentation
 
