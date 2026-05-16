@@ -1,185 +1,253 @@
-# Архитектура Asu June Bot
+# Архитектура Project Knowledge Bot
 
-Обновлено: 2026-05-15.
+Обновлено: 2026-05-16.
 
-## Цель архитектуры
+## 1. Цель архитектуры
 
-Построить локального AI-агента по проекту ЦП УПКС, который:
+Project Knowledge Bot — локальный project-only RAG/Chat сервис для анализа проектной документации информационной системы.
 
-- отвечает только по проектным источникам;
-- умеет анализировать проектную документацию;
-- ссылается на документы, разделы, пункты и фрагменты;
-- отказывает на вопросы вне проекта;
-- блокирует mixed-scope, offensive/security и prompt-injection запросы до retrieval;
-- возвращает `clarify` для неоднозначных запросов;
-- работает локально на Ollama/Qwen;
-- позже переносится на GPU через OpenAI-compatible API / vLLM.
+Архитектура должна обеспечить:
 
-## Текущий статус архитектуры
+- локальную обработку документов;
+- ответы только по загруженному корпусу источников;
+- pre-retrieval guardrails;
+- гибридный поиск по смыслу и точным идентификаторам;
+- формирование управляемого контекста для LLM;
+- ответ с citations;
+- отказ без вызова LLM для внепроектных и смешанных запросов;
+- наблюдаемость и baseline-оценку качества;
+- возможность последующего выделения в отдельный репозиторий.
 
-Реализованы и проверены:
+## 2. Архитектурные принципы
+
+### 2.1 Разделение ответственности
+
+```text
+/search -> evidence/context
+/chat   -> answer with citations
+```
+
+`/search` не генерирует осмысленный ответ. Он возвращает источники, context buckets, guard diagnostics и retrieval diagnostics.
+
+`/chat` не реализует собственный retrieval. Он использует `ChatService`, который вызывает `SearchService`.
+
+### 2.2 Pre-retrieval safety
+
+Вопрос проходит через `ProjectGuard v2` до retrieval.
+
+```text
+refused -> retrieval не вызывается, LLM не вызывается
+clarify -> retrieval не вызывается, LLM не вызывается
+allow   -> retrieval выполняется
+```
+
+Критический критерий:
+
+```text
+false_allow = 0
+```
+
+### 2.3 Local-first
+
+На MVP данные не отправляются во внешние LLM API. Runtime использует локальную Ollama через OpenAI-compatible endpoint.
+
+### 2.4 Evidence-first
+
+Ответ может быть сформирован только по `primary_sources` и `supporting_sources`.
+
+`excluded_sources` не передаются в LLM prompt.
+
+### 2.5 Измеримость изменений
+
+Изменения retrieval/context/quality должны сравниваться с baseline eval. Поэтому QH-1 сначала добавляет `chat_runs.jsonl` и eval runner, а source filter / parent expansion выполняются позже.
+
+## 3. Текущий статус архитектуры
+
+Реализовано и проверено:
 
 ```text
 Extraction/Chunking v2.1
 Index/Search v2
 Search Quality v2.2
 ProjectGuard v2
+SearchService
+FastAPI GET /health
+FastAPI POST /search
+ChatService
+CLI chat
+FastAPI POST /chat
+ChatRunsLogger
+QH-1 Eval Baseline skeleton
 ```
 
-ProjectGuard v2 regression suite:
+Рабочая LLM для MVP:
 
 ```text
-44/44 passed
-false_allow = 0
+qwen2.5:7b-instruct
 ```
 
-Следующий архитектурный этап:
+Не использовать как default:
 
 ```text
-API Search MVP
+qwen3:4b
+qwen3:8b
 ```
 
-## Текущая логическая схема Search MVP
+Причины:
 
 ```text
-Пользователь / CLI / API
-  ↓
-QueryIntent
-  ↓
-ProjectGuard v2
-  ├─ refused -> response без retrieval
-  ├─ clarify -> response без retrieval
-  └─ allow
-       ↓
-Hybrid Retrieval
-  ├─ BM25 Search
-  ├─ Vector Search
-  └─ Hybrid merge
-       ↓
-PostReranker
-       ↓
-ContextBuilder
-  ├─ primary_sources
-  ├─ supporting_sources
-  └─ excluded_sources
-       ↓
-Search JSON response
+qwen3:4b -> llm_empty_response / finish_reason=length
+qwen3:8b -> timeout/обрыв на локальном CPU runtime
 ```
 
-## Целевая схема Chat MVP
+## 4. Логическая архитектура
 
 ```text
-Пользователь
-  ↓
-UI / CLI / Open WebUI
-  ↓
-Asu June Bot API
-  ↓
-Request Logger
-  ↓
-QueryIntent
-  ↓
-ProjectGuard v2
-  ├─ refused -> отказ
-  ├─ clarify -> уточнение
-  └─ allow
-       ↓
-Hybrid Retrieval
-       ↓
-PostReranker
-       ↓
-ContextBuilder
-       ↓
-PromptBuilder
-       ↓
-Answer Generator
-  ├─ LLM через Ollama local
-  └─ позже vLLM GPU
-       ↓
-Answer Validator
-  ├─ sources required
-  ├─ citation check
-  ├─ no unsupported claims
-  └─ empty answer check
-       ↓
-Response Formatter
-       ↓
-Ответ / Отказ / Частичный ответ
+User / CLI / API client
+  -> FastAPI / CLI adapter
+  -> SearchService
+      -> QueryIntent
+      -> ProjectGuard v2
+      -> BM25 Search
+      -> Vector Search
+      -> Hybrid merge
+      -> PostReranker
+      -> ContextBuilder
+  -> ChatService
+      -> PromptBuilder
+      -> LLMClient
+      -> AnswerValidator
+      -> ResponseFormatter
+      -> ChatRunsLogger
+  -> Response
 ```
 
-## Компоненты
+## 5. Runtime-компоненты
 
-### 1. UI Layer
+### 5.1 Ingestion Layer
 
-На MVP:
-
-- CLI;
-- Swagger UI FastAPI;
-- простой HTTP API.
-
-После стабилизации API:
-
-- Open WebUI как оболочка;
-- собственный web UI позже.
-
-UI не должен сам выполнять RAG-логику. UI только отправляет вопрос и отображает ответ, источники и статус.
-
-### 2. API Layer
-
-Ближайшие endpoints:
-
-```http
-GET  /health
-POST /search
-```
-
-Позже:
-
-```http
-POST /chat
-GET  /sources/{source_id}
-POST /admin/reindex
-```
-
-`/search` — диагностический endpoint для проверки retrieval без LLM.
-
-`/chat` — основной endpoint после стабилизации `/search`.
-
-`/sources/{source_id}` — получение полного текста chunk / metadata / ссылки на исходный документ.
-
-`/admin/reindex` — позже, запуск обновления индекса.
-
-API `/search` должен быть thin HTTP layer над уже проверенным CLI pipeline `search_v2`, без дублирования логики.
-
-### 3. QueryIntent
-
-Назначение: определить тип запроса для retrieval/context:
+Файлы:
 
 ```text
-document_overview
-integration_overview
-requirement_lookup
-general_project_question
-out_of_scope_candidate
+scripts/asu_june_bot_extract_text_v2.py
+src/asu_june_bot/ingestion/
 ```
 
-QueryIntent не является единственным guard-решением. Окончательное allow/refuse/clarify принимает ProjectGuard v2.
+Назначение:
 
-### 4. ProjectGuard v2
+- чтение `project_root` из `config.yaml`;
+- исключение временных файлов, архивов, HTML/system exports;
+- извлечение blocks из DOCX/XLSX/PDF/PPTX/HTML/text;
+- сохранение `data/asu_june_bot/extracted_v2/blocks.jsonl`.
 
-Назначение: определить, можно ли обрабатывать вопрос в рамках проекта до retrieval.
+Особенности:
 
-Pipeline:
+- DOCX читается с учетом paragraph/table blocks;
+- XLSX читается через `openpyxl`;
+- XLSB читается через `pandas` + `pyxlsb`;
+- технические выгрузки `Система`, `site_review_runs`, `playwright`, `exports`, `.har` исключены из основного корпуса.
+
+### 5.2 Chunking Layer
+
+Файл:
 
 ```text
-QuerySegmenter
-  -> RuleBasedScopeClassifier
-  -> ScopeAggregator
-  -> GuardPolicy
-  -> ProjectGuard
+scripts/asu_june_bot_build_chunks_v2.py
 ```
 
-Возможные статусы:
+Назначение:
+
+- сборка parent/child chunks;
+- преобразование таблиц в chunk-строки;
+- заполнение metadata;
+- запись `data/asu_june_bot/chunks_v2.jsonl`.
+
+Основные metadata:
+
+```text
+source_id
+chunk_id
+source_type
+document_type
+sections
+requirement_id
+mentioned_requirement_ids
+integration
+protocol
+path
+title
+```
+
+### 5.3 Index Layer
+
+Файлы:
+
+```text
+scripts/asu_june_bot_build_index_v2.py
+data/asu_june_bot/embeddings_cache_v2.jsonl
+data/asu_june_bot/numpy_index_v2/
+```
+
+Назначение:
+
+- embeddings через `bge-m3`;
+- resumable cache;
+- numpy vector index;
+- metadata index.
+
+Индексируются только source types:
+
+```text
+project_doc
+meeting_artifact
+analytical_note
+instruction
+```
+
+Не индексируются в основном project-only корпусе:
+
+```text
+code
+runtime_export
+system_export
+unknown
+```
+
+### 5.4 Retrieval Layer
+
+Файлы:
+
+```text
+src/asu_june_bot/retrieval/bm25.py
+src/asu_june_bot/retrieval/vector.py
+src/asu_june_bot/retrieval/hybrid.py
+src/asu_june_bot/retrieval/query_intent.py
+src/asu_june_bot/retrieval/post_rerank.py
+src/asu_june_bot/retrieval/context_builder.py
+```
+
+Назначение:
+
+- BM25 для точных пунктов, кодов, аббревиатур и имен компонентов;
+- vector search для смысловых вопросов;
+- hybrid merge;
+- rerank по intent;
+- сборка context buckets.
+
+### 5.5 Guardrails Layer
+
+Файлы:
+
+```text
+src/asu_june_bot/guardrails/models.py
+src/asu_june_bot/guardrails/segmenter.py
+src/asu_june_bot/guardrails/scope_classifier.py
+src/asu_june_bot/guardrails/aggregator.py
+src/asu_june_bot/guardrails/policy.py
+src/asu_june_bot/guardrails/project_guard.py
+```
+
+Решения:
 
 ```text
 allow
@@ -187,300 +255,318 @@ refuse
 clarify
 ```
 
-Правила MVP:
+Ключевые правила:
 
-- pure project query -> `allow`;
-- pure out-of-project query -> `refuse`;
-- mixed-scope query -> `refuse`;
-- offensive/security query -> `refuse`;
-- prompt-injection/jailbreak query -> `refuse`;
-- ambiguous query -> `clarify`.
+- чистый проектный вопрос -> `allow`;
+- чистый внепроектный вопрос -> `refuse`;
+- смешанный вопрос -> `refuse`;
+- project + unknown tail -> `refuse`;
+- слишком общий вопрос -> `clarify`;
+- sensitive/prompt-injection/security payload -> `refuse`.
 
-Критерий качества:
+### 5.6 SearchService
 
-```text
-false_allow = 0
-```
-
-Диагностика возвращается в JSON:
+Файлы:
 
 ```text
-guard.guard_v2.aggregate.segments[]
+src/asu_june_bot/search/models.py
+src/asu_june_bot/search/service.py
+scripts/asu_june_bot_search_v2.py
 ```
 
-В этом блоке видно, какая часть запроса признана `in_project`, `out_of_project`, `mixed`, `meta` или `ambiguous`.
+Назначение:
 
-### 5. Query Normalizer / Query Expansion
+- единая orchestration-точка поиска для CLI и API;
+- выполнение guard до retrieval;
+- возврат `SearchResponse`.
 
-Назначение: улучшать поиск без изменения исходного вопроса.
+### 5.7 API Layer
 
-Пример:
+Файлы:
 
 ```text
-Какие интеграции заявлены в проекте?
+src/asu_june_bot/api/app.py
+src/asu_june_bot/api/dependencies.py
+src/asu_june_bot/api/routes_health.py
+src/asu_june_bot/api/routes_search.py
+src/asu_june_bot/api/routes_chat.py
+src/asu_june_bot/api/middleware.py
+src/asu_june_bot/api/errors.py
+scripts/asu_june_bot_api.py
 ```
 
-Расширение:
+Endpoints:
+
+```http
+GET  /health
+POST /search
+POST /chat
+```
+
+`AppState` содержит:
 
 ```text
-интеграционное взаимодействие, системные взаимодействия, MDR, КШД, СОИ, Active Directory, AD, LDAPS, Blitz IDP, SMTP, Exchange, SIEM, Minio, S3
+config
+health_service
+search_service
+chat_service
 ```
 
-Требование: словари расширения хранить в конфиге, не в Python-коде.
+### 5.8 Chat Layer
 
-### 6. Retriever
-
-Retriever поддерживает гибридный поиск.
-
-#### Vector Search
-
-Используется для смысловых вопросов:
-
-- «что входит»;
-- «какие требования»;
-- «как устроена архитектура»;
-- «что решили на встрече».
-
-#### BM25 / keyword Search
-
-Используется для точных ссылок:
-
-- `ФТТ 4.2.5`;
-- `ЦТА 5.3`;
-- `Mdr-2`;
-- `App-1`;
-- `ccpm-core-db`;
-- `LDAPS 636`;
-- `СФТ 14`.
-
-#### Metadata Filters
-
-Фильтры:
+Файлы:
 
 ```text
-document_type
-module
-stage
-source_type
-version
-date
-section
+src/asu_june_bot/chat/models.py
+src/asu_june_bot/chat/service.py
+src/asu_june_bot/chat/prompt_builder.py
+src/asu_june_bot/chat/answer_validator.py
+src/asu_june_bot/chat/response_formatter.py
+src/asu_june_bot/llm/client.py
+src/asu_june_bot/llm/ollama_openai.py
+scripts/asu_june_bot_chat.py
 ```
 
-### 7. PostReranker
-
-Назначение: улучшить порядок candidates после BM25/vector/hybrid.
-
-Реализованные правила:
-
-- штрафовать vector-only chunks для overview/exact queries;
-- штрафовать software/support/front matter/glossary chunks;
-- усиливать Паспорт ИС для `document_overview`;
-- усиливать ЦТА/Паспорт/СоИ/ФТТ для вопросов по интеграциям;
-- усиливать точные пункты ФТТ для `requirement_lookup`;
-- добавлять `rerank_labels` в diagnostics.
-
-### 8. ContextBuilder
-
-Назначение: собрать компактный и полезный context для API/LLM.
-
-Функции:
-
-- отделить `primary_sources` от `supporting_sources`;
-- вынести шум в `excluded_sources`;
-- не дублировать один chunk между buckets;
-- для точного `requirement_lookup` держать в primary только точный пункт;
-- для `document_overview` держать в primary обзорный chunk, а не таблицы ПО/поддержки.
-
-Контекст для будущего LLM должен содержать:
+Pipeline:
 
 ```text
-[SRC-001]
-Документ: ...
-Тип: ФТТ
-Раздел: 4.2.5
-Заголовок: ...
-Chunk: ...
-Ссылка: ...
-Фрагмент: ...
+ChatRequest
+  -> SearchService.search()
+  -> if refused/clarify/error: return without LLM
+  -> PromptBuilder(context.primary_sources + context.supporting_sources)
+  -> LLMClient.generate()
+  -> AnswerValidator
+  -> ChatResponse
+  -> ChatRunsLogger
 ```
 
-### 9. Answer Generator
+### 5.9 Observability Layer
 
-Используется только после успешного retrieval и ContextBuilder.
-
-Правила:
-
-- не отвечать без sources;
-- не использовать общие знания;
-- если данных недостаточно — указать ограничение;
-- если есть противоречия — указать их;
-- каждый вывод отделять от фактов.
-
-Локально:
+Файлы:
 
 ```text
-Ollama + qwen3:4b
+src/asu_june_bot/observability/chat_runs.py
+data/asu_june_bot/chat_runs.jsonl
 ```
 
-Позже:
+Назначение:
+
+- append-only логирование chat-запусков;
+- накопление dataset;
+- ручная разметка good/bad/partial позже;
+- анализ latency, модели, sources, validation errors.
+
+### 5.10 Evaluation Layer
+
+Файлы:
 
 ```text
-vLLM + Qwen3 14B / 32B
+src/asu_june_bot/eval/models.py
+src/asu_june_bot/eval/checks.py
+src/asu_june_bot/eval/runner.py
+src/asu_june_bot/eval/report.py
+src/asu_june_bot/eval/loader.py
+scripts/asu_june_bot_chat_eval.py
+eval/cases/base.jsonl
+eval/golden_answers/*.md
 ```
 
-### 10. Answer Validator
+Назначение:
 
-Проверки:
+- deterministic baseline checks;
+- отчеты JSON/Markdown;
+- сравнение будущих QH-2/QH-3 изменений с baseline.
 
-- `answer` не пустой;
-- есть `sources`;
-- источники имеют `document`, `section`, `chunk_id`;
-- ответ содержит ссылки на `[SRC-*]` или отдельный блок источников;
-- в ответе нет утверждений без подтверждения, если включен LLM-as-judge;
-- вопрос вне проекта не получил содержательный ответ.
+QH-1 не использует LLM-as-judge.
 
-На MVP часть проверок может быть эвристической.
+## 6. API-контракты
 
-После MVP — LLM-as-judge / Giskard / Promptfoo / DeepEval.
+### 6.1 GET /health
 
-### 11. Response Formatter
+Назначение: проверка готовности корпуса, индекса, guard, Ollama и embedding-модели.
 
-Единый формат будущего `/chat` ответа:
+Ключевые признаки готовности:
+
+```text
+status = ok
+bm25_ready = true
+vector_ready = true
+guard_v2_ready = true
+```
+
+### 6.2 POST /search
+
+Назначение: диагностический поиск без генерации ответа.
+
+Request:
 
 ```json
 {
-  "status": "answered",
-  "answer_mode": "llm",
-  "answer": "...",
-  "citations": [
-    {
-      "source_id": "SRC-001",
-      "document": "...",
-      "document_type": "ЦТА",
-      "section": "3.1",
-      "title": "...",
-      "quote": "...",
-      "score": 0.86,
-      "url": "..."
-    }
-  ],
-  "confidence": 0.82,
-  "limitations": [],
-  "diagnostics": {
-    "retrieval_mode": "hybrid",
-    "model": "qwen3:4b",
-    "reranker": null
-  }
+  "query": "Как происходит авторизация пользователей?",
+  "mode": "hybrid",
+  "top_k": 8
 }
 ```
 
-## Статусы
-
-### Search/API status
+Response:
 
 ```text
-ok
-refused
-clarify
-error
+status
+query_intent
+guard
+context.primary_sources
+context.supporting_sources
+context.excluded_sources
+results
+warnings
+diagnostics
 ```
 
-### Chat status
+### 6.3 POST /chat
+
+Назначение: ответ с источниками.
+
+Request:
+
+```json
+{
+  "query": "Как происходит авторизация пользователей?",
+  "mode": "hybrid",
+  "top_k": 5,
+  "model": "qwen2.5:7b-instruct",
+  "max_tokens": 500,
+  "timeout_sec": 300
+}
+```
+
+Response:
+
+```text
+status
+query
+answer
+sources
+search
+warnings
+diagnostics
+```
+
+Основные statuses:
 
 ```text
 answered
 refused
-partial
-error
+clarify
+no_sources
+llm_error
+llm_empty_response
+validation_failed
 ```
 
-## Source Policy
+## 7. Данные и артефакты runtime
 
-Приоритет источников:
+Runtime-данные не коммитятся:
 
 ```text
-1. project_doc
-2. meeting_artifact
-3. analytical_note
-4. instruction
-5. system_export
-6. runtime_export
-7. code
+data/asu_june_bot/extracted_v2/
+data/asu_june_bot/chunks_v2.jsonl
+data/asu_june_bot/embeddings_cache_v2.jsonl
+data/asu_june_bot/numpy_index_v2/
+data/asu_june_bot/chat_runs.jsonl
+eval/reports/
 ```
 
-По умолчанию исключать или понижать:
+Версионируются:
 
 ```text
-system_export
-runtime_export
-code
+eval/cases/base.jsonl
+eval/golden_answers/*.md
+docs/subprojects/asu-june-bot/**/*.md
 ```
 
-Подключать их только при явном запросе.
+## 8. Безопасность и приватность
 
-## Security и приватность
+Правила:
 
-MVP локальный, но сразу закладываются правила:
+- проектные источники не отправляются во внешние API;
+- отказные и уточняющие запросы не доходят до LLM;
+- sensitive-запросы блокируются до retrieval;
+- runtime logs не должны содержать секреты;
+- `.env`, токены, пароли, config secrets не индексируются и не раскрываются;
+- future RBAC по источникам должен добавляться до многопользовательского режима.
 
-- проектные документы не отправляются во внешний API;
-- LLM локально через Ollama;
-- логи запросов локальные;
-- sensitive-запросы блокируются;
-- mixed-scope запросы блокируются;
-- source links не должны раскрывать приватные токены;
-- future RBAC по источникам.
+## 9. Качество и ограничения
 
-## Логирование
-
-Логировать:
-
-- timestamp;
-- question hash;
-- route decision;
-- guard segments;
-- retrieval candidates;
-- selected sources;
-- model;
-- answer status;
-- latency;
-- error/fallback reason.
-
-Не логировать:
-
-- пароли;
-- токены;
-- содержимое `.env`;
-- полные приватные документы без необходимости.
-
-## Миграция на GPU
-
-Код не должен зависеть от Ollama напрямую.
-
-Абстракция:
-
-```python
-class LLMClient:
-    def generate(self, messages: list[dict], **kwargs) -> LLMResponse:
-        ...
-```
-
-Адаптеры:
+Текущий `AnswerValidator` выполняет structural validation:
 
 ```text
-OllamaOpenAIClient
-VllmOpenAIClient
-OpenAIClient optional
+пустой ответ
+наличие sources
+наличие ссылок [Sx]
+unknown citations
+external knowledge markers
+answer length
+citation density / coverage
 ```
 
-Конфиг:
+Не выполняет semantic/factual validation:
 
-```yaml
-llm:
-  provider: openai_compatible
-  base_url: http://localhost:11434/v1
-  model: qwen3:4b
-  timeout_sec: 120
-  temperature: 0.1
-  max_tokens: 1200
+```text
+поддерживается ли каждое утверждение конкретным source text;
+не сделала ли модель спорный вывод из короткого UML/heading/caption chunk;
+нет ли semantic hallucination при формально корректных [Sx].
+```
+
+QH-1 создаёт baseline. Следующие архитектурные улучшения:
+
+```text
+QH-2 Source Quality Filter
+QH-3 Parent Expansion
+QH-4 Semantic warnings
+```
+
+## 10. Планируемые контуры зрелости
+
+### MVP local
+
+```text
+один пользователь
+локальный корпус
+локальный индекс
+локальная LLM
+CLI + FastAPI
+```
+
+### Team local/server
+
+```text
+общий сервер индекса
+API service
+простая web оболочка
+централизованные eval reports
+```
+
+### Enterprise-ready
+
+```text
+RBAC по источникам
+аудит запросов
+job queue для reindex
+object storage для runtime artifacts
+GPU inference через vLLM
+monitoring dashboards
+```
+
+## 11. Связь с продуктовой документацией
+
+Архитектура связана с:
+
+```text
+README.md                      входная точка
+mvp.md                         функционально-технический scope
+roadmap.md                     план-график
+RUNBOOK_V2.md                  эксплуатация и проверки
+decisions.md                   архитектурные решения
+product/                       продуктовый контур
+smoke_report_*.md              доказательства прохождения этапов
 ```
