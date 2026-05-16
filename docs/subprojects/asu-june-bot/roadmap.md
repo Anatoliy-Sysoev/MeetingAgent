@@ -7,10 +7,12 @@
 Развитие идёт от качества project-only контура, а не от UI и не от выбора модели:
 
 ```text
-источники -> extraction -> chunks -> index -> guarded search -> context -> chat -> eval -> quality hardening -> UI -> deployment
+источники -> extraction -> chunks -> index -> guarded search -> context -> chat -> eval -> quality hardening -> docker packaging -> UI -> deployment
 ```
 
 Любое изменение retrieval/context/LLM должно иметь проверку на baseline cases.
+
+Docker-упаковка начинается только после QH-5, когда качество `/chat`, документация и smoke/regression-контур стабилизированы.
 
 ## 2. Сводный статус этапов
 
@@ -25,10 +27,13 @@
 Этап 7. QH-1 Observability + Eval Baseline           Реализован, ожидает локальный baseline-прогон
 Этап 8. QH-2 Source Quality Filter                   Следующий после baseline
 Этап 9. QH-3 Parent Expansion                        После QH-2 при необходимости
-Этап 10. UI / OpenWebUI adapter                      После quality baseline
-Этап 11. GPU migration path                          Позже
-Этап 12. Enterprise-hardening                        Позже
-Этап 13. Выделение в отдельный репозиторий           После стабилизации документации и MVP
+Этап 10. QH-4 Semantic Warnings / Manual Labels      После QH-2/QH-3
+Этап 11. QH-5 Release Stabilization                  Перед Docker
+Этап 12. Docker Packaging                            После QH-5
+Этап 13. UI / OpenWebUI adapter                      После Docker или параллельно после quality baseline
+Этап 14. GPU migration path                          Позже
+Этап 15. Enterprise-hardening                        Позже
+Этап 16. Выделение в отдельный репозиторий           После Docker и стабилизации документации
 ```
 
 ## 3. Этап 0. Архитектурное отделение подпроекта
@@ -308,7 +313,117 @@ dedup parent context
 не превышать PromptBuilder budget
 ```
 
-## 13. Этап 10. UI / OpenWebUI adapter
+## 13. Этап 10. QH-4 Semantic Warnings / Manual Labels
+
+Статус:
+
+```text
+Позже, после анализа QH-2/QH-3
+```
+
+Цель: добавить предупреждения по качеству ответа без hard-fail semantic validation.
+
+Состав:
+
+```text
+manual_label / manual_issue в chat_runs.jsonl
+offline review flow
+semantic_warnings в diagnostics
+low-overlap / weak-source warnings как warning, не validation_failed
+```
+
+Не делать в QH-4:
+
+```text
+LLM-as-judge как runtime dependency
+NLI hard-fail
+fine-tuning
+```
+
+## 14. Этап 11. QH-5 Release Stabilization
+
+Статус:
+
+```text
+Перед Docker
+```
+
+Цель: заморозить минимально стабильный контур продукта перед упаковкой.
+
+Критерии готовности QH-5:
+
+```text
+QH-1 baseline report создан
+QH-2 результат сравнен с baseline
+QH-3 выполнен или явно отменён как ненужный
+QH-4 warnings/manual labels либо реализованы, либо перенесены в backlog
+regression tests проходят
+API /health /search /chat проходят smoke
+README / architecture / mvp / roadmap / runbook синхронизированы
+runtime paths и config приведены к относительным/portable defaults
+секреты и локальные пути не попадают в Git
+```
+
+## 15. Этап 12. Docker Packaging
+
+Статус:
+
+```text
+Запланирован после QH-5
+```
+
+Цель: упаковать Project Knowledge Bot для воспроизводимого запуска одной командой.
+
+Минимальный состав:
+
+```text
+Dockerfile
+.dockerignore
+docker-compose.yml
+.env.example
+config.docker.example.yaml
+docs/deployment/docker.md
+scripts/docker_smoke.ps1 или docs smoke-команды
+```
+
+Первый docker-compose должен поднимать:
+
+```text
+bot-api
+```
+
+Ollama на первом шаге допускается запускать вне Docker на хосте Windows:
+
+```text
+Ollama host runtime -> bot-api container через host.docker.internal
+```
+
+Вторым шагом можно добавить optional profile:
+
+```text
+ollama service в docker-compose
+```
+
+Volume policy:
+
+```text
+./data:/app/data
+./eval:/app/eval
+./config.yaml:/app/config.yaml:ro
+```
+
+Критерии готовности Docker stage:
+
+```text
+docker compose up --build запускает bot-api
+GET /health работает из хоста
+POST /search работает
+POST /chat работает при доступной Ollama
+chat_runs.jsonl пишется в host volume
+runtime data не пишется внутрь ephemeral container layer
+```
+
+## 16. Этап 13. UI / OpenWebUI adapter
 
 Статус:
 
@@ -322,6 +437,7 @@ dedup parent context
 /search и /chat стабильны
 baseline eval понятен
 качество источников улучшено
+Docker или локальный API запуск воспроизводим
 ```
 
 Варианты:
@@ -332,7 +448,7 @@ OpenWebUI как оболочка
 CLI-first продолжение
 ```
 
-## 14. Этап 11. GPU migration path
+## 17. Этап 14. GPU migration path
 
 Статус:
 
@@ -348,7 +464,7 @@ CLI-first продолжение
 LLMClient остаётся OpenAI-compatible adapter
 ```
 
-## 15. Этап 12. Enterprise-hardening
+## 18. Этап 15. Enterprise-hardening
 
 Статус:
 
@@ -369,12 +485,12 @@ monitoring dashboards
 multi-user mode
 ```
 
-## 16. Этап 13. Выделение в отдельный репозиторий
+## 19. Этап 16. Выделение в отдельный репозиторий
 
 Статус:
 
 ```text
-Планируется
+Планируется после Docker
 ```
 
 Условия:
@@ -383,11 +499,12 @@ multi-user mode
 активная документация синхронизирована
 устаревшие материалы перенесены в archive
 README готов как корневой README нового repo
+Docker запуск воспроизводим
 runtime paths независимы от MeetingAgent
 package name и product name согласованы
 ```
 
-## 17. Не делать сейчас
+## 20. Не делать сейчас
 
 ```text
 не строить UI до baseline eval
@@ -397,5 +514,6 @@ package name и product name согласованы
 не делать LLM-as-judge/NLI до накопления dataset
 не делать fine-tuning
 не развивать scripts/09_chat.py как основной runtime
-не смешивать старый MeetingAgent RAG v1 и Asu Bot v2.1
+не смешивать старый MeetingAgent RAG v1 и bot v2.1
+не делать Docker до QH-5 release stabilization
 ```
