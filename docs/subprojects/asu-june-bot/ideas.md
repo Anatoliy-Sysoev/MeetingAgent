@@ -1,10 +1,53 @@
-# Ideas / Research Backlog — Asu June Bot
+# Ideas / Research Backlog — Project Knowledge Bot
 
-Обновлено: 2026-05-15.
+Обновлено: 2026-05-16.
 
 ## Назначение
 
-Документ фиксирует идеи, которые полезны для Asu June Bot, но не должны попадать в текущий MVP без отдельной проверки. Цель — не раздувать локальный CPU-first контур и не превращать `search_v2`, `/search` или `/chat` в монолит.
+Документ фиксирует идеи, которые полезны для Project Knowledge Bot, но не должны попадать в текущий MVP без отдельной проверки. Цель — не раздувать локальный CPU-first контур и не превращать `search_v2`, `/search` или `/chat` в монолит.
+
+Историческое имя подпроекта в коде и путях остается `asu_june_bot`. Продуктовое имя для документации — `Project Knowledge Bot`.
+
+## Текущий статус backlog
+
+Реализовано и больше не является идеей:
+
+```text
+SearchService
+FastAPI GET /health
+FastAPI POST /search
+ChatService
+CLI chat
+FastAPI POST /chat
+Context budget / truncation
+primary/supporting source labels в prompt
+AnswerValidator structural checks
+ChatRunsLogger
+QH-1 deterministic eval baseline skeleton
+```
+
+Следующий quality backlog после QH-1 baseline:
+
+```text
+QH-2 Source Quality Filter
+QH-3 Parent Expansion
+NO_ANSWER / insufficient_data status
+manual labeling of chat_runs
+semantic/factual validation track после накопления dataset
+```
+
+Не внедрять в runtime до baseline и накопления данных:
+
+```text
+DSPy
+LLM-as-judge
+NLI / sentence-to-source groundedness
+JSON-mode as required runtime
+retry policy
+LangGraph / agentic RAG
+Dify / RAGFlow as backend
+NeMo Guardrails
+```
 
 ## Текущий вывод после анализа внешнего ревью Chat MVP
 
@@ -19,20 +62,22 @@ excluded_sources не попадают в prompt;
 ответ без источников не считается answered;
 пустой ответ LLM не считается answered;
 для MVP достаточно deterministic validation, без LLM-judge/NLI;
-до POST /chat сначала стабилизировать CLI Chat MVP.
+до UI сначала стабилизировать CLI/API Chat MVP и baseline eval.
 ```
 
-Что решено внедрять сейчас:
+Что реализовано:
 
 ```text
 Context budget / truncation в PromptBuilder;
 явная разметка primary/supporting sources в prompt;
 temperature=0.0 по умолчанию;
 более строгий AnswerValidator: unknown citations, external phrases, length, citation density, citation coverage;
-дополнительные unit tests для context budget и unknown citations.
+unit tests для context budget и unknown citations;
+ChatRunsLogger;
+eval runner.
 ```
 
-Что решено не внедрять сейчас, а оставить в backlog:
+Что остается в backlog:
 
 ```text
 JSON-mode structured output;
@@ -47,7 +92,7 @@ telemetry dashboard;
 LangGraph / Dify / RAGFlow / NeMo Guardrails.
 ```
 
-## Реализовано по итогам ревью Chat MVP
+## Уже реализовано по итогам ревью Chat MVP
 
 ### 1. Context budget / truncation
 
@@ -108,11 +153,49 @@ src/asu_june_bot/chat/answer_validator.py
 
 Важно: семантический groundedness не реализован. Validator пока подтверждает citation contract, а не фактическую истинность каждого утверждения.
 
+### 4. ChatRunsLogger
+
+Статус: реализовано в QH-1.
+
+Файл:
+
+```text
+src/asu_june_bot/observability/chat_runs.py
+```
+
+Назначение:
+
+```text
+накопление chat_runs.jsonl
+анализ статусов, latency, sources, модели и validation errors
+ручная разметка good/bad/partial позже
+```
+
+### 5. EvalRunner
+
+Статус: реализовано в QH-1.
+
+Файлы:
+
+```text
+src/asu_june_bot/eval/
+scripts/asu_june_bot_chat_eval.py
+eval/cases/base.jsonl
+```
+
+Назначение:
+
+```text
+deterministic baseline без LLM-as-judge
+JSON/Markdown reports
+сравнение будущих QH-2/QH-3 изменений
+```
+
 ## Backlog после внешнего ревью Chat MVP
 
 ### 1. JSON-mode structured output
 
-Статус: идея / next hardening после CLI smoke.
+Статус: идея / next hardening после baseline.
 
 Суть:
 
@@ -140,13 +223,13 @@ src/asu_june_bot/chat/answer_validator.py
 
 Решение:
 
-- не включать до первого CLI smoke;
+- не включать до baseline;
 - сделать отдельный эксперимент `chat_json_mode_lab`;
 - сравнить plain markdown vs JSON на 20 project questions.
 
 ### 2. Formal NO_ANSWER / S0 contract
 
-Статус: идея / после первого smoke.
+Статус: идея / после baseline.
 
 Суть:
 
@@ -205,7 +288,7 @@ low citation coverage
 
 ### 4. GroundedContext / GenerationGuard
 
-Статус: later / refactor after smoke.
+Статус: later / refactor after baseline.
 
 Суть:
 
@@ -233,7 +316,7 @@ GenerationGuard
 
 Решение:
 
-- не делать до первого smoke, чтобы не рефакторить преждевременно;
+- не делать до baseline;
 - вернуться, если `ChatService` начнет разрастаться.
 
 ### 5. NLI / sentence-to-source groundedness
@@ -300,36 +383,27 @@ GenerationGuard
 - явно считать Chat MVP single-turn;
 - добавить multi-turn только после стабильного `/chat`.
 
-### 8. Telemetry / validation logs
+### 8. Telemetry dashboard
 
-Статус: after CLI smoke, до расширенного пилота.
+Статус: after baseline, до расширенного пилота.
 
 Идея:
 
-Писать JSONL diagnostics:
+Поверх `chat_runs.jsonl` сделать простой отчет:
 
 ```text
-request_id
-query
-chat_status
-search_status
-prompt_sources
-llm_model
-llm_called
-validation_errors
-latency_ms
+status distribution
+validation_errors distribution
+model latency
+sources count
+manual labels
 ```
-
-Польза:
-
-- понять долю `validation_failed`;
-- калибровать prompt и validator;
-- увидеть топ причин отказов.
 
 MVP-решение:
 
 - пока diagnostics возвращается в JSON;
-- после smoke добавить `chat_runs.jsonl` под флагом.
+- `chat_runs.jsonl` уже реализован;
+- dashboard пока не делать.
 
 ## Текущий вывод после анализа API Search MVP предложений
 
@@ -393,7 +467,7 @@ src/asu_june_bot/guardrails/project_guard.py
 Суть:
 
 - regex / keyword patterns для project/out/meta/generation/security/jailbreak;
-- отдельная обработка коротких технических маркеров `AD`, `API`, `БД`, `ИБ`, чтобы они не срабатывали внутри слов;
+- отдельная обработка коротких технических маркеров;
 - отдельная граница `вопрос по проектной технологии` vs `просьба написать произвольный код`;
 - отказ до retrieval при mixed/out-of-project.
 
@@ -462,7 +536,7 @@ guard.guard_v2.aggregate.segments[]
 
 - для локального пилота можно без auth;
 - перед публикацией API добавить dependency `require_api_key`;
-- позже — OAuth/AD/Keycloak, если появится enterprise-сценарий.
+- позже — OAuth/LDAP/SSO, если появится enterprise-сценарий.
 
 ### 3. OpenTelemetry / advanced observability
 
@@ -473,7 +547,8 @@ MVP:
 - request_id;
 - elapsed_ms;
 - basic access log;
-- diagnostics в ответе по флагу.
+- diagnostics в ответе по флагу;
+- chat_runs JSONL.
 
 Позже:
 
@@ -529,7 +604,7 @@ GET /admin/source-types
 
 ### 8. Streaming / SSE
 
-Статус: после базового `/chat`.
+Статус: после базового `/chat` и baseline.
 
 Решение:
 
@@ -547,12 +622,12 @@ GET /admin/source-types
 
 ### 10. MCP server для Codex
 
-Статус: позже после API Search.
+Статус: позже после стабильного API.
 
 Идея:
 
 ```text
-asu-june-bot-mcp
+project-knowledge-bot-mcp
   search_project_docs(query, mode, top_k)
   get_source(chunk_id)
   health()
@@ -631,7 +706,7 @@ CPU-оценка:
 Решение:
 
 - сначала собственные deterministic pytest asserts;
-- RAGAS/DeepEval — после появления `/chat`.
+- RAGAS/DeepEval — после появления стабильного baseline.
 
 ### 4. Guardrails AI
 
@@ -652,8 +727,8 @@ CPU-оценка:
 
 Решение:
 
-- не подключать до стабильного `/chat`;
-- рассмотреть после первого `/chat` как output guard.
+- не подключать до стабильного `/chat` и baseline;
+- рассмотреть позже как output guard.
 
 ## За пределами MVP
 
@@ -733,7 +808,7 @@ CPU-оценка:
 
 - текущий проект уже имеет собственный extraction/chunking/index/search v2.1;
 - перенос в готовую платформу усложнит source policy, guard policy и traceability;
-- есть риск потерять точную трассировку ФТТ/ЦТА/ПР/ПМИ.
+- есть риск потерять точную трассировку требований, архитектуры, проектных решений и испытаний.
 
 Решение:
 
