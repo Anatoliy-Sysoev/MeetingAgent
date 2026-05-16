@@ -1,18 +1,44 @@
-# Chunking v2.1 Для Asu June Bot
+# Chunking v2.1 для Project Knowledge Bot
 
-Обновлено: 2026-05-13.
+Обновлено: 2026-05-16.
 
 ## Назначение
 
-`chunking v2.1` — стратегия подготовки проектных chunks для Asu June Bot.
+`chunking v2.1` — стратегия подготовки структурированных chunks для Project Knowledge Bot.
 
-Цель: перейти от нарезки текста по символам к структурному extraction/chunking по смысловым единицам проектных документов, чтобы бот мог отвечать с точными ссылками на документы, разделы, пункты, строки таблиц и сценарии.
+Цель: перейти от нарезки текста по символам к extraction/chunking по смысловым единицам проектных документов, чтобы бот мог отвечать с точными ссылками на документы, разделы, пункты, строки таблиц, интеграционные потоки и сценарии.
 
-## Ключевое Решение
+Историческое имя пакета и runtime-путей остается `asu_june_bot`.
 
-Asu June Bot строит собственный pipeline v2.1 и не зависит от старого extraction pipeline MeetingAgent.
+## Текущий статус
 
-Старый pipeline остается для MeetingAgent v1:
+Стратегия v2.1 реализована и используется в текущем runtime.
+
+Подтвержденный срез:
+
+```text
+documents = 213
+blocks = 31076
+chunks_v2 = 31302
+indexed_chunks = 31285
+skipped_code_chunks = 17
+embedding_model = bge-m3
+embedding_dim = 1024
+```
+
+Дальнейшее развитие chunking/context связано с quality hardening:
+
+```text
+QH-1 baseline eval
+QH-2 Source Quality Filter
+QH-3 Parent Expansion
+```
+
+## Ключевое решение
+
+Project Knowledge Bot строит собственный pipeline v2.1 и не зависит от старого extraction pipeline MeetingAgent.
+
+Старый pipeline остается для MeetingAgent v1/baseline:
 
 ```text
 run_full_rag.ps1
@@ -22,7 +48,7 @@ run_full_rag.ps1
   -> scripts/05_build_numpy_index.py
 ```
 
-Новый pipeline Asu June Bot v2.1:
+Новый pipeline:
 
 ```text
 scripts/asu_june_bot_apply_config_v2_1.py
@@ -30,6 +56,7 @@ scripts/asu_june_bot_apply_config_v2_1.py
   -> scripts/asu_june_bot_build_chunks_v2.py
   -> scripts/asu_june_bot_audit_sources_v2.py
   -> scripts/asu_june_bot_build_index_v2.py
+  -> scripts/asu_june_bot_health_v2.py
   -> scripts/asu_june_bot_search_v2.py
 ```
 
@@ -48,18 +75,17 @@ data/numpy_index/
 run_full_rag.ps1
 ```
 
-## Почему Нужен v2.1
+## Почему нужен v2.1
 
-В v2 был собран независимый extractor/chunker, но при сканировании всей проектной папки в корпус попадали шумные технические выгрузки:
+В раннем v2 при сканировании всей проектной папки в корпус попадали шумные технические выгрузки:
 
 ```text
-Система/asu_docs_export
-Система/asu_admin_export
-site_review_runs
-playwright exports
+system exports
 HTML/text exports
 HAR dumps
 screenshots
+playwright/site review exports
+runtime exports
 ```
 
 Для project-only бота эти источники вредят retrieval, потому что создают большое количество `html_text`, `system_export` и `unknown` chunks.
@@ -74,23 +100,22 @@ v2.1 фиксирует это:
 
 ## Input Policy v2.1
 
-Основной корпус Asu June Bot должен включать:
+Основной корпус должен включать:
 
 ```text
-ФТТ
-ЦТА
-ПР
-ПМИ
-Паспорт ИС
-СоИ AD
-СоИ Справочники
-Руководства
-Протоколы
+требования
+целевая архитектура
+проектные решения
+программа и методика испытаний
+паспорт информационной системы
+соглашения об интеграции
+руководства
+протоколы
 BPMN/PUML/Drawio схемы
 рабочие markdown/txt/json/yaml материалы проекта
 ```
 
-Основной корпус Asu June Bot не должен включать:
+Основной корпус не должен включать:
 
 ```text
 **/Система/**
@@ -161,24 +186,24 @@ data/asu_june_bot/extracted_v2/extraction_v2_report.md
   "block_type": "table_row",
   "text": "...",
   "relative_path": "...",
-  "document_name": "ФТТ.docx",
-  "document_type": "ФТТ",
+  "document_name": "...",
+  "document_type": "...",
   "source_type": "project_doc",
-  "stage": "Этап 1",
-  "module": "СМР / Строительный контроль",
-  "section": "4.2.5",
-  "sections": ["4.2.5"],
+  "stage": "...",
+  "module": "...",
+  "section": "...",
+  "sections": ["..."],
   "table_id": "Table 3",
   "row_id": "7",
   "headers": ["Код", "Требование", "Описание"],
   "cells": {
-    "Код": "4.2.5",
+    "Код": "...",
     "Описание": "..."
   }
 }
 ```
 
-## Главный Принцип Chunking v2.1
+## Главный принцип chunking v2.1
 
 ```text
 Не chunk по символам, а chunk по смысловой единице документа.
@@ -188,12 +213,12 @@ data/asu_june_bot/extracted_v2/extraction_v2_report.md
 
 | Тип документа | Atomic child chunk | Parent chunk |
 | --- | --- | --- |
-| ФТТ | одно требование / пункт / строка таблицы | раздел требований / таблица |
-| ЦТА | строка таблицы / архитектурный пункт / поток | раздел архитектуры / таблица |
-| СоИ AD | один блок / одна строка маппинга | раздел интеграции / таблица |
-| СоИ Справочники | одно поле маппинга / один справочник | справочник целиком / таблица |
+| Требования | одно требование / пункт / строка таблицы | раздел требований / таблица |
+| Архитектура | строка таблицы / архитектурный пункт / поток | раздел архитектуры / таблица |
+| Соглашение об интеграции | один блок / одна строка маппинга | раздел интеграции / таблица |
+| Справочники / НСИ | одно поле маппинга / один справочник | справочник целиком / таблица |
 | Паспорт ИС | один пункт / один компонент / одна строка таблицы | раздел паспорта |
-| ПМИ | один шаг сценария / одно проверяемое требование | сценарий СФТ/СНТ целиком |
+| ПМИ | один шаг сценария / одно проверяемое требование | сценарий целиком |
 | Руководства | один пункт инструкции | раздел руководства |
 | Протоколы | одно решение / задача / риск / вопрос | вся встреча / повестка |
 
@@ -208,19 +233,7 @@ analytical_note
 instruction
 ```
 
-`system_export` не входит в default corpus. Он доступен только при явном запросе по маркерам:
-
-```text
-система
-системная выгрузка
-админка
-django admin
-asu_admin_export
-asu_docs_export
-site_review
-html export
-экспорт сайта
-```
+`system_export` не входит в default corpus. Он доступен только при явном запросе по маркерам технических выгрузок.
 
 Весовые коэффициенты:
 
@@ -235,25 +248,7 @@ code: 0.25
 unknown: 0.5
 ```
 
-Приоритеты типов документов:
-
-```text
-ФТТ: 1.25
-ЦТА: 1.22
-ПР: 1.18
-СоИ AD: 1.16
-СоИ Справочники: 1.16
-Паспорт ИС: 1.12
-ПМИ: 1.08
-Руководство: 0.98
-Протокол: 0.92
-Реестр НСИ: 0.88
-BPMN / Процесс: 0.84
-API: 0.8
-Wiki: 0.72
-```
-
-## Parent / Child Модель
+## Parent / Child модель
 
 ### Parent chunk
 
@@ -268,31 +263,31 @@ Parent chunk описывает крупный логический блок:
 Child chunk содержит атомарный факт:
 
 ```text
-требование, строка таблицы, интеграционный поток, атрибут маппинга, шаг ПМИ, сервис, роль, порт
+требование, строка таблицы, интеграционный поток, атрибут маппинга, шаг сценария, сервис, роль, порт
 ```
 
-## Retrieval После v2.1
+## Retrieval после v2.1
 
 ### Точный вопрос
 
-Вопрос:
+Пример:
 
 ```text
-ФТТ 4.2.5 НОВАДОК ЭЦП
+пункт требования + название интеграции / технологии
 ```
 
 Должен работать так:
 
 ```text
-1. exact match по requirement_id = 4.2.5
-2. BM25 по словам НОВАДОК / ЭЦП
+1. exact match по requirement_id / section
+2. BM25 по ключевым словам
 3. vector search
-4. подтянуть parent chunk раздела 4.2 при необходимости
+4. подтянуть parent chunk при необходимости
 ```
 
 ### Обзорный вопрос
 
-Вопрос:
+Пример:
 
 ```text
 Что входит в Паспорт ИС?
@@ -301,7 +296,7 @@ Child chunk содержит атомарный факт:
 Должен работать так:
 
 ```text
-1. Найти parent chunks Паспорта ИС
+1. Найти parent chunks документа
 2. Сгруппировать разделы
 3. Подтянуть child chunks только для уточнения
 4. Ответить по структуре документа
@@ -309,16 +304,16 @@ Child chunk содержит атомарный факт:
 
 ### Aggregation-вопрос
 
-Вопрос:
+Пример:
 
 ```text
-Какие интеграции заявлены в проекте?
+Какие интеграции заявлены в проектных документах?
 ```
 
 Должен работать так:
 
 ```text
-1. Искать по document_type = ЦТА / СоИ / ФТТ / ПР
+1. Искать по document_type = архитектура / соглашение / требования / проектное решение
 2. Поднимать child chunks с integration/source_system/target_system/protocol
 3. Группировать по интеграции
 4. Исключать неподтвержденные интеграции
@@ -334,16 +329,16 @@ Child chunk содержит атомарный факт:
   "chunker_version": "v2",
   "chunk_level": "child",
   "parent_chunk_id": "...",
-  "project": "ЦП УПКС",
-  "document_name": "ФТТ.docx",
-  "document_type": "ФТТ",
+  "project": "...",
+  "document_name": "...",
+  "document_type": "...",
   "source_type": "project_doc",
   "relative_path": "...",
-  "stage": "Этап 1",
-  "module": "СМР / Строительный контроль",
-  "section": "4.2.5",
-  "sections": ["4.2.5"],
-  "requirement_id": "4.2.5",
+  "stage": "...",
+  "module": "...",
+  "section": "...",
+  "sections": ["..."],
+  "requirement_id": "...",
   "scenario_id": null,
   "block_id": "...",
   "block_type": "table_row",
@@ -358,7 +353,7 @@ Child chunk содержит атомарный факт:
 }
 ```
 
-## Выходные Файлы
+## Выходные файлы
 
 v2.1 не должен перезаписывать текущий индекс MeetingAgent.
 
@@ -381,11 +376,6 @@ data/asu_june_bot/chunks_v2.jsonl
 data/asu_june_bot/chunking_v2_report.json
 data/asu_june_bot/chunking_v2_report.md
 data/asu_june_bot/source_audit_v2_report.json
-```
-
-Индекс v2 будет добавлен отдельно:
-
-```text
 data/asu_june_bot/embeddings_cache_v2.jsonl
 data/asu_june_bot/numpy_index_v2/
 ```
@@ -398,6 +388,7 @@ scripts/asu_june_bot_extract_text_v2.py
 scripts/asu_june_bot_build_chunks_v2.py
 scripts/asu_june_bot_audit_sources_v2.py
 scripts/asu_june_bot_build_index_v2.py
+scripts/asu_june_bot_health_v2.py
 scripts/asu_june_bot_search_v2.py
 run_asu_june_bot_rebuild_v2.ps1
 run_asu_june_bot_chunks_v2.ps1
@@ -407,63 +398,45 @@ monitor_asu_june_bot_index_v2.ps1
 register_asu_june_bot_index_v2_watchdog.ps1
 ```
 
-## Команды
-
-Применить локальный config v2.1:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_apply_config_v2_1.py --project-root "C:\Users\Сотрудник\Desktop\!Проектные документы АСУ"
-```
-
-Extraction dry-run:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --dry-run --limit 5
-```
-
-Полная v2.1-пересборка:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --reset
-.\.venv\Scripts\python.exe scripts\asu_june_bot_build_chunks_v2.py
-.\.venv\Scripts\python.exe scripts\asu_june_bot_audit_sources_v2.py
-```
-
 ## Acceptance Criteria
 
-`extraction/chunking v2.1` считается готовым для первого сравнения с v1, если:
+`extraction/chunking v2.1` считается готовым, если:
 
-- создан `data/asu_june_bot/extracted_v2/blocks.jsonl`;
-- создан `data/asu_june_bot/chunks_v2.jsonl`;
-- создан `data/asu_june_bot/source_audit_v2_report.json`;
-- старые `data/chunks.jsonl` и `data/numpy_index` не изменены;
-- `documents.jsonl` не содержит `/Система/`, `asu_admin_export`, `asu_docs_export`, `site_review_runs`, `playwright`, `.har`;
-- у каждого chunk есть `chunker_version = v2`;
-- у каждого chunk есть `chunk_level = parent | child`;
-- у child chunk из таблицы есть `table_id` и `row_id`;
-- у ФТТ chunk по возможности заполнен `requirement_id`;
-- у всех chunks есть `source_type`, `document_type`, `relative_path`, `chunk_id`, `text_hash`;
-- `unknown` и `system_export` не доминируют в `chunking_v2_report.json`;
-- dry-run выводит статистику и не пишет файлы;
-- можно сравнить v1 и v2.1 на baseline-вопросах.
+```text
+data/asu_june_bot/extracted_v2/blocks.jsonl создан
+data/asu_june_bot/chunks_v2.jsonl создан
+data/asu_june_bot/source_audit_v2_report.json создан
+старые data/chunks.jsonl и data/numpy_index не изменены
+технические выгрузки исключены из documents.jsonl
+у каждого chunk есть chunker_version = v2
+у каждого chunk есть chunk_level = parent | child
+у child chunk из таблицы есть table_id и row_id
+у требований по возможности заполнен requirement_id
+у всех chunks есть source_type, document_type, relative_path, chunk_id, text_hash
+unknown и system_export не доминируют в chunking_v2_report.json
+dry-run выводит статистику и не пишет файлы
+можно сравнить v1 и v2.1 на baseline-вопросах
+```
 
-## Baseline Для Сравнения v1/v2.1
+## Baseline для сравнения v1/v2.1
 
 Минимум:
 
 ```text
-1. ФТТ 4.2.5 НОВАДОК ЭЦП
-2. Какие интеграции заявлены в проекте?
+1. Точный пункт требования + ключевые слова интеграции.
+2. Какие интеграции заявлены в проектных документах?
 3. Что входит в Паспорт ИС?
-4. Как работает интеграция с AD?
-5. Какие справочники передаются через MDR?
-6. Какие сценарии ПМИ покрывают ФТТ 4.1?
+4. Как работает интеграция с каталогом пользователей?
+5. Какие справочники передаются через слой интеграции НСИ?
+6. Какие сценарии испытаний покрывают конкретное требование?
 ```
 
-## Не Делать До Проверки v2.1
+## Не делать
 
-- Не заменять текущий RAG индекс.
-- Не считать embeddings v2 до очистки корпуса.
-- Не подключать LLM.
-- Не менять `run_full_rag.ps1`.
-- Не индексировать папку `Система` в основной project-only corpus.
+```text
+не заменять текущий RAG индекс без проверки
+не считать embeddings v2 до очистки корпуса
+не подключать LLM до готового search/context
+не менять run_full_rag.ps1
+не индексировать technical/system exports в основной project-only corpus
+```
