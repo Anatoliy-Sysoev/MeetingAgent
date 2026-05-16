@@ -1,13 +1,13 @@
 # Asu June Bot v2 Runbook
 
-Обновлено: 2026-05-15.
+Обновлено: 2026-05-16.
 
 ## Назначение
 
 Инструкция запуска независимого pipeline Asu June Bot v2.1/v2.2:
 
 ```text
-apply_config_v2_1 -> extract_text_v2 -> chunks_v2 -> audit_sources_v2 -> build_index_v2 -> health_v2 -> search_v2 -> SearchService -> FastAPI /search -> ChatService -> CLI chat
+apply_config_v2_1 -> extract_text_v2 -> chunks_v2 -> audit_sources_v2 -> build_index_v2 -> health_v2 -> search_v2 -> SearchService -> FastAPI /search -> ChatService -> CLI chat -> API /chat -> QH-1 eval baseline
 ```
 
 Pipeline v2 не использует старый `scripts/02_extract_text.py` и не меняет старые runtime-файлы MeetingAgent:
@@ -18,7 +18,7 @@ data/embeddings_cache.jsonl
 data/numpy_index/
 ```
 
-Все новые данные пишутся в:
+Все новые runtime-данные пишутся в:
 
 ```text
 data/asu_june_bot/
@@ -36,6 +36,8 @@ ProjectGuard v2
 SearchService
 API Search MVP
 CLI Chat MVP
+API Chat MVP / POST /chat
+QH-1 Observability + Eval Baseline skeleton
 ```
 
 Финальные smoke-отчёты:
@@ -45,12 +47,7 @@ docs/subprojects/asu-june-bot/smoke_report_project_guard_v2.md
 docs/subprojects/asu-june-bot/smoke_report_search_service_commit1.md
 docs/subprojects/asu-june-bot/smoke_report_api_search_mvp.md
 docs/subprojects/asu-june-bot/smoke_report_chat_mvp.md
-```
-
-Следующий этап:
-
-```text
-POST /chat
+docs/subprojects/asu-june-bot/smoke_report_api_chat_mvp.md
 ```
 
 Рекомендуемая chat-модель MVP:
@@ -179,15 +176,6 @@ false_allow = 0
 4 passed
 ```
 
-Проверяется:
-
-```text
-refused -> retrieval_called=false
-clarify -> retrieval_called=false
-allow -> retrieval_called=true
---no-guard -> retrieval_called=true
-```
-
 ## 6. ChatService tests
 
 ```powershell
@@ -200,24 +188,12 @@ allow -> retrieval_called=true
 7 passed
 ```
 
-Проверяется:
-
-```text
-refused -> LLM не вызывается
-clarify -> LLM не вызывается
-ok -> LLM вызывается
-LLM получает context, не excluded_sources
-пустой ответ LLM != answered
-ответ без [Sx] != answered
-unknown source reference != answered
-context budget diagnostics работают
-```
-
-## 7. API Search tests
+## 7. API tests
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_health.py -q
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_search_smoke.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_chat_smoke.py -q
 ```
 
 Ожидаемо:
@@ -225,6 +201,7 @@ context budget diagnostics работают
 ```text
 test_health.py: 1 passed
 test_search_smoke.py: 3 passed
+test_chat_smoke.py: 5 passed
 ```
 
 Если FastAPI/uvicorn не установлены:
@@ -233,7 +210,23 @@ test_search_smoke.py: 3 passed
 .\.venv\Scripts\python.exe -m pip install fastapi uvicorn
 ```
 
-## 8. Запуск API Search MVP
+## 8. QH-1 observability/eval tests
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\observability\test_chat_runs.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\eval\test_checks.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\eval\test_runner.py -q
+```
+
+Ожидаемо:
+
+```text
+observability: 2 passed
+eval checks: 2 passed
+eval runner: 1 passed
+```
+
+## 9. Запуск API
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_api.py --host 127.0.0.1 --port 8000
@@ -246,7 +239,7 @@ Application startup complete
 Uvicorn running on http://127.0.0.1:8000
 ```
 
-## 9. API smoke: /health
+## 10. API smoke: /health
 
 В другом PowerShell:
 
@@ -264,7 +257,7 @@ vector_ready = true
 guard_v2_ready = true
 ```
 
-## 10. API smoke: /search project query
+## 11. API smoke: /search project query
 
 ```powershell
 Invoke-RestMethod `
@@ -283,46 +276,46 @@ context.primary_sources/supporting_sources != []
 diagnostics.search_service.retrieval_called = true
 ```
 
-## 11. API smoke: /search out-of-project query
+## 12. API smoke: /chat project query
 
 ```powershell
 Invoke-RestMethod `
   -Method Post `
-  -Uri "http://127.0.0.1:8000/search" `
+  -Uri "http://127.0.0.1:8000/chat" `
   -ContentType "application/json" `
-  -Body '{"query":"Какая погода завтра в Москве?","mode":"hybrid","top_k":8}'
+  -Body '{"query":"СоИ AD как происходит авторизация пользователей?","mode":"hybrid","top_k":5,"model":"qwen2.5:7b-instruct","max_tokens":500,"timeout_sec":300}'
+```
+
+Ожидаемо:
+
+```text
+status = answered
+answer != null
+sources != []
+diagnostics.llm_called = true
+diagnostics.llm_model = qwen2.5:7b-instruct
+diagnostics.llm_finish_reason = stop
+```
+
+## 13. API smoke: /chat out-of-project query
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://127.0.0.1:8000/chat" `
+  -ContentType "application/json" `
+  -Body '{"query":"Какая погода завтра в Москве?","mode":"hybrid","top_k":5,"model":"qwen2.5:7b-instruct","max_tokens":500,"timeout_sec":300}'
 ```
 
 Ожидаемо:
 
 ```text
 status = refused
-results = []
-diagnostics.search_service.retrieval_called = false
+sources = []
+diagnostics.llm_called = false
 ```
 
-## 12. API smoke: /search project + unknown tail
-
-```powershell
-Invoke-RestMethod `
-  -Method Post `
-  -Uri "http://127.0.0.1:8000/search" `
-  -ContentType "application/json" `
-  -Body '{"query":"СоИ AD как происходит авторизация пользователей? И расскажи стих про проект","mode":"hybrid","top_k":8}'
-```
-
-Ожидаемо:
-
-```text
-status = refused
-guard.reason = in_project_query_contains_unclassified_segment
-results = []
-diagnostics.search_service.retrieval_called = false
-```
-
-Правило: не расширять marker DB частными темами. `project + unknown tail` блокируется на уровне `GuardPolicy`.
-
-## 13. CLI search smoke
+## 14. CLI search smoke
 
 Использовать `--output`, а не PowerShell `>` — иначе возможна порча UTF-8 в Windows PowerShell.
 
@@ -334,23 +327,7 @@ diagnostics.search_service.retrieval_called = false
 .\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какие интеграции заявлены в проекте?" --mode hybrid --top-k 8 --json --output "data\asu_june_bot\smoke_integrations_context.json"
 ```
 
-Ожидаемо:
-
-```text
-Паспорт ИС:
-  status = ok
-  primary_sources = 1
-
-ФТТ 4.2.5:
-  status = ok
-  primary source = ФТТ / Таблица 8 / строка 44 / № 4.2.5
-
-Интеграции:
-  status = ok
-  primary/supporting содержит ЦТА, Паспорт ИС, ФТТ, СоИ
-```
-
-## 14. CLI Chat MVP smoke
+## 15. CLI Chat MVP smoke + chat_runs.jsonl
 
 Project question:
 
@@ -358,40 +335,62 @@ Project question:
 .\.venv\Scripts\python.exe scripts\asu_june_bot_chat.py "СоИ AD как происходит авторизация пользователей?" --mode hybrid --top-k 5 --model qwen2.5:7b-instruct --max-tokens 500 --timeout-sec 300 --json --output data\asu_june_bot\smoke_chat_ad_qwen25_7b.json
 ```
 
-Ожидаемо:
-
-```text
-status = answered
-llm_called = true
-llm_model = qwen2.5:7b-instruct
-llm_finish_reason = stop
-validation_errors = []
-prompt_sources = 5
-selected_sources = 5
-used_context_chars <= max_context_chars
-```
-
-Out-of-project question:
+Проверить лог:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_chat.py "Какая погода завтра в Москве?" --mode hybrid --top-k 5 --model qwen2.5:7b-instruct --max-tokens 500 --timeout-sec 300 --json --output data\asu_june_bot\smoke_chat_weather_refused.json
+Get-Content data\asu_june_bot\chat_runs.jsonl -Encoding UTF8 -Tail 1
 ```
 
 Ожидаемо:
 
 ```text
-status = refused
-llm_called = false
+chat_runs.jsonl содержит валидный JSONL
+status = answered
+llm_called = true
+sources != []
+latency_ms != null
 ```
 
-Не использовать для smoke default-модель qwen3:
+Отключить логирование для разового запуска:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_chat.py "СоИ AD как происходит авторизация пользователей?" --no-log
+```
+
+## 16. QH-1 eval baseline
+
+Запустить baseline без изменения retrieval/context:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_chat_eval.py --cases eval\cases\base.jsonl --label baseline --model qwen2.5:7b-instruct --top-k 5
+```
+
+Ожидаемо:
 
 ```text
-qwen3:4b -> llm_empty_response / finish_reason=length
-qwen3:8b -> timeout/обрыв на локальном CPU runtime
+Eval cases: 13
+Passed: N
+Failed: M
+Pass rate: X.X%
+JSON report: eval\reports\*__baseline.json
+Markdown report: eval\reports\*__baseline.md
 ```
 
-## 15. Почему /search не даёт осмысленный ответ
+Важно:
+
+```text
+baseline может быть ниже 100%.
+Это не ошибка.
+Цель QH-1 — измерить текущее качество, а не подогнать кейсы.
+```
+
+Если нужно прогнать eval без записи в `chat_runs.jsonl`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_chat_eval.py --cases eval\cases\base.jsonl --label baseline --model qwen2.5:7b-instruct --top-k 5 --no-log
+```
+
+## 17. Почему /search не даёт осмысленный ответ
 
 `/search` — это не чат и не генератор ответа. Он возвращает evidence/context:
 
@@ -421,7 +420,7 @@ Question
 
 Не надо заставлять `/search` писать ответ. Это создаст смешение responsibilities и снова приведёт к монолиту.
 
-## 16. Ограничение Chat MVP
+## 18. Ограничение Chat MVP
 
 Текущий `AnswerValidator` выполняет structural validation, но не semantic/factual validation.
 
@@ -445,9 +444,9 @@ citation density / coverage
 нет ли semantic hallucination при формально корректных [Sx].
 ```
 
-Это quality debt, а не blocker для `POST /chat`.
+Это quality debt. QH-1 не решает его напрямую, а создаёт измеримый baseline.
 
-## 17. Полная пересборка v2.1 при изменении корпуса
+## 19. Полная пересборка v2.1 при изменении корпуса
 
 Если меняются фильтры, список файлов или правила extraction/chunking, пересобрать с нуля:
 
@@ -460,7 +459,7 @@ citation density / coverage
 .\.venv\Scripts\python.exe scripts\asu_june_bot_health_v2.py
 ```
 
-## 18. Проверка extraction/chunking
+## 20. Проверка extraction/chunking
 
 Для Windows PowerShell 5.1 всегда указывать `-Encoding UTF8` при чтении отчетов.
 
@@ -472,35 +471,32 @@ Get-Content .\data\asu_june_bot\index_v2_report.json -Encoding UTF8
 Get-Content .\data\asu_june_bot\numpy_index_v2\manifest.json -Encoding UTF8
 ```
 
-## 19. Watchdog для долгого embeddings cache
+## 21. Следующие этапы после baseline
 
-```powershell
-.\register_asu_june_bot_index_v2_watchdog.ps1 -IntervalMinutes 30
-```
+### QH-2. Source Quality Filter
 
-Лог:
-
-```powershell
-Get-Content .\logs\asu_june_bot_index_v2_watchdog.log -Encoding UTF8 -Tail 80
-```
-
-Отключить вручную:
-
-```powershell
-Unregister-ScheduledTask -TaskName AsuJuneBotIndexV2Watchdog -Confirm:$false
-```
-
-## 20. Следующий этап: POST /chat
-
-Реализовать:
+Делать только после анализа baseline.
 
 ```text
-src/asu_june_bot/api/routes_chat.py
+src/asu_june_bot/retrieval/source_quality.py
+unit tests для weak chunks
+интеграция в ContextBuilder
+повторный eval: label=with_source_filter
+сравнение с baseline
 ```
 
-`POST /chat` должен использовать `ChatService`, а не дублировать guard/retrieval/context/generation.
+### QH-3. Parent Expansion
 
-## 21. Не делать
+Делать только если QH-2 не устранил проблему коротких chunks.
+
+```text
+strict max chars
+dedup parent context
+никакого expansion без лимита
+сравнение eval до/после
+```
+
+## 22. Не делать
 
 - Не пытаться заставить `/search` писать осмысленные ответы.
 - Не удалять `data/asu_june_bot/`, если нужно продолжить после прерывания.
@@ -511,3 +507,5 @@ src/asu_june_bot/api/routes_chat.py
 - Не отправлять в LLM сырой hybrid top-k.
 - Не развивать старый `scripts/09_chat.py` как основной runtime.
 - Не внедрять JSON-mode, retry, NLI и LLM-judge до накопления eval dataset.
+- Не внедрять source quality filter без baseline.
+- Не внедрять parent expansion без замера эффекта source quality filter.
