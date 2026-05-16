@@ -4,7 +4,7 @@
 
 ## Текущий статус
 
-API Search MVP закрыт. CLI Chat MVP технически прошёл первый smoke на локальной LLM.
+API Search MVP закрыт. CLI Chat MVP прошёл первый smoke на локальной LLM. API Chat MVP реализован в коде и ожидает локальную проверку.
 
 Завершено:
 
@@ -21,18 +21,21 @@ LLMClient + PromptBuilder
 ChatService + CLI skeleton
 Chat MVP hardening после внешнего ревью
 Chat MVP smoke на qwen2.5:7b-instruct
+POST /chat route implementation
+API Chat MVP smoke tests implementation
 ```
 
-Финальные отчёты:
+Финальные/рабочие отчёты:
 
 ```text
 docs/subprojects/asu-june-bot/smoke_report_project_guard_v2.md
 docs/subprojects/asu-june-bot/smoke_report_search_service_commit1.md
 docs/subprojects/asu-june-bot/smoke_report_api_search_mvp.md
 docs/subprojects/asu-june-bot/smoke_report_chat_mvp.md
+docs/subprojects/asu-june-bot/smoke_report_api_chat_mvp.md
 ```
 
-## Подтверждено
+## Подтверждено ранее
 
 ### ChatService tests
 
@@ -40,28 +43,7 @@ docs/subprojects/asu-june-bot/smoke_report_chat_mvp.md
 7 passed
 ```
 
-Проверено:
-
-```text
-refused -> LLM не вызывается
-clarify -> LLM не вызывается
-ok -> LLM вызывается
-LLM получает context, не excluded_sources
-пустой ответ LLM != answered
-ответ без [Sx] != answered
-unknown source reference != answered
-context budget diagnostics работают
-```
-
 ### Project smoke / qwen2.5
-
-Команда:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_chat.py "СоИ AD как происходит авторизация пользователей?" --mode hybrid --top-k 5 --model qwen2.5:7b-instruct --max-tokens 500 --timeout-sec 300 --json --output data\asu_june_bot\smoke_chat_ad_qwen25_7b.json
-```
-
-Результат:
 
 ```text
 status = answered
@@ -74,34 +56,99 @@ selected_sources = 5
 used_context_chars = 1162
 ```
 
-Вывод:
+Рекомендуемая chat-модель MVP:
 
 ```text
-qwen2.5:7b-instruct — рекомендуемая chat-модель для текущего MVP.
+qwen2.5:7b-instruct
 ```
 
-### Project smoke / qwen3
+Не использовать как default:
 
-Команда:
+```text
+qwen3:4b
+qwen3:8b
+```
+
+## Реализовано для POST /chat
+
+```text
+src/asu_june_bot/api/routes_chat.py
+src/asu_june_bot/api/dependencies.py
+src/asu_june_bot/api/app.py
+tests/asu_june_bot/api/test_chat_smoke.py
+```
+
+`POST /chat` является thin API adapter над `ChatService`.
+
+Не дублирует:
+
+```text
+guard
+retrieval
+rerank
+context building
+prompt building
+LLM call
+answer validation
+```
+
+## Следующий локальный прогон
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_chat.py "СоИ AD как происходит авторизация пользователей?" --mode hybrid --top-k 5 --model qwen3:4b --max-tokens 500 --timeout-sec 300 --json --output data\asu_june_bot\smoke_chat_ad_qwen3_4b_nothink.json
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\chat\test_chat_service.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_health.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_search_smoke.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_chat_smoke.py -q
 ```
 
-Результат:
+Ожидаемо:
 
 ```text
-status = llm_empty_response
-llm_called = true
-llm_model = qwen3:4b
-llm_finish_reason = length
+ChatService: 7 passed
+API health: 1 passed
+API search: 3 passed
+API chat: 5 passed
 ```
 
-Вывод:
+Runtime smoke `/chat`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_api.py --host 127.0.0.1 --port 8000
+```
+
+В другом PowerShell:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://127.0.0.1:8000/chat" `
+  -ContentType "application/json" `
+  -Body '{"query":"СоИ AD как происходит авторизация пользователей?","mode":"hybrid","top_k":5,"model":"qwen2.5:7b-instruct","max_tokens":500,"timeout_sec":300}'
+```
+
+Ожидаемо:
 
 ```text
-qwen3:4b даже с /no_think нестабилен для Chat MVP на текущем prompt/max_tokens.
-qwen3:8b ранее давал timeout/обрыв на локальном CPU runtime.
+status = answered
+sources != []
+diagnostics.llm_called = true
+```
+
+Refused smoke:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://127.0.0.1:8000/chat" `
+  -ContentType "application/json" `
+  -Body '{"query":"Какая погода завтра в Москве?","mode":"hybrid","top_k":5,"model":"qwen2.5:7b-instruct","max_tokens":500,"timeout_sec":300}'
+```
+
+Ожидаемо:
+
+```text
+status = refused
+diagnostics.llm_called = false
 ```
 
 ## Важное ограничение результата
@@ -128,44 +175,11 @@ citation density / coverage
 нет ли semantic hallucination при формально корректных [Sx].
 ```
 
-Для smoke-вопроса по AD модель дала валидный структурно ответ, но часть формулировок по коротким UML-фрагментам `[S2]`, `[S3]` требует ручного ревью. Это фиксируется как quality debt, а не runtime blocker.
+Это фиксируется как quality debt, а не runtime blocker.
 
-## Текущая архитектура Chat MVP
+## Следующий приоритет после проверки POST /chat
 
-```text
-User question
-  -> ChatService
-  -> SearchService.search()
-  -> if refused/clarify/error: return without LLM
-  -> if ok: PromptBuilder(context.primary_sources + context.supporting_sources)
-  -> context budget / truncation
-  -> LLMClient.generate()
-  -> AnswerValidator
-  -> ChatResponse
-```
-
-Ключевое правило сохраняется:
-
-```text
-/search возвращает evidence/context
-/chat возвращает осмысленный ответ по context
-```
-
-## Следующий приоритет
-
-### Commit 8. POST /chat
-
-- [ ] Добавить API route `POST /chat`.
-- [ ] Использовать существующий `ChatService`, без дублирования логики.
-- [ ] Добавить API tests:
-  - [ ] project query -> `answered` на mock LLM;
-  - [ ] refused query -> LLM не вызывается;
-  - [ ] clarify query -> LLM не вызывается;
-  - [ ] empty LLM -> `llm_empty_response`.
-- [ ] Добавить PowerShell smoke для `/chat`.
-- [ ] Обновить `RUNBOOK_V2.md`.
-
-### Quality hardening после POST /chat
+### Quality hardening
 
 - [ ] Добавить source quality filter для слишком коротких chunks.
 - [ ] Добавить parent expansion для heading/UML/caption chunks.
