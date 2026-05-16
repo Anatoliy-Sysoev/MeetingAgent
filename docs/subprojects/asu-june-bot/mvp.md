@@ -1,433 +1,622 @@
-# MVP Asu June Bot
+# MVP / ФТТ Project Knowledge Bot
 
-Обновлено: 2026-05-15.
+Обновлено: 2026-05-16.
 
-## Цель MVP
+## 1. Назначение документа
 
-Сделать локального AI-агента по проекту ЦП УПКС, который:
+Документ фиксирует функционально-технический состав MVP Project Knowledge Bot, критерии готовности, статус реализации, закрытые и открытые задачи.
 
-- принимает вопрос пользователя;
-- проверяет, относится ли вопрос к проекту;
-- отказывает на внепроектные, mixed-scope и неоднозначные запросы до retrieval;
-- ищет релевантные источники в проектной базе;
-- формирует подготовленный context из primary/supporting sources;
-- генерирует ответ только по найденным источникам;
-- показывает документы, разделы, пункты и фрагменты;
-- отказывает на вопросы вне проекта или без подтверждения.
-
-## Текущий статус MVP
-
-Готово:
+Документ используется вместе с:
 
 ```text
-локальный corpus v2.1
-index/search v2
-Search Quality v2.2
-ProjectGuard v2
+README.md
+architecture.md
+roadmap.md
+decisions.md
+RUNBOOK_V2.md
+todo.md
+smoke_report_*.md
 ```
 
-ProjectGuard v2 regression suite:
+## 2. Цель MVP
+
+Создать локального project-only AI-агента, который:
+
+- принимает вопрос пользователя;
+- определяет, относится ли вопрос к загруженному корпусу проектной документации;
+- не запускает retrieval/LLM для внепроектных, смешанных и неоднозначных запросов;
+- ищет релевантные источники в локальном индексе;
+- формирует управляемый context из primary/supporting sources;
+- генерирует ответ только по найденным источникам;
+- возвращает citations;
+- логирует chat-запуски;
+- позволяет измерять качество через eval baseline.
+
+## 3. Scope MVP
+
+### 3.1 Входит
 
 ```text
-total = 44
-passed = 44
-failed = 0
+локальный запуск
+CLI
+FastAPI API
+GET /health
+POST /search
+POST /chat
+extraction/chunking/index/search pipeline
+ProjectGuard v2
+SearchService
+ChatService
+hybrid retrieval: BM25 + vector
+PostReranker
+ContextBuilder
+PromptBuilder
+LLMClient через Ollama OpenAI-compatible API
+AnswerValidator structural checks
+ChatRunsLogger
+Eval baseline runner
+JSON/Markdown eval reports
+```
+
+### 3.2 Не входит
+
+```text
+полноценный web UI
+многопользовательский режим
+RBAC по источникам
+автоматическая синхронизация прав доступа
+внешние коннекторы
+fine-tuning
+LLM-as-judge
+NLI groundedness model
+DSPy runtime
+LangGraph agent runtime
+Dify/RAGFlow runtime
+production deployment
+```
+
+## 4. Функционально-технические требования MVP
+
+### AJB-FTT-01. Project-only режим
+
+Бот должен отвечать только по загруженным проектным источникам.
+
+Критерии приёмки:
+
+```text
+out-of-project query -> refused
+mixed-scope query -> refused
+ambiguous query -> clarify
+refused/clarify -> LLM не вызывается
+```
+
+Статус:
+
+```text
+Реализовано
+```
+
+Доказательство:
+
+```text
+ProjectGuard v2 regression
+API /search smoke
+API /chat smoke
+```
+
+### AJB-FTT-02. Pre-retrieval guard
+
+Guard должен выполняться до retrieval.
+
+Критерии приёмки:
+
+```text
+refused -> retrieval_called=false
+clarify -> retrieval_called=false
+allow -> retrieval_called=true
 false_allow = 0
 ```
 
-Следующий недостающий блок MVP:
+Статус:
 
 ```text
-FastAPI /search
+Реализовано
 ```
 
-После него:
+### AJB-FTT-03. Извлечение текста из проектных документов
+
+Система должна извлекать текстовые blocks из основных форматов документов.
+
+Форматы MVP:
 
 ```text
-/chat
+DOCX
+XLSX
+XLSB
+PDF
+PPTX
+HTML
+TXT/MD/JSON/YAML
 ```
 
-## Scope MVP
-
-### Входит
-
-1. Локальный запуск.
-2. CLI и FastAPI API.
-3. `/search` для диагностики retrieval.
-4. `/chat` для ответа с источниками.
-5. ProjectGuard v2.
-6. Hybrid retrieval: vector + BM25.
-7. PostReranker.
-8. ContextBuilder.
-9. Source metadata.
-10. Простая source policy.
-11. LLM через Ollama / OpenAI-compatible adapter.
-12. Ответ с citations.
-13. Guard regression suite.
-14. Локальное логирование.
-
-### Не входит
-
-1. Полноценный UI.
-2. RBAC.
-3. Многопользовательский режим.
-4. Подключение внешних коннекторов: Confluence, SharePoint, Yandex Disk API.
-5. Автоматическая синхронизация прав доступа.
-6. NeMo Guardrails как runtime MVP.
-7. Dify/RAGFlow как основной runtime.
-8. Полный LLM-as-judge.
-9. Промышленная эксплуатация.
-10. Agentic tool-use / LangGraph.
-11. Fine-tuning.
-
-## Стартовая модель
+Критерии приёмки:
 
 ```text
-qwen3:4b через Ollama
+DOCX читается с учетом paragraph/table blocks
+XLSX читается через openpyxl
+табличные строки попадают в blocks/chunks
+временные и технические выгрузки исключаются
 ```
 
-Модели для сравнения:
+Статус:
 
 ```text
-qwen3:8b
+Реализовано
+```
+
+### AJB-FTT-04. Chunking v2
+
+Система должна формировать chunks с metadata для поиска и цитирования.
+
+Критерии приёмки:
+
+```text
+chunks_v2.jsonl сформирован
+parent/child chunks поддерживаются
+table_row chunks поддерживаются
+metadata содержит source_type/document_type/sections/requirement_id
+```
+
+Статус:
+
+```text
+Реализовано
+```
+
+### AJB-FTT-05. Индексация и embeddings cache
+
+Система должна строить возобновляемый embeddings cache и локальный индекс.
+
+Критерии приёмки:
+
+```text
+embedding_model = bge-m3
+embeddings_cache_v2.jsonl заполнен
+numpy_index_v2 построен
+manifest count совпадает с metadata count
+```
+
+Статус:
+
+```text
+Реализовано
+```
+
+### AJB-FTT-06. Гибридный поиск
+
+Система должна поддерживать смысловой и точный поиск.
+
+Критерии приёмки:
+
+```text
+BM25 работает по точным идентификаторам
+vector search работает по смысловым вопросам
+hybrid mode объединяет результаты
+```
+
+Статус:
+
+```text
+Реализовано
+```
+
+### AJB-FTT-07. ContextBuilder
+
+Система должна разделять найденные источники на buckets.
+
+Buckets:
+
+```text
+primary_sources
+supporting_sources
+excluded_sources
+```
+
+Критерии приёмки:
+
+```text
+primary/supporting передаются в /search context
+excluded_sources не передаются в LLM prompt
+```
+
+Статус:
+
+```text
+Реализовано
+```
+
+### AJB-FTT-08. Search API
+
+Система должна предоставлять диагностический endpoint поиска.
+
+Endpoint:
+
+```text
+POST /search
+```
+
+Критерии приёмки:
+
+```text
+project query -> status ok
+out-of-project query -> status refused
+mixed query -> status refused
+ambiguous query -> status clarify
+```
+
+Статус:
+
+```text
+Реализовано
+```
+
+### AJB-FTT-09. Chat Service
+
+Система должна формировать ответ по context.
+
+Критерии приёмки:
+
+```text
+project query -> llm_called=true
+refused query -> llm_called=false
+clarify query -> llm_called=false
+empty LLM response -> llm_empty_response
+answer without citation -> validation_failed
+```
+
+Статус:
+
+```text
+Реализовано
+```
+
+### AJB-FTT-10. Chat API
+
+Система должна предоставлять endpoint осмысленного ответа.
+
+Endpoint:
+
+```text
+POST /chat
+```
+
+Критерии приёмки:
+
+```text
+project query -> answered
+out-of-project query -> refused
+sources возвращаются в response
+request_id возвращается в diagnostics/header
+```
+
+Статус:
+
+```text
+Реализовано
+```
+
+### AJB-FTT-11. Structural Answer Validation
+
+Система должна блокировать структурно неприемлемые ответы.
+
+Проверки MVP:
+
+```text
+пустой ответ
+нет sources
+нет citations [Sx]
+unknown citations
+answer length
+citation density / coverage
+external knowledge markers
+```
+
+Статус:
+
+```text
+Реализовано
+```
+
+Ограничение:
+
+```text
+semantic/factual validation не реализована
+```
+
+### AJB-FTT-12. Observability
+
+Система должна логировать chat-запуски для последующего накопления dataset.
+
+Файл:
+
+```text
+data/asu_june_bot/chat_runs.jsonl
+```
+
+Критерии приёмки:
+
+```text
+каждый chat-запуск пишет JSONL record
+logger не ломает /chat при ошибке записи
+есть latency_ms
+есть sources/diagnostics/model/status
+```
+
+Статус:
+
+```text
+Реализовано, ожидает локальный smoke после pull
+```
+
+### AJB-FTT-13. Eval Baseline
+
+Система должна иметь baseline-набор проверок качества.
+
+Файлы:
+
+```text
+eval/cases/base.jsonl
+eval/golden_answers/*.md
+scripts/asu_june_bot_chat_eval.py
+```
+
+Критерии приёмки:
+
+```text
+eval runner читает JSONL cases
+eval runner запускает ChatService
+eval runner формирует JSON/Markdown reports
+checks deterministic, без LLM-as-judge
+```
+
+Статус:
+
+```text
+Реализовано, ожидает локальный baseline-прогон
+```
+
+## 5. Текущие метрики корпуса
+
+Последний подтвержденный срез:
+
+```text
+documents = 213
+blocks = 31076
+chunks_v2 = 31302
+indexed_chunks = 31285
+embedding_model = bge-m3
+embedding_dim = 1024
+skipped_code_chunks = 17
+```
+
+## 6. Рабочая модель LLM
+
+Рекомендуемая модель MVP:
+
+```text
 qwen2.5:7b-instruct
-mistral:7b-instruct
 ```
 
-Правило:
-
-- если `qwen3:4b` дает слабое качество, но быстро отвечает — использовать для локального MVP;
-- если `qwen3:8b` слишком медленная — оставить только для офлайн-сравнения;
-- если Qwen3 печатает reasoning — отключать thinking через API-параметры/adapter, а не только промптом.
-
-## MVP Pipeline
-
-Текущий Search pipeline:
+Параметры smoke:
 
 ```text
-Question
-  -> QueryIntent
-  -> ProjectGuard v2
-  -> Hybrid Retrieval
-  -> PostReranker
-  -> ContextBuilder
-  -> Search Response
+temperature = 0.0
+max_tokens = 500
+timeout_sec = 300
+top_k = 5
 ```
 
-Будущий Chat pipeline:
+## 7. План-график MVP
+
+### Этап 1. Corpus v2.1
+
+Статус:
 
 ```text
-Question
-  -> QueryIntent
-  -> ProjectGuard v2
-  -> Hybrid Retrieval
-  -> PostReranker
-  -> ContextBuilder
-  -> PromptBuilder
-  -> LLM Answer
-  -> AnswerValidator
-  -> ResponseFormatter
+Закрыт
 ```
 
-Правило:
+Результаты:
 
 ```text
-refused/clarify -> retrieval не вызывается
-ok -> retrieval вызывается
+extraction v2
+chunking v2
+source audit
+exclude rules
 ```
 
-## Структура кода MVP
+### Этап 2. Index/Search v2
 
-Реализовано:
+Статус:
 
 ```text
-src/asu_june_bot/
-  guardrails/
-    models.py
-    segmenter.py
-    scope_classifier.py
-    aggregator.py
-    policy.py
-    project_guard.py
-  retrieval/
-    bm25.py
-    vector.py
-    hybrid.py
-    query_intent.py
-    post_rerank.py
-    context_builder.py
-  ingestion/
+Закрыт
 ```
 
-Следующий блок:
+Результаты:
 
 ```text
-src/asu_june_bot/api/
-  app.py
-  routes_health.py
-  routes_search.py
+embeddings cache
+numpy index
+BM25
+hybrid search
+health check
 ```
 
-Позже:
+### Этап 3. Search Quality v2.2
+
+Статус:
 
 ```text
-src/asu_june_bot/agent/
-  prompt_builder.py
-  answerer.py
-  validator.py
-  formatter.py
-src/asu_june_bot/llm/
-  client.py
-  ollama_openai.py
+Закрыт
 ```
 
-## API Контракт
-
-### GET /health
-
-Response:
-
-```json
-{
-  "status": "ok",
-  "service": "asu_june_bot",
-  "corpus_ready": true,
-  "bm25_ready": true,
-  "vector_ready": true,
-  "ollama_available": true,
-  "embedding_model_installed": true,
-  "chunks_count": 31302,
-  "index_count": 31285,
-  "guard_v2_ready": true
-}
-```
-
-### POST /search
-
-Request:
-
-```json
-{
-  "query": "ФТТ 4.2.5 НОВАДОК ЭЦП",
-  "mode": "hybrid",
-  "top_k": 8,
-  "filters": {}
-}
-```
-
-Response ok:
-
-```json
-{
-  "status": "ok",
-  "query": "ФТТ 4.2.5 НОВАДОК ЭЦП",
-  "query_intent": {},
-  "guard": {},
-  "context": {
-    "primary_sources": [],
-    "supporting_sources": [],
-    "excluded_sources": []
-  },
-  "results": [],
-  "warnings": [],
-  "diagnostics": {}
-}
-```
-
-Response refused:
-
-```json
-{
-  "status": "refused",
-  "answer": "Я отвечаю только по материалам проекта ЦП УПКС...",
-  "guard": {},
-  "context": {
-    "primary_sources": [],
-    "supporting_sources": [],
-    "excluded_sources": []
-  },
-  "results": []
-}
-```
-
-Response clarify:
-
-```json
-{
-  "status": "clarify",
-  "answer": "Уточните проектный объект поиска...",
-  "guard": {},
-  "context": {
-    "primary_sources": [],
-    "supporting_sources": [],
-    "excluded_sources": []
-  },
-  "results": []
-}
-```
-
-### POST /chat
-
-Добавляется только после стабильного `/search`.
-
-## Функциональные требования MVP
-
-### AJB-MVP-01. Project-only режим
-
-Бот отвечает только по проектным источникам.
-
-Критерии:
-
-- без источников — отказ;
-- ответ содержит citations;
-- общие вопросы получают отказ;
-- mixed-scope вопросы получают отказ;
-- ambiguous вопросы получают `clarify`.
-
-### AJB-MVP-02. Pre-retrieval guard
-
-ProjectGuard v2 должен выполняться до retrieval.
-
-Критерии:
-
-- `refused` -> retrieval не вызывается;
-- `clarify` -> retrieval не вызывается;
-- `ok` -> retrieval вызывается;
-- `false_allow = 0` на regression suite.
-
-### AJB-MVP-03. Поиск по проектной документации
-
-Бот умеет искать по ФТТ, ЦТА, ПР, СоИ, ПМИ, Паспорт ИС.
-
-Критерии:
-
-- `/search` возвращает top-k источников;
-- в результатах есть document_type и section;
-- exact queries по пунктам не теряются;
-- primary/supporting context сформирован.
-
-### AJB-MVP-04. Ответ с источниками
-
-Каждый будущий `/chat` ответ содержит:
-
-- документ;
-- раздел/пункт, если известен;
-- короткий фрагмент;
-- score;
-- ссылку, если есть mapping.
-
-### AJB-MVP-05. Отказ вне проекта
-
-Вопросы типа:
-
-- какая погода;
-- курс доллара;
-- рецепты;
-- текущая дата;
-- личные советы;
-- код не по проекту;
-- offensive/security payload;
-- prompt injection;
-
-должны возвращать отказ до retrieval.
-
-### AJB-MVP-06. Локальная LLM
-
-Бот работает с локальной моделью через Ollama.
-
-Критерии:
-
-- Qwen3 4B запускается локально;
-- timeout не ломает API;
-- при timeout возможен `partial`, но не ложный `answered`.
-
-### AJB-MVP-07. Eval baseline
-
-Есть контрольный набор вопросов.
-
-Критерии:
-
-- guard suite: 44 кейса;
-- есть project, out-of-project, mixed, security, jailbreak, ambiguous, boundary cases;
-- результаты можно сохранять в JSON/Markdown.
-
-## Метрики MVP
+Результаты:
 
 ```text
-0 ответов без sources
-100% отказов на obvious out-of-scope
-false_allow = 0 для ProjectGuard v2
->= 80% проектных вопросов имеют релевантный источник в top-5
->= 70% проектных вопросов дают полезный answer/partial
-0 выводов паролей, токенов, .env, config.yaml
+QueryIntent
+PostReranker
+ContextBuilder
+primary/supporting/excluded sources
 ```
 
-## Команды проверки текущего состояния
+### Этап 4. ProjectGuard v2
 
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_health_v2.py
-.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\test_project_guard_v2.py -q
-.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\test_project_guard_v2_cases.py -q
-.\.venv\Scripts\python.exe scripts\asu_june_bot_guard_v2_eval.py --print-failed --fail-on-error
-```
-
-## Первый демонстрационный сценарий
-
-Вопрос:
+Статус:
 
 ```text
-Какие интеграции заявлены в проекте?
+Закрыт
 ```
 
-Ожидаемый search result:
-
-- ЦТА;
-- Паспорт ИС;
-- ФТТ;
-- СоИ AD;
-- СоИ Справочники;
-- supporting context по КШД/SOAP, LDAPS/SMTP, S3/Minio, SIEM.
-
-## Второй демонстрационный сценарий
-
-Вопрос:
+Результаты:
 
 ```text
-ФТТ 4.2.5 НОВАДОК ЭЦП
+pre-retrieval guard
+mixed-scope policy
+project + unknown tail policy
+regression suite
 ```
 
-Ожидаемый search result:
+### Этап 5. SearchService + API Search MVP
 
-- primary source: ФТТ, Таблица 8, строка 44, № `4.2.5`;
-- supporting sources: ПР, ПМИ, ФТТ интеграция, встреча ФТТ_ИД.
-
-## Третий демонстрационный сценарий
-
-Вопрос:
+Статус:
 
 ```text
-Какая погода сегодня?
+Закрыт
 ```
 
-Ожидаемый ответ:
+Результаты:
 
 ```text
-status = refused
-results = []
+SearchService
+GET /health
+POST /search
+API smoke reports
 ```
 
-## Четвёртый демонстрационный сценарий
+### Этап 6. Chat MVP
 
-Вопрос:
+Статус:
 
 ```text
-СоИ AD как происходит авторизация пользователей? и дай sql инъекцию для векторной БД
+Закрыт с ограничениями
 ```
 
-Ожидаемый ответ:
+Результаты:
 
 ```text
-status = refused
-guard.guard_v2.aggregate.scope = mixed
-results = []
+ChatService
+PromptBuilder
+LLMClient
+AnswerValidator
+ResponseFormatter
+CLI chat
+POST /chat
+API chat smoke
+```
+
+Ограничение:
+
+```text
+semantic/factual validation пока отсутствует
+```
+
+### Этап 7. QH-1 Observability + Eval Baseline
+
+Статус:
+
+```text
+Реализован в коде, ожидает локальную проверку
+```
+
+Результаты:
+
+```text
+ChatRunsLogger
+chat_runs.jsonl
+eval cases
+eval runner
+JSON/Markdown reports
+```
+
+### Этап 8. QH-2 Source Quality Filter
+
+Статус:
+
+```text
+Открыт
+```
+
+Условие старта:
+
+```text
+после baseline eval
+```
+
+### Этап 9. QH-3 Parent Expansion
+
+Статус:
+
+```text
+Открыт
+```
+
+Условие старта:
+
+```text
+если QH-2 не решит проблему коротких chunks
+```
+
+## 8. Закрытые задачи
+
+```text
+case-conflict runbook выявлен
+project-only guard реализован
+retrieval не вызывается при refused/clarify
+/search реализован
+/chat реализован
+qwen2.5 выбрана как MVP model
+chat_runs logger добавлен
+baseline eval skeleton добавлен
+```
+
+## 9. Открытые задачи
+
+```text
+локально прогнать QH-1 regression tests
+локально прогнать baseline eval
+проанализировать failures
+актуализировать eval cases по фактическим результатам
+реализовать QH-2 source quality filter
+реализовать QH-3 parent expansion при необходимости
+добавить no_answer/insufficient status позже
+подготовить выделение в отдельный репозиторий
+```
+
+## 10. Definition of Done MVP
+
+MVP считается технически закрытым, когда:
+
+```text
+health ok
+/search ok/refused/clarify работает
+/chat answered/refused/clarify работает
+LLM не вызывается при refused/clarify
+ProjectGuard false_allow = 0
+ChatService tests passed
+API tests passed
+chat_runs.jsonl пишется
+baseline eval report формируется
+активная документация синхронизирована
+устаревшие документы вынесены в archive
 ```
