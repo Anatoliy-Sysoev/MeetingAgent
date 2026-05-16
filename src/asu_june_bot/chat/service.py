@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from asu_june_bot.llm import LLMClient, LLMError, LLMRequest
+from asu_june_bot.observability import ChatRunsLogger
 from asu_june_bot.search import SearchRequest, SearchService
 from asu_june_bot.search.models import SearchStatus
 
@@ -18,13 +20,24 @@ class ChatService:
         llm_client: LLMClient,
         prompt_builder: PromptBuilder | None = None,
         answer_validator: AnswerValidator | None = None,
+        runs_logger: ChatRunsLogger | None = None,
     ) -> None:
         self.search_service = search_service
         self.llm_client = llm_client
         self.prompt_builder = prompt_builder or PromptBuilder()
         self.answer_validator = answer_validator or AnswerValidator()
+        self.runs_logger = runs_logger
 
     def chat(self, request: ChatRequest) -> ChatResponse:
+        started = time.perf_counter()
+
+        def finalize(response: ChatResponse) -> ChatResponse:
+            latency_ms = int((time.perf_counter() - started) * 1000)
+            response.diagnostics.setdefault("latency_ms", latency_ms)
+            if self.runs_logger:
+                self.runs_logger.log(request=request, response=response, latency_ms=latency_ms)
+            return response
+
         search_response = self.search_service.search(
             SearchRequest(
                 query=request.query,
@@ -41,30 +54,36 @@ class ChatService:
         }
 
         if search_response.status == SearchStatus.REFUSED.value:
-            return ChatResponse(
-                status=ChatStatus.REFUSED.value,
-                query=request.query,
-                answer=str(search_payload.get("answer") or "Запрос отклонён политикой project-only."),
-                search=search_payload,
-                diagnostics=diagnostics,
+            return finalize(
+                ChatResponse(
+                    status=ChatStatus.REFUSED.value,
+                    query=request.query,
+                    answer=str(search_payload.get("answer") or "Запрос отклонён политикой project-only."),
+                    search=search_payload,
+                    diagnostics=diagnostics,
+                )
             )
 
         if search_response.status == SearchStatus.CLARIFY.value:
-            return ChatResponse(
-                status=ChatStatus.CLARIFY.value,
-                query=request.query,
-                answer=str(search_payload.get("answer") or "Нужно уточнить проектный контекст запроса."),
-                search=search_payload,
-                diagnostics=diagnostics,
+            return finalize(
+                ChatResponse(
+                    status=ChatStatus.CLARIFY.value,
+                    query=request.query,
+                    answer=str(search_payload.get("answer") or "Нужно уточнить проектный контекст запроса."),
+                    search=search_payload,
+                    diagnostics=diagnostics,
+                )
             )
 
         if search_response.status == SearchStatus.ERROR.value:
-            return ChatResponse(
-                status=ChatStatus.LLM_ERROR.value,
-                query=request.query,
-                answer="Поиск завершился ошибкой. Ответ не сформирован.",
-                search=search_payload,
-                diagnostics=diagnostics,
+            return finalize(
+                ChatResponse(
+                    status=ChatStatus.LLM_ERROR.value,
+                    query=request.query,
+                    answer="Поиск завершился ошибкой. Ответ не сформирован.",
+                    search=search_payload,
+                    diagnostics=diagnostics,
+                )
             )
 
         context = search_response.context
@@ -72,12 +91,14 @@ class ChatService:
         diagnostics["prompt_sources"] = len(sources)
         diagnostics["prompt"] = prompt_diagnostics
         if not sources:
-            return ChatResponse(
-                status=ChatStatus.NO_SOURCES.value,
-                query=request.query,
-                answer="В найденном контексте нет источников, достаточных для формирования ответа.",
-                search=search_payload,
-                diagnostics=diagnostics,
+            return finalize(
+                ChatResponse(
+                    status=ChatStatus.NO_SOURCES.value,
+                    query=request.query,
+                    answer="В найденном контексте нет источников, достаточных для формирования ответа.",
+                    search=search_payload,
+                    diagnostics=diagnostics,
+                )
             )
 
         diagnostics["llm_called"] = True
@@ -94,45 +115,53 @@ class ChatService:
             )
         except LLMError as exc:
             diagnostics["llm_error"] = repr(exc)
-            return ChatResponse(
-                status=ChatStatus.LLM_ERROR.value,
-                query=request.query,
-                answer="LLM не смогла сформировать ответ.",
-                sources=sources,
-                search=search_payload,
-                diagnostics=diagnostics,
+            return finalize(
+                ChatResponse(
+                    status=ChatStatus.LLM_ERROR.value,
+                    query=request.query,
+                    answer="LLM не смогла сформировать ответ.",
+                    sources=sources,
+                    search=search_payload,
+                    diagnostics=diagnostics,
+                )
             )
 
         answer = (llm_response.text or "").strip()
         diagnostics["llm_model"] = llm_response.model
         diagnostics["llm_finish_reason"] = llm_response.finish_reason
         if not answer:
-            return ChatResponse(
-                status=ChatStatus.LLM_EMPTY_RESPONSE.value,
-                query=request.query,
-                answer="LLM вернула пустой ответ.",
-                sources=sources,
-                search=search_payload,
-                diagnostics=diagnostics,
+            return finalize(
+                ChatResponse(
+                    status=ChatStatus.LLM_EMPTY_RESPONSE.value,
+                    query=request.query,
+                    answer="LLM вернула пустой ответ.",
+                    sources=sources,
+                    search=search_payload,
+                    diagnostics=diagnostics,
+                )
             )
 
         ok, validation_errors = self.answer_validator.validate_answered(answer, sources)
         diagnostics["validation_errors"] = validation_errors
         if not ok:
-            return ChatResponse(
-                status=ChatStatus.VALIDATION_FAILED.value,
+            return finalize(
+                ChatResponse(
+                    status=ChatStatus.VALIDATION_FAILED.value,
+                    query=request.query,
+                    answer=answer,
+                    sources=sources,
+                    search=search_payload,
+                    diagnostics=diagnostics,
+                )
+            )
+
+        return finalize(
+            ChatResponse(
+                status=ChatStatus.ANSWERED.value,
                 query=request.query,
                 answer=answer,
                 sources=sources,
                 search=search_payload,
                 diagnostics=diagnostics,
             )
-
-        return ChatResponse(
-            status=ChatStatus.ANSWERED.value,
-            query=request.query,
-            answer=answer,
-            sources=sources,
-            search=search_payload,
-            diagnostics=diagnostics,
         )
