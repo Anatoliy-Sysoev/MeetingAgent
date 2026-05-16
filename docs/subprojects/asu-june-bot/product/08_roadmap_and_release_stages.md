@@ -13,9 +13,13 @@ Roadmap строится не вокруг добавления AI-фич, а в
 5. Chat API;
 6. observability и eval baseline;
 7. улучшение качества sources/context;
-8. UI;
-9. аналитические сценарии;
-10. эксплуатационное усиление.
+8. release stabilization;
+9. Docker packaging;
+10. UI;
+11. аналитические сценарии;
+12. эксплуатационное усиление.
+
+Docker-упаковка начинается только после QH-5 Release Stabilization. До этого приоритет — качество `/chat`, источники, regression и документация.
 
 ## Этапы продукта
 
@@ -215,7 +219,102 @@ dedup parent context
 не превышать PromptBuilder budget
 ```
 
-### P7. Team Adoption Surface
+### P7. Quality Hardening 4 — Semantic Warnings / Manual Labels
+
+Цель:
+
+```text
+добавить слой предупреждений и ручной разметки без hard-fail semantic validation
+```
+
+Состав:
+
+```text
+manual_label / manual_issue в chat_runs.jsonl
+semantic_warnings в diagnostics
+warning-only checks для weak evidence / low overlap
+```
+
+Статус:
+
+```text
+Позже, после QH-2/QH-3
+```
+
+### P8. Quality Hardening 5 — Release Stabilization
+
+Цель:
+
+```text
+заморозить минимально стабильный контур перед Docker
+```
+
+Критерии:
+
+```text
+QH-1 baseline report создан
+QH-2 результат сравнен с baseline
+QH-3 выполнен или явно отменён как ненужный
+QH-4 выполнен или перенесён в backlog
+regression и smoke проходят
+README / architecture / mvp / roadmap / runbook синхронизированы
+runtime paths portable
+secrets/runtime data не попадают в Git
+```
+
+Статус:
+
+```text
+Перед Docker
+```
+
+### P9. Docker Packaging
+
+Цель:
+
+```text
+упаковать Project Knowledge Bot для воспроизводимого запуска одной командой
+```
+
+Состав:
+
+```text
+Dockerfile
+.dockerignore
+docker-compose.yml
+.env.example
+config.docker.example.yaml
+docs/deployment/docker.md
+bot-api service
+host volumes для data/eval/config
+```
+
+Первый вариант запуска:
+
+```text
+Ollama работает на Windows host
+bot-api работает в Docker
+bot-api обращается к Ollama через host.docker.internal
+```
+
+Критерии:
+
+```text
+docker compose up --build запускает bot-api
+GET /health работает
+POST /search работает
+POST /chat работает при доступной Ollama
+chat_runs.jsonl пишется в host volume
+runtime data не пишется внутрь ephemeral container layer
+```
+
+Статус:
+
+```text
+Запланирован после QH-5
+```
+
+### P10. Team Adoption Surface
 
 Цель:
 
@@ -243,9 +342,10 @@ web panel или OpenWebUI adapter
 ```text
 baseline eval выполнен
 качество sources/context стабилизировано
+Docker/API запуск воспроизводим
 ```
 
-### P8. Cross-Document Analyst Mode
+### P11. Cross-Document Analyst Mode
 
 Цель:
 
@@ -268,7 +368,7 @@ richer diagnostics
 Позже
 ```
 
-### P9. Meeting Memory Integration
+### P12. Meeting Memory Integration
 
 Цель:
 
@@ -290,7 +390,7 @@ richer diagnostics
 Позже
 ```
 
-### P10. Enterprise Readiness
+### P13. Enterprise Readiness
 
 Цель:
 
@@ -315,7 +415,7 @@ multi-user mode
 Позже
 ```
 
-### P11. Separate Repository
+### P14. Separate Repository
 
 Цель:
 
@@ -329,6 +429,7 @@ multi-user mode
 активная документация синхронизирована
 устаревшие документы архивированы
 README готов как root README
+Docker запуск воспроизводим
 runtime paths независимы от MeetingAgent
 package/product naming согласованы
 ```
@@ -336,7 +437,7 @@ package/product naming согласованы
 Статус:
 
 ```text
-Планируется
+Планируется после Docker
 ```
 
 ## Релизы
@@ -392,7 +493,31 @@ Parent Expansion / context quality hardening
 ### Release 0.7
 
 ```text
-Рабочая UI-оболочка
+Semantic Warnings / Manual Labels
+```
+
+Статус: позже.
+
+### Release 0.8
+
+```text
+Release Stabilization before Docker
+```
+
+Статус: перед Docker.
+
+### Release 0.9
+
+```text
+Docker Packaging
+```
+
+Статус: после QH-5.
+
+### Release 1.0
+
+```text
+Рабочая UI-оболочка / team adoption surface
 ```
 
 Статус: позже.
@@ -400,6 +525,7 @@ Parent Expansion / context quality hardening
 ## Что не должно сломать roadmap
 
 - ранний уход в UI раньше стабильного quality baseline;
+- ранняя Docker-упаковка до QH-5;
 - ранняя замена ядра на тяжелую внешнюю платформу;
 - попытка добавить все и сразу;
 - смешивание старого RAG/runtime и нового bot runtime;
@@ -414,12 +540,13 @@ Parent Expansion / context quality hardening
 2. повышает проверяемость;
 3. сокращает рабочее время пользователя;
 4. делает следующий слой продукта возможным;
-5. измеримо улучшает baseline.
+5. измеримо улучшает baseline;
+6. повышает воспроизводимость запуска после стабилизации качества.
 
 Поэтому порядок:
 
 ```text
-Search -> API -> Chat -> Eval -> Source Quality -> UI -> Traceability -> Meeting Integration
+Search -> API -> Chat -> Eval -> Source Quality -> Release Stabilization -> Docker -> UI -> Traceability -> Meeting Integration
 ```
 
 является архитектурно и продуктово обоснованным.
