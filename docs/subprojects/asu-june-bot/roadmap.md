@@ -1,337 +1,401 @@
-# Roadmap Asu June Bot
+# Roadmap Project Knowledge Bot
 
-Обновлено: 2026-05-15.
+Обновлено: 2026-05-16.
 
-## Принцип roadmap
+## 1. Принцип roadmap
 
-Развитие должно идти не от UI и не от модели, а от качества project-only контура:
-
-```text
-источники -> поиск -> guard -> context -> API -> ответ -> проверка -> UI -> GPU
-```
-
-## Статус этапов
+Развитие идёт от качества project-only контура, а не от UI и не от выбора модели:
 
 ```text
-Этап 0. Документация и архитектурный reset — выполнено
-Этап 1. Базовый Project-only Search — выполнено
-Этап 1.1. Search Quality v2.2 — выполнено
-Этап 1.2. ProjectGuard v2 — выполнено
-Этап 1.3. API Search MVP — следующий этап
-Этап 2. Project-only Chat MVP — после API Search
-Этап 3. Evaluation baseline — частично выполнено для guard, расширить для search/chat
-Этап 4. Улучшение качества retrieval — продолжается итерационно
-Этап 5. FastAPI + Open WebUI — после /chat
-Этап 6. GPU migration path — позже
-Этап 7. Enterprise-hardening — позже
+источники -> extraction -> chunks -> index -> guarded search -> context -> chat -> eval -> quality hardening -> UI -> deployment
 ```
 
-## Этап 0. Документация и архитектурный reset
+Любое изменение retrieval/context/LLM должно иметь проверку на baseline cases.
 
-Статус: выполнено.
+## 2. Сводный статус этапов
 
-Цель: отделить Asu June Bot от общего MeetingAgent и остановить разрастание `scripts/09_chat.py`.
+```text
+Этап 0. Архитектурное отделение подпроекта          Закрыт
+Этап 1. Corpus v2.1                                  Закрыт
+Этап 2. Index/Search v2                              Закрыт
+Этап 3. Search Quality v2.2                          Закрыт
+Этап 4. ProjectGuard v2                              Закрыт
+Этап 5. SearchService + API Search MVP               Закрыт
+Этап 6. ChatService + CLI/API Chat MVP               Закрыт с ограничениями
+Этап 7. QH-1 Observability + Eval Baseline           Реализован, ожидает локальный baseline-прогон
+Этап 8. QH-2 Source Quality Filter                   Следующий после baseline
+Этап 9. QH-3 Parent Expansion                        После QH-2 при необходимости
+Этап 10. UI / OpenWebUI adapter                      После quality baseline
+Этап 11. GPU migration path                          Позже
+Этап 12. Enterprise-hardening                        Позже
+Этап 13. Выделение в отдельный репозиторий           После стабилизации документации и MVP
+```
+
+## 3. Этап 0. Архитектурное отделение подпроекта
+
+Статус:
+
+```text
+Закрыт
+```
+
+Цель: отделить проектного AI-бота от общего MeetingAgent и остановить разрастание старого `scripts/09_chat.py`.
 
 Артефакты:
 
-- README подпроекта;
-- context.md;
-- decisions.md;
-- architecture.md;
-- mvp.md;
-- roadmap.md;
-- todo.md;
-- eval_questions.md;
-- ideas.md;
-- RUNBOOK_V2.md.
-
-Критерий готовности:
-
-- есть полный стартовый контекст для нового треда;
-- понятно, что `09_chat.py` — prototype, а не целевой код.
-
-## Этап 1. Базовый Project-only Search
-
-Статус: выполнено.
-
-Цель: получить надежный search CLI до генерации ответов.
-
-Реализовано:
-
-1. Extraction/Chunking v2.1.
-2. Metadata extraction:
-   - document_type;
-   - module;
-   - stage;
-   - section;
-   - title;
-   - source_type.
-3. Vector search adapter поверх `numpy_index_v2`.
-4. BM25 search.
-5. Hybrid merge.
-6. Source type filtering.
-7. CLI `scripts/asu_june_bot_search_v2.py`.
-8. Health check `scripts/asu_june_bot_health_v2.py`.
-
-Критерий готовности:
-
-- corpus/index/search готовы;
-- exact queries по ФТТ не теряются;
-- `system_export` исключён из основного корпуса;
-- `health_v2` показывает `status=ok`, `vector_ready=true`, `bm25_ready=true`.
-
-## Этап 1.1. Search Quality v2.2
-
-Статус: выполнено.
-
-Цель: не отправлять raw hybrid top-k в будущий LLM.
-
-Реализовано:
-
 ```text
-src/asu_june_bot/retrieval/query_intent.py
-src/asu_june_bot/retrieval/post_rerank.py
-src/asu_june_bot/retrieval/context_builder.py
+README.md
+context.md
+decisions.md
+architecture.md
+mvp.md
+roadmap.md
+todo.md
+eval_questions.md
+ideas.md
+RUNBOOK_V2.md
+product/
 ```
 
-Результат:
+Решение: `scripts/09_chat.py` считается legacy/prototype. Целевой runtime находится в `src/asu_june_bot/` и `scripts/asu_june_bot_*.py`.
 
-- `search_v2` возвращает `query_intent`, `rerank`, `context.primary_sources`, `context.supporting_sources`, `context.excluded_sources`;
-- `Паспорт ИС overview` получает обзорный chunk в primary;
-- `ФТТ 4.2.5` получает точную строку ФТТ в primary;
-- `Интеграции` получают ЦТА/Паспорт ИС/ФТТ/СоИ как primary/supporting context;
-- software/support/front matter noise выводится в excluded/supporting и не попадает в primary.
+## 4. Этап 1. Corpus v2.1
 
-## Этап 1.2. ProjectGuard v2
-
-Статус: выполнено.
-
-Цель: project-only pre-retrieval guard без бесконечного расширения одного словаря out-of-scope.
-
-Реализовано:
+Статус:
 
 ```text
-src/asu_june_bot/guardrails/models.py
-src/asu_june_bot/guardrails/segmenter.py
-src/asu_june_bot/guardrails/scope_classifier.py
-src/asu_june_bot/guardrails/aggregator.py
-src/asu_june_bot/guardrails/policy.py
-src/asu_june_bot/guardrails/project_guard.py
+Закрыт
 ```
 
-Тесты и eval:
+Результаты:
 
 ```text
-tests/asu_june_bot/test_project_guard_v2.py
-tests/asu_june_bot/guard_v2_cases.jsonl
-tests/asu_june_bot/test_project_guard_v2_cases.py
-scripts/asu_june_bot_guard_v2_eval.py
-```
-
-Финальный результат:
-
-```json
-{
-  "total": 44,
-  "passed": 44,
-  "failed": 0,
-  "false_allow": 0,
-  "false_refuse": 0,
-  "false_clarify": 0
-}
+extract_text_v2
+blocks.jsonl
+DOCX/XLSX/PDF/PPTX/HTML/text parsing
+exclude rules для system exports/temp files
+source audit
 ```
 
 Критерий готовности:
 
-- pure project -> allow;
-- pure out-of-project -> refused;
-- mixed-scope -> refused;
-- offensive/security -> refused;
-- jailbreak/prompt-injection -> refused;
-- ambiguous -> clarify;
-- `false_allow = 0`.
-
-## Этап 1.3. API Search MVP
-
-Статус: следующий этап.
-
-Цель: дать HTTP API над готовым search pipeline.
-
-Работы:
-
-1. Вынести search orchestration из CLI в reusable module, если потребуется.
-2. Реализовать FastAPI app:
-
 ```text
-src/asu_june_bot/api/app.py
-src/asu_june_bot/api/routes_health.py
-src/asu_june_bot/api/routes_search.py
+документы извлекаются без mojibake
+технические выгрузки исключены
+blocks_v2 сформирован
 ```
 
-3. Реализовать endpoints:
+## 5. Этап 2. Index/Search v2
+
+Статус:
 
 ```text
+Закрыт
+```
+
+Результаты:
+
+```text
+chunks_v2 = 31302
+indexed_chunks = 31285
+embedding_model = bge-m3
+numpy_index_v2
+BM25
+hybrid search
+health_v2
+```
+
+Критерий готовности:
+
+```text
+health_v2 status = ok
+vector_ready = true
+bm25_ready = true
+```
+
+## 6. Этап 3. Search Quality v2.2
+
+Статус:
+
+```text
+Закрыт
+```
+
+Результаты:
+
+```text
+QueryIntent
+PostReranker
+ContextBuilder
+primary_sources
+supporting_sources
+excluded_sources
+```
+
+Критерий готовности:
+
+```text
+/search возвращает не raw top-k, а подготовленный context
+```
+
+## 7. Этап 4. ProjectGuard v2
+
+Статус:
+
+```text
+Закрыт
+```
+
+Результаты:
+
+```text
+pre-retrieval guard
+segmenter
+scope classifier
+aggregator
+policy
+regression cases
+```
+
+Критерии:
+
+```text
+false_allow = 0
+refused -> retrieval_called=false
+clarify -> retrieval_called=false
+mixed-scope -> refused
+project + unknown tail -> refused
+```
+
+## 8. Этап 5. SearchService + API Search MVP
+
+Статус:
+
+```text
+Закрыт
+```
+
+Результаты:
+
+```text
+SearchService
 GET /health
 POST /search
+API Search smoke report
 ```
 
-4. `/search` должен повторять CLI pipeline:
+Критерии:
 
 ```text
-QueryIntent -> ProjectGuard v2 -> Retrieval -> PostReranker -> ContextBuilder -> JSON response
+GET /health -> ok
+project /search -> ok + context
+out-of-project /search -> refused without retrieval
 ```
 
-5. При `refused` и `clarify` retrieval не вызывается.
-6. Добавить smoke-команды PowerShell/curl.
-7. Обновить runbook.
+## 9. Этап 6. ChatService + CLI/API Chat MVP
 
-Критерий готовности:
+Статус:
 
-- `GET /health` возвращает состояние corpus/index/Ollama/guard;
-- `POST /search` возвращает тот же формат, что CLI `search_v2 --json`;
-- project-запросы возвращают `status=ok` и context;
-- out-of-project/mixed/ambiguous возвращают `refused/clarify` без retrieval;
-- API smoke пройден.
+```text
+Закрыт с ограничениями
+```
 
-## Этап 2. Project-only Chat MVP
+Результаты:
 
-Статус: после API Search.
+```text
+ChatService
+PromptBuilder
+LLMClient
+OllamaOpenAIClient
+AnswerValidator
+ResponseFormatter
+scripts/asu_june_bot_chat.py
+POST /chat
+API Chat smoke report
+```
 
-Цель: получить `/chat` с ответом или отказом.
+Рабочая модель:
 
-Работы:
+```text
+qwen2.5:7b-instruct
+```
 
-1. PromptBuilder.
-2. LLM client через OpenAI-compatible API.
-3. Answer generator.
-4. Answer validator.
-5. Response formatter.
-6. CLI `scripts/asu_june_bot_chat.py`.
-7. API `POST /chat`.
+Ограничение:
 
-Критерий готовности:
+```text
+structural validation есть
+semantic/factual validation отсутствует
+```
 
-- вопрос по проекту получает ответ с sources;
-- вопрос вне проекта получает отказ;
-- ответ без sources невозможен;
-- timeout LLM не превращается в ложный `answered`;
-- LLM получает только `ContextBuilder` context, а не raw top-k.
+## 10. Этап 7. QH-1 Observability + Eval Baseline
 
-## Этап 3. Evaluation baseline
+Статус:
 
-Статус: частично выполнено для guard, расширить для search/chat.
+```text
+Реализован в коде, ожидает локальный baseline-прогон
+```
 
-Готово:
+Результаты:
 
-- ProjectGuard v2 regression suite: 44 кейса.
+```text
+ChatRunsLogger
+chat_runs.jsonl
+eval/cases/base.jsonl
+scripts/asu_june_bot_chat_eval.py
+eval report JSON/Markdown
+golden answer placeholders
+```
 
-Нужно расширить:
+Критерии:
 
-1. Search eval cases:
-   - project factual;
-   - exact section lookup;
-   - cross-document;
-   - integration overview;
-   - no-answer.
-2. Chat eval cases после `/chat`.
-3. Runner для сохранения Markdown/JSON.
-4. Метрики retrieval/context/answer.
+```text
+chat_runs.jsonl пишется
+baseline eval запускается
+reports создаются
+deterministic checks работают без LLM-as-judge
+```
 
-Критерий готовности:
+## 11. Этап 8. QH-2 Source Quality Filter
 
-- есть baseline-отчет;
-- известно, где слабое место: guard, retrieval, reranker, LLM, validator.
+Статус:
 
-## Этап 4. Улучшение качества retrieval
+```text
+Открыт
+```
 
-Статус: продолжается итерационно.
+Условие старта:
 
-Работы:
+```text
+после анализа baseline report
+```
 
-1. Better document expansion.
-2. Фильтры по типам документов.
-3. Специальные retrieval modes:
-   - exact_section;
-   - document_overview;
-   - integration_answer;
-   - cross_document_traceability;
-   - meeting_decisions.
-4. Source links mapping.
-5. Дедупликация семейств интеграций.
+Цель: снизить риск, что короткие UML/heading/caption chunks становятся primary evidence для широкого вывода.
 
-Критерий готовности:
+Принцип:
 
-- вопросы по ФТТ/ПР/ЦТА/ПМИ дают трассируемые ответы;
-- бот может объяснить, где требование описано, где реализовано и где проверяется.
+```text
+не удалять chunks из индекса
+помечать weak_source
+понижать primary eligibility на этапе context building
+фиксировать reason в diagnostics
+сравнивать eval до/после
+```
 
-## Этап 5. FastAPI + Open WebUI
+Артефакты:
 
-Статус: после `/chat`.
+```text
+src/asu_june_bot/retrieval/source_quality.py
+tests/asu_june_bot/retrieval/test_source_quality.py
+smoke/eval report with_source_filter
+```
 
-Цель: дать удобный пользовательский доступ.
+## 12. Этап 9. QH-3 Parent Expansion
 
-Работы:
+Статус:
 
-1. Стабилизировать `/chat`.
-2. Стабилизировать `/search`.
-3. Подключить Open WebUI через OpenAI-compatible endpoint или tool/server adapter.
-4. Добавить режим отображения citations.
-5. Добавить историю вопросов локально.
+```text
+Открыт после QH-2 при необходимости
+```
 
-Критерий готовности:
+Цель: расширять контекст для слабых коротких chunks до родительского section/parent chunk.
 
-- ботом можно пользоваться как локальным ChatGPT по проекту;
-- пользователь видит источники и ограничения.
+Ограничения:
 
-## Этап 6. GPU migration path
+```text
+strict max chars
+dedup parent context
+не расширять все подряд
+не превышать PromptBuilder budget
+```
 
-Статус: позже.
+## 13. Этап 10. UI / OpenWebUI adapter
 
-Цель: перенести инференс LLM на GPU без переписывания агента.
+Статус:
 
-Работы:
+```text
+Позже
+```
 
-1. Поднять vLLM server.
-2. Переключить `LLM_BASE_URL`.
-3. Проверить Qwen3 14B / 32B.
-4. Сравнить качество и latency.
-5. Оставить локальный Ollama как fallback.
+Условие старта:
 
-Критерий готовности:
+```text
+/search и /chat стабильны
+baseline eval понятен
+качество источников улучшено
+```
 
-- один и тот же API агента работает с Ollama и vLLM;
-- качество ответов выросло на eval-наборе.
+Варианты:
 
-## Этап 7. Enterprise-hardening
+```text
+OpenWebUI как оболочка
+минимальный web client
+CLI-first продолжение
+```
 
-Статус: позже.
+## 14. Этап 11. GPU migration path
 
-Цель: подготовка к корпоративному использованию.
+Статус:
 
-Работы:
+```text
+Позже
+```
 
-1. RBAC.
-2. AD/LDAP.
-3. Audit logs.
-4. Source-level access control.
-5. Secrets detection.
-6. SIEM/export logs.
-7. Human review mode.
-8. Права на документы и контуры.
-9. NeMo Guardrails / Guardrails AI как possible hardening.
+Цель: заменить локальный CPU/Ollama inference на GPU backend без переписывания бота.
 
-Критерий готовности:
+Требование:
 
-- разные пользователи видят только разрешенные источники;
-- все ответы и источники аудируются;
-- sensitive-данные не раскрываются.
+```text
+LLMClient остаётся OpenAI-compatible adapter
+```
 
-## Не делать сейчас
+## 15. Этап 12. Enterprise-hardening
 
-- Не строить UI до стабилизации `/chat` и `/search`.
-- Не внедрять NeMo Guardrails до baseline.
-- Не подключать Dify/RAGFlow как основной backend.
-- Не делать мультиагентность.
-- Не делать fine-tuning.
-- Не добавлять новые regex-патчи в старый `09_chat.py` вместо архитектурной реализации.
-- Не возвращаться к бесконечному расширению одного списка regex как основной guard-архитектуре.
+Статус:
+
+```text
+Позже
+```
+
+Состав:
+
+```text
+RBAC по источникам
+audit logs
+source-level access control
+secrets detection
+SIEM/export logs
+job queue для reindex
+monitoring dashboards
+multi-user mode
+```
+
+## 16. Этап 13. Выделение в отдельный репозиторий
+
+Статус:
+
+```text
+Планируется
+```
+
+Условия:
+
+```text
+активная документация синхронизирована
+устаревшие материалы перенесены в archive
+README готов как корневой README нового repo
+runtime paths независимы от MeetingAgent
+package name и product name согласованы
+```
+
+## 17. Не делать сейчас
+
+```text
+не строить UI до baseline eval
+не внедрять source filter без baseline
+не внедрять parent expansion без source filter comparison
+не подключать DSPy в runtime
+не делать LLM-as-judge/NLI до накопления dataset
+не делать fine-tuning
+не развивать scripts/09_chat.py как основной runtime
+не смешивать старый MeetingAgent RAG v1 и Asu Bot v2.1
+```
