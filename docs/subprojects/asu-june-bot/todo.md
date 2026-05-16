@@ -1,12 +1,27 @@
-# TODO Asu June Bot
+# TODO Project Knowledge Bot
 
 Обновлено: 2026-05-16.
 
 ## Текущий статус
 
-API Search MVP закрыт. CLI Chat MVP и API Chat MVP прошли smoke. Начат этап **QH-1 Observability + Eval Baseline** без изменения поведения `/chat`.
+API Search MVP закрыт. CLI Chat MVP и API Chat MVP прошли smoke. Этап **QH-1 Observability + Eval Baseline** реализован в коде и ожидает локальный baseline-прогон.
 
-Завершено ранее:
+Параллельно проведена ревизия документации подпроекта:
+
+```text
+README.md обновлен как входная точка будущего отдельного продукта
+architecture.md обновлен по фактической архитектуре /search + /chat + QH-1
+mvp.md обновлен как ФТТ/MVP scope с план-графиком
+roadmap.md обновлен по закрытым/открытым этапам
+decisions.md обновлен новыми ADR
+context.md обновлен по текущему статусу
+product/README.md обновлен
+product/01/02/03/04/06/07/08 обновлены под нейтральное product naming и текущий статус
+```
+
+`product/05_customer_discovery_and_interview_guide.md` оставлен без полной перезаписи: он нейтрален, не содержит критичного технического статуса и остается актуальным как discovery guide.
+
+## Закрыто ранее
 
 ```text
 Extraction/Chunking v2.1
@@ -24,9 +39,11 @@ Chat MVP smoke на qwen2.5:7b-instruct
 POST /chat route implementation
 API Chat MVP smoke tests implementation
 POST /chat runtime smoke
+QH-1 Observability + Eval Baseline code implementation
+Product docs refresh
 ```
 
-Реализовано в QH-1:
+## Реализовано в QH-1
 
 ```text
 src/asu_june_bot/observability/chat_runs.py
@@ -57,7 +74,7 @@ JSON-mode
 retry policy
 ```
 
-Причина: сначала нужен baseline качества текущего `/chat`, затем изменения контекста должны измеряться относительно baseline.
+Причина: сначала нужен baseline качества текущего `/chat`, затем изменения context/retrieval должны измеряться относительно baseline.
 
 ## Подтверждено ранее
 
@@ -122,7 +139,7 @@ eval runner: 1 passed
 ### CLI chat log smoke
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_chat.py "СоИ AD как происходит авторизация пользователей?" --mode hybrid --top-k 5 --model qwen2.5:7b-instruct --max-tokens 500 --timeout-sec 300 --json --output data\asu_june_bot\smoke_chat_log_ad.json
+.\.venv\Scripts\python.exe scripts\asu_june_bot_chat.py "Как происходит авторизация пользователей?" --mode hybrid --top-k 5 --model qwen2.5:7b-instruct --max-tokens 500 --timeout-sec 300 --json --output data\asu_june_bot\smoke_chat_log_ad.json
 
 Get-Content data\asu_june_bot\chat_runs.jsonl -Encoding UTF8 -Tail 1
 ```
@@ -155,11 +172,14 @@ sources != []
 
 ## Что смотреть после baseline
 
-- Есть ли failures в `short_source_trap`.
-- Есть ли false_allow в `out_of_scope` / `mixed_scope`.
-- Есть ли false_refuse в `project_question`.
-- Падает ли `NO-CONTEXT-001` из-за выдуманного SLA.
-- Какие `expected_source_title_contains` слишком жёсткие или требуют корректировки по реальным названиям документов.
+```text
+failures в short_source_trap
+false_allow в out_of_scope / mixed_scope
+false_refuse в project_question
+NO-CONTEXT-001: не должен выдумывать SLA
+expected_source_title_contains: не слишком ли жесткие ожидания
+ошибки по citations / missing sources
+```
 
 ## Следующий приоритет после QH-1 baseline
 
@@ -180,10 +200,10 @@ unit tests для weak chunks
 Принцип:
 
 ```text
-не удалять короткие chunks из индекса;
-не ломать retrieval;
-помечать / понижать weak chunks в context stage;
-фиксировать reason в diagnostics.
+не удалять короткие chunks из индекса
+не ломать retrieval
+помечать / понижать weak chunks в context stage
+фиксировать reason в diagnostics
 ```
 
 ### QH-3. Parent Expansion
@@ -193,10 +213,20 @@ unit tests для weak chunks
 Принцип:
 
 ```text
-строгий max chars;
-dedup parent context;
-никакого расширения без лимита;
-сравнение eval до/после.
+строгий max chars
+dedup parent context
+никакого расширения без лимита
+сравнение eval до/после
+```
+
+## Документация: что еще проверить
+
+```text
+корневой README.md основного репозитория
+docs/context.md основного репозитория
+docs/todo.md основного репозитория, если есть
+устаревшие ссылки на Asu June Bot / ЦП УПКС в публичной product-документации
+активные документы с устаревшим статусом Search MVP only
 ```
 
 ## Важное ограничение результата
@@ -218,22 +248,24 @@ citation density / coverage
 Он не проверяет:
 
 ```text
-поддерживается ли каждое утверждение конкретным source text;
-не делает ли модель спорный вывод из короткого UML/heading chunk;
-нет ли semantic hallucination при формально корректных [Sx].
+поддерживается ли каждое утверждение конкретным source text
+не делает ли модель спорный вывод из короткого UML/heading chunk
+нет ли semantic hallucination при формально корректных [Sx]
 ```
 
 Это фиксируется как quality debt, а не runtime blocker.
 
 ## Не делать сейчас
 
-- Не пытаться заставить `/search` писать осмысленные ответы.
-- Не отправлять raw hybrid top-k в LLM.
-- Не вызывать LLM при `refused` или `clarify`.
-- Не развивать `scripts/09_chat.py` как основной runtime.
-- Не подключать UI до baseline eval.
-- Не подключать NeMo Guardrails, LangGraph, Dify/RAGFlow как runtime MVP.
-- Не возвращаться к раздуванию `OUT_OF_PROJECT_MARKERS`.
-- Не внедрять JSON-mode, retry, NLI и LLM-judge до накопления eval dataset.
-- Не внедрять source quality filter без baseline.
-- Не внедрять parent expansion без замера эффекта source quality filter.
+```text
+не пытаться заставить /search писать осмысленные ответы
+не отправлять raw hybrid top-k в LLM
+не вызывать LLM при refused или clarify
+не развивать scripts/09_chat.py как основной runtime
+не подключать UI до baseline eval
+не подключать NeMo Guardrails, LangGraph, Dify/RAGFlow как runtime MVP
+не возвращаться к раздуванию OUT_OF_PROJECT_MARKERS
+не внедрять JSON-mode, retry, NLI и LLM-judge до накопления eval dataset
+не внедрять source quality filter без baseline
+не внедрять parent expansion без замера эффекта source quality filter
+```
