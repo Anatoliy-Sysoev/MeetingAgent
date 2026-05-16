@@ -1,186 +1,425 @@
-# 08. Дорожная Карта и Этапы Релизов
+# 08. Дорожная карта и этапы релизов
 
-Обновлено: 2026-05-15.
+Обновлено: 2026-05-16.
 
-## Принцип Roadmap
+## Принцип roadmap
 
-Roadmap строится не вокруг "хочется еще одну AI-фичу", а вокруг последовательного усиления продукта:
+Roadmap строится не вокруг добавления AI-фич, а вокруг последовательного усиления продукта:
 
-1. сначала надежный corpus;
-2. потом надежный retrieval;
-3. потом API;
-4. потом chat;
-5. потом привычный пользовательский интерфейс;
-6. потом более глубокая аналитика и память встреч.
+1. надежный корпус;
+2. надежный retrieval;
+3. project-only guard;
+4. Search API;
+5. Chat API;
+6. observability и eval baseline;
+7. улучшение качества sources/context;
+8. UI;
+9. аналитические сценарии;
+10. эксплуатационное усиление.
 
-## Этапы Продукта
+## Этапы продукта
 
-## P0. Product Foundation
+### P0. Product Foundation
 
 Цель:
 
-- отделить `Asu June Bot` как самостоятельный продуктовый контур;
-- описать vision, scope, roadmap, MVP и требования.
+```text
+отделить Project Knowledge Bot как самостоятельный продуктовый контур
+описать vision, scope, roadmap, MVP и требования
+```
+
+Статус:
+
+```text
+Закрыт, документация актуализируется
+```
 
 Артефакты:
 
-- подпроектная документация;
-- product package;
-- decisions;
-- tech architecture;
-- runbook.
+```text
+README
+product package
+decisions
+technical architecture
+MVP/FTT
+runbook
+```
 
-Статус: выполнено частично, продолжается синхронизация с реализацией.
-
-## P1. Reliable Search Product Core
-
-Цель:
-
-- собрать очищенный project-only corpus;
-- построить retrieval core;
-- зафиксировать search quality;
-- поставить guard перед retrieval.
-
-Состав:
-
-- extraction/chunking v2.1;
-- embeddings/index v2;
-- search quality v2.2;
-- ProjectGuard v2.
-
-Статус: по сути выполнено.
-
-## P2. Search API MVP
+### P1. Reliable Search Product Core
 
 Цель:
 
-- сделать reusable API-слой поверх уже готового retrieval core.
+```text
+собрать очищенный project-only corpus
+построить retrieval core
+зафиксировать search quality
+поставить guard перед retrieval
+```
 
 Состав:
 
-- `GET /health`;
-- `POST /search`;
-- единый SearchService;
-- smoke-команды;
-- API smoke report.
+```text
+extraction/chunking v2.1
+embeddings/index v2
+search quality v2.2
+ProjectGuard v2
+```
 
-Критерий готовности:
+Статус:
 
-- проектные запросы возвращают context и results;
-- `refused` и `clarify` не вызывают retrieval;
-- формат ответа стабилен для будущего UI и chat.
+```text
+Закрыт
+```
 
-## P3. Chat API MVP
+### P2. Search API MVP
 
 Цель:
 
-- добавить project-only chat поверх уже подготовленного context.
+```text
+сделать reusable API-слой поверх готового retrieval core
+```
 
 Состав:
 
-- `POST /chat`;
-- prompt builder;
-- answer generator;
-- answer validator;
-- response formatter.
+```text
+SearchService
+GET /health
+POST /search
+API smoke report
+```
+
+Критерии:
+
+```text
+project query -> status ok + context
+refused/clarify -> retrieval не вызывается
+response format стабилен для будущего UI и chat
+```
+
+Статус:
+
+```text
+Закрыт
+```
+
+### P3. Chat API MVP
+
+Цель:
+
+```text
+добавить project-only chat поверх подготовленного context
+```
+
+Состав:
+
+```text
+ChatService
+PromptBuilder
+LLMClient
+AnswerValidator
+ResponseFormatter
+CLI chat
+POST /chat
+API smoke report
+```
 
 Правило:
 
-- не отправлять raw top-k напрямую в LLM;
-- чат опирается только на curated context.
+```text
+не отправлять raw top-k напрямую в LLM
+чат опирается только на curated context
+refused/clarify не вызывают LLM
+```
 
-## P4. Team Adoption Surface
+Статус:
 
-Цель:
+```text
+Закрыт с ограничениями
+```
 
-- дать удобную точку входа для повседневного использования.
+Ограничение:
 
-Состав:
+```text
+semantic/factual validation не входит в MVP как hard-fail
+```
 
-- web panel / Open WebUI поверх локального API;
-- понятный search/chat UX;
-- стандартизированный ответ с источниками;
-- ready-to-use сценарии для команды.
-
-## P5. Cross-Document Analyst Mode
-
-Цель:
-
-- перейти от "найди ответ" к "сопоставь артефакты и объясни расхождения".
-
-Состав:
-
-- traceability между ФТТ, ПМИ, ЦТА, ПР, СоИ;
-- document comparison;
-- analyst flows;
-- richer diagnostics.
-
-## P6. Meeting Memory Integration
+### P4. Quality Hardening 1 — Observability + Eval Baseline
 
 Цель:
 
-- связать продуктовую память документов с памятью встреч.
+```text
+накопить измеримый baseline качества до изменения retrieval/context
+```
 
 Состав:
 
-- подключение meeting artifacts;
-- влияние встреч на проектный контекст;
-- поиск по решениям, задачам, рискам;
-- later linkage between discussion and formal docs.
+```text
+ChatRunsLogger
+chat_runs.jsonl
+EvalRunner
+eval/cases/base.jsonl
+golden answer placeholders
+JSON/Markdown reports
+```
 
-## P7. Enterprise Readiness
+Статус:
+
+```text
+Реализован, ожидает локальный baseline-прогон
+```
+
+### P5. Quality Hardening 2 — Source Quality Filter
 
 Цель:
 
-- подготовить продукт к более широкой эксплуатации, если это потребуется.
+```text
+снизить риск, что короткие UML/heading/caption chunks становятся primary evidence
+```
+
+Статус:
+
+```text
+Открыт после baseline
+```
+
+Принцип:
+
+```text
+не удалять chunks из индекса
+помечать weak_source
+понижать primary eligibility
+фиксировать reason в diagnostics
+сравнивать eval до/после
+```
+
+### P6. Quality Hardening 3 — Parent Expansion
+
+Цель:
+
+```text
+добавлять контекст родительского section/parent chunk для коротких, но потенциально полезных chunks
+```
+
+Статус:
+
+```text
+Открыт после QH-2 при необходимости
+```
+
+Ограничения:
+
+```text
+strict max chars
+dedup parent context
+не расширять все подряд
+не превышать PromptBuilder budget
+```
+
+### P7. Team Adoption Surface
+
+Цель:
+
+```text
+дать удобную точку входа для повседневного использования
+```
 
 Состав:
 
-- более сильный storage layer;
-- richer auth/policy;
-- deployment profiles;
-- optional multi-user mode;
-- performance hardening.
+```text
+web panel или OpenWebUI adapter
+понятный search/chat UX
+стандартизированный ответ с sources/citations
+готовые сценарии для команды
+```
+
+Статус:
+
+```text
+Не начат
+```
+
+Условие старта:
+
+```text
+baseline eval выполнен
+качество sources/context стабилизировано
+```
+
+### P8. Cross-Document Analyst Mode
+
+Цель:
+
+```text
+перейти от "найди ответ" к "сопоставь артефакты и объясни расхождения"
+```
+
+Состав:
+
+```text
+traceability между требованиями, архитектурой, проектными решениями, интеграциями и испытаниями
+document comparison
+analyst flows
+richer diagnostics
+```
+
+Статус:
+
+```text
+Позже
+```
+
+### P9. Meeting Memory Integration
+
+Цель:
+
+```text
+связать память документов с памятью встреч
+```
+
+Состав:
+
+```text
+подключение meeting artifacts
+поиск по решениям, задачам, рискам
+связка discussion -> formal docs
+```
+
+Статус:
+
+```text
+Позже
+```
+
+### P10. Enterprise Readiness
+
+Цель:
+
+```text
+подготовить продукт к более широкой эксплуатации
+```
+
+Состав:
+
+```text
+RBAC по источникам
+audit logs
+job queue для reindex
+GPU/vLLM runtime profiles
+monitoring dashboards
+multi-user mode
+```
+
+Статус:
+
+```text
+Позже
+```
+
+### P11. Separate Repository
+
+Цель:
+
+```text
+выделить Project Knowledge Bot в отдельный проект с собственной документацией
+```
+
+Условия:
+
+```text
+активная документация синхронизирована
+устаревшие документы архивированы
+README готов как root README
+runtime paths независимы от MeetingAgent
+package/product naming согласованы
+```
+
+Статус:
+
+```text
+Планируется
+```
 
 ## Релизы
 
 ### Release 0.1
 
-Надежный локальный search core.
+```text
+Reliable local search core
+```
+
+Статус: закрыт.
 
 ### Release 0.2
 
-API Search MVP.
+```text
+API Search MVP
+```
+
+Статус: закрыт.
 
 ### Release 0.3
 
-Project-only Chat MVP.
+```text
+Project-only Chat MVP
+```
+
+Статус: закрыт с ограничениями.
 
 ### Release 0.4
 
-Удобная рабочая оболочка для ежедневного использования.
+```text
+Observability + Eval Baseline
+```
 
-## Что Не Должно Сломать Roadmap
+Статус: реализован, ожидает локальный baseline-прогон.
 
-- ранний уход в UI раньше стабильного API;
+### Release 0.5
+
+```text
+Source Quality Filter + measured improvement
+```
+
+Статус: следующий.
+
+### Release 0.6
+
+```text
+Parent Expansion / context quality hardening
+```
+
+Статус: условный.
+
+### Release 0.7
+
+```text
+Рабочая UI-оболочка
+```
+
+Статус: позже.
+
+## Что не должно сломать roadmap
+
+- ранний уход в UI раньше стабильного quality baseline;
 - ранняя замена ядра на тяжелую внешнюю платформу;
-- попытка добавить "все и сразу";
-- смешивание MeetingAgent и Asu June Bot в один неразделенный runtime;
-- подмена продуктовой пользы красивой демонстрацией модели.
+- попытка добавить все и сразу;
+- смешивание старого RAG/runtime и нового bot runtime;
+- подмена продуктовой пользы красивой демонстрацией модели;
+- внедрение source filter или parent expansion без сравнения с baseline.
 
-## Как Понимать Приоритеты
+## Как понимать приоритеты
 
 Приоритет выше у того, что:
 
 1. повышает надежность;
 2. повышает проверяемость;
 3. сокращает рабочее время пользователя;
-4. делает следующий слой продукта возможным.
+4. делает следующий слой продукта возможным;
+5. измеримо улучшает baseline.
 
 Поэтому порядок:
 
 ```text
-Search -> API -> Chat -> UI -> Traceability -> Meeting Integration
+Search -> API -> Chat -> Eval -> Source Quality -> UI -> Traceability -> Meeting Integration
 ```
 
-является не случайным, а архитектурно и продуктово обоснованным.
+является архитектурно и продуктово обоснованным.
