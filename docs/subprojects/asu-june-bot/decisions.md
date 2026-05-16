@@ -422,3 +422,53 @@ QuerySegmenter -> RuleBasedScopeClassifier -> ScopeAggregator -> GuardPolicy -> 
 - semantic warnings могут появиться позже;
 - hard-fail по groundedness не внедряется до накопления dataset;
 - golden answers используются как manual-review reference.
+
+## ADR-020. Docker-упаковка только после QH-5 Release Stabilization
+
+Дата: 2026-05-16.
+
+Решение: Docker-упаковка Project Knowledge Bot выполняется после закрытия QH-5, а не сразу после появления `/chat`.
+
+Причина:
+
+- Docker решает воспроизводимость запуска, но не исправляет качество retrieval/context/chat;
+- если упаковать продукт до стабилизации качества, контейнер закрепит нестабильный runtime;
+- до Docker нужно завершить baseline, source quality filter, parent expansion decision, regression и документацию;
+- отдельный репозиторий будет проще сформировать после Docker-ready структуры.
+
+Gate перед Docker:
+
+```text
+QH-1 baseline report создан
+QH-2 source quality filter реализован или явно отменён по результатам baseline
+QH-3 parent expansion реализован или явно отменён как ненужный
+QH-4 semantic warnings/manual labels реализованы или перенесены в backlog
+QH-5 release stabilization закрыт
+README / architecture / mvp / roadmap / runbook синхронизированы
+runtime paths portable
+config secrets не попадают в Git
+regression и smoke проходят
+```
+
+Минимальный Docker scope:
+
+```text
+Dockerfile
+.dockerignore
+docker-compose.yml
+.env.example
+config.docker.example.yaml
+docs/deployment/docker.md
+bot-api service
+host volumes для data/eval/config
+```
+
+Первый docker-compose допускает Ollama на хосте Windows:
+
+```text
+Ollama на Windows host
+bot-api в Docker
+LLM endpoint через host.docker.internal
+```
+
+Позже можно добавить optional compose profile с Ollama внутри Docker.
