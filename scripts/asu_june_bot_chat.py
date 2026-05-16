@@ -15,6 +15,7 @@ from asu_june_bot.chat import ChatRequest, ChatService  # noqa: E402
 from asu_june_bot.chat.response_formatter import ResponseFormatter  # noqa: E402
 from asu_june_bot.core.config import load_config  # noqa: E402
 from asu_june_bot.llm.ollama_openai import OllamaOpenAIClient  # noqa: E402
+from asu_june_bot.observability import ChatRunsLogger  # noqa: E402
 from asu_june_bot.search import SearchService  # noqa: E402
 
 
@@ -30,6 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout-sec", type=int, default=300)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--output", help="Save UTF-8 JSON to path")
+    parser.add_argument("--no-log", action="store_true", help="Disable chat_runs.jsonl logging")
     return parser
 
 
@@ -43,6 +45,7 @@ def main() -> None:
     chat_service = ChatService(
         search_service=SearchService(config=config),
         llm_client=OllamaOpenAIClient(base_url=llm_base_url, model=model),
+        runs_logger=None if args.no_log else ChatRunsLogger(WORK_ROOT / "data" / "asu_june_bot" / "chat_runs.jsonl"),
     )
     response = chat_service.chat(
         ChatRequest(
