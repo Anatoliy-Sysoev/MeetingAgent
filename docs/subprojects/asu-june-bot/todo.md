@@ -6,6 +6,8 @@
 
 API Search MVP закрыт. CLI Chat MVP и API Chat MVP прошли smoke. Этап **QH-1 Observability + Eval Baseline** реализован в коде и ожидает локальный baseline-прогон.
 
+Принято решение: Docker-упаковка выполняется **после QH-5 Release Stabilization**, а не сейчас.
+
 Параллельно проведена ревизия документации подпроекта:
 
 ```text
@@ -41,6 +43,7 @@ API Chat MVP smoke tests implementation
 POST /chat runtime smoke
 QH-1 Observability + Eval Baseline code implementation
 Product docs refresh
+Docker-after-QH-5 decision
 ```
 
 ## Реализовано в QH-1
@@ -72,6 +75,7 @@ NLI / groundedness model
 DSPy runtime
 JSON-mode
 retry policy
+Docker
 ```
 
 Причина: сначала нужен baseline качества текущего `/chat`, затем изменения context/retrieval должны измеряться относительно baseline.
@@ -219,6 +223,65 @@ dedup parent context
 сравнение eval до/после
 ```
 
+### QH-4. Semantic Warnings / Manual Labels
+
+После QH-2/QH-3:
+
+```text
+manual_label / manual_issue в chat_runs.jsonl
+semantic_warnings в diagnostics
+low-overlap / weak-source warnings как warning, не hard-fail
+```
+
+### QH-5. Release Stabilization
+
+Перед Docker:
+
+```text
+закрыть/зафиксировать QH-1..QH-4
+прогнать regression и smoke
+синхронизировать документацию
+проверить portable paths/config
+проверить отсутствие secrets/runtime data в Git
+заморозить минимальный stable MVP contour
+```
+
+## Docker stage после QH-5
+
+Docker не делать до закрытия QH-5.
+
+Минимальный состав Docker stage:
+
+```text
+Dockerfile
+.dockerignore
+docker-compose.yml
+.env.example
+config.docker.example.yaml
+docs/deployment/docker.md
+bot-api service
+host volumes для data/eval/config
+```
+
+Первый вариант:
+
+```text
+Ollama работает на Windows host
+bot-api работает в Docker
+bot-api обращается к Ollama через host.docker.internal
+```
+
+Критерии готовности:
+
+```text
+docker compose up --build запускает bot-api
+GET /health работает
+POST /search работает
+POST /chat работает при доступной Ollama
+chat_runs.jsonl пишется в host volume
+runtime data не пишется внутрь ephemeral container layer
+```
+
 ## Документация: что еще проверить
 
 ```text
@@ -268,4 +331,5 @@ citation density / coverage
 не внедрять JSON-mode, retry, NLI и LLM-judge до накопления eval dataset
 не внедрять source quality filter без baseline
 не внедрять parent expansion без замера эффекта source quality filter
+не делать Docker до QH-5 Release Stabilization
 ```
