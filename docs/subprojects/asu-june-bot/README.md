@@ -76,6 +76,12 @@ docs/subprojects/asu-june-bot/TOMORROW_START.md
 docs/subprojects/asu-june-bot/QH_STATUS.md
 ```
 
+Актуальный статус FTT бота:
+
+```text
+docs/subprojects/asu-june-bot/FTT_STATUS.md
+```
+
 Рабочая chat-модель MVP:
 
 ```text
@@ -212,6 +218,7 @@ Telegram adapter = long polling client over local /chat
 docs/subprojects/asu-june-bot/README.md                этот файл, главный вход
 docs/subprojects/asu-june-bot/TOMORROW_START.md        завтрашний чек-лист запуска
 docs/subprojects/asu-june-bot/QH_STATUS.md             статус QH этапов
+docs/subprojects/asu-june-bot/FTT_STATUS.md            статус FTT бота
 docs/subprojects/asu-june-bot/context.md               текущий контекст и состояние
 docs/subprojects/asu-june-bot/architecture.md          архитектура и компоненты
 docs/subprojects/asu-june-bot/mvp.md                   ФТТ/MVP scope/acceptance
@@ -363,142 +370,3 @@ eval/cases/base.jsonl
 http://127.0.0.1:8000/
 http://127.0.0.1:8000/ui
 ```
-
-### 7.3 Search smoke
-
-```powershell
-Invoke-RestMethod `
-  -Method Post `
-  -Uri "http://127.0.0.1:8000/search" `
-  -ContentType "application/json" `
-  -Body '{"query":"Какие интеграции описаны в проектных документах?","mode":"hybrid","top_k":8}'
-```
-
-### 7.4 Chat smoke
-
-```powershell
-Invoke-RestMethod `
-  -Method Post `
-  -Uri "http://127.0.0.1:8000/chat" `
-  -ContentType "application/json" `
-  -Body '{"query":"Как происходит авторизация пользователей?","mode":"hybrid","top_k":5,"model":"qwen2.5:7b-instruct","max_tokens":500,"timeout_sec":300}'
-```
-
-### 7.5 Telegram smoke
-
-```powershell
-$env:ASU_JUNE_BOT_TELEGRAM_TOKEN='PASTE_TOKEN_HERE'
-$env:ASU_JUNE_BOT_CHAT_API_URL='http://127.0.0.1:8000/chat'
-$env:ASU_JUNE_BOT_ALLOWED_CHAT_IDS='123456789'
-.\.venv\Scripts\python.exe scripts\asu_june_bot_telegram.py
-```
-
-### 7.6 QH gate
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_qh_gate.py --json
-```
-
-До локальной проверки ожидаемо:
-
-```text
-status = pending_local_validation
-```
-
-### 7.7 Eval after QH
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_chat_eval.py --cases eval\cases\base.jsonl --label after_qh --model qwen2.5:7b-instruct --top-k 5
-```
-
-## 8. Критерии готовности текущего MVP
-
-```text
-GET /health -> ok
-POST /search project query -> ok, retrieval_called=true
-POST /search out-of-project -> refused, retrieval_called=false
-POST /chat project query -> answered, llm_called=true
-POST /chat out-of-project -> refused, llm_called=false
-GET /ui opens local page
-Telegram adapter responds through local /chat
-ChatService tests -> passed
-API tests -> passed
-QH tests -> passed
-Guard regression -> false_allow=0
-chat_runs.jsonl пишется локально
-chat_eval baseline/after_qh формирует JSON/Markdown reports
-QH gate -> passed only after local validation + baseline comparison
-```
-
-## 9. Ограничения текущей версии
-
-Текущий `AnswerValidator` выполняет structural validation, но не hard-fail semantic/factual validation.
-
-Проверяется:
-
-```text
-пустой ответ
-наличие sources
-наличие ссылок [Sx]
-unknown citations
-external knowledge markers
-answer length
-citation density / coverage
-```
-
-QH-4 дополнительно предупреждает, но не блокирует:
-
-```text
-weak_sources_present
-weak_primary_fallback
-parent_expansion_applied
-low_source_count
-low_citation_coverage
-structural_validation_errors
-```
-
-Не проверяется как hard-fail:
-
-```text
-поддерживается ли каждое утверждение конкретным source text;
-не делает ли модель спорный вывод из короткого UML/heading/caption chunk;
-нет ли semantic hallucination при формально корректных [Sx].
-```
-
-## 10. Что не входит в текущий MVP
-
-```text
-многопользовательский режим
-RBAC по источникам
-автоматическая синхронизация прав доступа
-fine-tuning
-LLM-as-judge runtime
-NLI groundedness model
-DSPy runtime
-LangGraph agent runtime
-Dify/RAGFlow как основной runtime
-Docker до фактического QH-5 passed
-промышленная эксплуатация
-```
-
-## 11. Подготовка к выделению в отдельный репозиторий
-
-Подпроект уже отделён логически:
-
-```text
-src/asu_june_bot/
-scripts/asu_june_bot_*.py
-docs/subprojects/asu-june-bot/
-eval/
-```
-
-Перед выделением в отдельный проект нужно:
-
-- переименовать пакет и продуктовое имя при необходимости;
-- вынести независимый README в корень нового репозитория;
-- перенести product/architecture/runbook/todo/eval docs;
-- оставить MeetingAgent только как upstream/source-проект;
-- удалить проектно-специфичные названия из публичной документации;
-- сохранить архив legacy-документов отдельно;
-- дождаться фактического QH-5 passed;
-- после QH-5 выполнить Docker stage.
