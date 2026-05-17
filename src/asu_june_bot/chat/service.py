@@ -11,6 +11,7 @@ from asu_june_bot.search.models import SearchStatus
 from .answer_validator import AnswerValidator
 from .models import ChatRequest, ChatResponse, ChatStatus
 from .prompt_builder import SYSTEM_PROMPT, PromptBuilder
+from .semantic_warnings import SemanticWarningAnalyzer, semantic_warnings_to_payload
 
 
 class ChatService:
@@ -21,17 +22,28 @@ class ChatService:
         prompt_builder: PromptBuilder | None = None,
         answer_validator: AnswerValidator | None = None,
         runs_logger: ChatRunsLogger | None = None,
+        semantic_warning_analyzer: SemanticWarningAnalyzer | None = None,
     ) -> None:
         self.search_service = search_service
         self.llm_client = llm_client
         self.prompt_builder = prompt_builder or PromptBuilder()
         self.answer_validator = answer_validator or AnswerValidator()
         self.runs_logger = runs_logger
+        self.semantic_warning_analyzer = semantic_warning_analyzer or SemanticWarningAnalyzer()
 
     def chat(self, request: ChatRequest) -> ChatResponse:
         started = time.perf_counter()
 
         def finalize(response: ChatResponse) -> ChatResponse:
+            semantic_warnings = self.semantic_warning_analyzer.analyze(
+                answer=response.answer,
+                sources=response.sources,
+                search_payload=response.search,
+                diagnostics=response.diagnostics,
+            )
+            warning_payload = semantic_warnings_to_payload(semantic_warnings)
+            response.warnings.setdefault("semantic", warning_payload)
+            response.diagnostics.setdefault("semantic_warnings", warning_payload)
             latency_ms = int((time.perf_counter() - started) * 1000)
             response.diagnostics.setdefault("latency_ms", latency_ms)
             if self.runs_logger:
