@@ -42,6 +42,7 @@ class ChatRunsLogger:
         run_id = str(request_id or uuid.uuid4())
         prompt_diag = diagnostics.get("prompt") if isinstance(diagnostics.get("prompt"), dict) else {}
         validation_errors = diagnostics.get("validation_errors") or []
+        semantic_warnings = diagnostics.get("semantic_warnings") or response.warnings.get("semantic") or {"items": [], "count": 0, "has_high": False}
 
         sources = []
         for source in response.sources:
@@ -78,6 +79,7 @@ class ChatRunsLogger:
             "llm_called": bool(diagnostics.get("llm_called")),
             "llm_finish_reason": diagnostics.get("llm_finish_reason"),
             "validation_errors": validation_errors,
+            "semantic_warnings": semantic_warnings,
             "prompt_sources": diagnostics.get("prompt_sources"),
             "used_context_chars": prompt_diag.get("used_context_chars"),
             "max_context_chars": prompt_diag.get("max_context_chars"),
