@@ -4,24 +4,31 @@
 
 ## Текущий статус
 
-API Search MVP закрыт. CLI Chat MVP и API Chat MVP прошли smoke. Этап **QH-1 Observability + Eval Baseline** реализован в коде и ожидает локальный baseline-прогон.
+API Search MVP закрыт. CLI Chat MVP и API Chat MVP прошли smoke. Добавлены локальный Web UI, Telegram adapter и единый лимит длины запроса.
+
+Этап **QH-1 Observability + Eval Baseline** реализован в коде. Первый baseline показал, что есть смесь ложных eval failures, guard gap и реальных retrieval/context gaps. Часть ложных падений уже исправлена.
 
 Принято решение: Docker-упаковка выполняется **после QH-5 Release Stabilization**, а не сейчас.
 
-Параллельно проведена ревизия документации подпроекта:
+## Для завтрашнего восстановления
+
+Главный чек-лист:
 
 ```text
-README.md обновлен как входная точка будущего отдельного продукта
-architecture.md обновлен по фактической архитектуре /search + /chat + QH-1
-mvp.md обновлен как ФТТ/MVP scope с план-графиком
-roadmap.md обновлен по закрытым/открытым этапам
-decisions.md обновлен новыми ADR
-context.md обновлен по текущему статусу
-product/README.md обновлен
-product/01/02/03/04/06/07/08 обновлены под нейтральное product naming и текущий статус
+docs/subprojects/asu-june-bot/TOMORROW_START.md
 ```
 
-`product/05_customer_discovery_and_interview_guide.md` оставлен без полной перезаписи: он нейтрален, не содержит критичного технического статуса и остается актуальным как discovery guide.
+Порядок:
+
+```text
+git pull
+health
+tests
+API
+Web UI
+Telegram adapter
+manual smoke
+```
 
 ## Закрыто ранее
 
@@ -44,6 +51,80 @@ POST /chat runtime smoke
 QH-1 Observability + Eval Baseline code implementation
 Product docs refresh
 Docker-after-QH-5 decision
+```
+
+## Закрыто сегодня через GitHub
+
+```text
+MAX_QUERY_CHARS = 2000
+ChatRequest query length validation
+SearchRequest query length validation
+POST /chat max_length validation
+POST /search max_length validation
+Local Web UI: GET / and GET /ui
+Telegram adapter: src/asu_june_bot/telegram_bot.py
+Telegram script: scripts/asu_june_bot_telegram.py
+TOMORROW_START.md
+telegram.md
+README.md обновлен
+RUNBOOK_V2.md обновлен
+```
+
+## Ожидаемые тесты завтра
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\chat\test_chat_service.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_health.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_search_smoke.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_chat_smoke.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\observability\test_chat_runs.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\eval\test_checks.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\eval\test_runner.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\test_project_guard_v2_cases.py -q
+```
+
+Ожидаемо после последних изменений:
+
+```text
+ChatService: 7 passed
+API health: 1 passed
+API search: 4 passed
+API chat: 7 passed
+observability: 2 passed
+eval checks: 3 passed
+eval runner: 1 passed
+ProjectGuard cases: 46 passed
+```
+
+Фактический результат надо подтвердить завтра локальным прогоном.
+
+## Завтрашний smoke для сдачи
+
+### API + UI
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_api.py --host 127.0.0.1 --port 8000
+```
+
+Открыть:
+
+```text
+http://127.0.0.1:8000/
+http://127.0.0.1:8000/ui
+```
+
+### Telegram
+
+```powershell
+$env:ASU_JUNE_BOT_TELEGRAM_TOKEN='PASTE_TOKEN_HERE'
+$env:ASU_JUNE_BOT_CHAT_API_URL='http://127.0.0.1:8000/chat'
+.\.venv\Scripts\python.exe scripts\asu_june_bot_telegram.py
+```
+
+Рекомендуется ограничить доступ:
+
+```powershell
+$env:ASU_JUNE_BOT_ALLOWED_CHAT_IDS='123456789'
 ```
 
 ## Реализовано в QH-1
@@ -78,118 +159,42 @@ retry policy
 Docker
 ```
 
-Причина: сначала нужен baseline качества текущего `/chat`, затем изменения context/retrieval должны измеряться относительно baseline.
+## QH-1 baseline: первичный вывод
 
-## Подтверждено ранее
-
-### ChatService tests
+Первый baseline:
 
 ```text
-7 passed
+total = 13
+passed = 6
+failed = 7
+pass_rate = 46.2%
 ```
 
-### Project smoke / qwen2.5
+Не трактовать как провал `/chat`.
+
+Категории проблем:
 
 ```text
-status = answered
-llm_called = true
-llm_model = qwen2.5:7b-instruct
-llm_finish_reason = stop
-validation_errors = []
-prompt_sources = 5
-selected_sources = 5
-used_context_chars = 1162
+ложные eval failures: source_titles, clarify must_include
+project guard gap: логирование как проектный вопрос
+real retrieval/context gaps: ФТТ 4.2.5, short UML/source traps, no-context/SLA
 ```
 
-Рекомендуемая chat-модель MVP:
+Уже исправлено:
 
 ```text
-qwen2.5:7b-instruct
+source_titles ищет не только в title, но и path/section/preview
+clarify cases проверяют фактическую формулировку "Сформулируйте"
+ProjectGuard получил project markers для логирования/Grafana Loki/журналирования
 ```
 
-Не использовать как default:
+Нужно подтвердить завтра локальными тестами и повторным baseline.
 
-```text
-qwen3:4b
-qwen3:8b
-```
-
-## Следующий локальный прогон
-
-### Regression
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\chat\test_chat_service.py -q
-.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_health.py -q
-.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_search_smoke.py -q
-.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_chat_smoke.py -q
-.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\observability\test_chat_runs.py -q
-.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\eval\test_checks.py -q
-.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\eval\test_runner.py -q
-```
-
-Ожидаемо:
-
-```text
-ChatService: 7 passed
-API health: 1 passed
-API search: 3 passed
-API chat: 5 passed
-observability: 2 passed
-eval checks: 2 passed
-eval runner: 1 passed
-```
-
-### CLI chat log smoke
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_chat.py "Как происходит авторизация пользователей?" --mode hybrid --top-k 5 --model qwen2.5:7b-instruct --max-tokens 500 --timeout-sec 300 --json --output data\asu_june_bot\smoke_chat_log_ad.json
-
-Get-Content data\asu_june_bot\chat_runs.jsonl -Encoding UTF8 -Tail 1
-```
-
-Ожидаемо:
-
-```text
-chat_runs.jsonl содержит валидный JSONL
-status = answered
-llm_called = true
-latency_ms != null
-sources != []
-```
-
-### Eval baseline
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_chat_eval.py --cases eval\cases\base.jsonl --label baseline --model qwen2.5:7b-instruct --top-k 5
-```
-
-Ожидаемо:
-
-```text
-создан eval/reports/*__baseline.json
-создан eval/reports/*__baseline.md
-выведены total/passed/failed/pass_rate
-```
-
-Важно: baseline может быть ниже 100%. Это нормально. Цель QH-1 — измерить текущее качество, а не подогнать кейсы под прохождение.
-
-## Что смотреть после baseline
-
-```text
-failures в short_source_trap
-false_allow в out_of_scope / mixed_scope
-false_refuse в project_question
-NO-CONTEXT-001: не должен выдумывать SLA
-expected_source_title_contains: не слишком ли жесткие ожидания
-ошибки по citations / missing sources
-```
-
-## Следующий приоритет после QH-1 baseline
+## Следующий приоритет после демонстрационного smoke
 
 ### QH-2. Source Quality Filter
 
-Делать только после анализа baseline.
+Делать после повторного baseline.
 
 План:
 
@@ -263,35 +268,6 @@ bot-api service
 host volumes для data/eval/config
 ```
 
-Первый вариант:
-
-```text
-Ollama работает на Windows host
-bot-api работает в Docker
-bot-api обращается к Ollama через host.docker.internal
-```
-
-Критерии готовности:
-
-```text
-docker compose up --build запускает bot-api
-GET /health работает
-POST /search работает
-POST /chat работает при доступной Ollama
-chat_runs.jsonl пишется в host volume
-runtime data не пишется внутрь ephemeral container layer
-```
-
-## Документация: что еще проверить
-
-```text
-корневой README.md основного репозитория
-docs/context.md основного репозитория
-docs/todo.md основного репозитория, если есть
-устаревшие ссылки на Asu June Bot / ЦП УПКС в публичной product-документации
-активные документы с устаревшим статусом Search MVP only
-```
-
 ## Важное ограничение результата
 
 Chat MVP smoke прошёл как structural validation, но не как полноценная semantic/factual validation.
@@ -325,11 +301,11 @@ citation density / coverage
 не отправлять raw hybrid top-k в LLM
 не вызывать LLM при refused или clarify
 не развивать scripts/09_chat.py как основной runtime
-не подключать UI до baseline eval
 не подключать NeMo Guardrails, LangGraph, Dify/RAGFlow как runtime MVP
 не возвращаться к раздуванию OUT_OF_PROJECT_MARKERS
 не внедрять JSON-mode, retry, NLI и LLM-judge до накопления eval dataset
 не внедрять source quality filter без baseline
 не внедрять parent expansion без замера эффекта source quality filter
 не делать Docker до QH-5 Release Stabilization
+не коммитить Telegram token
 ```
