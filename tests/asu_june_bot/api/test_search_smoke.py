@@ -12,6 +12,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from asu_june_bot.api.app import create_app  # noqa: E402
+from asu_june_bot.core.limits import MAX_QUERY_CHARS  # noqa: E402
 from asu_june_bot.search.models import SearchResponse  # noqa: E402
 
 
@@ -115,6 +116,19 @@ def test_search_endpoint_validation_error_on_unknown_field() -> None:
     client, _fake_search = build_client()
     try:
         response = client.post("/search", json={"query": "test", "unknown": "field"})
+    finally:
+        client.__exit__(None, None, None)
+
+    assert response.status_code == 422
+    data = response.json()
+    assert data["status"] == "error"
+    assert data["error_code"] == "validation_error"
+
+
+def test_search_endpoint_rejects_too_long_query() -> None:
+    client, _fake_search = build_client()
+    try:
+        response = client.post("/search", json={"query": "x" * (MAX_QUERY_CHARS + 1)})
     finally:
         client.__exit__(None, None, None)
 
