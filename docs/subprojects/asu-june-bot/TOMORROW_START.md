@@ -90,6 +90,7 @@ embedding_model_installed = true
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_chat_smoke.py -q
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\chat\test_chat_service.py -q
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\eval\test_checks.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\test_telegram_bot.py -q
 ```
 
 Ожидаемо после последних изменений:
@@ -100,6 +101,7 @@ test_search_smoke.py: 4 passed
 test_chat_smoke.py: 7 passed
 test_chat_service.py: 7 passed
 test_checks.py: 3 passed
+test_telegram_bot.py: 4 passed
 ```
 
 ## 5. Запустить API + Web UI
@@ -157,13 +159,13 @@ diagnostics.llm_called = true
 
 ## 7. Проверить лимит запроса
 
-В API и UI установлен лимит:
+В API, UI и Telegram установлен лимит:
 
 ```text
 MAX_QUERY_CHARS = 2000
 ```
 
-Слишком длинный запрос должен возвращать HTTP 422.
+Слишком длинный запрос должен возвращать HTTP 422 в API/UI или отказ на стороне Telegram adapter.
 
 ## 8. Запустить Telegram adapter
 
@@ -217,6 +219,7 @@ Get-ChildItem Env:ASU_JUNE_BOT*
 
 ```powershell
 Remove-Item Env:\ASU_JUNE_BOT_TELEGRAM_TOKEN -ErrorAction SilentlyContinue
+Remove-Item Env:\ASU_JUNE_BOT_ALLOWED_CHAT_IDS -ErrorAction SilentlyContinue
 ```
 
 ## 10. Что не делать перед сдачей
@@ -228,6 +231,7 @@ Remove-Item Env:\ASU_JUNE_BOT_TELEGRAM_TOKEN -ErrorAction SilentlyContinue
 не менять модель embeddings bge-m3
 не начинать Docker до QH-5
 не чинить все baseline failures перед демонстрацией
+не коммитить Telegram token
 ```
 
 Для сдачи сейчас важнее:
