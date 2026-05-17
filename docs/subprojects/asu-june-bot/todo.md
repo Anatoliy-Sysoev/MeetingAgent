@@ -6,9 +6,25 @@
 
 API Search MVP закрыт. CLI Chat MVP и API Chat MVP прошли smoke. Добавлены локальный Web UI, Telegram adapter и единый лимит длины запроса.
 
-Этап **QH-1 Observability + Eval Baseline** реализован в коде. Первый baseline показал, что есть смесь ложных eval failures, guard gap и реальных retrieval/context gaps. Часть ложных падений уже исправлена.
+QH-этапы доведены до состояния:
 
-Принято решение: Docker-упаковка выполняется **после QH-5 Release Stabilization**, а не сейчас.
+```text
+QH-1 Observability + Eval Baseline        IMPLEMENTED
+QH-2 Source Quality Filter                IMPLEMENTED_CODE_READY
+QH-3 Parent Expansion                     IMPLEMENTED_CODE_READY
+QH-4 Semantic Warnings / Manual Labels    IMPLEMENTED_CODE_READY
+QH-5 Release Stabilization                PENDING_LOCAL_VALIDATION
+```
+
+Главный документ статуса QH:
+
+```text
+docs/subprojects/asu-june-bot/QH_STATUS.md
+```
+
+Важно: QH-2/QH-3/QH-4 реализованы через GitHub и покрыты тестами, но фактический статус `PASSED` должен быть подтвержден завтра на рабочем ПК локальным прогоном тестов, API smoke, UI/Telegram smoke и eval after_qh.
+
+Принято решение: Docker-упаковка выполняется **после фактического QH-5 passed**, а не сейчас.
 
 ## Для завтрашнего восстановления
 
@@ -24,10 +40,12 @@ docs/subprojects/asu-june-bot/TOMORROW_START.md
 git pull
 health
 tests
+QH gate
 API
 Web UI
 Telegram adapter
 manual smoke
+eval after_qh
 ```
 
 ## Закрыто ранее
@@ -64,7 +82,14 @@ POST /search max_length validation
 Local Web UI: GET / and GET /ui
 Telegram adapter: src/asu_june_bot/telegram_bot.py
 Telegram script: scripts/asu_june_bot_telegram.py
+QH-2 Source Quality Filter: src/asu_june_bot/retrieval/source_quality.py
+QH-3 Parent Expansion: src/asu_june_bot/retrieval/parent_expansion.py
+QH-4 Semantic Warnings: src/asu_june_bot/chat/semantic_warnings.py
+QH-4 logging semantic_warnings в chat_runs.jsonl
+QH-5 release gate: src/asu_june_bot/qh/release_gate.py
+QH-5 CLI: scripts/asu_june_bot_qh_gate.py
 TOMORROW_START.md
+QH_STATUS.md
 telegram.md
 README.md обновлен
 RUNBOOK_V2.md обновлен
@@ -74,31 +99,62 @@ RUNBOOK_V2.md обновлен
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\chat\test_chat_service.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\chat\test_semantic_warnings.py -q
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_health.py -q
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_search_smoke.py -q
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_chat_smoke.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\retrieval\test_source_quality.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\retrieval\test_parent_expansion.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\retrieval\test_context_builder_qh.py -q
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\observability\test_chat_runs.py -q
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\eval\test_checks.py -q
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\eval\test_runner.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\qh\test_release_gate.py -q
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\test_project_guard_v2_cases.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\test_telegram_bot.py -q
 ```
 
 Ожидаемо после последних изменений:
 
 ```text
 ChatService: 7 passed
+Semantic warnings: 3 passed
 API health: 1 passed
 API search: 4 passed
 API chat: 7 passed
+Source quality: 3 passed
+Parent expansion: 2 passed
+ContextBuilder QH: 2 passed
 observability: 2 passed
 eval checks: 3 passed
 eval runner: 1 passed
+QH release gate: 2 passed
 ProjectGuard cases: 46 passed
+Telegram formatter: 4 passed
 ```
 
 Фактический результат надо подтвердить завтра локальным прогоном.
 
 ## Завтрашний smoke для сдачи
+
+### QH gate
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_qh_gate.py --json
+```
+
+До локального smoke/eval ожидаемо:
+
+```text
+status = pending_local_validation
+pending = [QH-5A, QH-5B]
+```
+
+После локального regression/smoke и сравнения eval:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_qh_gate.py --local-validation-done --baseline-compared --json
+```
 
 ### API + UI
 
@@ -125,38 +181,6 @@ $env:ASU_JUNE_BOT_CHAT_API_URL='http://127.0.0.1:8000/chat'
 
 ```powershell
 $env:ASU_JUNE_BOT_ALLOWED_CHAT_IDS='123456789'
-```
-
-## Реализовано в QH-1
-
-```text
-src/asu_june_bot/observability/chat_runs.py
-src/asu_june_bot/observability/__init__.py
-src/asu_june_bot/eval/models.py
-src/asu_june_bot/eval/checks.py
-src/asu_june_bot/eval/runner.py
-src/asu_june_bot/eval/report.py
-src/asu_june_bot/eval/loader.py
-src/asu_june_bot/eval/__init__.py
-scripts/asu_june_bot_chat_eval.py
-eval/cases/base.jsonl
-eval/golden_answers/*.md
-tests/asu_june_bot/observability/test_chat_runs.py
-tests/asu_june_bot/eval/test_checks.py
-tests/asu_june_bot/eval/test_runner.py
-```
-
-QH-1 принципиально не включает:
-
-```text
-source quality filter
-parent expansion
-LLM-as-judge
-NLI / groundedness model
-DSPy runtime
-JSON-mode
-retry policy
-Docker
 ```
 
 ## QH-1 baseline: первичный вывод
@@ -188,89 +212,42 @@ clarify cases проверяют фактическую формулировку
 ProjectGuard получил project markers для логирования/Grafana Loki/журналирования
 ```
 
-Нужно подтвердить завтра локальными тестами и повторным baseline.
+Повторный eval после QH:
 
-## Следующий приоритет после демонстрационного smoke
-
-### QH-2. Source Quality Filter
-
-Делать после повторного baseline.
-
-План:
-
-```text
-src/asu_june_bot/retrieval/source_quality.py
-unit tests для weak chunks
-интеграция в ContextBuilder
-повторный eval: label=with_source_filter
-сравнение с baseline
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_chat_eval.py --cases eval\cases\base.jsonl --label after_qh --model qwen2.5:7b-instruct --top-k 5
 ```
 
-Принцип:
+Сравнить:
 
 ```text
-не удалять короткие chunks из индекса
-не ломать retrieval
-помечать / понижать weak chunks в context stage
-фиксировать reason в diagnostics
+eval/reports/*__baseline.md
+eval/reports/*__after_qh.md
 ```
 
-### QH-3. Parent Expansion
+## Что дальше после локального QH-5 passed
 
-Делать только если QH-2 не устранил проблему коротких chunks.
-
-Принцип:
+Если завтра тесты, API smoke, UI smoke, Telegram smoke и after_qh eval прошли приемлемо:
 
 ```text
-строгий max chars
-dedup parent context
-никакого расширения без лимита
-сравнение eval до/после
+1. Зафиксировать smoke_report_qh_release.md.
+2. Обновить QH_STATUS.md: QH-5 -> PASSED.
+3. После этого можно начинать Docker stage.
 ```
 
-### QH-4. Semantic Warnings / Manual Labels
-
-После QH-2/QH-3:
+Если есть падения:
 
 ```text
-manual_label / manual_issue в chat_runs.jsonl
-semantic_warnings в diagnostics
-low-overlap / weak-source warnings как warning, не hard-fail
-```
-
-### QH-5. Release Stabilization
-
-Перед Docker:
-
-```text
-закрыть/зафиксировать QH-1..QH-4
-прогнать regression и smoke
-синхронизировать документацию
-проверить portable paths/config
-проверить отсутствие secrets/runtime data в Git
-заморозить минимальный stable MVP contour
-```
-
-## Docker stage после QH-5
-
-Docker не делать до закрытия QH-5.
-
-Минимальный состав Docker stage:
-
-```text
-Dockerfile
-.dockerignore
-docker-compose.yml
-.env.example
-config.docker.example.yaml
-docs/deployment/docker.md
-bot-api service
-host volumes для data/eval/config
+1. Не начинать Docker.
+2. Исправить только блокирующие дефекты запуска/API/UI/Telegram.
+3. Quality defects retrieval/context фиксировать отдельно, не ломая демо.
 ```
 
 ## Важное ограничение результата
 
 Chat MVP smoke прошёл как structural validation, но не как полноценная semantic/factual validation.
+
+QH-4 добавляет warning-only слой, но не доказывает фактическую истинность каждого утверждения.
 
 Текущий `AnswerValidator` проверяет:
 
@@ -282,6 +259,17 @@ unknown citations
 external knowledge markers
 answer length
 citation density / coverage
+```
+
+QH-4 дополнительно предупреждает:
+
+```text
+weak_sources_present
+weak_primary_fallback
+parent_expansion_applied
+low_source_count
+low_citation_coverage
+structural_validation_errors
 ```
 
 Он не проверяет:
@@ -303,9 +291,7 @@ citation density / coverage
 не развивать scripts/09_chat.py как основной runtime
 не подключать NeMo Guardrails, LangGraph, Dify/RAGFlow как runtime MVP
 не возвращаться к раздуванию OUT_OF_PROJECT_MARKERS
+не превращать QH-4 warnings в hard-fail
 не внедрять JSON-mode, retry, NLI и LLM-judge до накопления eval dataset
-не внедрять source quality filter без baseline
-не внедрять parent expansion без замера эффекта source quality filter
-не делать Docker до QH-5 Release Stabilization
+не делать Docker до фактического QH-5 passed
 не коммитить Telegram token
-```
