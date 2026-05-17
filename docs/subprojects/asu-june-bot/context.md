@@ -15,7 +15,8 @@ Project Knowledge Bot — отдельный подпроект внутри Mee
 - не запускать retrieval/LLM для refused/clarify;
 - генерировать ответы только по `primary_sources` и `supporting_sources`;
 - логировать chat-запуски для накопления dataset;
-- иметь baseline evaluation перед улучшениями retrieval/context.
+- иметь baseline evaluation перед улучшениями retrieval/context;
+- предоставлять локальный Web UI и Telegram adapter поверх `/chat`.
 
 Публичная документация подпроекта должна быть пригодна для выделения в отдельный репозиторий и не должна зависеть от конкретного заказчика или названия исходного внедрения.
 
@@ -27,31 +28,27 @@ Project Knowledge Bot — отдельный подпроект внутри Mee
 API Search MVP — PASSED
 CLI Chat MVP — PASSED_WITH_NOTES
 API Chat MVP / POST /chat — PASSED_WITH_NOTES
-QH-1 Observability + Eval Baseline — реализован в коде, ожидает локальный baseline-прогон
+Local Web UI / GET / and GET /ui — READY_FOR_LOCAL_SMOKE
+Telegram adapter over local /chat — READY_FOR_LOCAL_SMOKE
+QH-1 Observability + Eval Baseline — реализован, baseline требует анализа
 ```
 
-Завершены этапы:
+Добавлено для завтрашней сдачи:
 
 ```text
-Extraction/Chunking v2.1
-Index/Search v2
-Search Quality v2.2
-ProjectGuard v2
-SearchService
-FastAPI GET /health
-FastAPI POST /search
-ChatService
-CLI chat
-FastAPI POST /chat
-ChatRunsLogger
-Eval baseline skeleton
+единый лимит query = 2000 символов
+локальная HTML-страница для /chat
+Telegram long-polling adapter без новых зависимостей
+завтрашний чек-лист запуска
+Telegram runbook
+unit tests для Telegram formatter
 ```
 
 ## 3. Текущий pipeline
 
 ```text
 User question
-  -> CLI / FastAPI
+  -> CLI / FastAPI / Web UI / Telegram adapter
   -> SearchService
       -> QueryIntent
       -> ProjectGuard v2
@@ -72,11 +69,15 @@ User question
 ```text
 /search возвращает evidence/context
 /chat возвращает осмысленный answer with citations
+/ui вызывает /chat
+Telegram adapter вызывает локальный /chat
 ```
 
 ## 4. Реализованные API endpoints
 
 ```text
+GET /
+GET /ui
 GET /health
 POST /search
 POST /chat
@@ -109,6 +110,24 @@ diagnostics
 
 ## 5. Runtime-компоненты
 
+### Общие ограничения
+
+```text
+src/asu_june_bot/core/limits.py
+MAX_QUERY_CHARS = 2000
+```
+
+Лимит применяется в:
+
+```text
+ChatRequest
+SearchRequest
+POST /chat
+POST /search
+Web UI
+Telegram adapter
+```
+
 ### Extraction / Chunking / Index
 
 ```text
@@ -120,7 +139,7 @@ scripts/asu_june_bot_build_index_v2.py
 scripts/asu_june_bot_health_v2.py
 ```
 
-### Search / Guard / API
+### Search / Guard / API / UI
 
 ```text
 src/asu_june_bot/search/
@@ -128,17 +147,20 @@ src/asu_june_bot/retrieval/
 src/asu_june_bot/guardrails/
 src/asu_june_bot/health/
 src/asu_june_bot/api/
+src/asu_june_bot/api/routes_ui.py
 scripts/asu_june_bot_search_v2.py
 scripts/asu_june_bot_guard_v2_eval.py
 scripts/asu_june_bot_api.py
 ```
 
-### Chat / LLM
+### Chat / LLM / Telegram
 
 ```text
 src/asu_june_bot/chat/
 src/asu_june_bot/llm/
+src/asu_june_bot/telegram_bot.py
 scripts/asu_june_bot_chat.py
+scripts/asu_june_bot_telegram.py
 ```
 
 ### Observability / Eval
@@ -195,84 +217,95 @@ qwen3:8b -> timeout/обрыв на CPU runtime
 qwen2.5:7b-instruct
 ```
 
-## 7. Ограничение текущей версии
+## 7. QH-1 baseline
 
-`AnswerValidator` выполняет structural validation:
-
-```text
-пустой ответ
-наличие sources
-наличие ссылок [Sx]
-unknown citations
-external knowledge markers
-answer length
-citation density / coverage
-```
-
-Не выполняет semantic/factual validation:
+Первый baseline:
 
 ```text
-поддерживается ли каждое утверждение конкретным source text;
-не сделала ли модель спорный вывод из короткого UML/heading/caption chunk;
-нет ли semantic hallucination при формально корректных [Sx].
+total = 13
+passed = 6
+failed = 7
+pass_rate = 46.2%
 ```
 
-Это quality debt. QH-1 не исправляет его напрямую, а создаёт измеримый baseline.
+Не трактовать как провал `/chat`.
 
-## 8. QH-1 Observability + Eval Baseline
-
-Реализовано:
+Категории проблем:
 
 ```text
-ChatRunsLogger
-chat_runs.jsonl
-EvalCase/EvalRunner/EvalReport
-scripts/asu_june_bot_chat_eval.py
-eval/cases/base.jsonl
-eval/golden_answers/*.md
+ложные eval failures: source_titles, clarify must_include
+project guard gap: логирование как проектный вопрос
+real retrieval/context gaps: ФТТ 4.2.5, short UML/source traps, no-context/SLA
 ```
 
-Локально нужно проверить:
+Уже исправлено:
+
+```text
+source_titles ищет не только в title, но и path/section/preview
+clarify cases проверяют фактическую формулировку "Сформулируйте"
+ProjectGuard получил project markers для логирования/Grafana Loki/журналирования
+```
+
+Следующее действие по качеству — повторить baseline после локального pull и тестов.
+
+## 8. Завтрашний запуск
+
+Главный документ:
+
+```text
+docs/subprojects/asu-june-bot/TOMORROW_START.md
+```
+
+Порядок:
+
+```text
+git pull
+health
+tests
+API
+Web UI
+Telegram adapter
+manual smoke
+```
+
+Ключевые команды:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\observability\test_chat_runs.py -q
-.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\eval\test_checks.py -q
-.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\eval\test_runner.py -q
-.\.venv\Scripts\python.exe scripts\asu_june_bot_chat_eval.py --cases eval\cases\base.jsonl --label baseline --model qwen2.5:7b-instruct --top-k 5
+cd C:\Users\Сотрудник\Desktop\AI\MeetingAgent
+(Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned) ; (& .\.venv\Scripts\Activate.ps1)
+git checkout docs/asu-june-bot-subproject
+git pull --ff-only origin docs/asu-june-bot-subproject
+.\.venv\Scripts\python.exe scripts\asu_june_bot_api.py --host 127.0.0.1 --port 8000
 ```
 
-## 9. Исключения из основного корпуса
-
-В основном project-only corpus не должны попадать технические runtime/system exports:
+Открыть UI:
 
 ```text
-**/Система/**
-**/asu_docs_export/**
-**/asu_admin_export/**
-**/docs_html/**
-**/docs_text/**
-**/pages_html/**
-**/pages_text/**
-**/site_review_runs/**
-**/playwright/**
-**/exports/**
-**/screenshots/**
-**/*.har
+http://127.0.0.1:8000/
+http://127.0.0.1:8000/ui
 ```
 
-Если такие данные понадобятся, нужен отдельный `system_export_corpus`.
+Telegram:
 
-## 10. Активная документация
+```powershell
+$env:ASU_JUNE_BOT_TELEGRAM_TOKEN='PASTE_TOKEN_HERE'
+$env:ASU_JUNE_BOT_CHAT_API_URL='http://127.0.0.1:8000/chat'
+.\.venv\Scripts\python.exe scripts\asu_june_bot_telegram.py
+```
+
+## 9. Активная документация
 
 Главные документы:
 
 ```text
 README.md
+TOMORROW_START.md
 architecture.md
 mvp.md
 roadmap.md
 decisions.md
 RUNBOOK_V2.md
+telegram.md
 todo.md
 eval_questions.md
 ideas.md
@@ -282,28 +315,42 @@ smoke_report_*.md
 
 Устаревшие документы и case-conflict материалы не должны оставаться в активной зоне подпроекта.
 
-## 11. Следующие шаги
+## 10. Следующие шаги
 
-После локальной проверки QH-1:
+Перед QH-2 завтра нужно:
 
 ```text
-1. Проанализировать baseline report.
-2. Уточнить eval cases, если они слишком жёсткие или некорректные.
-3. Реализовать QH-2 Source Quality Filter.
-4. Сравнить eval baseline vs with_source_filter.
-5. Реализовать QH-3 Parent Expansion только при необходимости.
-6. Подготовить подпроект к выделению в отдельный репозиторий.
+1. Выполнить TOMORROW_START.md.
+2. Проверить UI и Telegram adapter вручную.
+3. Зафиксировать демонстрационный smoke.
+4. Повторить QH-1 baseline после последних eval/guard fixes.
+5. После демонстрации перейти к QH-2 Source Quality Filter.
 ```
 
-## 12. Не делать сейчас
+После повторного baseline:
 
 ```text
-не строить UI до baseline eval
-не внедрять source filter без baseline
-не внедрять parent expansion без анализа QH-2
+1. Проанализировать failures.
+2. Реализовать QH-2 Source Quality Filter.
+3. Сравнить eval baseline vs with_source_filter.
+4. Реализовать QH-3 Parent Expansion только при необходимости.
+5. Docker — только после QH-5 Release Stabilization.
+```
+
+## 11. Не делать сейчас
+
+```text
+не запускать --reset без причины
+не удалять data/asu_june_bot
+не пересчитывать embeddings, если индекс уже готов
+не менять модель embeddings bge-m3
+не коммитить Telegram token
+не пытаться заставить /search писать осмысленные ответы
+не внедрять source filter без повторного baseline
+не внедрять parent expansion без замера эффекта source quality filter
 не подключать DSPy в runtime
 не делать LLM-as-judge/NLI до накопления dataset
-не делать fine-tuning
+не делать Docker до QH-5
 не развивать scripts/09_chat.py как основной runtime
 не смешивать старый RAG v1 и новый bot v2.1
 ```
