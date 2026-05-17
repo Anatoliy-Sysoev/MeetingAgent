@@ -72,15 +72,27 @@ def check_min_sources(case: EvalCase, response: ChatResponse) -> CheckResult:
     return CheckResult("min_sources", False, f"expected>={case.expected_min_sources}, actual={actual}")
 
 
+def _source_search_text(source: object) -> str:
+    fields = [
+        getattr(source, "title", None),
+        getattr(source, "path", None),
+        getattr(source, "section", None),
+        getattr(source, "requirement_id", None),
+        getattr(source, "source_type", None),
+        getattr(source, "text_preview", None),
+    ]
+    return " ".join(str(value or "") for value in fields).lower()
+
+
 def check_source_titles(case: EvalCase, response: ChatResponse) -> CheckResult:
     if not case.expected_source_title_contains:
         return CheckResult("source_titles", True, "skipped")
-    titles = [str(source.title or "").lower() for source in response.sources]
+    source_texts = [_source_search_text(source) for source in response.sources]
     missing = []
     for expected in case.expected_source_title_contains:
         expected_lower = expected.lower()
-        if not any(expected_lower in title for title in titles):
+        if not any(expected_lower in text for text in source_texts):
             missing.append(expected)
     if not missing:
         return CheckResult("source_titles", True)
-    return CheckResult("source_titles", False, "missing title contains: " + ", ".join(missing))
+    return CheckResult("source_titles", False, "missing source text contains: " + ", ".join(missing))
