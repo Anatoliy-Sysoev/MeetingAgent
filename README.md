@@ -8,6 +8,8 @@ MeetingAgent — локальный продукт для превращения
 
 - Строит RAG-индекс по проектной документации.
 - Поддерживает отдельный project-only бот по документации с API `/search` и `/chat`.
+- Даёт локальный Web UI для запросов к `/chat`.
+- Даёт Telegram adapter поверх локального `/chat`.
 - Следит за появлением новых записей встреч.
 - Транскрибирует аудио и видео через Whisper-совместимые модели.
 - Формирует memo, протокол, решения, риски и задачи.
@@ -35,6 +37,7 @@ asu_june_bot
 отказывать на внепроектные и смешанные запросы
 логировать chat-запуски
 измерять качество через baseline eval
+давать локальный UI и Telegram-вход
 ```
 
 Документация подпроекта:
@@ -46,6 +49,7 @@ docs/subprojects/asu-june-bot/README.md
 Ключевые документы подпроекта:
 
 ```text
+docs/subprojects/asu-june-bot/TOMORROW_START.md
 docs/subprojects/asu-june-bot/context.md
 docs/subprojects/asu-june-bot/decisions.md
 docs/subprojects/asu-june-bot/architecture.md
@@ -53,6 +57,7 @@ docs/subprojects/asu-june-bot/mvp.md
 docs/subprojects/asu-june-bot/roadmap.md
 docs/subprojects/asu-june-bot/todo.md
 docs/subprojects/asu-june-bot/RUNBOOK_V2.md
+docs/subprojects/asu-june-bot/telegram.md
 docs/subprojects/asu-june-bot/eval_questions.md
 docs/subprojects/asu-june-bot/product/README.md
 ```
@@ -62,7 +67,9 @@ docs/subprojects/asu-june-bot/product/README.md
 ```text
 API Search MVP: готов
 API Chat MVP: готов с ограничениями
-QH-1 Observability + Eval Baseline: реализован, ожидает локальный baseline-прогон
+Local Web UI: готов для отладки
+Telegram adapter: готов для отладки
+QH-1 Observability + Eval Baseline: реализован, baseline требует анализа
 ```
 
 ## Текущий локальный режим работы
@@ -86,7 +93,7 @@ scripts/06_transcribe_meeting.py
 scripts/07_generate_meeting_artifacts.py
 ```
 
-`script/09_chat.py` считается legacy/prototype для project-only чата. Целевой bot runtime дальше развивается не там.
+`scripts/09_chat.py` считается legacy/prototype для project-only чата. Целевой bot runtime дальше развивается не там.
 
 ### 2. Project Knowledge Bot v2.1/v2.2
 
@@ -104,6 +111,7 @@ scripts/asu_june_bot_guard_v2_eval.py
 scripts/asu_june_bot_api.py
 scripts/asu_june_bot_chat.py
 scripts/asu_june_bot_chat_eval.py
+scripts/asu_june_bot_telegram.py
 src/asu_june_bot/
 eval/cases/base.jsonl
 ```
@@ -111,6 +119,8 @@ eval/cases/base.jsonl
 Реализованные endpoints:
 
 ```text
+GET /
+GET /ui
 GET /health
 POST /search
 POST /chat
@@ -121,11 +131,19 @@ POST /chat
 ```text
 /search = evidence/context endpoint
 /chat = answer with citations endpoint
+/ui = локальная HTML-страница поверх /chat
+Telegram adapter = внешний вход поверх локального /chat
 ```
 
 `/search` не должен генерировать осмысленный ответ. Он возвращает sources/context/diagnostics. Осмысленный ответ формирует `/chat` через `ChatService`.
 
 ## Project Knowledge Bot: быстрые команды
+
+### Завтрашнее восстановление
+
+```text
+docs/subprojects/asu-june-bot/TOMORROW_START.md
+```
 
 ### Health
 
@@ -133,10 +151,17 @@ POST /chat
 .\.venv\Scripts\python.exe scripts\asu_june_bot_health_v2.py
 ```
 
-### API
+### API + UI
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_api.py --host 127.0.0.1 --port 8000
+```
+
+Открыть:
+
+```text
+http://127.0.0.1:8000/
+http://127.0.0.1:8000/ui
 ```
 
 ### Chat CLI
@@ -145,11 +170,35 @@ POST /chat
 .\.venv\Scripts\python.exe scripts\asu_june_bot_chat.py "Как происходит авторизация пользователей?" --mode hybrid --top-k 5 --model qwen2.5:7b-instruct --max-tokens 500 --timeout-sec 300 --json --output data\asu_june_bot\smoke_chat_ad.json
 ```
 
+### Telegram adapter
+
+```powershell
+$env:ASU_JUNE_BOT_TELEGRAM_TOKEN='PASTE_TOKEN_HERE'
+$env:ASU_JUNE_BOT_CHAT_API_URL='http://127.0.0.1:8000/chat'
+.\.venv\Scripts\python.exe scripts\asu_june_bot_telegram.py
+```
+
+Подробно:
+
+```text
+docs/subprojects/asu-june-bot/telegram.md
+```
+
 ### Eval baseline
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_chat_eval.py --cases eval\cases\base.jsonl --label baseline --model qwen2.5:7b-instruct --top-k 5
 ```
+
+## Ограничения ввода
+
+Для `/search`, `/chat`, Web UI и Telegram adapter установлен единый лимит:
+
+```text
+MAX_QUERY_CHARS = 2000
+```
+
+Слишком длинные запросы отсекаются до запуска retrieval/LLM.
 
 ## Runtime-данные
 
@@ -197,6 +246,7 @@ docs/todo.md
 
 ```text
 docs/subprojects/asu-june-bot/README.md
+docs/subprojects/asu-june-bot/TOMORROW_START.md
 docs/subprojects/asu-june-bot/context.md
 docs/subprojects/asu-june-bot/decisions.md
 docs/subprojects/asu-june-bot/todo.md
@@ -252,13 +302,14 @@ MeetingAgent/
 
 ## Ближайшие вехи
 
-1. Локально прогнать QH-1 regression и baseline eval для Project Knowledge Bot.
-2. Проанализировать failures и уточнить eval cases.
-3. Реализовать QH-2 Source Quality Filter.
-4. Сравнить baseline vs with_source_filter.
-5. Реализовать QH-3 Parent Expansion только при необходимости.
-6. Подготовить Project Knowledge Bot к выделению в отдельный репозиторий.
-7. После стабилизации quality baseline — рассмотреть UI / OpenWebUI adapter.
+1. Завтра выполнить `docs/subprojects/asu-june-bot/TOMORROW_START.md`.
+2. Проверить API, UI и Telegram adapter.
+3. Зафиксировать результаты демонстрационного smoke.
+4. Проанализировать QH-1 baseline failures.
+5. Реализовать QH-2 Source Quality Filter.
+6. Сравнить baseline vs with_source_filter.
+7. Реализовать QH-3 Parent Expansion только при необходимости.
+8. Docker — только после QH-5 Release Stabilization.
 
 ## Навигация по документации
 
@@ -284,6 +335,18 @@ docs/product/PROJECT_ONLY_CHATBOT_MVP.md
 
 ```text
 docs/subprojects/asu-june-bot/README.md
+```
+
+Завтрашний чек-лист запуска:
+
+```text
+docs/subprojects/asu-june-bot/TOMORROW_START.md
+```
+
+Telegram adapter:
+
+```text
+docs/subprojects/asu-june-bot/telegram.md
 ```
 
 Product package Project Knowledge Bot:
