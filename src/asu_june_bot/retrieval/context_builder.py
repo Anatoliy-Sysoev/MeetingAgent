@@ -4,7 +4,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .models import SearchResult
+from .parent_expansion import ParentExpander
 from .query_intent import QueryIntent, QueryIntentResult
+from .source_quality import is_primary_eligible, is_weak_source, source_quality, with_source_quality
 
 
 @dataclass(slots=True)
@@ -72,22 +74,53 @@ def has_exact_mentioned_section(result: SearchResult, intent: QueryIntentResult)
     return bool(result_sections(result) & mentioned)
 
 
+def _quality_summary(results: list[SearchResult]) -> dict[str, Any]:
+    weak = [result for result in results if is_weak_source(result)]
+    reasons: dict[str, int] = {}
+    for result in weak:
+        for reason in source_quality(result).get("reasons") or []:
+            reasons[str(reason)] = reasons.get(str(reason), 0) + 1
+    return {
+        "assessed_count": len(results),
+        "weak_count": len(weak),
+        "weak_reasons": reasons,
+    }
+
+
 class ContextBuilder:
-    def __init__(self, primary_limit: int = 5, supporting_limit: int = 5):
+    def __init__(
+        self,
+        primary_limit: int = 5,
+        supporting_limit: int = 5,
+        enable_source_quality_filter: bool = True,
+        enable_parent_expansion: bool = True,
+        parent_expander: ParentExpander | None = None,
+    ):
         self.primary_limit = primary_limit
         self.supporting_limit = supporting_limit
+        self.enable_source_quality_filter = enable_source_quality_filter
+        self.enable_parent_expansion = enable_parent_expansion
+        self.parent_expander = parent_expander or ParentExpander()
 
     def build(self, query: str, intent: QueryIntentResult, results: list[SearchResult], excluded: list[SearchResult] | None = None) -> BuiltContext:
+        assessed_results = [with_source_quality(result, intent) for result in results] if self.enable_source_quality_filter else list(results)
+        assessed_excluded = [with_source_quality(result, intent) for result in (excluded or [])] if self.enable_source_quality_filter else list(excluded or [])
+
         primary: list[SearchResult] = []
         supporting: list[SearchResult] = []
         excluded_sources: list[SearchResult] = []
         used_keys: set[str] = set()
+        source_quality_excluded_primary = 0
 
-        for result in results:
+        for result in assessed_results:
             key = result_key(result)
             if key in used_keys:
                 continue
             bucket = self._bucket(query, intent, result)
+            if bucket == "primary" and self.enable_source_quality_filter and not is_primary_eligible(result):
+                bucket = "supporting" if len(supporting) < self.supporting_limit else "excluded"
+                source_quality_excluded_primary += 1
+
             if bucket == "primary" and len(primary) < self.primary_limit:
                 primary.append(result)
                 used_keys.add(key)
@@ -98,15 +131,34 @@ class ContextBuilder:
                 excluded_sources.append(result)
                 used_keys.add(key)
 
-        if not primary and results:
-            for result in results:
+        if not primary and assessed_results:
+            for result in assessed_results:
                 key = result_key(result)
-                if key not in used_keys and not has_noise_label(result):
+                if key not in used_keys and not has_noise_label(result) and (not self.enable_source_quality_filter or is_primary_eligible(result)):
                     primary.append(result)
                     used_keys.add(key)
                     break
 
-        for result in excluded or []:
+        # Fallback: if all candidates are weak, keep the best non-noise result as primary but keep the warning in diagnostics.
+        primary_fallback_weak = False
+        if not primary and assessed_results:
+            for result in assessed_results:
+                key = result_key(result)
+                if key not in used_keys and not has_noise_label(result):
+                    primary.append(result)
+                    used_keys.add(key)
+                    primary_fallback_weak = is_weak_source(result)
+                    break
+
+        if self.enable_parent_expansion:
+            candidate_pool = assessed_results + assessed_excluded
+            primary, primary_parent_diag = self.parent_expander.expand(primary, candidate_pool)
+            supporting, supporting_parent_diag = self.parent_expander.expand(supporting, candidate_pool)
+        else:
+            primary_parent_diag = {"parent_expansion": "disabled"}
+            supporting_parent_diag = {"parent_expansion": "disabled"}
+
+        for result in assessed_excluded:
             key = result_key(result)
             if key not in used_keys:
                 excluded_sources.append(result)
@@ -122,6 +174,18 @@ class ContextBuilder:
                 "primary_count": len(primary),
                 "supporting_count": len(supporting),
                 "excluded_count": len(excluded_sources),
+                "source_quality_filter": {
+                    "enabled": self.enable_source_quality_filter,
+                    "source_quality_excluded_primary": source_quality_excluded_primary,
+                    "primary_fallback_weak": primary_fallback_weak,
+                    "results": _quality_summary(assessed_results),
+                    "excluded": _quality_summary(assessed_excluded),
+                },
+                "parent_expansion": {
+                    "enabled": self.enable_parent_expansion,
+                    "primary": primary_parent_diag,
+                    "supporting": supporting_parent_diag,
+                },
             },
         )
 
