@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
+from asu_june_bot.core.limits import MAX_QUERY_CHARS, validate_query_length
+
 
 class SearchMode(StrEnum):
     HYBRID = "hybrid"
@@ -60,11 +62,13 @@ class SearchRequest:
     include_source_types: list[str] | None = None
     no_guard: bool = False
     include_diagnostics: bool = True
+    max_query_chars: int = MAX_QUERY_CHARS
 
     def __post_init__(self) -> None:
         self.query = " ".join((self.query or "").split())
         if not self.query:
             raise ValueError("SearchRequest.query must not be empty")
+        validate_query_length(self.query, max_chars=self.max_query_chars)
         if self.mode not in {item.value for item in SearchMode}:
             raise ValueError(f"Unsupported search mode: {self.mode}")
         if self.top_k < 1:
