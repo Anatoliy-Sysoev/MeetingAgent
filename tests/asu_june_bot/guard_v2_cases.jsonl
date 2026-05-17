@@ -3,6 +3,7 @@
 {"id":"project_passport","query":"Что входит в Паспорт ИС?","expected_status":"ok","expected_scope":"in_project"}
 {"id":"project_ftt_425","query":"ФТТ 4.2.5 НОВАДОК ЭЦП","expected_status":"ok","expected_scope":"in_project"}
 {"id":"project_security_passport","query":"Какие механизмы защиты информации описаны в Паспорте ИС?","expected_status":"ok","expected_scope":"in_project"}
+{"id":"project_logging","query":"Как реализовано логирование в системе?","expected_status":"ok","expected_scope":"in_project"}
 {"id":"project_ad_blocking","query":"Есть ли в документации описание блокировки пользователя после отзыва групп AD?","expected_status":"ok","expected_scope":"in_project"}
 {"id":"project_compare_ad_docs","query":"Сравни, что про AD написано в ЦТА, СоИ AD и Паспорте ИС.","expected_status":"ok","expected_scope":"in_project"}
 {"id":"project_mdr_api","query":"Покажи API интеграции MDR в проектной документации","expected_status":"ok","expected_scope":"in_project"}
