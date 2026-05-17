@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
+from asu_june_bot.core.limits import MAX_QUERY_CHARS, validate_query_length
+
 
 class ChatStatus(StrEnum):
     ANSWERED = "answered"
@@ -26,11 +28,13 @@ class ChatRequest:
     max_tokens: int = 900
     timeout_sec: int = 300
     include_diagnostics: bool = True
+    max_query_chars: int = MAX_QUERY_CHARS
 
     def __post_init__(self) -> None:
         self.query = " ".join((self.query or "").split())
         if not self.query:
             raise ValueError("ChatRequest.query must not be empty")
+        validate_query_length(self.query, max_chars=self.max_query_chars)
         if self.top_k < 1:
             raise ValueError("ChatRequest.top_k must be >= 1")
 
