@@ -87,6 +87,10 @@ def _quality_summary(results: list[SearchResult]) -> dict[str, Any]:
     }
 
 
+def _remove_result_by_key(results: list[SearchResult], key: str) -> list[SearchResult]:
+    return [result for result in results if result_key(result) != key]
+
+
 class ContextBuilder:
     def __init__(
         self,
@@ -131,24 +135,32 @@ class ContextBuilder:
                 excluded_sources.append(result)
                 used_keys.add(key)
 
-        if not primary and assessed_results:
-            for result in assessed_results:
-                key = result_key(result)
-                if key not in used_keys and not has_noise_label(result) and (not self.enable_source_quality_filter or is_primary_eligible(result)):
-                    primary.append(result)
-                    used_keys.add(key)
-                    break
-
-        # Fallback: if all candidates are weak, keep the best non-noise result as primary but keep the warning in diagnostics.
         primary_fallback_weak = False
+        primary_fallback_promoted = False
+
+        # Fallback: promote the best already bucketed candidate to primary.
+        # The first pass intentionally marks every candidate as used, so fallback must not search for unused keys.
         if not primary and assessed_results:
-            for result in assessed_results:
-                key = result_key(result)
-                if key not in used_keys and not has_noise_label(result):
-                    primary.append(result)
-                    used_keys.add(key)
-                    primary_fallback_weak = is_weak_source(result)
-                    break
+            promoted = self._find_primary_fallback(assessed_results, require_primary_eligible=True)
+            if promoted is not None:
+                key = result_key(promoted)
+                primary.append(promoted)
+                supporting = _remove_result_by_key(supporting, key)
+                excluded_sources = _remove_result_by_key(excluded_sources, key)
+                primary_fallback_promoted = True
+                primary_fallback_weak = is_weak_source(promoted)
+
+        # Last resort: if all candidates are weak/non-eligible, keep the best non-noise result as primary
+        # but keep the warning in diagnostics. This prevents no_sources for answerable but sparse project facts.
+        if not primary and assessed_results:
+            promoted = self._find_primary_fallback(assessed_results, require_primary_eligible=False)
+            if promoted is not None:
+                key = result_key(promoted)
+                primary.append(promoted)
+                supporting = _remove_result_by_key(supporting, key)
+                excluded_sources = _remove_result_by_key(excluded_sources, key)
+                primary_fallback_promoted = True
+                primary_fallback_weak = is_weak_source(promoted)
 
         if self.enable_parent_expansion:
             candidate_pool = assessed_results + assessed_excluded
@@ -177,6 +189,7 @@ class ContextBuilder:
                 "source_quality_filter": {
                     "enabled": self.enable_source_quality_filter,
                     "source_quality_excluded_primary": source_quality_excluded_primary,
+                    "primary_fallback_promoted": primary_fallback_promoted,
                     "primary_fallback_weak": primary_fallback_weak,
                     "results": _quality_summary(assessed_results),
                     "excluded": _quality_summary(assessed_excluded),
@@ -188,6 +201,15 @@ class ContextBuilder:
                 },
             },
         )
+
+    def _find_primary_fallback(self, results: list[SearchResult], require_primary_eligible: bool) -> SearchResult | None:
+        for result in results:
+            if has_noise_label(result):
+                continue
+            if require_primary_eligible and self.enable_source_quality_filter and not is_primary_eligible(result):
+                continue
+            return result
+        return None
 
     def _bucket(self, query: str, intent: QueryIntentResult, result: SearchResult) -> str:
         dt = doc_type(result)
