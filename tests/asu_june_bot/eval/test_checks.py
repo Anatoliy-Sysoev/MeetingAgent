@@ -68,3 +68,33 @@ def test_eval_checks_find_failures() -> None:
     assert "citations" in failed
     assert "min_sources" in failed
     assert "source_titles" in failed
+
+
+def test_eval_source_title_check_uses_path_and_preview() -> None:
+    case = EvalCase(
+        case_id="PROJECT-PASSPORT-001",
+        query="Что входит в Паспорт ИС?",
+        expected_status="answered",
+        expected_llm_called=True,
+        expected_citation_required=True,
+        expected_min_sources=1,
+        expected_source_title_contains=["Паспорт"],
+    )
+    response = ChatResponse(
+        status="answered",
+        query=case.query,
+        answer="Паспорт ИС включает архитектурные и эксплуатационные сведения. [S1]",
+        sources=[
+            ChatSource(
+                source_ref="S1",
+                title="Границы описания",
+                path="ПД НТК/Этап 1.2/8. Паспорт информационной системы/ЦП УПКС_Паспорт ИС_v1.3.2.docx",
+            )
+        ],
+        diagnostics={"llm_called": True},
+    )
+
+    checks = run_checks(case, response)
+    failed = {check.name for check in checks if not check.passed}
+
+    assert "source_titles" not in failed
