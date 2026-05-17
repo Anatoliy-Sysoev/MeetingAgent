@@ -13,6 +13,7 @@ if str(SRC) not in sys.path:
 
 from asu_june_bot.api.app import create_app  # noqa: E402
 from asu_june_bot.chat.models import ChatResponse, ChatSource  # noqa: E402
+from asu_june_bot.core.limits import MAX_QUERY_CHARS  # noqa: E402
 
 
 class FakeHealthService:
@@ -84,6 +85,19 @@ def build_client():
         chat_service=fake_chat,
     )
     return client, fake_chat
+
+
+def test_ui_endpoint_returns_local_chat_page() -> None:
+    client, _fake_chat = build_client()
+    try:
+        response = client.get("/ui")
+    finally:
+        client.__exit__(None, None, None)
+
+    assert response.status_code == 200
+    assert "Project Knowledge Bot" in response.text
+    assert "/chat" in response.text
+    assert str(MAX_QUERY_CHARS) in response.text
 
 
 def test_chat_endpoint_project_query() -> None:
@@ -165,6 +179,19 @@ def test_chat_endpoint_validation_error_on_unknown_field() -> None:
     client, _fake_chat = build_client()
     try:
         response = client.post("/chat", json={"query": "test", "unknown": "field"})
+    finally:
+        client.__exit__(None, None, None)
+
+    assert response.status_code == 422
+    data = response.json()
+    assert data["status"] == "error"
+    assert data["error_code"] == "validation_error"
+
+
+def test_chat_endpoint_rejects_too_long_query() -> None:
+    client, _fake_chat = build_client()
+    try:
+        response = client.post("/chat", json={"query": "x" * (MAX_QUERY_CHARS + 1)})
     finally:
         client.__exit__(None, None, None)
 
