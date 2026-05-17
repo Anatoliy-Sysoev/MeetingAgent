@@ -14,6 +14,8 @@ architecture.md
 roadmap.md
 decisions.md
 RUNBOOK_V2.md
+TOMORROW_START.md
+QH_STATUS.md
 todo.md
 smoke_report_*.md
 ```
@@ -27,10 +29,14 @@ smoke_report_*.md
 - не запускает retrieval/LLM для внепроектных, смешанных и неоднозначных запросов;
 - ищет релевантные источники в локальном индексе;
 - формирует управляемый context из primary/supporting sources;
+- снижает риск слабых primary sources через QH-2;
+- расширяет слабые источники ограниченным parent/neighbor context через QH-3;
 - генерирует ответ только по найденным источникам;
 - возвращает citations;
+- добавляет warning-only semantic diagnostics через QH-4;
 - логирует chat-запуски;
-- позволяет измерять качество через eval baseline.
+- позволяет измерять качество через eval baseline;
+- предоставляет локальный Web UI и Telegram adapter для демонстрации и пользовательского доступа.
 
 ## 3. Scope MVP
 
@@ -43,6 +49,8 @@ FastAPI API
 GET /health
 POST /search
 POST /chat
+GET / и GET /ui
+Telegram adapter поверх локального /chat
 extraction/chunking/index/search pipeline
 ProjectGuard v2
 SearchService
@@ -50,29 +58,33 @@ ChatService
 hybrid retrieval: BM25 + vector
 PostReranker
 ContextBuilder
+QH-2 Source Quality Filter
+QH-3 Parent Expansion
 PromptBuilder
 LLMClient через Ollama OpenAI-compatible API
 AnswerValidator structural checks
+QH-4 Semantic Warnings / Manual Labels
 ChatRunsLogger
 Eval baseline runner
+QH-5 release gate
 JSON/Markdown eval reports
 ```
 
 ### 3.2 Не входит
 
 ```text
-полноценный web UI
 многопользовательский режим
 RBAC по источникам
 автоматическая синхронизация прав доступа
-внешние коннекторы
+внешние enterprise-коннекторы
 fine-tuning
-LLM-as-judge
+LLM-as-judge runtime
 NLI groundedness model
 DSPy runtime
 LangGraph agent runtime
 Dify/RAGFlow runtime
 production deployment
+Docker до фактического QH-5 passed
 ```
 
 ## 4. Функционально-технические требования MVP
@@ -94,14 +106,6 @@ refused/clarify -> LLM не вызывается
 
 ```text
 Реализовано
-```
-
-Доказательство:
-
-```text
-ProjectGuard v2 regression
-API /search smoke
-API /chat smoke
 ```
 
 ### AJB-FTT-02. Pre-retrieval guard
@@ -137,15 +141,6 @@ PDF
 PPTX
 HTML
 TXT/MD/JSON/YAML
-```
-
-Критерии приёмки:
-
-```text
-DOCX читается с учетом paragraph/table blocks
-XLSX читается через openpyxl
-табличные строки попадают в blocks/chunks
-временные и технические выгрузки исключаются
 ```
 
 Статус:
@@ -196,14 +191,6 @@ manifest count совпадает с metadata count
 
 Система должна поддерживать смысловой и точный поиск.
 
-Критерии приёмки:
-
-```text
-BM25 работает по точным идентификаторам
-vector search работает по смысловым вопросам
-hybrid mode объединяет результаты
-```
-
 Статус:
 
 ```text
@@ -245,15 +232,6 @@ Endpoint:
 POST /search
 ```
 
-Критерии приёмки:
-
-```text
-project query -> status ok
-out-of-project query -> status refused
-mixed query -> status refused
-ambiguous query -> status clarify
-```
-
 Статус:
 
 ```text
@@ -290,15 +268,6 @@ Endpoint:
 POST /chat
 ```
 
-Критерии приёмки:
-
-```text
-project query -> answered
-out-of-project query -> refused
-sources возвращаются в response
-request_id возвращается в diagnostics/header
-```
-
 Статус:
 
 ```text
@@ -330,7 +299,7 @@ external knowledge markers
 Ограничение:
 
 ```text
-semantic/factual validation не реализована
+semantic/factual validation не является hard-fail
 ```
 
 ### AJB-FTT-12. Observability
@@ -350,6 +319,8 @@ data/asu_june_bot/chat_runs.jsonl
 logger не ломает /chat при ошибке записи
 есть latency_ms
 есть sources/diagnostics/model/status
+есть semantic_warnings
+есть manual_label/manual_issue placeholders
 ```
 
 Статус:
@@ -370,19 +341,201 @@ eval/golden_answers/*.md
 scripts/asu_june_bot_chat_eval.py
 ```
 
+Статус:
+
+```text
+Реализовано
+```
+
+### AJB-FTT-14. Local Web UI
+
+Система должна предоставлять минимальный локальный интерфейс для `/chat`.
+
+Endpoint:
+
+```text
+GET /
+GET /ui
+```
+
 Критерии приёмки:
 
 ```text
-eval runner читает JSONL cases
-eval runner запускает ChatService
-eval runner формирует JSON/Markdown reports
-checks deterministic, без LLM-as-judge
+страница открывается в браузере
+пользователь вводит query
+query отправляется в POST /chat
+ответ и sources отображаются на странице
+работает счетчик MAX_QUERY_CHARS
 ```
 
 Статус:
 
 ```text
-Реализовано, ожидает локальный baseline-прогон
+Реализовано, ожидает локальный smoke
+```
+
+### AJB-FTT-15. Telegram adapter
+
+Система должна позволять задавать вопросы через Telegram.
+
+Файлы:
+
+```text
+src/asu_june_bot/telegram_bot.py
+scripts/asu_june_bot_telegram.py
+docs/subprojects/asu-june-bot/telegram.md
+```
+
+Критерии приёмки:
+
+```text
+adapter принимает текстовое сообщение
+вызывает локальный POST /chat
+возвращает answer + sources
+поддерживает /start /help /health
+поддерживает allowed chat ids
+не хранит token в Git
+```
+
+Статус:
+
+```text
+Реализовано, ожидает локальный smoke
+```
+
+### AJB-FTT-16. Input limits
+
+Система должна ограничивать длину пользовательского запроса.
+
+Критерий:
+
+```text
+MAX_QUERY_CHARS = 2000
+```
+
+Применяется:
+
+```text
+SearchRequest
+ChatRequest
+POST /search
+POST /chat
+Web UI
+Telegram adapter
+```
+
+Статус:
+
+```text
+Реализовано
+```
+
+### AJB-FTT-17. QH-2 Source Quality Filter
+
+Система должна снижать риск использования слабых sources как primary evidence.
+
+Реализация:
+
+```text
+src/asu_june_bot/retrieval/source_quality.py
+src/asu_june_bot/retrieval/context_builder.py
+```
+
+Критерии:
+
+```text
+короткие UML/diagram/heading fragments помечаются как weak
+weak source получает reasons
+weak hard fragment демотируется из primary
+diagnostics содержит source_quality_filter
+raw retrieval не меняется
+индекс не пересобирается
+```
+
+Статус:
+
+```text
+Реализовано в коде, ожидает локальный прогон
+```
+
+### AJB-FTT-18. QH-3 Parent Expansion
+
+Система должна ограниченно расширять weak source соседним/родительским контекстом.
+
+Реализация:
+
+```text
+src/asu_june_bot/retrieval/parent_expansion.py
+src/asu_june_bot/retrieval/context_builder.py
+```
+
+Критерии:
+
+```text
+expansion применяется только к weak source
+используются только уже найденные кандидаты
+есть max_parent_chars
+diagnostics содержит parent_expansion
+нет обращения к индексу во время expansion
+```
+
+Статус:
+
+```text
+Реализовано в коде, ожидает локальный прогон
+```
+
+### AJB-FTT-19. QH-4 Semantic Warnings / Manual Labels
+
+Система должна добавлять warning-only слой качества без hard-fail semantic validation.
+
+Реализация:
+
+```text
+src/asu_june_bot/chat/semantic_warnings.py
+src/asu_june_bot/chat/service.py
+src/asu_june_bot/observability/chat_runs.py
+```
+
+Критерии:
+
+```text
+warnings.semantic возвращается в /chat
+semantic_warnings пишется в diagnostics
+semantic_warnings логируется в chat_runs.jsonl
+manual_label/manual_issue placeholders есть в chat_runs
+warnings не блокируют answered
+```
+
+Статус:
+
+```text
+Реализовано в коде, ожидает локальный прогон
+```
+
+### AJB-FTT-20. QH-5 Release Gate
+
+Система должна иметь явный gate перед Docker/release stabilization.
+
+Реализация:
+
+```text
+src/asu_june_bot/qh/release_gate.py
+scripts/asu_june_bot_qh_gate.py
+```
+
+Критерии:
+
+```text
+до локальной проверки status = pending_local_validation
+после local-validation-done + baseline-compared status = passed
+Docker не начинается до фактического passed
+```
+
+Статус:
+
+```text
+Реализовано, QH-5 = PENDING_LOCAL_VALIDATION
 ```
 
 ## 5. Текущие метрики корпуса
@@ -418,163 +571,20 @@ top_k = 5
 
 ## 7. План-график MVP
 
-### Этап 1. Corpus v2.1
-
-Статус:
-
 ```text
-Закрыт
-```
-
-Результаты:
-
-```text
-extraction v2
-chunking v2
-source audit
-exclude rules
-```
-
-### Этап 2. Index/Search v2
-
-Статус:
-
-```text
-Закрыт
-```
-
-Результаты:
-
-```text
-embeddings cache
-numpy index
-BM25
-hybrid search
-health check
-```
-
-### Этап 3. Search Quality v2.2
-
-Статус:
-
-```text
-Закрыт
-```
-
-Результаты:
-
-```text
-QueryIntent
-PostReranker
-ContextBuilder
-primary/supporting/excluded sources
-```
-
-### Этап 4. ProjectGuard v2
-
-Статус:
-
-```text
-Закрыт
-```
-
-Результаты:
-
-```text
-pre-retrieval guard
-mixed-scope policy
-project + unknown tail policy
-regression suite
-```
-
-### Этап 5. SearchService + API Search MVP
-
-Статус:
-
-```text
-Закрыт
-```
-
-Результаты:
-
-```text
-SearchService
-GET /health
-POST /search
-API smoke reports
-```
-
-### Этап 6. Chat MVP
-
-Статус:
-
-```text
-Закрыт с ограничениями
-```
-
-Результаты:
-
-```text
-ChatService
-PromptBuilder
-LLMClient
-AnswerValidator
-ResponseFormatter
-CLI chat
-POST /chat
-API chat smoke
-```
-
-Ограничение:
-
-```text
-semantic/factual validation пока отсутствует
-```
-
-### Этап 7. QH-1 Observability + Eval Baseline
-
-Статус:
-
-```text
-Реализован в коде, ожидает локальную проверку
-```
-
-Результаты:
-
-```text
-ChatRunsLogger
-chat_runs.jsonl
-eval cases
-eval runner
-JSON/Markdown reports
-```
-
-### Этап 8. QH-2 Source Quality Filter
-
-Статус:
-
-```text
-Открыт
-```
-
-Условие старта:
-
-```text
-после baseline eval
-```
-
-### Этап 9. QH-3 Parent Expansion
-
-Статус:
-
-```text
-Открыт
-```
-
-Условие старта:
-
-```text
-если QH-2 не решит проблему коротких chunks
+Этап 1. Corpus v2.1                         Закрыт
+Этап 2. Index/Search v2                     Закрыт
+Этап 3. Search Quality v2.2                 Закрыт
+Этап 4. ProjectGuard v2                     Закрыт
+Этап 5. SearchService + API Search MVP      Закрыт
+Этап 6. Chat MVP                            Закрыт с ограничениями
+Этап 7. UI + Telegram adapter               Реализован, ожидает local smoke
+Этап 8. QH-1 Observability + Eval Baseline  Реализован
+Этап 9. QH-2 Source Quality Filter          Реализован в коде, ожидает local validation
+Этап 10. QH-3 Parent Expansion              Реализован в коде, ожидает local validation
+Этап 11. QH-4 Semantic Warnings             Реализован в коде, ожидает local validation
+Этап 12. QH-5 Release Gate                  PENDING_LOCAL_VALIDATION
+Этап 13. Docker                             После фактического QH-5 passed
 ```
 
 ## 8. Закрытые задачи
@@ -585,22 +595,28 @@ project-only guard реализован
 retrieval не вызывается при refused/clarify
 /search реализован
 /chat реализован
+UI реализован
+Telegram adapter реализован
+input limit реализован
 qwen2.5 выбрана как MVP model
 chat_runs logger добавлен
 baseline eval skeleton добавлен
+QH-2 source quality filter реализован
+QH-3 parent expansion реализован
+QH-4 semantic warnings/manual labels реализован
+QH-5 release gate реализован
 ```
 
 ## 9. Открытые задачи
 
 ```text
-локально прогнать QH-1 regression tests
-локально прогнать baseline eval
-проанализировать failures
-актуализировать eval cases по фактическим результатам
-реализовать QH-2 source quality filter
-реализовать QH-3 parent expansion при необходимости
-добавить no_answer/insufficient status позже
-подготовить выделение в отдельный репозиторий
+локально прогнать regression tests
+локально проверить API/UI/Telegram smoke
+локально прогнать after_qh eval
+сравнить baseline vs after_qh
+зафиксировать smoke_report_qh_release.md
+после успешного QH-5 перейти к Docker stage
+подготовить выделение в отдельный репозиторий после Docker
 ```
 
 ## 10. Definition of Done MVP
@@ -611,12 +627,16 @@ MVP считается технически закрытым, когда:
 health ok
 /search ok/refused/clarify работает
 /chat answered/refused/clarify работает
+UI открывается и вызывает /chat
+Telegram adapter отвечает через локальный /chat
 LLM не вызывается при refused/clarify
 ProjectGuard false_allow = 0
 ChatService tests passed
 API tests passed
+QH tests passed
 chat_runs.jsonl пишется
-baseline eval report формируется
+baseline/after_qh eval reports формируются
+QH gate фактически passed
 активная документация синхронизирована
 устаревшие документы вынесены в archive
 ```
