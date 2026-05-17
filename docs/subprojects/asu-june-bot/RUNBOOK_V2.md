@@ -7,7 +7,7 @@
 Инструкция запуска независимого pipeline Asu June Bot v2.1/v2.2:
 
 ```text
-apply_config_v2_1 -> extract_text_v2 -> chunks_v2 -> audit_sources_v2 -> build_index_v2 -> health_v2 -> search_v2 -> SearchService -> FastAPI /search -> ChatService -> CLI chat -> API /chat -> QH-1 eval baseline
+apply_config_v2_1 -> extract_text_v2 -> chunks_v2 -> audit_sources_v2 -> build_index_v2 -> health_v2 -> search_v2 -> SearchService -> FastAPI /search -> ChatService -> CLI chat -> API /chat -> Web UI -> Telegram adapter -> QH-1 eval baseline
 ```
 
 Pipeline v2 не использует старый `scripts/02_extract_text.py` и не меняет старые runtime-файлы MeetingAgent:
@@ -24,6 +24,20 @@ data/numpy_index/
 data/asu_june_bot/
 ```
 
+## Быстрый старт завтра
+
+Для восстановления после выключения рабочего ПК сначала выполнить отдельный чек-лист:
+
+```text
+docs/subprojects/asu-june-bot/TOMORROW_START.md
+```
+
+Он содержит минимальную последовательность:
+
+```text
+git pull -> health -> tests -> API -> Web UI -> Telegram adapter
+```
+
 ## Текущий статус
 
 Готово:
@@ -37,6 +51,8 @@ SearchService
 API Search MVP
 CLI Chat MVP
 API Chat MVP / POST /chat
+Local Web UI: GET / and GET /ui
+Telegram adapter over local /chat
 QH-1 Observability + Eval Baseline skeleton
 ```
 
@@ -62,6 +78,27 @@ qwen2.5:7b-instruct
 qwen3:4b
 qwen3:8b
 ```
+
+## Ограничения ввода
+
+Единый лимит запроса:
+
+```text
+MAX_QUERY_CHARS = 2000
+```
+
+Лимит применяется в:
+
+```text
+ChatRequest
+SearchRequest
+POST /chat
+POST /search
+Web UI
+Telegram adapter
+```
+
+Слишком длинный запрос должен возвращать validation error до запуска retrieval/LLM.
 
 ## 1. Обновить ветку
 
@@ -148,14 +185,6 @@ Eval runner:
 .\.venv\Scripts\python.exe scripts\asu_june_bot_guard_v2_eval.py --print-failed --fail-on-error
 ```
 
-Ожидаемый результат:
-
-```text
-base tests passed
-45 regression cases passed
-false_allow = 0
-```
-
 Критический критерий:
 
 ```text
@@ -188,7 +217,7 @@ false_allow = 0
 7 passed
 ```
 
-## 7. API tests
+## 7. API/UI tests
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_health.py -q
@@ -196,12 +225,12 @@ false_allow = 0
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_chat_smoke.py -q
 ```
 
-Ожидаемо:
+Ожидаемо после UI/limit изменений:
 
 ```text
 test_health.py: 1 passed
-test_search_smoke.py: 3 passed
-test_chat_smoke.py: 5 passed
+test_search_smoke.py: 4 passed
+test_chat_smoke.py: 7 passed
 ```
 
 Если FastAPI/uvicorn не установлены:
@@ -218,15 +247,15 @@ test_chat_smoke.py: 5 passed
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\eval\test_runner.py -q
 ```
 
-Ожидаемо:
+Ожидаемо после последних eval fixes:
 
 ```text
 observability: 2 passed
-eval checks: 2 passed
+eval checks: 3 passed
 eval runner: 1 passed
 ```
 
-## 9. Запуск API
+## 9. Запуск API и Web UI
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_api.py --host 127.0.0.1 --port 8000
@@ -237,6 +266,13 @@ eval runner: 1 passed
 ```text
 Application startup complete
 Uvicorn running on http://127.0.0.1:8000
+```
+
+Открыть в браузере:
+
+```text
+http://127.0.0.1:8000/
+http://127.0.0.1:8000/ui
 ```
 
 ## 10. API smoke: /health
@@ -315,7 +351,39 @@ sources = []
 diagnostics.llm_called = false
 ```
 
-## 14. CLI search smoke
+## 14. Telegram adapter
+
+Подробная инструкция:
+
+```text
+docs/subprojects/asu-june-bot/telegram.md
+```
+
+Минимальный запуск:
+
+```powershell
+$env:ASU_JUNE_BOT_TELEGRAM_TOKEN='PASTE_TOKEN_HERE'
+$env:ASU_JUNE_BOT_CHAT_API_URL='http://127.0.0.1:8000/chat'
+.\.venv\Scripts\python.exe scripts\asu_june_bot_telegram.py
+```
+
+Рекомендуется ограничить chat id:
+
+```powershell
+$env:ASU_JUNE_BOT_ALLOWED_CHAT_IDS='123456789'
+```
+
+Команды в Telegram:
+
+```text
+/start
+/help
+/health
+```
+
+Обычное текстовое сообщение считается вопросом к `/chat`.
+
+## 15. CLI search smoke
 
 Использовать `--output`, а не PowerShell `>` — иначе возможна порча UTF-8 в Windows PowerShell.
 
@@ -327,7 +395,7 @@ diagnostics.llm_called = false
 .\.venv\Scripts\python.exe scripts\asu_june_bot_search_v2.py "Какие интеграции заявлены в проекте?" --mode hybrid --top-k 8 --json --output "data\asu_june_bot\smoke_integrations_context.json"
 ```
 
-## 15. CLI Chat MVP smoke + chat_runs.jsonl
+## 16. CLI Chat MVP smoke + chat_runs.jsonl
 
 Project question:
 
@@ -357,7 +425,7 @@ latency_ms != null
 .\.venv\Scripts\python.exe scripts\asu_june_bot_chat.py "СоИ AD как происходит авторизация пользователей?" --no-log
 ```
 
-## 16. QH-1 eval baseline
+## 17. QH-1 eval baseline
 
 Запустить baseline без изменения retrieval/context:
 
@@ -390,7 +458,7 @@ baseline может быть ниже 100%.
 .\.venv\Scripts\python.exe scripts\asu_june_bot_chat_eval.py --cases eval\cases\base.jsonl --label baseline --model qwen2.5:7b-instruct --top-k 5 --no-log
 ```
 
-## 17. Почему /search не даёт осмысленный ответ
+## 18. Почему /search не даёт осмысленный ответ
 
 `/search` — это не чат и не генератор ответа. Он возвращает evidence/context:
 
@@ -420,7 +488,7 @@ Question
 
 Не надо заставлять `/search` писать ответ. Это создаст смешение responsibilities и снова приведёт к монолиту.
 
-## 18. Ограничение Chat MVP
+## 19. Ограничение Chat MVP
 
 Текущий `AnswerValidator` выполняет structural validation, но не semantic/factual validation.
 
@@ -446,7 +514,7 @@ citation density / coverage
 
 Это quality debt. QH-1 не решает его напрямую, а создаёт измеримый baseline.
 
-## 19. Полная пересборка v2.1 при изменении корпуса
+## 20. Полная пересборка v2.1 при изменении корпуса
 
 Если меняются фильтры, список файлов или правила extraction/chunking, пересобрать с нуля:
 
@@ -459,7 +527,7 @@ citation density / coverage
 .\.venv\Scripts\python.exe scripts\asu_june_bot_health_v2.py
 ```
 
-## 20. Проверка extraction/chunking
+## 21. Проверка extraction/chunking
 
 Для Windows PowerShell 5.1 всегда указывать `-Encoding UTF8` при чтении отчетов.
 
@@ -471,7 +539,7 @@ Get-Content .\data\asu_june_bot\index_v2_report.json -Encoding UTF8
 Get-Content .\data\asu_june_bot\numpy_index_v2\manifest.json -Encoding UTF8
 ```
 
-## 21. Следующие этапы после baseline
+## 22. Следующие этапы после baseline
 
 ### QH-2. Source Quality Filter
 
@@ -496,7 +564,7 @@ dedup parent context
 сравнение eval до/после
 ```
 
-## 22. Не делать
+## 23. Не делать
 
 - Не пытаться заставить `/search` писать осмысленные ответы.
 - Не удалять `data/asu_june_bot/`, если нужно продолжить после прерывания.
@@ -509,3 +577,4 @@ dedup parent context
 - Не внедрять JSON-mode, retry, NLI и LLM-judge до накопления eval dataset.
 - Не внедрять source quality filter без baseline.
 - Не внедрять parent expansion без замера эффекта source quality filter.
+- Не начинать Docker до QH-5 Release Stabilization.
