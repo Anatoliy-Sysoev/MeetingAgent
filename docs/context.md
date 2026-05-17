@@ -52,6 +52,9 @@ docs/subprojects/asu-june-bot/
 
 ```text
 README.md                         обзор подпроекта / будущий root README отдельного repo
+TOMORROW_START.md                 завтрашний чек-лист запуска
+QH_STATUS.md                      статус QH-этапов
+FTT_STATUS.md                     оперативный статус FTT бота
 context.md                        текущий контекст
 architecture.md                   техническая архитектура
 mvp.md                            ФТТ/MVP scope и статусы
@@ -59,6 +62,7 @@ roadmap.md                        план-график
 decisions.md                      ADR
 todo.md                           текущие задачи
 RUNBOOK_V2.md                     запуск, проверка, troubleshooting
+telegram.md                       Telegram adapter
 eval_questions.md                 проверочные вопросы
 ideas.md                          research backlog
 product/                          продуктовый пакет
@@ -73,7 +77,14 @@ smoke_report_*.md                 отчеты smoke/regression
 API Search MVP: закрыт
 CLI Chat MVP: закрыт с ограничениями
 API Chat MVP / POST /chat: закрыт с ограничениями
-QH-1 Observability + Eval Baseline: реализован, ожидает локальный baseline-прогон
+Local Web UI / GET / and GET /ui: реализован, ожидает локальный smoke
+Telegram adapter: реализован, ожидает локальный smoke
+QH-1 Observability + Eval Baseline: реализован
+QH-2 Source Quality Filter: реализован в коде, ожидает локальный прогон
+QH-3 Parent Expansion: реализован в коде, ожидает локальный прогон
+QH-4 Semantic Warnings / Manual Labels: реализован в коде, ожидает локальный прогон
+QH-5 Release Stabilization: PENDING_LOCAL_VALIDATION
+Docker: после фактического QH-5 passed
 ```
 
 Реализовано:
@@ -89,8 +100,14 @@ FastAPI POST /search
 ChatService
 CLI chat
 FastAPI POST /chat
+Local Web UI
+Telegram adapter
 ChatRunsLogger
-Eval baseline skeleton
+Eval baseline runner
+Source Quality Filter
+Parent Expansion
+Semantic Warnings
+QH release gate
 ```
 
 Корпус v2.1:
@@ -144,18 +161,20 @@ qwen3:8b -> timeout/обрыв на локальном CPU runtime
 ## Runtime pipeline Project Knowledge Bot
 
 ```text
-User / CLI / API client
-  -> FastAPI / CLI
+User / CLI / API / Web UI / Telegram adapter
   -> SearchService
       -> QueryIntent
       -> ProjectGuard v2
       -> BM25 / Vector / Hybrid retrieval
       -> PostReranker
       -> ContextBuilder
+          -> QH-2 Source Quality Filter
+          -> QH-3 Parent Expansion
   -> ChatService
       -> PromptBuilder
       -> LLMClient
       -> AnswerValidator
+      -> QH-4 SemanticWarningAnalyzer
       -> ResponseFormatter
       -> ChatRunsLogger
   -> Response
@@ -166,6 +185,8 @@ User / CLI / API client
 ```text
 /search возвращает evidence/context
 /chat возвращает осмысленный answer with citations
+/ui вызывает /chat
+Telegram adapter вызывает локальный /chat
 ```
 
 `/search` не должен писать осмысленный ответ. Это диагностический endpoint retrieval/context.
@@ -209,7 +230,7 @@ README.md
 
 Пакет описывает продуктовую сторону: проблему, vision, пользователей, ценность, discovery, BABOK-требования, продуктовую архитектуру и релизы.
 
-Технические инструкции остаются в `RUNBOOK_V2.md`, `architecture.md`, `mvp.md`, `todo.md`.
+Технические инструкции остаются в `RUNBOOK_V2.md`, `architecture.md`, `mvp.md`, `todo.md`, `QH_STATUS.md`, `FTT_STATUS.md`.
 
 ## Ограничение Chat MVP
 
@@ -225,7 +246,18 @@ answer length
 citation density / coverage
 ```
 
-Не выполняет semantic/factual validation:
+QH-4 добавляет warning-only слой:
+
+```text
+weak_sources_present
+weak_primary_fallback
+parent_expansion_applied
+low_source_count
+low_citation_coverage
+structural_validation_errors
+```
+
+Не выполняет semantic/factual validation как hard-fail:
 
 ```text
 поддерживается ли каждое утверждение конкретным source text
@@ -233,13 +265,7 @@ citation density / coverage
 нет ли semantic hallucination при формально корректных [Sx]
 ```
 
-Это quality debt. Следующие этапы качества:
-
-```text
-QH-1 baseline eval
-QH-2 source quality filter
-QH-3 parent expansion при необходимости
-```
+Это quality debt, а не blocker текущего runtime.
 
 ## Исключения из основного корпуса
 
@@ -270,17 +296,19 @@ scripts/09_chat.py остается legacy/prototype
 qwen2.5:7b-instruct — default chat model MVP
 LLM вызывается только после allow + sources/context
 refused/clarify не вызывают retrieval/LLM
-UI не делать до baseline eval и quality hardening
+QH-4 warnings не являются hard-fail
+Docker не начинается до фактического QH-5 passed
 ```
 
 ## Ближайшие действия
 
 ```text
-1. Локально прогнать QH-1 regression tests.
-2. Локально прогнать baseline eval.
-3. Проанализировать failures.
-4. Реализовать QH-2 Source Quality Filter.
-5. Сравнить baseline vs with_source_filter.
-6. Реализовать QH-3 Parent Expansion только при необходимости.
-7. Подготовить выделение Project Knowledge Bot в отдельный репозиторий.
+1. Завтра выполнить docs/subprojects/asu-june-bot/TOMORROW_START.md.
+2. Локально прогнать regression tests.
+3. Локально проверить API/UI/Telegram smoke.
+4. Локально выполнить after_qh eval.
+5. Сравнить baseline vs after_qh.
+6. Зафиксировать smoke_report_qh_release.md.
+7. Закрыть QH-5 как PASSED при успешном результате.
+8. После QH-5 перейти к Docker stage.
 ```
