@@ -20,7 +20,6 @@ class SearchApiRequest(BaseModel):
     mode: Literal["hybrid", "vector", "bm25"] = "hybrid"
     top_k: int = Field(default=8, ge=1, le=50)
     include_source_types: list[str] | None = None
-    no_guard: bool = False
     include_diagnostics: bool = True
 
 
@@ -36,7 +35,7 @@ def search(
             mode=payload.mode,
             top_k=payload.top_k,
             include_source_types=payload.include_source_types,
-            no_guard=payload.no_guard,
+            no_guard=False,
             include_diagnostics=payload.include_diagnostics,
         )
     ).to_dict()
