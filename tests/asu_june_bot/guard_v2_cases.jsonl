@@ -1,6 +1,9 @@
 {"id":"project_integrations","query":"Какие интеграции заявлены в проекте ЦП УПКС?","expected_status":"ok","expected_scope":"in_project"}
 {"id":"project_ad_auth","query":"СоИ AD как происходит авторизация пользователей?","expected_status":"ok","expected_scope":"in_project"}
 {"id":"project_passport","query":"Что входит в Паспорт ИС?","expected_status":"ok","expected_scope":"in_project"}
+{"id":"project_passport_short","query":"Паспорт ИС","expected_status":"ok","expected_scope":"in_project"}
+{"id":"project_psi_protocol_short","query":"Протокол ПСИ","expected_status":"ok","expected_scope":"in_project"}
+{"id":"project_pmi_scenarios_short","query":"сценарии ПМИ","expected_status":"ok","expected_scope":"in_project"}
 {"id":"project_ftt_425","query":"ФТТ 4.2.5 НОВАДОК ЭЦП","expected_status":"ok","expected_scope":"in_project"}
 {"id":"project_security_passport","query":"Какие механизмы защиты информации описаны в Паспорте ИС?","expected_status":"ok","expected_scope":"in_project"}
 {"id":"project_logging","query":"Как реализовано логирование в системе?","expected_status":"ok","expected_scope":"in_project"}
