@@ -103,6 +103,19 @@ def clarify_payload() -> dict:
     }
 
 
+def search_error_payload() -> dict:
+    return {
+        "status": "error",
+        "query": "Паспорт ИС",
+        "answer": "Поиск завершился ошибкой.",
+        "error": "index_not_ready",
+        "context": {"primary_sources": [], "supporting_sources": [], "excluded_sources": [], "diagnostics": {}},
+        "results": [],
+        "guard": {"decision": "allow"},
+        "diagnostics": {"search_service": {"retrieval_called": False}},
+    }
+
+
 def test_chat_refused_does_not_call_llm() -> None:
     search = FakeSearchService(refused_payload())
     llm = FakeLLMClient("should not be used")
@@ -126,6 +139,19 @@ def test_chat_clarify_does_not_call_llm() -> None:
     assert response.status == "clarify"
     assert llm.called is False
     assert response.diagnostics["llm_called"] is False
+
+
+def test_chat_search_error_does_not_call_llm() -> None:
+    search = FakeSearchService(search_error_payload())
+    llm = FakeLLMClient("should not be used")
+    service = ChatService(search_service=search, llm_client=llm)
+
+    response = service.chat(ChatRequest(query="Паспорт ИС"))
+
+    assert response.status == "search_error"
+    assert llm.called is False
+    assert response.diagnostics["llm_called"] is False
+    assert response.diagnostics["search_error"] == "index_not_ready"
 
 
 def test_chat_project_query_calls_llm_with_context_only() -> None:
