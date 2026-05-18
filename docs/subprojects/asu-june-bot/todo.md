@@ -14,6 +14,7 @@ QH-2 Source Quality Filter                IMPLEMENTED
 QH-3 Parent Expansion                     IMPLEMENTED
 QH-4 Semantic Warnings / Manual Labels    IMPLEMENTED
 QH-5 Release Stabilization                PENDING_LOCAL_VALIDATION
+QH-6 Feedback Dataset Loop                PLANNED_AFTER_QH5
 ```
 
 Локальная проверка 2026-05-18:
@@ -42,6 +43,14 @@ sanitized unhandled API errors
 short project queries added to guard regression: Паспорт ИС / Протокол ПСИ / сценарии ПМИ
 ```
 
+После анализа потребности в обучении добавлен план feedback loop:
+
+```text
+docs/subprojects/asu-june-bot/QUERY_FEEDBACK_LOOP.md
+```
+
+Важно: QH-6 пока является документационно оформленным будущим этапом. Runtime-реализацию `/feedback`, UI-кнопок и Telegram feedback-команд не начинать до закрытия QH-5.
+
 Главные документы:
 
 ```text
@@ -49,6 +58,7 @@ docs/subprojects/asu-june-bot/TOMORROW_EXECUTION_PROTOCOL.md
 docs/subprojects/asu-june-bot/QH_HARDENING_CHECKLIST.md
 docs/subprojects/asu-june-bot/QH_STATUS.md
 docs/subprojects/asu-june-bot/FTT_STATUS.md
+docs/subprojects/asu-june-bot/QUERY_FEEDBACK_LOOP.md
 ```
 
 Важно: QH-5 можно закрывать только после локального regression, API smoke, UI smoke, Telegram smoke, after_qh eval и final QH gate.
@@ -61,6 +71,24 @@ docs/subprojects/asu-june-bot/FTT_STATUS.md
 Telegram smoke
 final QH gate
 QH_STATUS.md / FTT_STATUS.md -> QH-5 PASSED только после gate
+```
+
+## Сразу после QH-5
+
+```text
+1. Обновить QH_STATUS.md: QH-5 -> PASSED.
+2. Обновить FTT_STATUS.md.
+3. Принять решение: сначала QH-6 Feedback Dataset Loop или Docker Packaging.
+4. Если приоритет — качество ответов, начинать QH-6.
+5. Если приоритет — переносимость запуска, начинать Docker.
+```
+
+Рекомендация:
+
+```text
+если завтра сдача/демо — сначала закрыть QH-5 и не расширять runtime;
+если после сдачи развиваем качество — первым делать QH-6 Feedback Dataset Loop;
+если нужна переносимость на другой ПК/сервер — первым делать Docker.
 ```
 
 ## Закрыто ранее
@@ -109,6 +137,15 @@ QH_HARDENING_CHECKLIST.md добавлен
 README/RUNBOOK/context обновлены
 ```
 
+## Документационно добавлено для будущего обучения
+
+```text
+QUERY_FEEDBACK_LOOP.md
+QH-6 Feedback Dataset Loop в roadmap
+QH-6 Feedback Dataset Loop в TODO
+README обновлен ссылкой на QUERY_FEEDBACK_LOOP.md
+```
+
 ## Ожидаемые regression tests после pull
 
 ```powershell
@@ -136,29 +173,6 @@ README/RUNBOOK/context обновлены
 нет FAILED
 нет ERROR
 ```
-
-Ориентировочные counts:
-
-```text
-ChatService: 9 passed
-Semantic warnings: 3 passed
-API health: 1 passed
-API search: 5 passed
-API chat: 7 passed
-API errors: 1 passed
-Source quality: 3 passed
-Parent expansion: 2 passed
-ContextBuilder QH: 2 passed
-Source policy: 3 passed
-observability: 2 passed
-eval checks: 3 passed
-eval runner: 1 passed
-QH release gate: 2 passed
-ProjectGuard cases: 49 passed
-Telegram formatter: 4 passed
-```
-
-Если counts немного отличаются из-за новых тестов, главным критерием остается отсутствие `FAILED` и `ERROR`.
 
 ## API/UI hardening smoke
 
@@ -228,15 +242,16 @@ eval/reports/*__after_qh.md
 1. Зафиксировать smoke_report_qh_release.md.
 2. Обновить QH_STATUS.md: QH-5 -> PASSED.
 3. Обновить FTT_STATUS.md.
-4. После этого можно начинать Docker stage.
+4. После этого можно начинать следующий этап: QH-6 Feedback Dataset Loop или Docker Packaging.
 ```
 
 Если есть падения:
 
 ```text
 1. Не начинать Docker.
-2. Исправить только блокирующие дефекты запуска/API/UI/Telegram.
-3. Quality defects retrieval/context фиксировать отдельно, не ломая демо.
+2. Не начинать QH-6 runtime.
+3. Исправить только блокирующие дефекты запуска/API/UI/Telegram.
+4. Quality defects retrieval/context фиксировать отдельно, не ломая демо.
 ```
 
 ## Важное ограничение результата
@@ -289,7 +304,9 @@ structural_validation_errors
 не возвращаться к раздуванию OUT_OF_PROJECT_MARKERS
 не превращать QH-4 warnings в hard-fail
 не внедрять JSON-mode, retry, NLI и LLM-judge до накопления eval dataset
+не делать fine-tuning
 не делать Docker до фактического QH-5 passed
+не начинать QH-6 runtime до фактического QH-5 passed
 не коммитить Telegram token
 не открывать публичный no_guard
 не добавлять code/system_export в default source allowlist
