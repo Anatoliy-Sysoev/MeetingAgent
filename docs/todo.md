@@ -38,7 +38,7 @@
 - Добавить инкрементальный `update_rag.ps1` для новых, измененных и удаленных документов.
 - В `update_rag.ps1` обязательно обработать deletion: удаленные и попавшие под `exclude_path_patterns` документы должны исчезать из актуального индекса.
 - Добавить watcher/скрипт загрузки встреч из `watched_folder/` поверх уже готового `06_transcribe_meeting.py`.
-- Реализовать логирование запросов в `data/query_log.jsonl` в `scripts/04_query.py` и `scripts/09_chat.py` по контракту `docs/quality/QUERY_FEEDBACK_LOOP.md`, затем прогнать цикл разметки и коррекции на первых ~100 запросах.
+- Логирование запросов в `data/query_log.jsonl` реализовано (`rag_common.append_query_log`, `04_query.py`, `09_chat.py`); следующий шаг — прогнать первые ~100 реальных запросов, провести ручную разметку и цикл коррекции по `docs/quality/QUERY_FEEDBACK_LOOP.md`.
 - Оценить, нужен ли BM25-гибрид или метаданные-фильтры, если системные HTML/TXT-экспорты продолжают вытеснять проектные документы в top-k.
 - Ввести метаданные `source_type`: `project_doc`, `system_export`, `analytical_note`, `instruction`.
 - Для aggregation-вопросов попробовать многоэтапный retrieval: сначала найти нужные типы документов, затем искать внутри каждого типа.
