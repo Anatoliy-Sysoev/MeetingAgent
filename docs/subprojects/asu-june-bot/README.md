@@ -92,6 +92,12 @@ docs/subprojects/asu-june-bot/QH_STATUS.md
 docs/subprojects/asu-june-bot/FTT_STATUS.md
 ```
 
+План накопления feedback dataset:
+
+```text
+docs/subprojects/asu-june-bot/QUERY_FEEDBACK_LOOP.md
+```
+
 Рабочая chat-модель MVP:
 
 ```text
@@ -245,6 +251,7 @@ docs/subprojects/asu-june-bot/TOMORROW_START.md        короткий чек-�
 docs/subprojects/asu-june-bot/QH_HARDENING_CHECKLIST.md проверки после hardening
 docs/subprojects/asu-june-bot/QH_STATUS.md             статус QH этапов
 docs/subprojects/asu-june-bot/FTT_STATUS.md            статус FTT бота
+docs/subprojects/asu-june-bot/QUERY_FEEDBACK_LOOP.md   план накопления feedback dataset
 docs/subprojects/asu-june-bot/context.md               текущий контекст и состояние
 docs/subprojects/asu-june-bot/architecture.md          архитектура и компоненты
 docs/subprojects/asu-june-bot/mvp.md                   ФТТ/MVP scope/acceptance
@@ -323,7 +330,18 @@ src/asu_june_bot/qh/release_gate.py
 scripts/asu_june_bot_qh_gate.py
 ```
 
-### 6.5 Guardrails
+### 6.5 Feedback dataset loop
+
+Плановый этап после QH-5:
+
+```text
+docs/subprojects/asu-june-bot/QUERY_FEEDBACK_LOOP.md
+data/asu_june_bot/feedback_events.jsonl
+eval/cases/feedback_candidates.jsonl
+eval/cases/feedback.jsonl
+```
+
+### 6.6 Guardrails
 
 ```text
 src/asu_june_bot/guardrails/
@@ -335,7 +353,7 @@ src/asu_june_bot/guardrails/
 false_allow = 0
 ```
 
-### 6.6 API + UI
+### 6.7 API + UI
 
 ```text
 src/asu_june_bot/api/
@@ -352,7 +370,7 @@ POST /search
 POST /chat
 ```
 
-### 6.7 Chat
+### 6.8 Chat
 
 ```text
 src/asu_june_bot/chat/
@@ -360,14 +378,14 @@ src/asu_june_bot/llm/
 scripts/asu_june_bot_chat.py
 ```
 
-### 6.8 Telegram
+### 6.9 Telegram
 
 ```text
 src/asu_june_bot/telegram_bot.py
 scripts/asu_june_bot_telegram.py
 ```
 
-### 6.9 Observability/Eval
+### 6.10 Observability/Eval
 
 ```text
 src/asu_june_bot/observability/
