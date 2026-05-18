@@ -8,7 +8,7 @@ from asu_june_bot.observability import ChatRunsLogger
 from asu_june_bot.search import SearchRequest, SearchService
 from asu_june_bot.search.models import SearchStatus
 
-from .answer_validator import AnswerValidator
+from .answer_validator import AnswerValidator, has_no_answer_marker
 from .models import ChatRequest, ChatResponse, ChatStatus
 from .prompt_builder import SYSTEM_PROMPT, PromptBuilder
 from .semantic_warnings import SemanticWarningAnalyzer, semantic_warnings_to_payload
@@ -147,6 +147,20 @@ class ChatService:
                     status=ChatStatus.LLM_EMPTY_RESPONSE.value,
                     query=request.query,
                     answer="LLM вернула пустой ответ.",
+                    sources=sources,
+                    search=search_payload,
+                    diagnostics=diagnostics,
+                )
+            )
+
+        if has_no_answer_marker(answer):
+            diagnostics["validation_errors"] = []
+            diagnostics["no_answer_marker_present"] = True
+            return finalize(
+                ChatResponse(
+                    status=ChatStatus.NO_ANSWER.value,
+                    query=request.query,
+                    answer=answer,
                     sources=sources,
                     search=search_payload,
                     diagnostics=diagnostics,
