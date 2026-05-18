@@ -27,13 +27,15 @@ def request_id_from(request: Request) -> str | None:
 
 
 def error_payload(request: Request, *, status: str, error_code: str, message: str, details=None) -> dict:
-    return {
+    payload = {
         "status": status,
         "error_code": error_code,
         "error": message,
         "request_id": request_id_from(request),
-        "details": details,
     }
+    if details is not None:
+        payload["details"] = details
+    return payload
 
 
 async def api_error_handler(request: Request, exc: ApiError) -> JSONResponse:
@@ -63,7 +65,7 @@ async def unhandled_error_handler(request: Request, exc: Exception) -> JSONRespo
             request,
             status="error",
             error_code="internal_error",
-            message=repr(exc),
+            message="Внутренняя ошибка API. Передайте request_id для диагностики.",
         ),
     )
 
