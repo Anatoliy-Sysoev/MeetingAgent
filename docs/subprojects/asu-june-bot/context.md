@@ -359,18 +359,41 @@ product/
 smoke_report_*.md
 ```
 
-## 10. Следующие шаги
+## 10. Локальная проверка 2026-05-18
+
+Выполнено:
+
+```text
+health_v2: ok
+ollama: bge-m3 и qwen2.5:7b-instruct доступны
+regression tests: 97 passed
+QH gate до smoke: pending_local_validation
+API smoke: /health, /search, /chat проверены
+Web UI HTTP smoke: /ui отдаёт страницу с нужными элементами
+chat_runs.jsonl: пишется
+after_qh eval: 7/13, 53.8%
+baseline comparison: baseline 6/13, 46.2% -> after_qh 7/13, 53.8%
+```
+
+Создан отчёт:
+
+```text
+docs/subprojects/asu-june-bot/smoke_report_qh_release.md
+```
+
+QH-5 остаётся `PENDING_LOCAL_VALIDATION`, потому что Telegram smoke не выполнен без локальных `ASU_JUNE_BOT_TELEGRAM_TOKEN` и `ASU_JUNE_BOT_ALLOWED_CHAT_IDS`. Финальный gate не запускался намеренно.
+
+## 11. Следующие шаги
 
 Сейчас:
 
 ```text
-1. Выполнить git pull.
-2. Прогнать обновленные tests.
-3. Повторить UI smoke на проектный/refused/mixed/no_answer cases.
-4. Проверить Telegram smoke.
-5. Выполнить after_qh eval.
-6. Выполнить QH gate final.
-7. Сформировать smoke_report_qh_release.md.
+1. Запустить Telegram adapter с локальным token/chat id.
+2. Проверить Telegram /health.
+3. Проверить Telegram project query.
+4. Проверить Telegram weather refused.
+5. После Telegram smoke запустить final QH gate.
+6. Если gate passed — обновить QH_STATUS.md и FTT_STATUS.md до QH-5 PASSED.
 ```
 
 После QH-5 passed:
@@ -381,7 +404,7 @@ smoke_report_*.md
 3. Не менять retrieval/guard без eval baseline.
 ```
 
-## 11. Не делать сейчас
+## 12. Не делать сейчас
 
 ```text
 не запускать --reset без причины

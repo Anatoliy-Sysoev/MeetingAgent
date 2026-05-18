@@ -20,6 +20,7 @@ config.yaml.bak*
 
 # Runtime RAG data and generated artifacts
 _calibration/
+eval/reports/
 data/*
 !data/.gitkeep
 !data/README.md
@@ -68,5 +69,6 @@ scratch_*.py
 # OS/editor noise
 .DS_Store
 Thumbs.db
+.claude/
 .idea/
 .vscode/

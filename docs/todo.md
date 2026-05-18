@@ -8,6 +8,20 @@
 
 Project Knowledge Bot v2.1/v2.2 доведён до состояния: Search API, Chat API, Web UI, Telegram adapter, QH-1..QH-4 реализованы в коде. Следующий практический шаг — локально подтвердить QH-5 на рабочем ПК.
 
+Обновление 2026-05-18: большая часть QH-5 local validation выполнена.
+
+```text
+health_v2: ok
+regression tests: 97 passed
+API smoke: ok
+Web UI HTTP smoke: ok
+after_qh eval: 7/13, 53.8%
+baseline comparison: 6/13 -> 7/13
+smoke_report_qh_release.md создан
+```
+
+QH-5 пока не закрыт: не выполнен Telegram smoke без локальных `ASU_JUNE_BOT_TELEGRAM_TOKEN` и `ASU_JUNE_BOT_ALLOWED_CHAT_IDS`; final QH gate не запускался.
+
 Главные документы:
 
 ```text
@@ -86,7 +100,7 @@ qwen3:8b -> timeout/обрыв на локальном CPU runtime
 Следующий практический шаг:
 
 ```text
-QH-5 local validation
+Telegram smoke, затем final QH gate
 ```
 
 Сделать локально:

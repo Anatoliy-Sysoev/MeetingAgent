@@ -300,15 +300,33 @@ QH-4 warnings не являются hard-fail
 Docker не начинается до фактического QH-5 passed
 ```
 
+## Локальная проверка Project Knowledge Bot 2026-05-18
+
+По `docs/subprojects/asu-june-bot/TOMORROW_EXECUTION_PROTOCOL.md` выполнена основная часть QH-5 проверки:
+
+```text
+health_v2: status=ok
+regression tests: 97 passed
+API smoke: /health ok, /search ok/refused, /chat answered/refused
+Web UI HTTP smoke: /ui status_code=200
+chat_runs.jsonl: пишется
+after_qh eval: 7/13, 53.8%
+baseline comparison: 6/13 -> 7/13
+```
+
+Отчёт:
+
+```text
+docs/subprojects/asu-june-bot/smoke_report_qh_release.md
+```
+
+QH-5 пока остаётся `PENDING_LOCAL_VALIDATION`: Telegram smoke не выполнен, потому что в окружении нет `ASU_JUNE_BOT_TELEGRAM_TOKEN` и `ASU_JUNE_BOT_ALLOWED_CHAT_IDS`. Финальный QH gate с `--local-validation-done --baseline-compared` не запускался намеренно.
+
 ## Ближайшие действия
 
 ```text
-1. Завтра выполнить docs/subprojects/asu-june-bot/TOMORROW_START.md.
-2. Локально прогнать regression tests.
-3. Локально проверить API/UI/Telegram smoke.
-4. Локально выполнить after_qh eval.
-5. Сравнить baseline vs after_qh.
-6. Зафиксировать smoke_report_qh_release.md.
-7. Закрыть QH-5 как PASSED при успешном результате.
-8. После QH-5 перейти к Docker stage.
+1. Запустить Telegram smoke с локальным token/chat id.
+2. После Telegram smoke выполнить final QH gate.
+3. Если gate passed — обновить QH_STATUS.md и FTT_STATUS.md до QH-5 PASSED.
+4. После QH-5 перейти к Docker stage.
 ```

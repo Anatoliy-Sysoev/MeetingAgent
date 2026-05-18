@@ -16,6 +16,20 @@ QH-4 Semantic Warnings / Manual Labels    IMPLEMENTED
 QH-5 Release Stabilization                PENDING_LOCAL_VALIDATION
 ```
 
+Локальная проверка 2026-05-18:
+
+```text
+regression tests: 97 passed
+health_v2: ok
+API smoke: ok
+Web UI HTTP smoke: ok
+after_qh eval: 7/13, 53.8%
+baseline comparison: 6/13 -> 7/13
+smoke_report_qh_release.md создан
+Telegram smoke: не выполнен, нет локального token/chat id
+final QH gate: не запускался
+```
+
 После ручного UI smoke и ревью Claude добавлен hardening:
 
 ```text
@@ -44,14 +58,9 @@ docs/subprojects/asu-june-bot/FTT_STATUS.md
 ## Следующий практический шаг
 
 ```text
-git pull
-hardening regression tests
-API smoke
-Web UI smoke
 Telegram smoke
-after_qh eval
 final QH gate
-smoke_report_qh_release.md
+QH_STATUS.md / FTT_STATUS.md -> QH-5 PASSED только после gate
 ```
 
 ## Закрыто ранее

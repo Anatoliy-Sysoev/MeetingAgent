@@ -1,6 +1,6 @@
 # FTT status Project Knowledge Bot
 
-Обновлено: 2026-05-16.
+Обновлено: 2026-05-18.
 
 ## 1. Назначение
 
@@ -38,14 +38,21 @@ Docker: NOT_STARTED_AFTER_QH5
 Осталось реализовать до закрытия FTT текущего MVP:
 
 ```text
-1. Локально прогнать regression tests после pull.
-2. Локально проверить API smoke.
-3. Локально проверить Web UI smoke.
-4. Локально проверить Telegram adapter smoke.
-5. Выполнить after_qh eval.
-6. Сравнить baseline vs after_qh.
-7. Зафиксировать smoke_report_qh_release.md.
-8. Закрыть QH-5 как PASSED.
+1. Локально проверить Telegram adapter smoke.
+2. Выполнить final QH gate с --local-validation-done --baseline-compared.
+3. Закрыть QH-5 как PASSED, если final gate зелёный.
+```
+
+Уже подтверждено 2026-05-18:
+
+```text
+regression tests: 97 passed
+health_v2: ok
+API smoke: ok/refused сценарии пройдены
+Web UI HTTP smoke: /ui отдаёт страницу с основными элементами
+chat_runs.jsonl: пишется
+after_qh eval: 7/13 против baseline 6/13
+smoke_report_qh_release.md: создан с решением QH-5 PENDING_LOCAL_VALIDATION
 ```
 
 Осталось реализовать после закрытия текущего MVP:
@@ -220,7 +227,7 @@ parent_expansion diagnostics
 Осталось:
 
 ```text
-локально подтвердить QH-2/QH-3 на реальном corpus после pull
+локально подтверждено 2026-05-18
 ```
 
 ### AJB-FTT-08. Search API
@@ -270,8 +277,8 @@ Chat CLI
 Осталось:
 
 ```text
-локально подтвердить answered на qwen2.5:7b-instruct после pull
-зафиксировать actual smoke output
+answered на qwen2.5:7b-instruct подтверждено 2026-05-18
+actual smoke output зафиксирован в smoke_report_qh_release.md
 ```
 
 Ограничение:
@@ -300,7 +307,7 @@ runtime smoke ранее пройден
 Осталось:
 
 ```text
-регрессионный smoke завтра
+регрессионный smoke подтвержден 2026-05-18
 ```
 
 ### AJB-FTT-11. Structural Answer Validation
@@ -351,7 +358,7 @@ semantic_warnings logging
 Осталось:
 
 ```text
-локально проверить, что chat_runs.jsonl реально пишется после /chat
+локально подтверждено 2026-05-18
 ```
 
 ### AJB-FTT-13. Eval Baseline
@@ -374,8 +381,7 @@ baseline report
 Осталось:
 
 ```text
-after_qh eval
-baseline vs after_qh comparison
+eval quality debt: 6 failed cases остаются в backlog
 ```
 
 ### AJB-FTT-14. Local Web UI
@@ -398,8 +404,8 @@ MAX_QUERY_CHARS counter
 Осталось:
 
 ```text
-manual browser smoke
-проверить отображение answer/sources/warnings
+ручной browser click smoke
+HTTP smoke /ui подтвержден 2026-05-18
 ```
 
 ### AJB-FTT-15. Telegram adapter
@@ -555,6 +561,7 @@ Docker explicitly postponed
 ```text
 local-validation-done
 baseline-compared
+Telegram smoke
 QH_STATUS.md -> QH-5 PASSED
 smoke_report_qh_release.md
 ```
@@ -564,10 +571,9 @@ smoke_report_qh_release.md
 Минимальный остаток:
 
 ```text
-QH-5A. Локальный regression/smoke на рабочем ПК
-QH-5B. after_qh eval и сравнение с baseline
-QH-5C. smoke_report_qh_release.md
-QH-5D. финальное обновление QH_STATUS.md после факта
+QH-5A. Telegram smoke на рабочем ПК
+QH-5B. final QH gate после Telegram smoke
+QH-5C. финальное обновление QH_STATUS.md после факта
 ```
 
 Это не новая функциональность, а подтверждение готовности.

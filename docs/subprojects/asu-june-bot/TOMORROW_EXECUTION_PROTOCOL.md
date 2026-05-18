@@ -1,6 +1,6 @@
 # Завтрашний протокол проверки Project Knowledge Bot
 
-Обновлено: 2026-05-16.
+Обновлено: 2026-05-18.
 
 ## 0. Назначение документа
 
@@ -22,6 +22,53 @@
 Работать строго сверху вниз. Не перескакивать через шаги.
 
 В каждый блок `Фактический результат` вставлять реальный вывод команды или краткое резюме.
+
+## 0.1 Фактический прогон 2026-05-18
+
+Статус:
+
+```text
+Частично выполнено.
+QH-5 пока нельзя закрывать как PASSED.
+```
+
+Что выполнено:
+
+```text
+git branch: docs/asu-june-bot-subproject
+git pull: Already up to date
+ollama list: bge-m3 и qwen2.5:7b-instruct есть
+health_v2: status=ok, vector_ready=true, bm25_ready=true
+regression tests: 97 passed, FAILED/ERROR нет
+QH gate до smoke: pending_local_validation, pending QH-5A/QH-5B
+API smoke: /health ok, /search project ok, /search weather refused
+/chat project: answered, sources_count=5, llm_called=true, semantic warnings есть
+/chat weather: refused, llm_called=false
+/chat mixed: refused, llm_called=false
+Web UI HTTP smoke: /ui status_code=200, основные элементы страницы есть
+chat_runs.jsonl: пишется
+after_qh eval: 7/13, 53.8%
+baseline comparison: было 6/13, 46.2%, стало +1 passed
+```
+
+Что не выполнено:
+
+```text
+Telegram smoke не выполнен: нет ASU_JUNE_BOT_TELEGRAM_TOKEN и ASU_JUNE_BOT_ALLOWED_CHAT_IDS.
+Финальный QH gate с --local-validation-done --baseline-compared не запускался намеренно.
+```
+
+Отчёт:
+
+```text
+docs/subprojects/asu-june-bot/smoke_report_qh_release.md
+```
+
+Итог:
+
+```text
+Бот близок к QH-5, но QH-5 остаётся PENDING_LOCAL_VALIDATION до Telegram smoke и финального gate.
+```
 
 ## 1. Правила работы
 
@@ -162,7 +209,9 @@ Already up to date.
 Фактический результат:
 
 ```text
-[ВСТАВИТЬ РЕЗУЛЬТАТ]
+From https://github.com/Anatoliy-Sysoev/MeetingAgent
+ * branch            docs/asu-june-bot-subproject -> FETCH_HEAD
+Already up to date.
 ```
 
 Критично — отправить мне:
@@ -191,7 +240,7 @@ git status --short
 Фактический результат:
 
 ```text
-[ВСТАВИТЬ РЕЗУЛЬТАТ]
+?? eval/reports/
 ```
 
 Критично — отправить мне:
@@ -1188,7 +1237,7 @@ QH gate passed
 Фактическое решение:
 
 ```text
-[ВСТАВИТЬ: QH-5 МОЖНО ЗАКРЫВАТЬ / НЕЛЬЗЯ ЗАКРЫВАТЬ]
+QH-5 НЕЛЬЗЯ ЗАКРЫВАТЬ
 ```
 
 ### Вариант B. QH-5 нельзя закрывать
@@ -1196,7 +1245,8 @@ QH gate passed
 Причина:
 
 ```text
-[ВСТАВИТЬ ПРИЧИНУ]
+Telegram smoke не выполнен: в окружении нет ASU_JUNE_BOT_TELEGRAM_TOKEN и ASU_JUNE_BOT_ALLOWED_CHAT_IDS.
+Final QH gate не запускался намеренно, чтобы не пометить QH-5 passed без Telegram-проверки.
 ```
 
 Что отправить мне:
@@ -1251,35 +1301,35 @@ docs/subprojects/asu-june-bot/FTT_STATUS.md
 Заполнить в конце дня.
 
 ```text
-[ ] Git pull выполнен
-[ ] git status чистый
-[ ] Ollama работает
-[ ] bge-m3 есть
-[ ] qwen2.5:7b-instruct есть
-[ ] health ok
-[ ] tests passed
-[ ] QH gate до smoke = pending_local_validation
-[ ] API стартует
-[ ] /health отвечает
-[ ] /search project ok
-[ ] /search weather refused
-[ ] /chat project answered
-[ ] /chat weather refused
-[ ] /chat mixed refused
-[ ] UI открывается
-[ ] UI отвечает на project query
-[ ] chat_runs.jsonl пишется
+[x] Git pull выполнен
+[x] git status проверен; локальные runtime-артефакты .claude/ и eval/reports/ добавлены в .gitignore
+[x] Ollama работает
+[x] bge-m3 есть
+[x] qwen2.5:7b-instruct есть
+[x] health ok
+[x] tests passed
+[x] QH gate до smoke = pending_local_validation
+[x] API стартует
+[x] /health отвечает
+[x] /search project ok
+[x] /search weather refused
+[x] /chat project answered
+[x] /chat weather refused
+[x] /chat mixed refused
+[x] UI открывается по HTTP
+[x] /chat API отвечает на project query; ручной browser-click UI smoke не выполнялся
+[x] chat_runs.jsonl пишется
 [ ] Telegram adapter стартует
 [ ] Telegram /health отвечает
 [ ] Telegram project query answered
 [ ] Telegram weather refused
-[ ] after_qh eval выполнен
+[x] after_qh eval выполнен
 [ ] QH gate final passed
-[ ] smoke_report_qh_release.md подготовлен
+[x] smoke_report_qh_release.md подготовлен
 ```
 
 Итог:
 
 ```text
-[ВСТАВИТЬ ИТОГ: БОТ ГОТОВ / БОТ НЕ ГОТОВ / НУЖНЫ ИСПРАВЛЕНИЯ]
+НУЖНЫ ИСПРАВЛЕНИЯ / ДОПРОВЕРКА: выполнить Telegram smoke и только после этого final QH gate.
 ```

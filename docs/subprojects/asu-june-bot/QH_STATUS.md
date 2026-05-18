@@ -1,6 +1,6 @@
 # QH Status — Project Knowledge Bot
 
-Обновлено: 2026-05-16.
+Обновлено: 2026-05-18.
 
 ## Итоговый статус
 
@@ -12,7 +12,34 @@ QH-4 Semantic Warnings / Manual Labels    IMPLEMENTED_CODE_READY
 QH-5 Release Stabilization                PENDING_LOCAL_VALIDATION
 ```
 
-Важно: QH-2/QH-3/QH-4 реализованы в коде и покрыты unit/integration tests, но фактический статус `PASSED` нужно подтвердить завтра на рабочем ПК локальными тестами, smoke и eval после QH.
+Важно: QH-2/QH-3/QH-4 реализованы в коде и подтверждены локальным regression pack 2026-05-18. QH-5 пока нельзя закрывать как `PASSED`, потому что Telegram smoke не выполнен без локального token/chat id.
+
+## Локальный прогон 2026-05-18
+
+Выполнено:
+
+```text
+health_v2: status=ok, vector_ready=true, bm25_ready=true
+regression tests: 97 passed
+API smoke: /health ok, /search ok/refused, /chat answered/refused/mixed refused
+Web UI HTTP smoke: /ui status_code=200, основные элементы есть
+chat_runs.jsonl: пишется
+after_qh eval: 7/13, 53.8%
+baseline comparison: 6/13 -> 7/13
+```
+
+Не выполнено:
+
+```text
+Telegram smoke: нет ASU_JUNE_BOT_TELEGRAM_TOKEN и ASU_JUNE_BOT_ALLOWED_CHAT_IDS
+final QH gate: не запускался, чтобы не пометить QH-5 passed без Telegram smoke
+```
+
+Отчёт:
+
+```text
+docs/subprojects/asu-june-bot/smoke_report_qh_release.md
+```
 
 ## QH-1. Observability + Eval Baseline
 
@@ -222,8 +249,9 @@ PENDING_LOCAL_VALIDATION
 Почему не PASSED:
 
 ```text
-код реализован через GitHub
-локальные тесты, smoke и eval после QH не выполнены на рабочем ПК с индексом, Ollama и data/asu_june_bot
+локальные тесты, API smoke, Web UI HTTP smoke и after_qh eval выполнены
+Telegram smoke не выполнен без локального token/chat id
+final gate не запускался без Telegram smoke
 ```
 
 Код gate:
