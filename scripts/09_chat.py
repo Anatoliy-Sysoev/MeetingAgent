@@ -10,7 +10,7 @@ from typing import Any
 
 import requests
 
-from rag_common import ensure_runtime_dirs, jsonl_read, load_config, resolve_work_path
+from rag_common import append_query_log, ensure_runtime_dirs, jsonl_read, load_config, resolve_work_path
 from rag_numpy_backend import index_exists, load_index
 
 
@@ -602,6 +602,40 @@ def output_result(result: dict[str, Any], as_json: bool) -> None:
         print_human(result)
 
 
+def build_query_log_record(result: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
+    sources = [
+        {
+            "relative_path": src.get("relative_path"),
+            "chunk_index": src.get("chunk_index"),
+            "score": round(float(src.get("score", 0.0)), 6),
+        }
+        for src in result.get("sources", [])[:8]
+    ]
+    return {
+        "source": "09_chat",
+        "question": result.get("query", ""),
+        "status": result.get("status"),
+        "refusal_reason": result.get("refusal_reason"),
+        "answer_mode": result.get("answer_mode"),
+        "confidence": result.get("confidence"),
+        "top_sources": sources,
+        "answer": result.get("answer") if result.get("status") == "answered" else None,
+        "params": {
+            "top_k": args.top_k,
+            "score_threshold": args.score_threshold,
+            "min_sources": args.min_sources,
+            "model": args.model or None,
+            "sources_only": bool(args.sources_only),
+        },
+    }
+
+
+def emit(result: dict[str, Any], args: argparse.Namespace, cfg: dict[str, Any] | None = None) -> None:
+    if result.get("query") and result.get("refusal_reason") != REFUSAL_SENSITIVE:
+        append_query_log(build_query_log_record(result, args), cfg)
+    output_result(result, args.json)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Project-only чат-бот MeetingAgent поверх локального RAG")
     parser.add_argument("question", nargs="+", help="Вопрос к проектной базе знаний")
@@ -630,7 +664,7 @@ def main() -> None:
     question = " ".join(args.question).strip()
     if not question:
         result = refusal_response(question, REFUSAL_OUT_OF_SCOPE, "Вопрос пустой. Сформулируйте вопрос по проектным материалам.")
-        output_result(result, args.json)
+        emit(result, args)
         return
 
     if is_sensitive_question(question):
@@ -639,7 +673,7 @@ def main() -> None:
             REFUSAL_SENSITIVE,
             "Я отвечаю только по проектным материалам и не раскрываю системные инструкции, секреты или локальные конфигурации.",
         )
-        output_result(result, args.json)
+        emit(result, args)
         return
 
     if is_obviously_out_of_scope_question(question):
@@ -648,7 +682,7 @@ def main() -> None:
             REFUSAL_OBVIOUSLY_OUT_OF_SCOPE,
             "Этот вопрос не относится к текущему проекту. Я отвечаю только по проектной базе знаний и найденным источникам.",
         )
-        output_result(result, args.json)
+        emit(result, args)
         return
 
     cfg = load_config()
@@ -671,7 +705,7 @@ def main() -> None:
             "Локальный RAG-индекс не найден. Сначала соберите индекс проекта.",
             details=str(exc),
         )
-        output_result(result, args.json)
+        emit(result, args, cfg)
         return
 
     accepted_contexts = filter_contexts_by_score(found_contexts, args.score_threshold, args.min_sources)
@@ -688,7 +722,7 @@ def main() -> None:
             sources=candidate_sources,
             details=f"min_sources={args.min_sources}, score_threshold={args.score_threshold}",
         )
-        output_result(result, args.json)
+        emit(result, args, cfg)
         return
 
     if args.sources_only:
@@ -699,7 +733,7 @@ def main() -> None:
             args.score_threshold,
             answer_mode="sources_only",
         )
-        output_result(result, args.json)
+        emit(result, args, cfg)
         return
 
     llm_contexts = accepted_contexts
@@ -737,7 +771,7 @@ def main() -> None:
                 answer_mode="extractive_fallback",
                 details=f"llm_error: {exc}",
             )
-            output_result(result, args.json)
+            emit(result, args, cfg)
             return
         result = refusal_response(
             question,
@@ -746,7 +780,7 @@ def main() -> None:
             sources=llm_sources,
             details=str(exc),
         )
-        output_result(result, args.json)
+        emit(result, args, cfg)
         return
 
     if not answer:
@@ -760,7 +794,7 @@ def main() -> None:
                 answer_mode="extractive_fallback",
                 details=f"model={chat_model}, empty_response=true",
             )
-            output_result(result, args.json)
+            emit(result, args, cfg)
             return
         result = refusal_response(
             question,
@@ -769,11 +803,11 @@ def main() -> None:
             sources=llm_sources,
             details=f"model={chat_model}, num_predict={args.num_predict}, top_k={args.top_k}",
         )
-        output_result(result, args.json)
+        emit(result, args, cfg)
         return
 
     result = answer_response(question, answer, llm_sources, args.score_threshold, answer_mode="llm")
-    output_result(result, args.json)
+    emit(result, args, cfg)
 
 
 if __name__ == "__main__":

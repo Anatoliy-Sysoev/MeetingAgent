@@ -5,6 +5,7 @@ import json
 import os
 import re
 import time
+from datetime import datetime, timezone
 from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any, Iterable
@@ -59,6 +60,46 @@ def jsonl_write(path: Path, rows: Iterable[dict[str, Any]]) -> int:
             fp.write(json.dumps(row, ensure_ascii=False) + "\n")
             count += 1
     return count
+
+
+SENSITIVE_QUERY_PATTERNS = (
+    ".env",
+    "config.yaml",
+    "пароль",
+    "password",
+    "token",
+    "токен",
+    "secret",
+    "секрет",
+    "system prompt",
+    "системный промпт",
+    "api key",
+    "ключ api",
+)
+
+
+def is_sensitive_query(text: str) -> bool:
+    lowered = (text or "").lower()
+    return any(pattern in lowered for pattern in SENSITIVE_QUERY_PATTERNS)
+
+
+def append_query_log(record: dict[str, Any], cfg: dict[str, Any] | None = None) -> None:
+    """Append one query run to the local query log.
+
+    Sensitive queries are never written: the log is runtime data and may
+    otherwise leak secrets pasted into a question.
+    """
+    if is_sensitive_query(str(record.get("question", ""))):
+        return
+    if cfg is not None:
+        raw = cfg.get("paths", {}).get("query_log", "data/query_log.jsonl")
+        path = resolve_work_path(cfg, raw)
+    else:
+        path = WORK_ROOT / "data" / "query_log.jsonl"
+    record.setdefault("ts", datetime.now(timezone.utc).isoformat())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8", newline="\n") as fp:
+        fp.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
 def sha256_file(path: Path, block_size: int = 1024 * 1024) -> str:
