@@ -88,14 +88,17 @@ class SourcePolicy:
         }
 
     def allowed_source_types_for_query(self, query: str, requested: list[str] | None = None) -> set[str]:
-        if requested:
-            return set(requested)
-
         lowered = query.lower()
-        allowed = set(self.allowed_by_default)
+        safe_default = set(self.allowed_by_default)
+        allowed = set(safe_default)
         for source_type, markers in self.explicit_enable_markers.items():
             if any(str(marker).lower() in lowered for marker in markers):
                 allowed.add(source_type)
+
+        if requested:
+            requested_set = {str(item) for item in requested}
+            return requested_set & allowed
+
         return allowed
 
     @staticmethod
