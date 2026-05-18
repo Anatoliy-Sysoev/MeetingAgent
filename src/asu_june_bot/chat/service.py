@@ -88,9 +88,10 @@ class ChatService:
             )
 
         if search_response.status == SearchStatus.ERROR.value:
+            diagnostics["search_error"] = search_payload.get("error") or search_payload.get("answer") or "search_failed"
             return finalize(
                 ChatResponse(
-                    status=ChatStatus.LLM_ERROR.value,
+                    status=ChatStatus.SEARCH_ERROR.value,
                     query=request.query,
                     answer="Поиск завершился ошибкой. Ответ не сформирован.",
                     search=search_payload,
