@@ -201,7 +201,7 @@ HTML = f"""<!doctype html>
       statusBox.textContent = 'Запрос выполняется...';
       answer.textContent = '';
       sources.innerHTML = '';
-      diagnostics.textContent = '{}';
+      diagnostics.textContent = '{{}}';
       try {{
         const response = await fetch('/chat', {{
           method: 'POST',
