@@ -13,6 +13,7 @@ class ChatStatus(StrEnum):
     CLARIFY = "clarify"
     NO_SOURCES = "no_sources"
     NO_ANSWER = "no_answer"
+    SEARCH_ERROR = "search_error"
     LLM_ERROR = "llm_error"
     LLM_EMPTY_RESPONSE = "llm_empty_response"
     VALIDATION_FAILED = "validation_failed"
