@@ -189,3 +189,16 @@ def test_chat_answer_with_unknown_source_reference_fails_validation() -> None:
 
     assert response.status == "validation_failed"
     assert "unknown_source_references:S99" in response.diagnostics["validation_errors"]
+
+
+def test_chat_no_answer_marker_returns_no_answer_status() -> None:
+    search = FakeSearchService(project_payload())
+    llm = FakeLLMClient("Краткий ответ\nВ переданных источниках данных недостаточно для ответа.\n\nОбоснование\n- Найдены только косвенные упоминания. [S1]")
+    service = ChatService(search_service=search, llm_client=llm)
+
+    response = service.chat(ChatRequest(query="Протокол ПСИ"))
+
+    assert response.status == "no_answer"
+    assert response.diagnostics["llm_called"] is True
+    assert response.diagnostics["no_answer_marker_present"] is True
+    assert response.diagnostics["validation_errors"] == []
