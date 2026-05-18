@@ -2,7 +2,7 @@
 
 Статус: локальный project-only RAG/Chat MVP реализован; API `/search` и `/chat`, Web UI, Telegram adapter и QH-1..QH-4 code-ready. QH-5 находится в статусе `PENDING_LOCAL_VALIDATION` до локального прогона на рабочем ПК.
 
-Обновлено: 2026-05-16.
+Обновлено: 2026-05-18.
 
 ## 1. Назначение
 
@@ -41,6 +41,8 @@ QH-2 Source Quality Filter
 QH-3 Parent Expansion
 QH-4 Semantic Warnings / Manual Labels
 QH-5 Release Gate
+API hardening: no public no_guard, safe source type allowlist, sanitized 500 errors
+Chat hardening: no_answer, search_error
 ```
 
 Подтверждено ранее smoke/regression:
@@ -52,14 +54,15 @@ API /search smoke: passed
 ChatService tests: passed
 CLI chat smoke: passed on qwen2.5:7b-instruct
 API /chat runtime smoke: passed
+Web UI manual smoke: passed for answered case
 ```
 
 Ожидает локального подтверждения после последних изменений:
 
 ```text
-Web UI smoke
+Hardening regression tests
+Web UI refused/mixed/no_answer smoke
 Telegram adapter smoke
-QH tests
 QH after_qh eval
 QH-5 release gate
 ```
@@ -67,7 +70,14 @@ QH-5 release gate
 Главный завтрашний чек-лист:
 
 ```text
+docs/subprojects/asu-june-bot/TOMORROW_EXECUTION_PROTOCOL.md
 docs/subprojects/asu-june-bot/TOMORROW_START.md
+```
+
+Hardening checklist после ревью Claude:
+
+```text
+docs/subprojects/asu-june-bot/QH_HARDENING_CHECKLIST.md
 ```
 
 Главный статус QH:
@@ -132,6 +142,20 @@ search diagnostics
 LLM diagnostics
 validation diagnostics
 warnings.semantic
+```
+
+Актуальные statuses:
+
+```text
+answered
+refused
+clarify
+no_sources
+no_answer
+search_error
+llm_error
+llm_empty_response
+validation_failed
 ```
 
 ### 3.3 Web UI
@@ -216,7 +240,9 @@ Telegram adapter = long polling client over local /chat
 
 ```text
 docs/subprojects/asu-june-bot/README.md                этот файл, главный вход
-docs/subprojects/asu-june-bot/TOMORROW_START.md        завтрашний чек-лист запуска
+docs/subprojects/asu-june-bot/TOMORROW_EXECUTION_PROTOCOL.md подробный протокол проверки
+docs/subprojects/asu-june-bot/TOMORROW_START.md        короткий чек-лист запуска
+docs/subprojects/asu-june-bot/QH_HARDENING_CHECKLIST.md проверки после hardening
 docs/subprojects/asu-june-bot/QH_STATUS.md             статус QH этапов
 docs/subprojects/asu-june-bot/FTT_STATUS.md            статус FTT бота
 docs/subprojects/asu-june-bot/context.md               текущий контекст и состояние
