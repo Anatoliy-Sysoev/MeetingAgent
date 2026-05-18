@@ -1,6 +1,6 @@
 # Контекст Project Knowledge Bot
 
-Обновлено: 2026-05-16.
+Обновлено: 2026-05-18.
 
 ## 1. Назначение
 
@@ -15,33 +15,50 @@ Project Knowledge Bot — отдельный подпроект внутри Mee
 - не запускать retrieval/LLM для refused/clarify;
 - генерировать ответы только по `primary_sources` и `supporting_sources`;
 - логировать chat-запуски для накопления dataset;
-- иметь baseline evaluation перед улучшениями retrieval/context;
+- иметь baseline evaluation и release gate;
 - предоставлять локальный Web UI и Telegram adapter поверх `/chat`.
 
 Публичная документация подпроекта должна быть пригодна для выделения в отдельный репозиторий и не должна зависеть от конкретного заказчика или названия исходного внедрения.
 
 ## 2. Текущий статус
 
-Подпроект доведён до уровня:
+Подпроект доведён до уровня локального MVP:
 
 ```text
 API Search MVP — PASSED
 CLI Chat MVP — PASSED_WITH_NOTES
 API Chat MVP / POST /chat — PASSED_WITH_NOTES
-Local Web UI / GET / and GET /ui — READY_FOR_LOCAL_SMOKE
+Local Web UI / GET / and GET /ui — smoke подтвержден вручную
 Telegram adapter over local /chat — READY_FOR_LOCAL_SMOKE
-QH-1 Observability + Eval Baseline — реализован, baseline требует анализа
+QH-1 Observability + Eval Baseline — реализован
+QH-2 Source Quality Filter — реализован
+QH-3 Parent Expansion — реализован
+QH-4 Semantic Warnings / Manual Labels — реализован
+QH-5 Release Gate — реализован, статус PENDING_LOCAL_VALIDATION
 ```
 
-Добавлено для завтрашней сдачи:
+После ручного UI smoke подтверждено:
 
 ```text
-единый лимит query = 2000 символов
-локальная HTML-страница для /chat
-Telegram long-polling adapter без новых зависимостей
-завтрашний чек-лист запуска
-Telegram runbook
-unit tests для Telegram formatter
+GET / или /ui открывает страницу Project Knowledge Bot
+POST /chat вызывается из UI
+status=answered отображается
+answer отображается
+sources отображаются
+diagnostics отображается
+semantic_warnings отображаются
+```
+
+Выявлены и исправлены дефекты:
+
+```text
+routes_ui.py f-string экранирование '{}' -> '{{}}'
+честный ответ 'недостаточно данных' больше не уходит в validation_failed, добавлен status=no_answer
+короткие проектные запросы 'Протокол ПСИ', 'Паспорт ИС', 'сценарии ПМИ' добавлены в guard regression
+публичный no_guard удалён из /search API
+include_source_types ограничен безопасным allowlist через SourcePolicy
+unhandled API errors санитизированы: наружу отдается request_id без repr(exc)
+SearchStatus.ERROR в ChatService мапится в status=search_error, а не llm_error
 ```
 
 ## 3. Текущий pipeline
@@ -55,10 +72,13 @@ User question
       -> BM25 / Vector / Hybrid retrieval
       -> PostReranker
       -> ContextBuilder
+          -> QH-2 Source Quality Filter
+          -> QH-3 Parent Expansion
   -> ChatService
       -> PromptBuilder
       -> LLMClient
       -> AnswerValidator
+      -> QH-4 SemanticWarningAnalyzer
       -> ResponseFormatter
       -> ChatRunsLogger
   -> Response
@@ -106,6 +126,20 @@ sources
 search
 warnings
 diagnostics
+```
+
+Актуальные chat statuses:
+
+```text
+answered
+refused
+clarify
+no_sources
+no_answer
+search_error
+llm_error
+llm_empty_response
+validation_failed
 ```
 
 ## 5. Runtime-компоненты
@@ -163,12 +197,14 @@ scripts/asu_june_bot_chat.py
 scripts/asu_june_bot_telegram.py
 ```
 
-### Observability / Eval
+### Observability / Eval / QH
 
 ```text
 src/asu_june_bot/observability/
 src/asu_june_bot/eval/
+src/asu_june_bot/qh/
 scripts/asu_june_bot_chat_eval.py
+scripts/asu_june_bot_qh_gate.py
 eval/cases/base.jsonl
 eval/golden_answers/*.md
 ```
@@ -203,54 +239,58 @@ ProjectGuard:
 false_allow = 0
 ```
 
-Chat smoke:
-
-```text
-qwen2.5:7b-instruct -> answered / finish_reason=stop / validation_errors=[]
-qwen3:4b -> llm_empty_response / finish_reason=length
-qwen3:8b -> timeout/обрыв на CPU runtime
-```
-
 Рекомендуемая chat-модель MVP:
 
 ```text
 qwen2.5:7b-instruct
 ```
 
-## 7. QH-1 baseline
-
-Первый baseline:
+Не использовать как default:
 
 ```text
-total = 13
-passed = 6
-failed = 7
-pass_rate = 46.2%
+qwen3:4b
+qwen3:8b
 ```
 
-Не трактовать как провал `/chat`.
-
-Категории проблем:
+Причины:
 
 ```text
-ложные eval failures: source_titles, clarify must_include
-project guard gap: логирование как проектный вопрос
-real retrieval/context gaps: ФТТ 4.2.5, short UML/source traps, no-context/SLA
+qwen3:4b -> llm_empty_response / finish_reason=length
+qwen3:8b -> timeout/обрыв на CPU runtime
 ```
 
-Уже исправлено:
+## 7. QH status
 
 ```text
-source_titles ищет не только в title, но и path/section/preview
-clarify cases проверяют фактическую формулировку "Сформулируйте"
-ProjectGuard получил project markers для логирования/Grafana Loki/журналирования
+QH-1 Observability + Eval Baseline — implemented
+QH-2 Source Quality Filter — implemented
+QH-3 Parent Expansion — implemented
+QH-4 Semantic Warnings / Manual Labels — implemented
+QH-5 Release Gate — implemented, pending local validation
 ```
 
-Следующее действие по качеству — повторить baseline после локального pull и тестов.
+QH-5 нельзя считать закрытым, пока не выполнены:
+
+```text
+local regression tests
+API smoke
+Web UI smoke
+Telegram smoke
+after_qh eval
+baseline comparison
+qh gate with --local-validation-done --baseline-compared
+smoke_report_qh_release.md
+```
 
 ## 8. Завтрашний запуск
 
-Главный документ:
+Главный детальный документ:
+
+```text
+docs/subprojects/asu-june-bot/TOMORROW_EXECUTION_PROTOCOL.md
+```
+
+Короткий чек-лист:
 
 ```text
 docs/subprojects/asu-june-bot/TOMORROW_START.md
@@ -265,7 +305,9 @@ tests
 API
 Web UI
 Telegram adapter
-manual smoke
+after_qh eval
+QH gate
+smoke report
 ```
 
 Ключевые команды:
@@ -290,6 +332,7 @@ Telegram:
 ```powershell
 $env:ASU_JUNE_BOT_TELEGRAM_TOKEN='PASTE_TOKEN_HERE'
 $env:ASU_JUNE_BOT_CHAT_API_URL='http://127.0.0.1:8000/chat'
+$env:ASU_JUNE_BOT_ALLOWED_CHAT_IDS='YOUR_CHAT_ID'
 .\.venv\Scripts\python.exe scripts\asu_june_bot_telegram.py
 ```
 
@@ -299,7 +342,10 @@ $env:ASU_JUNE_BOT_CHAT_API_URL='http://127.0.0.1:8000/chat'
 
 ```text
 README.md
+TOMORROW_EXECUTION_PROTOCOL.md
 TOMORROW_START.md
+QH_STATUS.md
+FTT_STATUS.md
 architecture.md
 mvp.md
 roadmap.md
@@ -313,28 +359,26 @@ product/
 smoke_report_*.md
 ```
 
-Устаревшие документы и case-conflict материалы не должны оставаться в активной зоне подпроекта.
-
 ## 10. Следующие шаги
 
-Перед QH-2 завтра нужно:
+Сейчас:
 
 ```text
-1. Выполнить TOMORROW_START.md.
-2. Проверить UI и Telegram adapter вручную.
-3. Зафиксировать демонстрационный smoke.
-4. Повторить QH-1 baseline после последних eval/guard fixes.
-5. После демонстрации перейти к QH-2 Source Quality Filter.
+1. Выполнить git pull.
+2. Прогнать обновленные tests.
+3. Повторить UI smoke на проектный/refused/mixed/no_answer cases.
+4. Проверить Telegram smoke.
+5. Выполнить after_qh eval.
+6. Выполнить QH gate final.
+7. Сформировать smoke_report_qh_release.md.
 ```
 
-После повторного baseline:
+После QH-5 passed:
 
 ```text
-1. Проанализировать failures.
-2. Реализовать QH-2 Source Quality Filter.
-3. Сравнить eval baseline vs with_source_filter.
-4. Реализовать QH-3 Parent Expansion только при необходимости.
-5. Docker — только после QH-5 Release Stabilization.
+1. Зафиксировать QH_STATUS.md и FTT_STATUS.md.
+2. Перейти к Docker stage.
+3. Не менять retrieval/guard без eval baseline.
 ```
 
 ## 11. Не делать сейчас
@@ -346,11 +390,9 @@ smoke_report_*.md
 не менять модель embeddings bge-m3
 не коммитить Telegram token
 не пытаться заставить /search писать осмысленные ответы
-не внедрять source filter без повторного baseline
-не внедрять parent expansion без замера эффекта source quality filter
 не подключать DSPy в runtime
 не делать LLM-as-judge/NLI до накопления dataset
-не делать Docker до QH-5
+не делать Docker до QH-5 passed
 не развивать scripts/09_chat.py как основной runtime
 не смешивать старый RAG v1 и новый bot v2.1
 ```
