@@ -51,7 +51,10 @@ def _marker_matches(lowered: str, marker: str) -> bool:
     if marker_l in SHORT_MARKERS or (len(marker_l) <= 3 and WORD_RE.match(marker_l)):
         return bool(re.search(rf"(?<![a-zа-я0-9_]){re.escape(marker_l)}(?![a-zа-я0-9_])", lowered, flags=re.IGNORECASE | re.UNICODE))
 
-    return marker_l in lowered
+    # Longer markers may intentionally be stems, for example "инъекц" -> "инъекцию".
+    # Require only the left word boundary so markers cannot start inside unrelated words:
+    # "цена" must not match inside "сценарии".
+    return bool(re.search(rf"(?<![a-zа-я0-9_]){re.escape(marker_l)}", lowered, flags=re.IGNORECASE | re.UNICODE))
 
 
 def _contains_any(lowered: str, markers: set[str]) -> list[str]:
