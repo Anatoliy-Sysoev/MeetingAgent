@@ -95,6 +95,7 @@ def test_search_endpoint_project_query() -> None:
     assert fake_search.last_request.query == "СоИ AD как происходит авторизация пользователей?"
     assert fake_search.last_request.mode == "hybrid"
     assert fake_search.last_request.top_k == 8
+    assert fake_search.last_request.no_guard is False
 
 
 def test_search_endpoint_refused_query() -> None:
@@ -110,6 +111,19 @@ def test_search_endpoint_refused_query() -> None:
     assert data["diagnostics"]["search_service"]["retrieval_called"] is False
     assert data["context"]["primary_sources"] == []
     assert data["results"] == []
+
+
+def test_search_endpoint_rejects_public_no_guard_bypass() -> None:
+    client, _fake_search = build_client()
+    try:
+        response = client.post("/search", json={"query": "Какая погода завтра в Москве?", "no_guard": True})
+    finally:
+        client.__exit__(None, None, None)
+
+    assert response.status_code == 422
+    data = response.json()
+    assert data["status"] == "error"
+    assert data["error_code"] == "validation_error"
 
 
 def test_search_endpoint_validation_error_on_unknown_field() -> None:
