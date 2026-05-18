@@ -39,6 +39,11 @@ def extract_source_refs(text: str) -> list[str]:
     return refs
 
 
+def has_no_answer_marker(text: str) -> bool:
+    lowered = (text or "").lower()
+    return any(marker in lowered for marker in NO_ANSWER_MARKERS)
+
+
 def _word_count(text: str) -> int:
     return len(re.findall(r"[A-Za-zА-Яа-я0-9_]+", text or ""))
 
@@ -85,10 +90,6 @@ class AnswerValidator:
             errors.append("answer_too_long")
         if not sources:
             errors.append("missing_sources")
-
-        if any(marker in lowered for marker in NO_ANSWER_MARKERS):
-            # Honest no-answer is acceptable only for future NO_ANSWER status; current ChatService treats it as not answered.
-            errors.append("no_answer_marker_present")
 
         external_markers = [marker for marker in EXTERNAL_KNOWLEDGE_MARKERS if marker in lowered]
         if external_markers:
