@@ -18,7 +18,7 @@ DEFAULT_OUTPUT = WORK_ROOT / "data" / "realistic_100_eval_report.jsonl"
 DEFAULT_TOP_K = 5
 DEFAULT_MAX_TOKENS = 700
 DEFAULT_TIMEOUT_SEC = 999999
-CHAT_SCRIPT = WORK_ROOT / "scripts" / "09_chat.py"
+DEFAULT_CHAT_SCRIPT = WORK_ROOT / "scripts" / "09_chat_quality.py"
 
 
 def utc_now() -> str:
@@ -28,10 +28,13 @@ def utc_now() -> str:
 def run_case(case: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
     query = str(case["query"])
     model = str(case["model"])
+    chat_script = Path(args.chat_script)
+    if not chat_script.is_absolute():
+        chat_script = WORK_ROOT / chat_script
 
     cmd = [
         sys.executable,
-        str(CHAT_SCRIPT),
+        str(chat_script),
         query,
         "--json",
         "--model",
@@ -79,6 +82,7 @@ def run_case(case: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
         "scope": case.get("scope"),
         "category": case.get("category"),
         "model": model,
+        "chat_script": str(chat_script),
         "query": query,
         "command": cmd,
         "returncode": proc.returncode,
@@ -126,9 +130,10 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Прогон 100 realistic queries через 09_chat.py")
+    parser = argparse.ArgumentParser(description="Прогон 100 realistic queries через project-only chat runner")
     parser.add_argument("--dataset", default=str(DEFAULT_DATASET), help="JSONL dataset")
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help="JSONL report")
+    parser.add_argument("--chat-script", default=str(DEFAULT_CHAT_SCRIPT), help="Chat CLI script: 09_chat_quality.py для quality-run или 09_chat.py для baseline")
     parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K)
     parser.add_argument("--max-tokens", type=int, default=DEFAULT_MAX_TOKENS)
     parser.add_argument("--timeout-sec", type=int, default=DEFAULT_TIMEOUT_SEC)
@@ -137,6 +142,12 @@ def main() -> None:
 
     dataset_path = Path(args.dataset)
     output_path = Path(args.output)
+    chat_script = Path(args.chat_script)
+    if not chat_script.is_absolute():
+        chat_script = WORK_ROOT / chat_script
+
+    if not chat_script.exists():
+        raise SystemExit(f"Chat script not found: {chat_script}")
 
     rows = list(jsonl_read(dataset_path))
     if not rows:
@@ -153,7 +164,8 @@ def main() -> None:
         for idx, row in enumerate(rows, start=1):
             print(
                 f"[{idx}/{len(rows)}] START {row.get('id')} "
-                f"model={row.get('model')}",
+                f"model={row.get('model')} "
+                f"chat_script={chat_script.name}",
                 flush=True,
             )
             result = run_case(row, args)

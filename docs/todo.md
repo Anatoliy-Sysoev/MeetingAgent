@@ -192,7 +192,17 @@ scripts/14_run_realistic_100_eval.py
 scripts/15_prepare_realistic_eval_review.py
 scripts/run_realistic_100_eval_automation.ps1
 scripts/realistic_100_eval_status.ps1
+scripts/09_chat_quality.py
+scripts/rag_retrieval_quality.py
 ```
+
+После PR #8 полный `realistic 100` должен запускаться через quality wrapper:
+
+```powershell
+.\scripts\run_realistic_100_eval_automation.ps1
+```
+
+По умолчанию controller передаёт `--chat-script scripts\09_chat_quality.py`. Для сравнения с baseline можно явно передать `-ChatScript scripts\09_chat.py`.
 
 Smoke 2026-05-19:
 

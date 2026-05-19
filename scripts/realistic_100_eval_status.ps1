@@ -14,6 +14,10 @@ Set-Location $repoRoot
 $pythonExe = Join-Path $repoRoot ".venv\Scripts\python.exe"
 $reviewer = Join-Path $repoRoot "scripts\15_prepare_realistic_eval_review.py"
 $statePath = Join-Path $repoRoot "data\realistic_100_eval_automation_state.json"
+$state = $null
+if (Test-Path -LiteralPath $statePath) {
+    $state = Get-Content -LiteralPath $statePath -Encoding UTF8 -Raw | ConvertFrom-Json
+}
 
 $activeEval = @(Get-CimInstance Win32_Process -Filter "name = 'python.exe'" |
     Where-Object { $_.CommandLine -like "*14_run_realistic_100_eval.py*" })
@@ -62,6 +66,7 @@ $payload = [ordered]@{
     rows = $rows
     report = $ReportPath
     review = $ReviewPath
+    chat_script = if ($state -and $state.chat_script) { $state.chat_script } else { $null }
     review_exists = $reviewExists
     summary_exists = $summaryExists
     active_eval_pids = @($activeEval | ForEach-Object { $_.ProcessId })
