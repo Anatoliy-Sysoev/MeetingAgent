@@ -10,7 +10,15 @@ from typing import Any
 import numpy as np
 import requests
 
-from rag_common import ensure_runtime_dirs, is_excluded_by_path_patterns, jsonl_read, load_config, resolve_work_path, stable_id
+from rag_common import (
+    append_query_log,
+    ensure_runtime_dirs,
+    is_excluded_by_path_patterns,
+    jsonl_read,
+    load_config,
+    resolve_work_path,
+    stable_id,
+)
 from rag_numpy_backend import index_exists, load_index
 
 
@@ -191,6 +199,21 @@ def print_compact_contexts(contexts: list[dict[str, Any]]) -> None:
         print(f"    {preview_text(ctx['document'])}")
 
 
+def top_sources_for_log(contexts: list[dict[str, Any]], limit: int = 8) -> list[dict[str, Any]]:
+    sources = []
+    for ctx in contexts[:limit]:
+        meta = ctx.get("metadata", {})
+        score = float(ctx.get("score", 1.0 - float(ctx.get("distance", 1.0))))
+        sources.append(
+            {
+                "relative_path": meta.get("relative_path"),
+                "chunk_index": meta.get("chunk_index"),
+                "score": round(score, 6),
+            }
+        )
+    return sources
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Запрос к локальному RAG-индексу проекта АСУ")
     parser.add_argument("question", nargs="+", help="Вопрос к RAG-индексу")
@@ -252,6 +275,17 @@ def main() -> None:
         contexts.append(ctx)
         used_chars += len(doc)
 
+    log_record = {
+        "source": "04_query",
+        "question": question,
+        "top_sources": top_sources_for_log(contexts),
+        "params": {
+            "top_k": top_k,
+            "include_excluded": bool(args.include_excluded),
+            "dedupe": dedupe_by_chunk_id,
+        },
+    }
+
     if args.raw:
         print(
             json.dumps(
@@ -265,15 +299,18 @@ def main() -> None:
                 indent=2,
             )
         )
+        append_query_log({**log_record, "mode": "raw", "answer": None}, cfg)
         return
 
     if args.compact:
         print_compact_contexts(contexts)
+        append_query_log({**log_record, "mode": "compact", "answer": None}, cfg)
         return
 
     prompt = build_prompt(question, contexts)
     answer = ollama_chat(base_url, chat_model, prompt, temperature, top_p)
     print(answer)
+    append_query_log({**log_record, "mode": "llm", "answer": answer}, cfg)
 
 
 if __name__ == "__main__":

@@ -43,6 +43,8 @@ paths:
   chunks: "data/chunks.jsonl"
   embeddings_cache: "data/embeddings_cache.jsonl"
   numpy_index: "data/numpy_index"
+  # Лог реальных запросов для цикла разметки и коррекции. Локальный runtime, не коммитится.
+  query_log: "data/query_log.jsonl"
   # Устаревшая папка ChromaDB. Основной поиск и сборка RAG ее не используют.
   vector_db: "vector_db"
   logs: "logs"
