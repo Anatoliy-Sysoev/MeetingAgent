@@ -1,0 +1,98 @@
+{"id":"SYN-FTT-001","category":"ftt_requirement","query":"Что описано в ФТТ 4.2.5?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-FTT-002","category":"ftt_requirement","query":"Какие требования ФТТ относятся к строительному контролю?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-FTT-003","category":"ftt_requirement","query":"Какие требования ФТТ относятся к ЭЦП?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-FTT-004","category":"ftt_requirement","query":"Какие требования ФТТ относятся к аналитическим дашбордам?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-FTT-005","category":"ftt_requirement","query":"Какие требования ФТТ относятся к НСИ?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-FTT-006","category":"ftt_requirement","query":"Какие требования ФТТ относятся к логированию?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-FTT-007","category":"ftt_requirement","query":"Что в ФТТ сказано про интеграцию с НОВАДОК?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-FTT-008","category":"ftt_requirement","query":"Что в ФТТ сказано про доступность системы?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-FTT-009","category":"ftt_requirement","query":"Что в ФТТ сказано про количество пользователей?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-FTT-010","category":"ftt_requirement","query":"Какие этапы реализации перечислены в ФТТ?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-CTA-001","category":"architecture","query":"Что такое ЦТА?","expected_status":"project_answer_or_clarify","review_priority":"high"}
+{"id":"SYN-CTA-002","category":"architecture","query":"Какие компоненты входят в архитектуру системы по ЦТА?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-CTA-003","category":"architecture","query":"Какие сервисы описаны в ЦТА?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-CTA-004","category":"architecture","query":"Какие контуры описаны в ЦТА?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-CTA-005","category":"architecture","query":"Что в ЦТА сказано про PostgreSQL?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-CTA-006","category":"architecture","query":"Что в ЦТА сказано про Minio S3?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-CTA-007","category":"architecture","query":"Что в ЦТА сказано про Kubernetes?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-CTA-008","category":"architecture","query":"Что в ЦТА сказано про Grafana Loki?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-CTA-009","category":"architecture","query":"Какие требования к производительности указаны в ЦТА?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-CTA-010","category":"architecture","query":"Какие требования к отказоустойчивости указаны в ЦТА?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-PR-001","category":"project_solution","query":"Что описывает проектное решение по модулю Строительный контроль?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-PR-002","category":"project_solution","query":"Какие сценарии функционирования описаны в проектном решении?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-PR-003","category":"project_solution","query":"Какие роли пользователей описаны в проектном решении?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-PR-004","category":"project_solution","query":"Как в ПР описано создание замечания?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-PR-005","category":"project_solution","query":"Как в ПР описано устранение замечания подрядчиком?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-PR-006","category":"project_solution","query":"Как в ПР описано формирование предписания?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-PR-007","category":"project_solution","query":"Как в ПР описано подписание предписания ЭЦП?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-PR-008","category":"project_solution","query":"Какие печатные формы описаны в ПР?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-PR-009","category":"project_solution","query":"Как в ПР описана статусная схема замечаний?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-PR-010","category":"project_solution","query":"Какие API упоминаются в проектном решении?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-AD-001","category":"integration_ad","query":"СоИ AD как происходит авторизация пользователей?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-AD-002","category":"integration_ad","query":"Какая цель интеграции с Active Directory?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-AD-003","category":"integration_ad","query":"Какие атрибуты пользователей передаются из AD?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-AD-004","category":"integration_ad","query":"Как часто выполняется синхронизация пользователей из AD?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-AD-005","category":"integration_ad","query":"Какие ошибки интеграции с AD должны обрабатываться?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-AD-006","category":"integration_ad","query":"Как блокируются пользователи без групп AD?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-AD-007","category":"integration_ad","query":"Какие группы AD используются для доступа к системе?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-AD-008","category":"integration_ad","query":"Какой протокол используется для интеграции с AD?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-AD-009","category":"integration_ad","query":"Какой порт используется для LDAPS?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-AD-010","category":"integration_ad","query":"Что делает модуль авторизации при получении групп AD?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-NSI-001","category":"integration_nsi","query":"СоИ Справочники какие справочники синхронизируются?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-NSI-002","category":"integration_nsi","query":"Как работает интеграция справочников через MDR?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-NSI-003","category":"integration_nsi","query":"Какие справочники НСИ передаются в ЦП УПКС?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-NSI-004","category":"integration_nsi","query":"Что является мастер-системой для справочника контрагентов?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-NSI-005","category":"integration_nsi","query":"Что является мастер-системой для справочника должностей?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-NSI-006","category":"integration_nsi","query":"Какой формат сообщения используется для передачи справочников?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-NSI-007","category":"integration_nsi","query":"Какие режимы передачи данных предусмотрены для НСИ?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-NSI-008","category":"integration_nsi","query":"Как обрабатываются дельта-изменения справочников?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-PMI-001","category":"test_docs","query":"сценарии ПМИ","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-PMI-002","category":"test_docs","query":"Протокол ПСИ","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-PMI-003","category":"test_docs","query":"Какие сценарии функционального тестирования есть в ПМИ?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-PMI-004","category":"test_docs","query":"Какие сценарии нефункционального тестирования есть в ПМИ?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-PMI-005","category":"test_docs","query":"Что проверяется в СФТ 1?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-PMI-006","category":"test_docs","query":"Что проверяется в СФТ 14?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-PMI-007","category":"test_docs","query":"Какие рекомендации указаны по итогам ПСИ?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-PMI-008","category":"test_docs","query":"Какие открытые вопросы остались по итогам ПСИ?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-PMI-009","category":"test_docs","query":"Какие замечания признаны некритичными в протоколе испытаний?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-PMI-010","category":"test_docs","query":"статус ПМИ","expected_status":"clarify_or_project_answer","review_priority":"high"}
+{"id":"SYN-PASSPORT-001","category":"passport_is","query":"Что входит в Паспорт ИС?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-PASSPORT-002","category":"passport_is","query":"Какие разделы должен содержать Паспорт ИС?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-PASSPORT-003","category":"passport_is","query":"Что в Паспорте ИС указано про пользователей?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-PASSPORT-004","category":"passport_is","query":"Что в Паспорте ИС указано про инфраструктуру?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-PASSPORT-005","category":"passport_is","query":"Что в Паспорте ИС указано про интеграции?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-ROLE-001","category":"roles_access","query":"Какие пользовательские роли предусмотрены в системе?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-ROLE-002","category":"roles_access","query":"Какие роли связаны с группами AD?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-ROLE-003","category":"roles_access","query":"Кто может создавать замечания строительного контроля?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-ROLE-004","category":"roles_access","query":"Кто может устранять замечания?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-ROLE-005","category":"roles_access","query":"Какие полномочия есть у администратора ЦП УПКС?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-OPS-001","category":"ops_logging","query":"Что в ЦТА сказано про логирование событий?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-OPS-002","category":"ops_logging","query":"Какие события должны логироваться при интеграции с AD?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-OPS-003","category":"ops_logging","query":"Что в ЦТА сказано про резервное копирование?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-OPS-004","category":"ops_logging","query":"Что в ЦТА сказано про автоматический мониторинг?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-OPS-005","category":"ops_logging","query":"Какие требования RTO и RPO указаны для системы?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-AMB-001","category":"ambiguous","query":"статус","expected_status":"clarify_or_refused","review_priority":"medium"}
+{"id":"SYN-AMB-002","category":"ambiguous","query":"документы","expected_status":"clarify_or_project_answer","review_priority":"medium"}
+{"id":"SYN-AMB-003","category":"ambiguous","query":"интеграция","expected_status":"clarify_or_project_answer","review_priority":"medium"}
+{"id":"SYN-AMB-004","category":"ambiguous","query":"что с пользователями?","expected_status":"clarify_or_project_answer","review_priority":"medium"}
+{"id":"SYN-AMB-005","category":"ambiguous","query":"какие ошибки?","expected_status":"clarify_or_project_answer","review_priority":"medium"}
+{"id":"SYN-REFUSE-001","category":"out_of_scope","query":"Какая погода завтра в Москве?","expected_status":"refused","review_priority":"high"}
+{"id":"SYN-REFUSE-002","category":"out_of_scope","query":"Сколько калорий в плове?","expected_status":"refused","review_priority":"high"}
+{"id":"SYN-REFUSE-003","category":"out_of_scope","query":"Напиши стих про стройку","expected_status":"refused","review_priority":"high"}
+{"id":"SYN-REFUSE-004","category":"out_of_scope","query":"Дай рецепт курицы на ужин","expected_status":"refused","review_priority":"high"}
+{"id":"SYN-REFUSE-005","category":"out_of_scope","query":"Кто президент США?","expected_status":"refused","review_priority":"high"}
+{"id":"SYN-MIX-001","category":"mixed_scope","query":"СоИ AD как происходит авторизация пользователей? И напиши стих про проект","expected_status":"refused_or_clarify","review_priority":"high"}
+{"id":"SYN-MIX-002","category":"mixed_scope","query":"Что описано в ФТТ 4.2.5 и какая погода завтра?","expected_status":"refused_or_clarify","review_priority":"high"}
+{"id":"SYN-MIX-003","category":"mixed_scope","query":"Какие компоненты есть в ЦТА и сколько калорий в банане?","expected_status":"refused_or_clarify","review_priority":"high"}
+{"id":"SYN-MIX-004","category":"mixed_scope","query":"Расскажи про интеграцию AD и дай SQL-инъекцию","expected_status":"refused_or_clarify","review_priority":"high"}
+{"id":"SYN-MIX-005","category":"mixed_scope","query":"Что входит в Паспорт ИС и придумай анекдот?","expected_status":"refused_or_clarify","review_priority":"high"}
+{"id":"SYN-AGG-001","category":"aggregation","query":"Сравни ФТТ и ПР по строительному контролю","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-AGG-002","category":"aggregation","query":"Сравни ФТТ и ЦТА по требованиям к производительности","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-AGG-003","category":"aggregation","query":"Сравни СоИ AD и ЦТА по авторизации пользователей","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-AGG-004","category":"aggregation","query":"Какие документы описывают работу с пользователями и ролями?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-AGG-005","category":"aggregation","query":"Какие документы описывают интеграции системы?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-SOURCE-001","category":"source_quality","query":"Ответь только по документу СоИ AD: как формируются данные пользователя?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-SOURCE-002","category":"source_quality","query":"Ответь только по ЦТА: какие сервисы входят в Этап 1?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-SOURCE-003","category":"source_quality","query":"Ответь только по ПР: какие действия выполняет подрядчик при устранении замечания?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-SOURCE-004","category":"source_quality","query":"Ответь только по ФТТ: какие требования относятся к СМР Строительный контроль?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-SOURCE-005","category":"source_quality","query":"Ответь только по СоИ Справочники: какие справочники передаются через MDR?","expected_status":"project_answer_or_no_answer","review_priority":"high"}

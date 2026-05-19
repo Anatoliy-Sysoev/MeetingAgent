@@ -1,87 +1,121 @@
 # Список Задач
 
-Обновлено: 2026-05-12.
+Обновлено: 2026-05-19.
 
 ## Сейчас
 
-- Использовать `docs/product/PROJECT_STAGES_AND_FTT.md` как основной список этапов и ФТТ для движения по продукту.
 - Использовать numpy-поиск как основной стабильный локальный RAG-поиск.
-- Принять решение по порогу приемки `FTT-MA-07` на основе результата `9 hit / 5 partial / 1 miss`.
-- Разобрать слабые вопросы baseline: ПМИ, инфраструктурные ограничения, архитектурная записка.
-- Проверить проблемные вопросы с `--no-dedupe`, чтобы понять, не скрыла ли дедупликация дополнительные подтверждающие источники.
-- Проверить полноту индексации ПМИ: какие ПМИ-файлы реально попали в `chunks.jsonl`, сколько у них chunks и почему они ниже ФТТ в выдаче.
-- Использовать `configs/schemas/meeting.schema.json` как контракт `FTT-MA-09` для всех будущих обработчиков встреч.
-- Использовать `scripts/06_transcribe_meeting.py` как минимальный offline CLI для одной встречи.
-- Проверить качество первого transcript: акронимы ФТТ/ПМИ/ЦТА, таймкоды, разбиение на абзацы, шумные места.
-- Учитывать результат сравнения моделей: `small/int8` для быстрого черновика и live MVP, `large-v3-turbo/int8` для финальной offline-транскрибации важных встреч.
-- Использовать выводы `docs/references/WHISPERX_EXPERIMENT.md`: WhisperX оставить как эксперимент для word-level alignment/diarization, не включать в основной MVP pipeline.
-- Использовать prompt-шаблоны `configs/prompts/meeting_memo.md`, `meeting_protocol.md`, `meeting_artifacts_json.md` только как первый одношаговый слой `FTT-MA-12`.
-- Использовать `docs/architecture/MEETING_ARTIFACTS_PIPELINE.md` как целевую архитектуру итогов встречи.
-- Использовать `scripts/07_generate_meeting_artifacts.py` как первый генератор `summarized`-состояния встречи, но считать `extractive` только скаффолдом контракта.
-- Использовать `scripts/08_process_meeting_pipeline.py` как первый оконный offline-pipeline для готовой записи: ASR по окнам, MAP по готовым окнам, затем REDUCE/RENDER.
-- Использовать `docs/product/PROJECT_ONLY_CHATBOT_MVP.md` как дорожную карту разработки чат-бота.
-- Использовать `scripts/09_chat.py` как первый CLI Project-Only Chatbot MVP: ответ только по источникам проекта или корректный отказ.
-- Прогнать `scripts/09_chat.py` локально на быстром профиле: `--top-k 3 --max-context-chars 4500 --source-char-limit 1200 --num-predict 400 --timeout-sec 120`.
-- Проверить после `git pull`, что пустой ответ LLM возвращается как `status=refused` и `refusal_reason=llm_empty_response`, а не как `status=answered`.
-- Подобрать `--score-threshold` для project-only отказов на smoke-наборе.
+- Использовать `scripts/09_chat.py` как текущий prototype Project-Only Chatbot MVP: ответ только по источникам проекта или корректный отказ.
+- Использовать `docs/quality/QUERY_FEEDBACK_LOOP.md` как основной регламент накопления датасета запросов: логировать → просматривать → размечать → корректировать.
+- Использовать `docs/quality/DATASET_PIPELINE_STATUS.md` как статус реализованного dataset pipeline.
+- Использовать `docs/quality/synthetic_seed_queries.jsonl` как стартовый synthetic smoke/regression corpus.
+- Использовать `scripts/10_review_queries.py` для подготовки `data/query_log_review.jsonl` из `data/query_log.jsonl`.
+- Использовать `scripts/11_run_synthetic_seed.py` для прогона synthetic seed через `scripts/04_query.py`.
+- Использовать `scripts/12_analyze_seed_report.py` для построения `data/synthetic_seed_summary.md`.
+- Использовать `scripts/13_build_eval_candidates.py` для подготовки `data/eval_candidates.jsonl` из ручной review-разметки.
+- Не считать synthetic seed и eval candidates утверждённым eval без ручного review.
+- Не дообучать веса LLM; текущий подход — ручной active-learning поверх RAG через корпус, exclude-правила, retrieval-параметры и regression-кейсы.
+
+## Ближайшие Практические Шаги
+
+1. Подтянуть ветку `claude/model-training-guide-CAfwU` локально.
+2. Проверить синтаксис новых скриптов:
+
+```powershell
+.\.venv\Scripts\python.exe -m py_compile scripts\10_review_queries.py scripts\11_run_synthetic_seed.py scripts\12_analyze_seed_report.py scripts\13_build_eval_candidates.py
+```
+
+3. Прогнать небольшой retrieval smoke на synthetic seed:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\11_run_synthetic_seed.py --limit 20
+.\.venv\Scripts\python.exe scripts\12_analyze_seed_report.py
+```
+
+4. Открыть `data/synthetic_seed_summary.md` и проверить:
+
+- failed rows;
+- запросы без sources;
+- low top score;
+- часто возвращаемые мусорные источники.
+
+5. Накопить первые реальные запросы через `scripts/04_query.py` и `scripts/09_chat.py`.
+6. Подготовить review-срез:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\10_review_queries.py --limit 100
+```
+
+7. Вручную разметить `data/query_log_review.jsonl` verdict-ами:
+
+- `ok`;
+- `missing_source`;
+- `garbage_source`;
+- `low_score`;
+- `hallucination`;
+- `out_of_scope`.
+
+8. Собрать кандидатов:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\13_build_eval_candidates.py
+```
+
+9. После ручного approval перенести часть candidates в постоянный regression/eval corpus.
 
 ## Далее
 
-- Вынести CLI-логику project-only чат-бота в local API `/chat` после успешного smoke-прогона.
+- Разобрать слабые вопросы baseline: ПМИ, инфраструктурные ограничения, архитектурные aggregation-запросы.
+- Проверить полноту индексации ПМИ: какие ПМИ-файлы реально попали в `chunks.jsonl`, сколько у них chunks и почему они ниже ФТТ в выдаче.
+- Проверить проблемные вопросы с `--no-dedupe`, чтобы понять, не скрыла ли дедупликация дополнительные подтверждающие источники.
+- Подобрать `--score-threshold` для project-only отказов на smoke-наборе.
 - Зафиксировать baseline project-only chatbot: проектные вопросы, внепроектные вопросы, threshold, модель, время ответа, качество источников, timeout и `llm_empty_response`.
-- Проверить, нужна ли отдельная более легкая модель для интерактивного режима: `qwen3:4b` или `qwen2.5:7b-instruct` вместо `qwen3:8b`.
-- Прогнать `--mode ollama-map-reduce` на одном окне transcript, не на всей встрече.
-- Сравнить `qwen2.5:7b-instruct` и `mistral:7b-instruct` на одном окне: время, валидность JSON, качество классификации.
-- После калибровки модели запустить полный map-reduce-render прогон тестовой встречи.
-- Прогнать `scripts/08_process_meeting_pipeline.py` на полной тестовой встрече и оценить качество `memo.md`, `protocol.md`, `decisions.json`, `risks.json`.
-- Взять в отдельную разработку запись `C:\Users\Сотрудник\Desktop\!Проектные документы АСУ\Записи встреч\2026-05-08 14-32-43.mp4`: создать карточку встречи, сравнить `faster-whisper small` с GigaAM small и затем прогнать оконный pipeline.
-- Добавить инкрементальный `update_rag.ps1` для новых, измененных и удаленных документов.
-- В `update_rag.ps1` обязательно обработать deletion: удаленные и попавшие под `exclude_path_patterns` документы должны исчезать из актуального индекса.
-- Добавить watcher/скрипт загрузки встреч из `watched_folder/` поверх уже готового `06_transcribe_meeting.py`.
+- Ввести или спроектировать метаданные `source_type`: `project_doc`, `system_export`, `analytical_note`, `instruction`.
+- Для aggregation-вопросов попробовать многоэтапный retrieval: сначала определить типы документов, затем искать внутри каждого типа.
 - Оценить, нужен ли BM25-гибрид или метаданные-фильтры, если системные HTML/TXT-экспорты продолжают вытеснять проектные документы в top-k.
-- Ввести метаданные `source_type`: `project_doc`, `system_export`, `analytical_note`, `instruction`.
-- Для aggregation-вопросов попробовать многоэтапный retrieval: сначала найти нужные типы документов, затем искать внутри каждого типа.
-- Использовать `docs/glossary.md` как `initial_prompt` для ASR и как источник будущих подсказок reranker/нормализации терминов.
-- После первой транскрибации оценить, как `segments.jsonl` и `transcript.md` ложатся в контракт карточки встречи.
-- Поддерживать правило: реальные `meetings/**/meeting.json`, transcript и медиа являются runtime-данными и не коммитятся; примеры хранить в `docs/examples/`.
-- Подготовить MVP live-транскрибации по `FTT-MA-10` и `FTT-MA-11`, используя WhisperDesk только как экспериментальный референс.
-- Опционально добавить FAISS поверх того же формата metadata, если numpy станет медленным на большем корпусе.
+- Вынести CLI-логику project-only чат-бота в local API `/chat` только после успешного smoke-прогона и стабилизации project-only guardrail.
 
-## Когда Вернуться
+## Meeting Pipeline
 
-- Рассмотреть WhisperX, если появится UI с timeline или потребуется diarization (нужен HuggingFace token и pyannote gated models).
-- Рассмотреть pyannote 3.1 как основной путь diarization, когда дойдем до `FTT-MA-10` live-сессий или UI с timeline.
-
-## Продуктовые Следующие Шаги
-
-- Использовать `docs/product/PRODUCT_VISION_AND_PLAN.md` как основную карту продукта.
-- Использовать `docs/product/PROJECT_STAGES_AND_FTT.md` как рабочий чек-лист: этап -> ФТТ -> артефакт -> критерий готовности.
-- Использовать `docs/product/PROJECT_TAXONOMY.md` как единый реестр этапов проекта и типов документов.
-- Использовать `docs/glossary.md` как основу для терминов и будущего `initial_prompt` транскрибации.
-- Для Asu June Bot использовать `docs/subprojects/asu-june-bot/architecture.md`, `mvp.md` и `roadmap.md` как основной план реализации AI-агента.
-- Позже добавить политику обновления схемы в код: при появлении `schema_version = 2` нужен явный скрипт миграции.
-- Добавить briefs генерации документов для Паспорта ИС, выдержек ФТТ, архитектурных заметок и протоколов.
-- Спроектировать минимальный local API.
-- Для UI сначала рассмотреть OpenWebUI как оболочку над локальным API, но не подключать его до появления project-only guardrail.
+- Использовать `configs/schemas/meeting.schema.json` как контракт `FTT-MA-09` для всех будущих обработчиков встреч.
+- Использовать `scripts/06_transcribe_meeting.py` как минимальный offline CLI для одной встречи.
+- Использовать `scripts/08_process_meeting_pipeline.py` как первый оконный offline-pipeline для готовой записи: ASR по окнам, MAP по готовым окнам, затем REDUCE/RENDER.
+- Проверить качество первого transcript: акронимы ФТТ/ПМИ/ЦТА, таймкоды, разбиение на абзацы, шумные места.
+- Учитывать результат сравнения моделей: `small/int8` для быстрого черновика и live MVP, `large-v3-turbo/int8` для финальной offline-транскрибации важных встреч.
+- WhisperX оставить как эксперимент для word-level alignment/diarization, не включать в основной MVP pipeline.
 
 ## Позже
 
+- Добавить инкрементальный `update_rag.ps1` для новых, измененных и удаленных документов.
+- В `update_rag.ps1` обязательно обработать deletion: удаленные и попавшие под `exclude_path_patterns` документы должны исчезать из актуального индекса.
+- Добавить watcher/скрипт загрузки встреч из `watched_folder/` поверх уже готового `06_transcribe_meeting.py`.
 - Добавить локальный web UI.
-- Добавить diarization спикеров через pyannote 3.1, когда появится реальная потребность в speaker timeline.
-- Добавить ручные корректировки классификации.
 - Добавить DOCX export через `python-docx` или `docxtpl`, когда протоколы нужно будет отдавать заказчику как финальные документы.
-- Добавить политики хранения и protected records.
 - Рассмотреть hybrid retrieval: BM25 + vector + reranker, если корпус вырастет примерно до 50k+ chunks или numpy/vector-only начнет стабильно промахиваться.
+- Рассмотреть FAISS поверх того же формата metadata, если numpy станет медленным на большем корпусе.
+- Рассмотреть pyannote 3.1 как основной путь diarization, когда появится потребность в speaker timeline.
+
+## Что Не Делать Сейчас
+
+- Не делать fine-tuning LLM на `query_log.jsonl`.
+- Не переносить автоматически плохие ответы в eval.
+- Не считать synthetic seed golden dataset.
+- Не коммитить runtime-данные из `data/`.
+- Не подключать DSPy/LangGraph/Dify до стабилизации базового project-only RAG.
+- Не делать Docker до завершения локального smoke и стабилизации минимального runtime.
 
 ## Известные Риски
 
 - Полная RAG-сборка долгая и зависит от стабильности Ollama.
 - ChromaDB локально нестабилен на загрузке HNSW-индекса, поэтому не должен быть критической зависимостью для поиска.
-- У нескольких spreadsheet-файлов есть ошибки extraction из-за нестандартных stylesheets.
 - В выдаче может оставаться шум от похожих HTML/TXT-экспортов системы; точные дубли уже дедуплицируются по тексту.
-- Старый baseline `docs/quality/rag_eval_baseline_2026-05-07.md` был снят до чистки корпуса и теперь считается историческим, а не приемочным.
 - Новый baseline `docs/quality/rag_eval_baseline_clean_2026-05-07.md` показал, что поиск по ПМИ и архитектурным сборным запросам требует улучшения.
-- Сгенерированные документы требуют строгого ревью источников.
-- Project-only отказ по одному `score_threshold` может быть слишком мягким или слишком жестким; порог нужно подобрать на smoke-наборе.
-- `qwen3:8b` на CPU может быть слишком медленным для интерактивного чата при большом prompt; для CLI нужен быстрый профиль или более легкая модель.
+- Project-only отказ по одному `score_threshold` может быть слишком мягким или слишком жестким.
+- `qwen3:8b` на CPU может быть слишком медленным для интерактивного чата при большом prompt.
 - `qwen3:4b` может вернуть пустой `response` без HTTP-ошибки; такой случай должен считаться отказом `llm_empty_response`, а не успешным ответом.
+
+## Восстановление Контекста
+
+```text
+Прочитай README.md, AGENTS.md, docs/context.md, docs/todo.md, docs/quality/QUERY_FEEDBACK_LOOP.md, docs/quality/DATASET_PIPELINE_STATUS.md и git log --oneline -10. Восстанови контекст проекта и предложи следующий практический шаг.
+```
