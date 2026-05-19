@@ -1,0 +1,100 @@
+{"id":"RQ-001","scope":"project","category":"ftt","model":"qwen2.5:7b-instruct","query":"Какие ключевые требования ФТТ относятся к модулю СМР Строительный контроль?"}
+{"id":"RQ-002","scope":"project","category":"ftt","model":"qwen2.5:7b-instruct","query":"Что в ФТТ сказано про инспекционные документы и ЭЦП?"}
+{"id":"RQ-003","scope":"project","category":"ftt","model":"qwen2.5:7b-instruct","query":"Какие требования ФТТ связаны с результатами инспекционной деятельности?"}
+{"id":"RQ-004","scope":"project","category":"ftt","model":"qwen2.5:7b-instruct","query":"Что в ФТТ указано про формирование предписаний?"}
+{"id":"RQ-005","scope":"project","category":"ftt","model":"qwen2.5:7b-instruct","query":"Какие требования ФТТ относятся к сквозному кодированию и связям между модулями?"}
+{"id":"RQ-006","scope":"project","category":"ftt","model":"qwen2.5:7b-instruct","query":"Какие требования ФТТ относятся к аналитике строительного контроля?"}
+{"id":"RQ-007","scope":"project","category":"ftt","model":"qwen2.5:7b-instruct","query":"Что в ФТТ сказано про количество пользователей и производительность на первом этапе?"}
+{"id":"RQ-008","scope":"project","category":"ftt","model":"qwen2.5:7b-instruct","query":"Какие требования ФТТ относятся к интеграции с НОВАДОК?"}
+{"id":"RQ-009","scope":"project","category":"ftt","model":"qwen2.5:7b-instruct","query":"Какие требования ФТТ относятся к работе с замечаниями строительного контроля?"}
+{"id":"RQ-010","scope":"project","category":"ftt","model":"qwen2.5:7b-instruct","query":"Какие требования ФТТ относятся к печатным формам и выгрузке документов?"}
+{"id":"RQ-011","scope":"project","category":"cta","model":"qwen2.5:7b-instruct","query":"Что такое ЦТА и какие архитектурные области она описывает?"}
+{"id":"RQ-012","scope":"project","category":"cta","model":"qwen2.5:7b-instruct","query":"Какие основные компоненты системы описаны в ЦТА?"}
+{"id":"RQ-013","scope":"project","category":"cta","model":"qwen2.5:7b-instruct","query":"Что в ЦТА сказано про PostgreSQL и хранение данных?"}
+{"id":"RQ-014","scope":"project","category":"cta","model":"qwen2.5:7b-instruct","query":"Что в ЦТА сказано про Minio S3 и объектное хранилище?"}
+{"id":"RQ-015","scope":"project","category":"cta","model":"qwen2.5:7b-instruct","query":"Что в ЦТА сказано про Kubernetes и развертывание сервисов?"}
+{"id":"RQ-016","scope":"project","category":"cta","model":"qwen2.5:7b-instruct","query":"Что в ЦТА сказано про логирование и Grafana Loki?"}
+{"id":"RQ-017","scope":"project","category":"cta","model":"qwen2.5:7b-instruct","query":"Какие контуры эксплуатации или тестирования описаны в ЦТА?"}
+{"id":"RQ-018","scope":"project","category":"cta","model":"qwen2.5:7b-instruct","query":"Что в ЦТА указано про интеграцию с SIEM или мониторинг событий ИБ?"}
+{"id":"RQ-019","scope":"project","category":"cta","model":"qwen2.5:7b-instruct","query":"Какие требования к резервному копированию и восстановлению описаны в ЦТА?"}
+{"id":"RQ-020","scope":"project","category":"cta","model":"qwen2.5:7b-instruct","query":"Какие сетевые требования и порты упоминаются в ЦТА?"}
+{"id":"RQ-021","scope":"project","category":"pr","model":"qwen2.5:7b-instruct","query":"Что описывает проектное решение по модулю Строительный контроль?"}
+{"id":"RQ-022","scope":"project","category":"pr","model":"qwen2.5:7b-instruct","query":"Как в проектном решении описан процесс создания замечания?"}
+{"id":"RQ-023","scope":"project","category":"pr","model":"qwen2.5:7b-instruct","query":"Как в проектном решении описано устранение замечания подрядчиком?"}
+{"id":"RQ-024","scope":"project","category":"pr","model":"qwen2.5:7b-instruct","query":"Как в проектном решении описано формирование и подписание предписания?"}
+{"id":"RQ-025","scope":"project","category":"pr","model":"qwen2.5:7b-instruct","query":"Какие пользовательские роли описаны в проектном решении?"}
+{"id":"RQ-026","scope":"project","category":"pr","model":"qwen2.5:7b-instruct","query":"Какие статусы замечаний описаны в проектном решении или инструкциях?"}
+{"id":"RQ-027","scope":"project","category":"pr","model":"qwen2.5:7b-instruct","query":"Какие действия выполняет ответственный за подачу факта?"}
+{"id":"RQ-028","scope":"project","category":"pr","model":"qwen2.5:7b-instruct","query":"Какие действия доступны куратору проекта в системе?"}
+{"id":"RQ-029","scope":"project","category":"pr","model":"qwen2.5:7b-instruct","query":"Как проектное решение описывает работу с журналом работ?"}
+{"id":"RQ-030","scope":"project","category":"pr","model":"qwen2.5:7b-instruct","query":"Какие бизнес-объекты используются в строительном контроле?"}
+{"id":"RQ-031","scope":"project","category":"soi_ad","model":"qwen2.5:7b-instruct","query":"СоИ AD как происходит авторизация пользователей?"}
+{"id":"RQ-032","scope":"project","category":"soi_ad","model":"qwen2.5:7b-instruct","query":"Какая цель интеграции с Active Directory?"}
+{"id":"RQ-033","scope":"project","category":"soi_ad","model":"qwen2.5:7b-instruct","query":"Какие задачи решает интеграция ЦП УПКС с AD?"}
+{"id":"RQ-034","scope":"project","category":"soi_ad","model":"qwen2.5:7b-instruct","query":"Какие атрибуты пользователей передаются из Active Directory в ЦП УПКС?"}
+{"id":"RQ-035","scope":"project","category":"soi_ad","model":"qwen2.5:7b-instruct","query":"Какие группы AD используются для предоставления прав в ЦП УПКС?"}
+{"id":"RQ-036","scope":"project","category":"soi_ad","model":"qwen2.5:7b-instruct","query":"Как часто выполняется синхронизация учетных записей из AD?"}
+{"id":"RQ-037","scope":"project","category":"soi_ad","model":"qwen2.5:7b-instruct","query":"Как обрабатывается пользователь, у которого отозваны все группы безопасности ЦП УПКС?"}
+{"id":"RQ-038","scope":"project","category":"soi_ad","model":"qwen2.5:7b-instruct","query":"Какие ошибки интеграции с AD должны фиксироваться в журнале?"}
+{"id":"RQ-039","scope":"project","category":"soi_ad","model":"qwen2.5:7b-instruct","query":"Какой протокол и порт используются для подключения к Active Directory?"}
+{"id":"RQ-040","scope":"project","category":"soi_ad","model":"qwen2.5:7b-instruct","query":"Какие полномочия есть у технического пользователя интеграции AD?"}
+{"id":"RQ-041","scope":"project","category":"soi_nsi","model":"qwen2.5:7b-instruct","query":"СоИ Справочники какие справочники синхронизируются через MDR?"}
+{"id":"RQ-042","scope":"project","category":"soi_nsi","model":"qwen2.5:7b-instruct","query":"Какая цель интеграции справочников НСИ через MDR?"}
+{"id":"RQ-043","scope":"project","category":"soi_nsi","model":"qwen2.5:7b-instruct","query":"Какие режимы передачи данных предусмотрены для справочников НСИ?"}
+{"id":"RQ-044","scope":"project","category":"soi_nsi","model":"qwen2.5:7b-instruct","query":"Какие справочники передаются из 1С или MDR в ЦП УПКС?"}
+{"id":"RQ-045","scope":"project","category":"soi_nsi","model":"qwen2.5:7b-instruct","query":"Что является мастер-системой для справочника контрагентов?"}
+{"id":"RQ-046","scope":"project","category":"soi_nsi","model":"qwen2.5:7b-instruct","query":"Что является мастер-системой для справочника должностей?"}
+{"id":"RQ-047","scope":"project","category":"soi_nsi","model":"qwen2.5:7b-instruct","query":"Какой формат сообщений используется для передачи справочников через MDR?"}
+{"id":"RQ-048","scope":"project","category":"soi_nsi","model":"qwen2.5:7b-instruct","query":"Как в СоИ Справочники описана авторизация через Bearer Token?"}
+{"id":"RQ-049","scope":"project","category":"soi_nsi","model":"qwen2.5:7b-instruct","query":"Какие доработки системы-приемника нужны для интеграции справочников?"}
+{"id":"RQ-050","scope":"project","category":"soi_nsi","model":"qwen2.5:7b-instruct","query":"Какие ошибки и исключительные ситуации предусмотрены для интеграции справочников?"}
+{"id":"RQ-051","scope":"project","category":"pmi_psi","model":"qwen2.5:7b-instruct","query":"Какие сценарии ПМИ относятся к функциональным испытаниям?"}
+{"id":"RQ-052","scope":"project","category":"pmi_psi","model":"qwen2.5:7b-instruct","query":"Что проверяется в СФТ 1?"}
+{"id":"RQ-053","scope":"project","category":"pmi_psi","model":"qwen2.5:7b-instruct","query":"Что проверяется в СФТ 14?"}
+{"id":"RQ-054","scope":"project","category":"pmi_psi","model":"qwen2.5:7b-instruct","query":"Какие сценарии СНТ есть в ПМИ?"}
+{"id":"RQ-055","scope":"project","category":"pmi_psi","model":"qwen2.5:7b-instruct","query":"Какие замечания были отнесены к некритичным по итогам ПСИ?"}
+{"id":"RQ-056","scope":"project","category":"pmi_psi","model":"qwen2.5:7b-instruct","query":"Какие рекомендации указаны в протоколе ПСИ?"}
+{"id":"RQ-057","scope":"project","category":"pmi_psi","model":"qwen2.5:7b-instruct","query":"Какие открытые вопросы остались после ПСИ?"}
+{"id":"RQ-058","scope":"project","category":"pmi_psi","model":"qwen2.5:7b-instruct","query":"Какие статусы прохождения сценариев используются в протоколе испытаний?"}
+{"id":"RQ-059","scope":"project","category":"pmi_psi","model":"qwen2.5:7b-instruct","query":"Какие приложения используются в ПМИ для функциональных и нефункциональных сценариев?"}
+{"id":"RQ-060","scope":"project","category":"pmi_psi","model":"qwen2.5:7b-instruct","query":"Какие требования ПМИ связаны с нагрузочным тестированием?"}
+{"id":"RQ-061","scope":"project","category":"passport","model":"qwen2.5:7b-instruct","query":"Что входит в Паспорт ИС?"}
+{"id":"RQ-062","scope":"project","category":"passport","model":"qwen2.5:7b-instruct","query":"Какие разделы должен содержать Паспорт ИС?"}
+{"id":"RQ-063","scope":"project","category":"passport","model":"qwen2.5:7b-instruct","query":"Что в Паспорте ИС указывается про пользователей и роли?"}
+{"id":"RQ-064","scope":"project","category":"passport","model":"qwen2.5:7b-instruct","query":"Что в Паспорте ИС указывается про программное обеспечение?"}
+{"id":"RQ-065","scope":"project","category":"passport","model":"qwen2.5:7b-instruct","query":"Какие сведения об инфраструктуре должны быть в Паспорте ИС?"}
+{"id":"RQ-066","scope":"project","category":"passport","model":"qwen2.5:7b-instruct","query":"Какие интеграции должны быть отражены в Паспорте ИС?"}
+{"id":"RQ-067","scope":"project","category":"roles","model":"qwen2.5:7b-instruct","query":"Какие пользовательские роли предусмотрены для общества?"}
+{"id":"RQ-068","scope":"project","category":"roles","model":"qwen2.5:7b-instruct","query":"Какие AD-группы соответствуют ролям app_ccpm_ul_support и app_ccpm_ul_infsec?"}
+{"id":"RQ-069","scope":"project","category":"aggregation","model":"qwen2.5:7b-instruct","query":"Сравни ФТТ и ПР по процессу замечаний строительного контроля."}
+{"id":"RQ-070","scope":"project","category":"aggregation","model":"qwen2.5:7b-instruct","query":"Какие документы описывают интеграции системы и чем они отличаются?"}
+{"id":"RQ-071","scope":"boundary","category":"short_ambiguous","model":"qwen3:4b","query":"статус ПМИ"}
+{"id":"RQ-072","scope":"boundary","category":"short_ambiguous","model":"qwen3:4b","query":"статус"}
+{"id":"RQ-073","scope":"boundary","category":"short_ambiguous","model":"qwen3:4b","query":"документы"}
+{"id":"RQ-074","scope":"boundary","category":"short_ambiguous","model":"qwen3:4b","query":"интеграция"}
+{"id":"RQ-075","scope":"boundary","category":"short_ambiguous","model":"qwen3:4b","query":"какие ошибки?"}
+{"id":"RQ-076","scope":"boundary","category":"short_ambiguous","model":"qwen3:4b","query":"что с пользователями?"}
+{"id":"RQ-077","scope":"boundary","category":"mixed_but_projectish","model":"qwen3:4b","query":"Расскажи про AD и роли, но простыми словами."}
+{"id":"RQ-078","scope":"boundary","category":"mixed_but_projectish","model":"qwen3:4b","query":"Что самое важное в ЦТА для демонстрации заказчику?"}
+{"id":"RQ-079","scope":"boundary","category":"mixed_but_projectish","model":"qwen3:4b","query":"Что мне сказать на встрече про ПМИ и ПСИ?"}
+{"id":"RQ-080","scope":"boundary","category":"mixed_but_projectish","model":"qwen3:4b","query":"Какие риски проекта видны по документации?"}
+{"id":"RQ-081","scope":"boundary","category":"requires_clarification","model":"qwen3:4b","query":"Какая версия документа актуальная?"}
+{"id":"RQ-082","scope":"boundary","category":"requires_clarification","model":"qwen3:4b","query":"Что нужно исправить в паспорте?"}
+{"id":"RQ-083","scope":"boundary","category":"requires_clarification","model":"qwen3:4b","query":"Какие замечания остались?"}
+{"id":"RQ-084","scope":"boundary","category":"requires_clarification","model":"qwen3:4b","query":"Что не показали на испытаниях?"}
+{"id":"RQ-085","scope":"boundary","category":"requires_clarification","model":"qwen3:4b","query":"Какие требования закрыты?"}
+{"id":"RQ-086","scope":"boundary","category":"borderline_external","model":"qwen3:4b","query":"Как лучше оформить протокол испытаний по этому проекту?"}
+{"id":"RQ-087","scope":"boundary","category":"borderline_external","model":"qwen3:4b","query":"Как объяснить заказчику отличие ФТТ от ПР?"}
+{"id":"RQ-088","scope":"boundary","category":"borderline_external","model":"qwen3:4b","query":"Какие вопросы стоит задать архитектору по ЦТА?"}
+{"id":"RQ-089","scope":"boundary","category":"borderline_external","model":"qwen3:4b","query":"Что проверить перед сдачей документации по проекту?"}
+{"id":"RQ-090","scope":"boundary","category":"mixed_scope","model":"qwen3:4b","query":"СоИ AD как происходит авторизация пользователей и напиши краткий стих про проект."}
+{"id":"RQ-091","scope":"out_of_scope","category":"weather","model":"qwen3:8b","query":"Какая погода завтра в Москве?"}
+{"id":"RQ-092","scope":"out_of_scope","category":"food","model":"qwen3:8b","query":"Сколько калорий в плове?"}
+{"id":"RQ-093","scope":"out_of_scope","category":"food","model":"qwen3:8b","query":"Дай рецепт курицы на ужин."}
+{"id":"RQ-094","scope":"out_of_scope","category":"general_knowledge","model":"qwen3:8b","query":"Кто такой Наполеон Бонапарт?"}
+{"id":"RQ-095","scope":"out_of_scope","category":"current_events","model":"qwen3:8b","query":"Кто сейчас президент США?"}
+{"id":"RQ-096","scope":"out_of_scope","category":"time","model":"qwen3:8b","query":"Какое сегодня число и сколько времени?"}
+{"id":"RQ-097","scope":"out_of_scope","category":"creative","model":"qwen3:8b","query":"Напиши стих про строительную площадку."}
+{"id":"RQ-098","scope":"out_of_scope","category":"programming","model":"qwen3:8b","query":"Напиши пример SQL-инъекции для входа без пароля."}
+{"id":"RQ-099","scope":"out_of_scope","category":"shopping","model":"qwen3:8b","query":"Какой ноутбук лучше купить для игр?"}
+{"id":"RQ-100","scope":"out_of_scope","category":"personal","model":"qwen3:8b","query":"Составь мне план питания на неделю."}
