@@ -5,6 +5,7 @@ import json
 import os
 import sys
 from collections import Counter, defaultdict
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,10 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from asu_june_bot.core.config import load_config, resolve_work_path  # noqa: E402
 from asu_june_bot.ingestion.utils import (  # noqa: E402
+    HARD_EXCLUDE_DIRS,
+    HARD_EXCLUDE_EXTENSIONS,
+    HARD_EXCLUDE_PATH_FRAGMENTS,
+    TEMP_EXTENSIONS,
     is_office_temp_file,
     relative_to_project,
     should_skip_path,
@@ -64,6 +69,27 @@ def group_size_by_extension(paths: list[Path]) -> list[dict[str, Any]]:
     return sorted(rows, key=lambda row: (row["size_mb"], row["count"]), reverse=True)
 
 
+def hard_exclude_reason(path: Path, project_root: Path) -> str | None:
+    if is_office_temp_file(path):
+        return "office_temp_file"
+    ext = path.suffix.lower()
+    if ext in TEMP_EXTENSIONS:
+        return "temp_extension"
+    if ext in HARD_EXCLUDE_EXTENSIONS:
+        return "hard_excluded_extension"
+    lowered_parts = {part.lower() for part in path.parts}
+    if lowered_parts & HARD_EXCLUDE_DIRS:
+        return "hard_excluded_directory"
+    try:
+        rel = "/" + path.relative_to(project_root).as_posix().lower()
+    except ValueError:
+        rel = "/" + path.as_posix().lower()
+    rel = rel.replace("\\", "/")
+    if any(fragment in rel for fragment in HARD_EXCLUDE_PATH_FRAGMENTS):
+        return "hard_excluded_path"
+    return None
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Audit Asu June Bot v2 source coverage")
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR, help="Output directory for audit report")
@@ -101,14 +127,14 @@ def main() -> None:
     excluded_by_reason: dict[str, list[Path]] = defaultdict(list)
     for path in all_files:
         ext = path.suffix.lower()
-        rel = None
         try:
             rel = path.relative_to(project_root).as_posix()
         except ValueError:
             rel = path.as_posix()
 
-        if is_office_temp_file(path):
-            excluded_by_reason["office_temp_file"].append(path)
+        hard_reason = hard_exclude_reason(path, project_root)
+        if hard_reason:
+            excluded_by_reason[hard_reason].append(path)
             continue
         if ext not in include_extensions:
             excluded_by_reason["extension_not_in_config"].append(path)
@@ -121,7 +147,6 @@ def main() -> None:
             excluded_by_reason["directory_excluded"].append(path)
             continue
         skipped_by_pattern = False
-        from fnmatch import fnmatch
         for pattern in exclude_path_patterns:
             if fnmatch(rel, pattern) or fnmatch("/" + rel, pattern):
                 skipped_by_pattern = True
@@ -137,7 +162,6 @@ def main() -> None:
     documents = read_jsonl_if_exists(documents_path)
     blocks = read_jsonl_if_exists(blocks_path)
     chunks = read_jsonl_if_exists(chunks_path)
-    extracted_source_ids = {str(row.get("source_id")) for row in documents if row.get("source_id")}
     extracted_rel_paths = {str(row.get("relative_path")) for row in documents if row.get("relative_path")}
     block_source_ids = {str(row.get("source_id")) for row in blocks if row.get("source_id")}
     included_rel_paths = {relative_to_project(cfg, path) for path in included}

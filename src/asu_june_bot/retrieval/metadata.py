@@ -6,9 +6,16 @@ from typing import Any
 
 
 SYSTEM_EXPORT_HINTS = (
+    "система/",
     "asu_admin_export",
+    "asu_docs_export",
     "html_export",
     "site_review_runs",
+    "playwright",
+    "pages_html",
+    "pages_text",
+    "docs_html",
+    "docs_text",
     "token_blacklist",
     "_analysis/site",
 )
@@ -27,6 +34,14 @@ MEETING_HINTS = (
     "протокол",
     "memo",
     "transcript",
+    "protocol",
+)
+
+INSTRUCTION_HINTS = (
+    "руководство",
+    "инструкция",
+    "admin guide",
+    "user guide",
 )
 
 SECTION_RE = re.compile(r"(?<!\d)(\d+(?:\.\d+){1,5})\s*\.", re.UNICODE)
@@ -36,13 +51,23 @@ def _lower_path(metadata: dict[str, Any]) -> str:
     return str(metadata.get("relative_path") or metadata.get("source_path") or "").replace("\\", "/").lower()
 
 
+def _norm(value: str) -> str:
+    value = value.lower().replace("ё", "е")
+    value = value.replace("_", " ").replace("-", " ").replace(".", " ")
+    value = re.sub(r"\s+", " ", value)
+    return value.strip()
+
+
 def infer_source_type(metadata: dict[str, Any]) -> str:
     path = _lower_path(metadata)
+    norm_path = _norm(path)
     if any(hint in path for hint in SYSTEM_EXPORT_HINTS):
         return "system_export"
-    if any(hint in path for hint in MEETING_HINTS):
+    if any(_norm(hint) in norm_path for hint in MEETING_HINTS):
         return "meeting_artifact"
-    if any(hint in path for hint in ANALYTICAL_NOTE_HINTS):
+    if any(_norm(hint) in norm_path for hint in INSTRUCTION_HINTS):
+        return "instruction"
+    if any(_norm(hint) in norm_path for hint in ANALYTICAL_NOTE_HINTS):
         return "analytical_note"
     if path.endswith((".py", ".ps1", ".yaml", ".yml", ".json")) and "пд" not in path:
         return "code"
@@ -52,57 +77,62 @@ def infer_source_type(metadata: dict[str, Any]) -> str:
 def infer_document_type(metadata: dict[str, Any]) -> str | None:
     path = _lower_path(metadata)
     name = PurePosixPath(path).name
-    candidates: list[tuple[str, str]] = [
-        ("ФТТ", "ФТТ"),
-        ("функционально", "ФТТ"),
-        ("цта", "ЦТА"),
-        ("паспорт", "Паспорт ИС"),
-        ("пми", "ПМИ"),
-        ("программа и методика", "ПМИ"),
-        ("проектное решение", "ПР"),
-        ("_пр_", "ПР"),
-        ("пp_", "ПР"),
-        ("сои_ad", "СоИ AD"),
-        ("сои ad", "СоИ AD"),
-        ("сои_справоч", "СоИ Справочники"),
-        ("сои справоч", "СоИ Справочники"),
-        ("реестр объектов нси", "Реестр НСИ"),
-        ("реест_объектов_нси", "Реестр НСИ"),
-        ("руководство", "Руководство"),
-        ("инструкция", "Инструкция"),
-        ("протокол", "Протокол"),
-        ("wiki", "Wiki"),
+    search_area = _norm(f"{path} {name}")
+
+    candidates: list[tuple[tuple[str, ...], str]] = [
+        (("фтт", "функционально технические требования", "функциональные требования"), "ФТТ"),
+        (("цта", "целевая техническая архитектура"), "ЦТА"),
+        (("проектное решение", " пр ", " цп упкс пр ", "проектное решение смр"), "ПР"),
+        (("паспорт ис", "паспорт информационной системы", "паспорт системы"), "Паспорт ИС"),
+        (("пми", "программа и методика испытаний", "сценарии функциональных испытаний", "сценарии нефункциональных испытаний"), "ПМИ"),
+        (("сои ad", "соглашение об интеграции active directory", "active directory"), "СоИ AD"),
+        (("сои справоч", "соглашение об интеграции справоч", "соглашение об интеграции нси", "mdr", "кшд"), "СоИ Справочники"),
+        (("реестр объектов нси", "реест объектов нси", "реестр нси"), "Реестр НСИ"),
+        (("руководство администратора", "руководство пользователя", "инструкция пользователя", "инструкция администратора"), "Руководство"),
+        (("протокол", "protocol"), "Протокол"),
+        (("wiki", "вики"), "Wiki"),
+        (("bpmn", "бизнес процесс", "to be", "as is"), "BPMN / Процесс"),
+        (("api", "openapi", "swagger", "scalar"), "API"),
     ]
-    search_area = f"{path} {name}"
-    for marker, doc_type in candidates:
-        if marker.lower() in search_area:
+
+    for markers, doc_type in candidates:
+        if any(marker in search_area for marker in markers):
             return doc_type
     return None
 
 
 def infer_module(metadata: dict[str, Any]) -> str | None:
     path = _lower_path(metadata)
+    norm_path = _norm(path)
     markers: list[tuple[str, str]] = [
-        ("строительн", "СМР / Строительный контроль"),
+        ("строительный контроль", "СМР / Строительный контроль"),
+        ("стройконтроль", "СМР / Строительный контроль"),
+        ("construction control", "СМР / Строительный контроль"),
         ("смр", "СМР"),
         ("мто", "МТО"),
+        ("мтр", "МТО"),
         ("пир", "ПИР"),
+        ("ксп", "КСП"),
+        ("календарно сетевое", "КСП"),
         ("справоч", "НСИ / Справочники"),
         ("нси", "НСИ / Справочники"),
-        ("ad", "AD / Авторизация"),
+        ("active directory", "AD / Авторизация"),
+        (" ad ", "AD / Авторизация"),
+        ("blitz", "SSO / Авторизация"),
         ("исполнительн", "Исполнительная документация"),
         ("пми", "ПМИ"),
         ("паспорт", "Паспорт ИС"),
     ]
+    padded = f" {norm_path} "
     for marker, module in markers:
-        if marker in path:
+        if marker in padded:
             return module
     return None
 
 
 def infer_stage(metadata: dict[str, Any]) -> str | None:
     path = _lower_path(metadata)
-    text = path.replace("_", " ").replace("-", " ")
+    text = _norm(path)
     patterns = [
         (r"этап\s*1\.2", "Этап 1.2"),
         (r"этап\s*1\.1", "Этап 1.1"),
