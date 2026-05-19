@@ -1,6 +1,6 @@
 # QH Status — Project Knowledge Bot
 
-Обновлено: 2026-05-18.
+Обновлено: 2026-05-19.
 
 ## Итоговый статус
 
@@ -12,7 +12,7 @@ QH-4 Semantic Warnings / Manual Labels    IMPLEMENTED_CODE_READY
 QH-5 Release Stabilization                PENDING_LOCAL_VALIDATION
 ```
 
-Важно: QH-2/QH-3/QH-4 реализованы в коде и подтверждены локальным regression pack 2026-05-18. QH-5 пока нельзя закрывать как `PASSED`, потому что Telegram smoke не выполнен без локального token/chat id.
+Важно: QH-2/QH-3/QH-4 реализованы в коде и подтверждены локальным regression pack 2026-05-18. QH-5 пока нельзя закрывать как `PASSED`, потому что Telegram smoke ещё не выполнен. Для безопасного запуска добавлен `scripts/asu_june_bot_start_telegram.ps1`.
 
 ## Локальный прогон 2026-05-18
 
@@ -31,7 +31,7 @@ baseline comparison: 6/13 -> 7/13
 Не выполнено:
 
 ```text
-Telegram smoke: нет ASU_JUNE_BOT_TELEGRAM_TOKEN и ASU_JUNE_BOT_ALLOWED_CHAT_IDS
+Telegram smoke: ожидает локальный запуск через scripts/asu_june_bot_start_telegram.ps1
 final QH gate: не запускался, чтобы не пометить QH-5 passed без Telegram smoke
 ```
 

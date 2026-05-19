@@ -362,16 +362,16 @@ docs/subprojects/asu-june-bot/telegram.md
 Минимальный запуск:
 
 ```powershell
-$env:ASU_JUNE_BOT_TELEGRAM_TOKEN='PASTE_TOKEN_HERE'
-$env:ASU_JUNE_BOT_CHAT_API_URL='http://127.0.0.1:8000/chat'
-.\.venv\Scripts\python.exe scripts\asu_june_bot_telegram.py
+.\scripts\asu_june_bot_start_telegram.ps1
 ```
 
 Рекомендуется ограничить chat id:
 
 ```powershell
-$env:ASU_JUNE_BOT_ALLOWED_CHAT_IDS='123456789'
+.\scripts\asu_june_bot_start_telegram.ps1 -AllowedChatIds "123456789"
 ```
+
+Launcher спрашивает token интерактивно, если `ASU_JUNE_BOT_TELEGRAM_TOKEN` не задан, и не передает token в command line.
 
 Команды в Telegram:
 

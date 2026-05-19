@@ -227,17 +227,16 @@ MAX_QUERY_CHARS = 2000
 PowerShell №3:
 
 ```powershell
-$env:ASU_JUNE_BOT_TELEGRAM_TOKEN='PASTE_TOKEN_HERE'
-$env:ASU_JUNE_BOT_CHAT_API_URL='http://127.0.0.1:8000/chat'
-
-.\.venv\Scripts\python.exe scripts\asu_june_bot_telegram.py
+.\scripts\asu_june_bot_start_telegram.ps1
 ```
 
 Если хочешь ограничить доступ только своим chat id:
 
 ```powershell
-$env:ASU_JUNE_BOT_ALLOWED_CHAT_IDS='123456789'
+.\scripts\asu_june_bot_start_telegram.ps1 -AllowedChatIds "123456789"
 ```
+
+Launcher спрашивает token интерактивно, если `ASU_JUNE_BOT_TELEGRAM_TOKEN` не задан, и не передает token в command line.
 
 Команды в Telegram:
 

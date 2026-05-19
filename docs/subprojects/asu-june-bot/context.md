@@ -338,10 +338,7 @@ http://127.0.0.1:8000/ui
 Telegram:
 
 ```powershell
-$env:ASU_JUNE_BOT_TELEGRAM_TOKEN='PASTE_TOKEN_HERE'
-$env:ASU_JUNE_BOT_CHAT_API_URL='http://127.0.0.1:8000/chat'
-$env:ASU_JUNE_BOT_ALLOWED_CHAT_IDS='YOUR_CHAT_ID'
-.\.venv\Scripts\python.exe scripts\asu_june_bot_telegram.py
+.\scripts\asu_june_bot_start_telegram.ps1 -AllowedChatIds "YOUR_CHAT_ID"
 ```
 
 ## 9. Активная документация
@@ -367,7 +364,7 @@ product/
 smoke_report_*.md
 ```
 
-## 10. Локальная проверка 2026-05-18
+## 10. Локальная проверка 2026-05-18 / 2026-05-19
 
 Выполнено:
 
@@ -381,6 +378,7 @@ Web UI HTTP smoke: /ui отдаёт страницу с нужными элем�
 chat_runs.jsonl: пишется
 after_qh eval: 7/13, 53.8%
 baseline comparison: baseline 6/13, 46.2% -> after_qh 7/13, 53.8%
+2026-05-19: FastAPI /health перепроверен, добавлен safe launcher scripts/asu_june_bot_start_telegram.ps1
 ```
 
 Создан отчёт:
@@ -389,14 +387,14 @@ baseline comparison: baseline 6/13, 46.2% -> after_qh 7/13, 53.8%
 docs/subprojects/asu-june-bot/smoke_report_qh_release.md
 ```
 
-QH-5 остаётся `PENDING_LOCAL_VALIDATION`, потому что Telegram smoke не выполнен без локальных `ASU_JUNE_BOT_TELEGRAM_TOKEN` и `ASU_JUNE_BOT_ALLOWED_CHAT_IDS`. Финальный gate не запускался намеренно.
+QH-5 остаётся `PENDING_LOCAL_VALIDATION`, потому что Telegram smoke ещё не закрыт. Финальный gate не запускался намеренно.
 
 ## 11. Следующие шаги
 
 Сейчас:
 
 ```text
-1. Запустить Telegram adapter с локальным token/chat id.
+1. Запустить Telegram adapter через `scripts/asu_june_bot_start_telegram.ps1` с локальным token/chat id.
 2. Проверить Telegram /health.
 3. Проверить Telegram project query.
 4. Проверить Telegram weather refused.

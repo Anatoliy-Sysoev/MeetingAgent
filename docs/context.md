@@ -341,7 +341,7 @@ QH-4 warnings не являются hard-fail
 Docker не начинается до фактического QH-5 passed
 ```
 
-## Локальная проверка Project Knowledge Bot 2026-05-18
+## Локальная проверка Project Knowledge Bot 2026-05-18 / 2026-05-19
 
 По `docs/subprojects/asu-june-bot/TOMORROW_EXECUTION_PROTOCOL.md` выполнена основная часть QH-5 проверки:
 
@@ -355,18 +355,26 @@ after_qh eval: 7/13, 53.8%
 baseline comparison: 6/13 -> 7/13
 ```
 
+Дополнительно 2026-05-19:
+
+```text
+FastAPI /health перепроверен локально: status=ok, vector_ready=true, bm25_ready=true, guard_v2_ready=true
+добавлен scripts/asu_june_bot_start_telegram.ps1 для безопасного локального запуска Telegram adapter без передачи token в command line
+запущен smoke quality pipeline на первые 10 realistic-вопросов; runtime-логи и report остаются в logs/data и не коммитятся
+```
+
 Отчёт:
 
 ```text
 docs/subprojects/asu-june-bot/smoke_report_qh_release.md
 ```
 
-QH-5 пока остаётся `PENDING_LOCAL_VALIDATION`: Telegram smoke не выполнен, потому что в окружении нет `ASU_JUNE_BOT_TELEGRAM_TOKEN` и `ASU_JUNE_BOT_ALLOWED_CHAT_IDS`. Финальный QH gate с `--local-validation-done --baseline-compared` не запускался намеренно.
+QH-5 пока остаётся `PENDING_LOCAL_VALIDATION`: Telegram smoke ещё нужно выполнить вручную через `scripts/asu_june_bot_start_telegram.ps1` и проверить `/health`, проектный вопрос и отказ на внепроектный вопрос. Финальный QH gate с `--local-validation-done --baseline-compared` не запускался намеренно.
 
 ## Ближайшие действия
 
 ```text
-1. Запустить Telegram smoke с локальным token/chat id.
+1. Запустить Telegram smoke через `scripts/asu_june_bot_start_telegram.ps1` с локальным token/chat id.
 2. После Telegram smoke выполнить final QH gate.
 3. Если gate passed — обновить QH_STATUS.md и FTT_STATUS.md до QH-5 PASSED.
 4. После QH-5 перейти к Docker stage.

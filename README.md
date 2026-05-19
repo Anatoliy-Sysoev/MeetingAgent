@@ -175,9 +175,7 @@ http://127.0.0.1:8000/ui
 ### Telegram adapter
 
 ```powershell
-$env:ASU_JUNE_BOT_TELEGRAM_TOKEN='PASTE_TOKEN_HERE'
-$env:ASU_JUNE_BOT_CHAT_API_URL='http://127.0.0.1:8000/chat'
-.\.venv\Scripts\python.exe scripts\asu_june_bot_telegram.py
+.\scripts\asu_june_bot_start_telegram.ps1
 ```
 
 Подробно:

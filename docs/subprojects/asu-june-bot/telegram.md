@@ -1,6 +1,6 @@
 # Telegram adapter для Project Knowledge Bot
 
-Обновлено: 2026-05-16.
+Обновлено: 2026-05-19.
 
 ## Назначение
 
@@ -43,7 +43,7 @@ Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/health"
 
 ## Переменные окружения
 
-Обязательная:
+Обязательная, если запускается напрямую `scripts/asu_june_bot_telegram.py`:
 
 ```powershell
 $env:ASU_JUNE_BOT_TELEGRAM_TOKEN='PASTE_TOKEN_HERE'
@@ -61,6 +61,22 @@ $env:ASU_JUNE_BOT_TELEGRAM_TIMEOUT_SEC='300'
 ```
 
 ## Запуск
+
+Рекомендуемый безопасный запуск в PowerShell:
+
+```powershell
+.\scripts\asu_june_bot_start_telegram.ps1
+```
+
+Launcher спросит token интерактивно, если `ASU_JUNE_BOT_TELEGRAM_TOKEN` не задан. Token не передается в command line и не должен попадать в Git, README, docs или логи.
+
+Если нужно заранее ограничить доступ:
+
+```powershell
+.\scripts\asu_june_bot_start_telegram.ps1 -AllowedChatIds "123456789"
+```
+
+Прямой запуск без launcher:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_telegram.py
@@ -129,6 +145,8 @@ Get-ChildItem Env:ASU_JUNE_BOT*
 ```
 
 Проверить, что token правильный и у ПК есть интернет.
+
+Если запускаешь через `asu_june_bot_start_telegram.ps1`, token может быть задан либо через env, либо введен интерактивно при старте.
 
 ### Ответы слишком длинные
 

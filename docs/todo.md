@@ -20,7 +20,15 @@ baseline comparison: 6/13 -> 7/13
 smoke_report_qh_release.md создан
 ```
 
-QH-5 пока не закрыт: не выполнен Telegram smoke без локальных `ASU_JUNE_BOT_TELEGRAM_TOKEN` и `ASU_JUNE_BOT_ALLOWED_CHAT_IDS`; final QH gate не запускался.
+QH-5 пока не закрыт: не выполнен Telegram smoke; final QH gate не запускался.
+
+Обновление 2026-05-19:
+
+```text
+FastAPI /health перепроверен: ok
+добавлен безопасный Telegram launcher scripts/asu_june_bot_start_telegram.ps1
+запущен фоновый smoke realistic 100 eval на первых 10 вопросах
+```
 
 Главные документы:
 
@@ -101,6 +109,12 @@ qwen3:8b -> timeout/обрыв на локальном CPU runtime
 
 ```text
 Telegram smoke, затем final QH gate
+```
+
+Рекомендуемый запуск Telegram adapter:
+
+```powershell
+.\scripts\asu_june_bot_start_telegram.ps1
 ```
 
 Сделать локально:
