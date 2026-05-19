@@ -9,10 +9,10 @@ QH-1 Observability + Eval Baseline        IMPLEMENTED
 QH-2 Source Quality Filter                IMPLEMENTED_CODE_READY
 QH-3 Parent Expansion                     IMPLEMENTED_CODE_READY
 QH-4 Semantic Warnings / Manual Labels    IMPLEMENTED_CODE_READY
-QH-5 Release Stabilization                PENDING_LOCAL_VALIDATION
+QH-5 Release Stabilization                PASSED
 ```
 
-Важно: QH-2/QH-3/QH-4 реализованы в коде и подтверждены локальным regression pack 2026-05-18. QH-5 пока нельзя закрывать как `PASSED`, потому что Telegram smoke ещё не выполнен. Для безопасного запуска добавлен `scripts/asu_june_bot_start_telegram.ps1`.
+Важно: QH-2/QH-3/QH-4 реализованы в коде и подтверждены локальным regression pack 2026-05-18. QH-5 закрыт 2026-05-19 после local validation, baseline comparison и final gate.
 
 ## Локальный прогон 2026-05-18
 
@@ -28,11 +28,13 @@ after_qh eval: 7/13, 53.8%
 baseline comparison: 6/13 -> 7/13
 ```
 
-Не выполнено:
+Дозакрыто 2026-05-19:
 
 ```text
-Telegram smoke: ожидает локальный запуск через scripts/asu_june_bot_start_telegram.ps1
-final QH gate: не запускался, чтобы не пометить QH-5 passed без Telegram smoke
+Telegram smoke: закрыт локально без сохранения token в Git/docs
+safe launcher: scripts/asu_june_bot_start_telegram.ps1
+realistic 100 smoke --limit 10: 10/10 answered, failures=0, parse_errors=0
+final QH gate: status=passed, pending=[]
 ```
 
 Отчёт:
@@ -243,15 +245,16 @@ tests/asu_june_bot/chat/test_semantic_warnings.py
 Статус:
 
 ```text
-PENDING_LOCAL_VALIDATION
+PASSED
 ```
 
-Почему не PASSED:
+Почему PASSED:
 
 ```text
 локальные тесты, API smoke, Web UI HTTP smoke и after_qh eval выполнены
-Telegram smoke не выполнен без локального token/chat id
-final gate не запускался без Telegram smoke
+Telegram smoke закрыт локально
+final gate выполнен с --local-validation-done --baseline-compared
+pending = []
 ```
 
 Код gate:
@@ -261,20 +264,13 @@ src/asu_june_bot/qh/release_gate.py
 scripts/asu_june_bot_qh_gate.py
 ```
 
-Проверка статуса:
+Проверка статуса без флагов показывает кодовую готовность, но не ручные локальные подтверждения:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_qh_gate.py --json
 ```
 
-Ожидаемо до локальной проверки:
-
-```text
-status = pending_local_validation
-pending = [QH-5A, QH-5B]
-```
-
-После локальных тестов, smoke и сравнения eval:
+Final gate:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_qh_gate.py --local-validation-done --baseline-compared --json
@@ -284,9 +280,10 @@ pending = [QH-5A, QH-5B]
 
 ```text
 status = passed
+pending = []
 ```
 
-## Завтрашний обязательный QH test pack
+## Regression pack для повторной проверки
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\chat\test_semantic_warnings.py -q
@@ -296,7 +293,7 @@ status = passed
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\qh\test_release_gate.py -q
 ```
 
-## Завтрашний eval после QH
+## Eval после QH
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_chat_eval.py --cases eval\cases\base.jsonl --label after_qh --model qwen2.5:7b-instruct --top-k 5
@@ -328,20 +325,14 @@ API запускается
 UI открывается
 Telegram отвечает
 /chat возвращает answer + sources + warnings.semantic
-QH gate показывает pending только по локальному validation/baseline comparison до фактического прогона
-```
-
-После фактического прогона:
-
-```text
-QH gate может быть отмечен как passed только если local-validation-done и baseline-compared подтверждены
+QH gate с local-validation-done и baseline-compared показывает passed
 ```
 
 ## Что не делать
 
 ```text
-не считать QH-5 passed без локального smoke/eval
-не начинать Docker до фактического QH-5 passed
+не откатывать QH-5 в PASSED без фактических smoke/eval на новой машине
+не начинать Docker без актуального health/smoke на текущей машине
 не удалять weak chunks из индекса
 не делать parent expansion без лимита
 не превращать semantic warnings в hard-fail

@@ -201,7 +201,7 @@ GPU inference
 ```text
 /search API: готов
 /chat API: готов с ограничениями
-observability/eval: реализованы, baseline ожидает локальный прогон
-source quality filter: следующий этап после baseline
-parent expansion: после QH-2 при необходимости
+observability/eval: реализованы, baseline и after_qh eval выполнены
+source quality filter: реализован в QH-2
+parent expansion: реализован в QH-3
 ```

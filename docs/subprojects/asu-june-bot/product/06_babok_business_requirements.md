@@ -181,5 +181,5 @@ graph TD
 ```text
 BR-001 / BR-002 / BR-004 / BR-005 / BR-006: реализованы в MVP
 BR-003: частично реализовано через retrieval/context, расширяется в analyst mode
-BR-007: реализовано в QH-1, ожидает локальный baseline-прогон
+BR-007: реализовано в QH-1, baseline и after_qh eval выполнены
 ```

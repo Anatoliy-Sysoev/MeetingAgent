@@ -326,7 +326,7 @@ logger не ломает /chat при ошибке записи
 Статус:
 
 ```text
-Реализовано, ожидает локальный smoke после pull
+Реализовано и проверено локально
 ```
 
 ### AJB-FTT-13. Eval Baseline
@@ -371,7 +371,7 @@ query отправляется в POST /chat
 Статус:
 
 ```text
-Реализовано, ожидает локальный smoke
+Реализовано, HTTP smoke пройден
 ```
 
 ### AJB-FTT-15. Telegram adapter
@@ -400,7 +400,7 @@ adapter принимает текстовое сообщение
 Статус:
 
 ```text
-Реализовано, ожидает локальный smoke
+Реализовано, local smoke закрыт
 ```
 
 ### AJB-FTT-16. Input limits
@@ -455,7 +455,7 @@ raw retrieval не меняется
 Статус:
 
 ```text
-Реализовано в коде, ожидает локальный прогон
+Реализовано и проверено локально
 ```
 
 ### AJB-FTT-18. QH-3 Parent Expansion
@@ -482,7 +482,7 @@ diagnostics содержит parent_expansion
 Статус:
 
 ```text
-Реализовано в коде, ожидает локальный прогон
+Реализовано и проверено локально
 ```
 
 ### AJB-FTT-19. QH-4 Semantic Warnings / Manual Labels
@@ -510,7 +510,7 @@ warnings не блокируют answered
 Статус:
 
 ```text
-Реализовано в коде, ожидает локальный прогон
+Реализовано и проверено локально
 ```
 
 ### AJB-FTT-20. QH-5 Release Gate
@@ -535,7 +535,7 @@ Docker не начинается до фактического passed
 Статус:
 
 ```text
-Реализовано, QH-5 = PENDING_LOCAL_VALIDATION
+Реализовано, QH-5 = PASSED
 ```
 
 ## 5. Текущие метрики корпуса
@@ -578,13 +578,13 @@ top_k = 5
 Этап 4. ProjectGuard v2                     Закрыт
 Этап 5. SearchService + API Search MVP      Закрыт
 Этап 6. Chat MVP                            Закрыт с ограничениями
-Этап 7. UI + Telegram adapter               Реализован, ожидает local smoke
+Этап 7. UI + Telegram adapter               Закрыт local smoke
 Этап 8. QH-1 Observability + Eval Baseline  Реализован
-Этап 9. QH-2 Source Quality Filter          Реализован в коде, ожидает local validation
-Этап 10. QH-3 Parent Expansion              Реализован в коде, ожидает local validation
-Этап 11. QH-4 Semantic Warnings             Реализован в коде, ожидает local validation
-Этап 12. QH-5 Release Gate                  PENDING_LOCAL_VALIDATION
-Этап 13. Docker                             После фактического QH-5 passed
+Этап 9. QH-2 Source Quality Filter          Реализован и проверен
+Этап 10. QH-3 Parent Expansion              Реализован и проверен
+Этап 11. QH-4 Semantic Warnings             Реализован и проверен
+Этап 12. QH-5 Release Gate                  PASSED
+Этап 13. Docker                             Следующий этап
 ```
 
 ## 8. Закрытые задачи
@@ -610,12 +610,9 @@ QH-5 release gate реализован
 ## 9. Открытые задачи
 
 ```text
-локально прогнать regression tests
-локально проверить API/UI/Telegram smoke
-локально прогнать after_qh eval
-сравнить baseline vs after_qh
-зафиксировать smoke_report_qh_release.md
-после успешного QH-5 перейти к Docker stage
+Docker packaging
+полный realistic 100 eval
+QH-6 Feedback Dataset Loop
 подготовить выделение в отдельный репозиторий после Docker
 ```
 

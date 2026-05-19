@@ -1,6 +1,6 @@
 # Завтрашний старт Project Knowledge Bot
 
-Обновлено: 2026-05-16.
+Обновлено: 2026-05-19.
 
 ## Цель
 
@@ -12,8 +12,9 @@ Git актуален
 Ollama доступен
 API работает
 Web UI открывается
-Telegram adapter отвечает
-QH gate понятен
+Telegram adapter отвечает при наличии локального token
+QH-5 уже PASSED
+следующий этап выбран: Docker или QH-6
 ```
 
 ## 0. Открыть проект
@@ -123,14 +124,9 @@ test_telegram_bot.py: 4 passed
 .\.venv\Scripts\python.exe scripts\asu_june_bot_qh_gate.py --json
 ```
 
-Ожидаемо до локального smoke/eval:
+Базовый gate без флагов показывает кодовую готовность и не включает ручные локальные подтверждения.
 
-```text
-status = pending_local_validation
-pending = [QH-5A, QH-5B]
-```
-
-После локального regression/smoke и сравнения eval можно проверить финальный gate:
+Финальный gate после QH-5:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_qh_gate.py --local-validation-done --baseline-compared --json
@@ -140,6 +136,7 @@ pending = [QH-5A, QH-5B]
 
 ```text
 status = passed
+pending = []
 ```
 
 ## 6. Запустить API + Web UI

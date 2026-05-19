@@ -1,6 +1,6 @@
 # Project Knowledge Bot
 
-Статус: локальный project-only RAG/Chat MVP реализован; API `/search` и `/chat`, Web UI, Telegram adapter и QH-1..QH-4 code-ready. QH-5 находится в статусе `PENDING_LOCAL_VALIDATION` до локального прогона на рабочем ПК.
+Статус: локальный project-only RAG/Chat MVP реализован; API `/search` и `/chat`, Web UI, Telegram adapter и QH-1..QH-5 прошли локальную проверку. Следующий этап — Docker packaging и/или QH-6 Feedback Dataset Loop.
 
 Обновлено: 2026-05-19.
 

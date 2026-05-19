@@ -1,6 +1,6 @@
 # Roadmap Project Knowledge Bot
 
-Обновлено: 2026-05-18.
+Обновлено: 2026-05-19.
 
 ## 1. Принцип roadmap
 
@@ -12,9 +12,9 @@
 
 Любое изменение retrieval/context/LLM должно иметь проверку на baseline cases.
 
-Docker-упаковка начинается только после фактического прохождения QH-5, когда `/chat`, документация и smoke/regression-контур стабилизированы.
+Docker-упаковка начинается после фактического прохождения QH-5. На 2026-05-19 QH-5 passed, поэтому Docker стал следующим инженерным этапом.
 
-Feedback Dataset Loop начинается после QH-5 как QH-6. До QH-5 разрешено вести только документацию и план, но не расширять runtime демо-контур новыми endpoints.
+Feedback Dataset Loop начинается после QH-5 как QH-6. После закрытия QH-5 можно проектировать runtime `/feedback`, UI/Telegram feedback-команды и manual approval flow.
 
 ## 2. Сводный статус этапов
 
@@ -26,14 +26,14 @@ Feedback Dataset Loop начинается после QH-5 как QH-6. До QH-
 Этап 4. ProjectGuard v2                              Закрыт
 Этап 5. SearchService + API Search MVP               Закрыт
 Этап 6. ChatService + CLI/API Chat MVP               Закрыт с ограничениями
-Этап 7. Local Web UI + Telegram adapter              Реализован, ожидает локальный smoke
+Этап 7. Local Web UI + Telegram adapter              Закрыт local smoke
 Этап 8. QH-1 Observability + Eval Baseline           Реализован
-Этап 9. QH-2 Source Quality Filter                   Реализован в коде, ожидает локальный прогон
-Этап 10. QH-3 Parent Expansion                       Реализован в коде, ожидает локальный прогон
-Этап 11. QH-4 Semantic Warnings / Manual Labels      Реализован в коде, ожидает локальный прогон
-Этап 12. QH-5 Release Stabilization                  PENDING_LOCAL_VALIDATION
-Этап 13. QH-6 Feedback Dataset Loop                  Запланирован после QH-5
-Этап 14. Docker Packaging                            После фактического QH-5 passed
+Этап 9. QH-2 Source Quality Filter                   Реализован и проверен
+Этап 10. QH-3 Parent Expansion                       Реализован и проверен
+Этап 11. QH-4 Semantic Warnings / Manual Labels      Реализован и проверен
+Этап 12. QH-5 Release Stabilization                  PASSED
+Этап 13. QH-6 Feedback Dataset Loop                  Следующий quality-трек
+Этап 14. Docker Packaging                            Следующий delivery-трек
 Этап 15. UI hardening / OpenWebUI adapter            Позже
 Этап 16. GPU migration path                          Позже
 Этап 17. Enterprise-hardening                        Позже
@@ -191,7 +191,7 @@ qwen2.5:7b-instruct
 Статус:
 
 ```text
-Реализован, ожидает локальный smoke
+Закрыт local smoke
 ```
 
 Результаты:
@@ -246,7 +246,7 @@ pass_rate = 46.2%
 Статус:
 
 ```text
-Реализован в коде, ожидает локальный прогон
+Реализован и проверен
 ```
 
 Цель: снизить риск, что короткие UML/heading/caption chunks становятся primary evidence.
@@ -280,7 +280,7 @@ tests/asu_june_bot/retrieval/test_context_builder_qh.py
 Статус:
 
 ```text
-Реализован в коде, ожидает локальный прогон
+Реализован и проверен
 ```
 
 Цель: расширять слабый, но потенциально полезный источник соседним/родительским контекстом.
@@ -313,7 +313,7 @@ tests/asu_june_bot/retrieval/test_context_builder_qh.py
 Статус:
 
 ```text
-Реализован в коде, ожидает локальный прогон
+Реализован и проверен
 ```
 
 Цель: добавить warning-only слой качества без hard-fail semantic validation.
@@ -344,7 +344,7 @@ structural_validation_errors
 Статус:
 
 ```text
-PENDING_LOCAL_VALIDATION
+PASSED
 ```
 
 Реализация gate:
@@ -354,10 +354,11 @@ src/asu_june_bot/qh/release_gate.py
 scripts/asu_june_bot_qh_gate.py
 ```
 
-Почему не `passed`:
+Почему `passed`:
 
 ```text
-локальные тесты, API/UI/Telegram smoke и eval after_qh не выполнены на рабочем ПК с data/asu_june_bot и Ollama
+локальные тесты, API/UI/Telegram smoke и eval after_qh выполнены на рабочем ПК с data/asu_june_bot и Ollama
+final gate выполнен с --local-validation-done --baseline-compared
 ```
 
 Проверка:
@@ -366,17 +367,11 @@ scripts/asu_june_bot_qh_gate.py
 .\.venv\Scripts\python.exe scripts\asu_june_bot_qh_gate.py --json
 ```
 
-До локальной проверки ожидаемо:
+Финальный результат:
 
 ```text
-status = pending_local_validation
-pending = [QH-5A, QH-5B]
-```
-
-После локального regression/smoke и сравнения eval:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_qh_gate.py --local-validation-done --baseline-compared --json
+status = passed
+pending = []
 ```
 
 ## 10. Этап 13. QH-6 Feedback Dataset Loop

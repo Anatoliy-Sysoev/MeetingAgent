@@ -68,10 +68,10 @@ docs/subprojects/asu-june-bot/product/README.md
 API Search MVP: закрыт
 API Chat MVP / POST /chat: закрыт с ограничениями
 Local Web UI: реализован, HTTP smoke пройден
-Telegram adapter: реализован, ждёт smoke с локальным token/chat id
-QH-1..QH-4: реализованы
-QH-5 Release Stabilization: PENDING_LOCAL_VALIDATION
-Docker: после фактического QH-5 passed
+Telegram adapter: реализован, local smoke закрыт
+QH-1..QH-5: реализованы и прошли final gate
+QH-5 Release Stabilization: PASSED
+Docker: следующий этап после QH-5
 ```
 
 ## Текущий локальный режим работы
@@ -302,11 +302,10 @@ MeetingAgent/
 
 ## Ближайшие вехи
 
-1. Закрыть Telegram smoke Project Knowledge Bot.
-2. Выполнить final QH gate и зафиксировать QH-5 как `PASSED`, если все условия выполнены.
-3. После QH-5 перейти к Docker stage.
-4. Параллельно прогнать realistic 100 eval и начать manual review dataset pipeline.
-5. По общему MeetingAgent вернуться к incremental RAG update и meeting watcher после стабилизации бота.
+1. Перейти к Docker stage Project Knowledge Bot.
+2. Параллельно прогнать полный realistic 100 eval и начать manual review dataset pipeline.
+3. Принять решение по QH-6 Feedback Dataset Loop: сразу после Docker или параллельно.
+4. По общему MeetingAgent вернуться к incremental RAG update и meeting watcher после стабилизации бота.
 
 ## Навигация по документации
 

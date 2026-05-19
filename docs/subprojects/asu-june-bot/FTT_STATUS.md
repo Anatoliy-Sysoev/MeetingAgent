@@ -1,6 +1,6 @@
 # FTT status Project Knowledge Bot
 
-Обновлено: 2026-05-18.
+Обновлено: 2026-05-19.
 
 ## 1. Назначение
 
@@ -31,16 +31,16 @@ QH-1: IMPLEMENTED
 QH-2: IMPLEMENTED_CODE_READY
 QH-3: IMPLEMENTED_CODE_READY
 QH-4: IMPLEMENTED_CODE_READY
-QH-5: PENDING_LOCAL_VALIDATION
+QH-5: PASSED
 Docker: NOT_STARTED_AFTER_QH5
 ```
 
-Осталось реализовать до закрытия FTT текущего MVP:
+До закрытия FTT текущего MVP выполнено:
 
 ```text
-1. Локально проверить Telegram adapter smoke.
-2. Выполнить final QH gate с --local-validation-done --baseline-compared.
-3. Закрыть QH-5 как PASSED, если final gate зелёный.
+1. Telegram adapter smoke закрыт локально.
+2. Final QH gate выполнен с --local-validation-done --baseline-compared.
+3. QH-5 закрыт как PASSED.
 ```
 
 Уже подтверждено 2026-05-18:
@@ -52,7 +52,8 @@ API smoke: ok/refused сценарии пройдены
 Web UI HTTP smoke: /ui отдаёт страницу с основными элементами
 chat_runs.jsonl: пишется
 after_qh eval: 7/13 против baseline 6/13
-smoke_report_qh_release.md: создан с решением QH-5 PENDING_LOCAL_VALIDATION
+smoke_report_qh_release.md: создан; addendum 2026-05-19 фиксирует QH-5 PASSED
+2026-05-19: final QH gate -> passed, realistic 100 smoke --limit 10 -> 10/10 answered
 ```
 
 Осталось реализовать после закрытия текущего MVP:
@@ -544,7 +545,7 @@ manual labels placeholders
 Статус:
 
 ```text
-PENDING_LOCAL_VALIDATION
+PASSED
 ```
 
 Закрыто:
@@ -552,18 +553,11 @@ PENDING_LOCAL_VALIDATION
 ```text
 release_gate.py
 scripts/asu_june_bot_qh_gate.py
-QH-5A/QH-5B pending до локального smoke/eval
-Docker explicitly postponed
-```
-
-Осталось:
-
-```text
 local-validation-done
 baseline-compared
 Telegram smoke
 QH_STATUS.md -> QH-5 PASSED
-smoke_report_qh_release.md
+Docker explicitly postponed
 ```
 
 ## 4. Остаток реализации по FTT до сдачи
@@ -571,9 +565,9 @@ smoke_report_qh_release.md
 Минимальный остаток:
 
 ```text
-QH-5A. Telegram smoke на рабочем ПК
-QH-5B. final QH gate после Telegram smoke
-QH-5C. финальное обновление QH_STATUS.md после факта
+Docker packaging
+README/runbook под docker deployment
+решение по QH-6 Feedback Dataset Loop
 ```
 
 Это не новая функциональность, а подтверждение готовности.

@@ -4,9 +4,9 @@
 
 ## Сейчас
 
-### Приоритет 1. Project Knowledge Bot — QH-5 local validation
+### Приоритет 1. Project Knowledge Bot — Docker stage после QH-5
 
-Project Knowledge Bot v2.1/v2.2 доведён до состояния: Search API, Chat API, Web UI, Telegram adapter, QH-1..QH-4 реализованы в коде. Следующий практический шаг — локально подтвердить QH-5 на рабочем ПК.
+Project Knowledge Bot v2.1/v2.2 доведён до состояния: Search API, Chat API, Web UI, Telegram adapter, QH-1..QH-5 реализованы и прошли локальный final gate. Следующий практический шаг — Docker stage.
 
 Обновление 2026-05-18: большая часть QH-5 local validation выполнена.
 
@@ -20,14 +20,14 @@ baseline comparison: 6/13 -> 7/13
 smoke_report_qh_release.md создан
 ```
 
-QH-5 пока не закрыт: не выполнен Telegram smoke; final QH gate не запускался.
-
 Обновление 2026-05-19:
 
 ```text
 FastAPI /health перепроверен: ok
 добавлен безопасный Telegram launcher scripts/asu_june_bot_start_telegram.ps1
 runner realistic 100 eval теперь пишет START/DONE по каждому вопросу в stdout/log
+realistic 100 smoke --limit 10: 10/10 answered, failures=0, parse_errors=0
+final QH gate: status=passed, pending=[]
 ```
 
 Главные документы:
@@ -108,7 +108,7 @@ qwen3:8b -> timeout/обрыв на локальном CPU runtime
 Следующий практический шаг:
 
 ```text
-Telegram smoke, затем final QH gate
+Docker stage Project Knowledge Bot
 ```
 
 Рекомендуемый запуск Telegram adapter:
@@ -142,10 +142,11 @@ Telegram smoke, затем final QH gate
 .\.venv\Scripts\python.exe scripts\asu_june_bot_qh_gate.py --json
 ```
 
-Ожидаемо до smoke/eval:
+Фактический результат final gate 2026-05-19:
 
 ```text
-status = pending_local_validation
+status = passed
+pending = []
 ```
 
 После local regression/smoke и сравнения eval:
@@ -170,7 +171,7 @@ after_qh может быть ниже 100%
 
 ## Приоритет 2. Docker после QH-5
 
-Docker начинать только после фактического QH-5 passed.
+Docker теперь можно начинать: QH-5 final gate passed.
 
 ## Приоритет 3. Dataset / retrieval quality pipeline
 
@@ -190,13 +191,24 @@ scripts/13_build_eval_candidates.py
 scripts/14_run_realistic_100_eval.py
 ```
 
+Smoke 2026-05-19:
+
+```text
+data/realistic_100_eval_smoke_20260519_130108.jsonl
+total = 10
+failures = 0
+parse_errors = 0
+statuses.answered = 10
+avg_duration_sec = 131.4
+```
+
 Следующие действия:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\14_run_realistic_100_eval.py --limit 10
+.\.venv\Scripts\python.exe scripts\14_run_realistic_100_eval.py
 ```
 
-После smoke:
+После полного run:
 
 ```text
 1. полный realistic 100 run;

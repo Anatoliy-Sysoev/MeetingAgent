@@ -42,7 +42,7 @@ QH-1 Observability + Eval Baseline — реализован
 QH-2 Source Quality Filter — реализован
 QH-3 Parent Expansion — реализован
 QH-4 Semantic Warnings / Manual Labels — реализован
-QH-5 Release Gate — реализован, статус PENDING_LOCAL_VALIDATION
+QH-5 Release Gate — реализован, PASSED
 ```
 
 После ручного UI smoke подтверждено:
@@ -274,16 +274,17 @@ QH-1 Observability + Eval Baseline — implemented
 QH-2 Source Quality Filter — implemented
 QH-3 Parent Expansion — implemented
 QH-4 Semantic Warnings / Manual Labels — implemented
-QH-5 Release Gate — implemented, pending local validation
+QH-5 Release Gate — implemented, passed
 ```
 
-QH-5 нельзя считать закрытым, пока не выполнены:
+QH-5 закрыт 2026-05-19 после:
 
 ```text
 local regression tests
 API smoke
 Web UI smoke
 Telegram smoke
+final QH gate
 after_qh eval
 baseline comparison
 qh gate with --local-validation-done --baseline-compared
@@ -387,19 +388,16 @@ baseline comparison: baseline 6/13, 46.2% -> after_qh 7/13, 53.8%
 docs/subprojects/asu-june-bot/smoke_report_qh_release.md
 ```
 
-QH-5 остаётся `PENDING_LOCAL_VALIDATION`, потому что Telegram smoke ещё не закрыт. Финальный gate не запускался намеренно.
+QH-5 закрыт как `PASSED`: Telegram smoke закрыт локально, final gate выполнен с `--local-validation-done --baseline-compared`.
 
 ## 11. Следующие шаги
 
 Сейчас:
 
 ```text
-1. Запустить Telegram adapter через `scripts/asu_june_bot_start_telegram.ps1` с локальным token/chat id.
-2. Проверить Telegram /health.
-3. Проверить Telegram project query.
-4. Проверить Telegram weather refused.
-5. После Telegram smoke запустить final QH gate.
-6. Если gate passed — обновить QH_STATUS.md и FTT_STATUS.md до QH-5 PASSED.
+1. Начать Docker packaging или QH-6 Feedback Dataset Loop.
+2. Прогнать полный realistic 100 eval и manual review.
+3. Поддерживать Telegram token только локально, без Git/docs.
 ```
 
 После QH-5 passed:

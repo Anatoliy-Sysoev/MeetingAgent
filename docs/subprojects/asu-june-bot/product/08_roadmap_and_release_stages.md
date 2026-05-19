@@ -169,7 +169,7 @@ JSON/Markdown reports
 Статус:
 
 ```text
-Реализован, ожидает локальный baseline-прогон
+Реализован, baseline и after_qh eval выполнены
 ```
 
 ### P5. Quality Hardening 2 — Source Quality Filter
@@ -472,7 +472,7 @@ Project-only Chat MVP
 Observability + Eval Baseline
 ```
 
-Статус: реализован, ожидает локальный baseline-прогон.
+Статус: реализован, baseline и after_qh eval выполнены.
 
 ### Release 0.5
 
@@ -480,7 +480,7 @@ Observability + Eval Baseline
 Source Quality Filter + measured improvement
 ```
 
-Статус: следующий.
+Статус: реализован в QH-2.
 
 ### Release 0.6
 

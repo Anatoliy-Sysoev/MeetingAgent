@@ -9,12 +9,12 @@ Commit: `bb0b0856628052643fad8125151bbd679dcb6689`.
 ## Итог
 
 ```text
-QH-5 нельзя закрывать как PASSED.
+Итоговый статус после addendum 2026-05-19: QH-5 PASSED.
 ```
 
-Причина: локальные regression tests, API smoke, Web UI HTTP-smoke, chat logging и `after_qh` eval выполнены, но Telegram smoke не выполнен из-за отсутствия локальных переменных `ASU_JUNE_BOT_TELEGRAM_TOKEN` и `ASU_JUNE_BOT_ALLOWED_CHAT_IDS`.
+Исторический срез 2026-05-18: локальные regression tests, API smoke, Web UI HTTP-smoke, chat logging и `after_qh` eval были выполнены, но Telegram smoke ещё не был закрыт.
 
-Финальный QH gate с `--local-validation-done --baseline-compared` не запускался намеренно, чтобы не пометить QH-5 как passed без Telegram-проверки.
+Addendum 2026-05-19: Telegram smoke закрыт локально без сохранения token в Git/docs, final QH gate выполнен с `--local-validation-done --baseline-compared` и вернул `status=passed`, `pending=[]`.
 
 ## Environment
 
@@ -130,23 +130,21 @@ semantic_warnings.count = 0
 
 ## Telegram smoke
 
-Не выполнено.
+Закрыто локально 2026-05-19.
 
-Причина:
+Ограничения фиксации:
 
 ```text
-ASU_JUNE_BOT_TELEGRAM_TOKEN отсутствует
-ASU_JUNE_BOT_ALLOWED_CHAT_IDS отсутствует
+Telegram token не сохраняется в Git, docs, .env или runtime-отчеты
+для безопасного запуска используется scripts/asu_june_bot_start_telegram.ps1
 ```
 
-Что нужно сделать для закрытия:
+Проверяемые сценарии smoke:
 
 ```text
-1. Запустить API.
-2. Установить локально ASU_JUNE_BOT_TELEGRAM_TOKEN.
-3. Установить локально ASU_JUNE_BOT_ALLOWED_CHAT_IDS.
-4. Запустить scripts/asu_june_bot_telegram.py.
-5. Проверить /health, проектный вопрос и refused weather query в Telegram.
+1. /health
+2. проектный вопрос
+3. отказ на внепроектный вопрос
 ```
 
 ## Eval after QH
@@ -195,13 +193,14 @@ after_qh не ухудшил общий baseline, но eval всё ещё пок
 ## Решение
 
 ```text
-QH-5 = PENDING_LOCAL_VALIDATION
+QH-5 = PASSED
 ```
 
-Оставшиеся блокеры:
+Финальный gate:
 
 ```text
-1. Telegram smoke.
-2. Финальный QH gate с --local-validation-done --baseline-compared после Telegram smoke.
-3. Обновление QH_STATUS.md и FTT_STATUS.md до PASSED только после финального gate.
+.\.venv\Scripts\python.exe scripts\asu_june_bot_qh_gate.py --local-validation-done --baseline-compared --json
+status = passed
+pending = []
+failed = []
 ```
