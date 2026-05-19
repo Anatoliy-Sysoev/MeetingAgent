@@ -18,6 +18,7 @@ DEFAULT_OUTPUT = WORK_ROOT / "data" / "realistic_100_eval_report.jsonl"
 DEFAULT_TOP_K = 5
 DEFAULT_MAX_TOKENS = 700
 DEFAULT_TIMEOUT_SEC = 999999
+CHAT_SCRIPT = WORK_ROOT / "scripts" / "09_chat.py"
 
 
 def utc_now() -> str:
@@ -30,7 +31,7 @@ def run_case(case: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
 
     cmd = [
         sys.executable,
-        "scripts/09_chat.py",
+        str(CHAT_SCRIPT),
         query,
         "--json",
         "--model",
@@ -48,6 +49,7 @@ def run_case(case: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
 
     proc = subprocess.run(
         cmd,
+        cwd=str(WORK_ROOT),
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -149,22 +151,28 @@ def main() -> None:
 
     with output_path.open("w", encoding="utf-8", newline="\n") as fp:
         for idx, row in enumerate(rows, start=1):
+            print(
+                f"[{idx}/{len(rows)}] START {row.get('id')} "
+                f"model={row.get('model')}",
+                flush=True,
+            )
             result = run_case(row, args)
             results.append(result)
             fp.write(json.dumps(result, ensure_ascii=False) + "\n")
             print(
-                f"[{idx}/{len(rows)}] {row.get('id')} "
+                f"[{idx}/{len(rows)}] DONE {row.get('id')} "
                 f"model={row.get('model')} "
                 f"duration={result['duration_sec']}s "
-                f"returncode={result['returncode']}"
+                f"returncode={result['returncode']}",
+                flush=True,
             )
 
     summary = summarize(results)
 
     print()
-    print(json.dumps(summary, ensure_ascii=False, indent=2))
-    print()
-    print(f"Report сохранён: {output_path}")
+    print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
+    print(flush=True)
+    print(f"Report сохранён: {output_path}", flush=True)
 
 
 if __name__ == "__main__":
