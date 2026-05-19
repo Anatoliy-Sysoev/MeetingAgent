@@ -189,6 +189,9 @@ scripts/11_run_synthetic_seed.py
 scripts/12_analyze_seed_report.py
 scripts/13_build_eval_candidates.py
 scripts/14_run_realistic_100_eval.py
+scripts/15_prepare_realistic_eval_review.py
+scripts/run_realistic_100_eval_automation.ps1
+scripts/realistic_100_eval_status.ps1
 ```
 
 Smoke 2026-05-19:
@@ -205,18 +208,19 @@ avg_duration_sec = 131.4
 Следующие действия:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\14_run_realistic_100_eval.py
+.\scripts\run_realistic_100_eval_automation.ps1
 ```
 
 После полного run:
 
 ```text
 1. полный realistic 100 run;
-2. ручной review результатов;
-3. candidate generation;
-4. manual approval;
-5. regression corpus;
-6. retrieval improvement: source_type, ПМИ, aggregation, thresholds.
+2. автоматическая подготовка data/realistic_100_eval_review.jsonl;
+3. ручной review результатов;
+4. candidate generation;
+5. manual approval;
+6. regression corpus;
+7. retrieval improvement: source_type, ПМИ, aggregation, thresholds.
 ```
 
 Важно: автоматическое продвижение плохих ответов в regression запрещено.

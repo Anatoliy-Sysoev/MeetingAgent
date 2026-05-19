@@ -269,9 +269,21 @@ scripts/11_run_synthetic_seed.py
 scripts/12_analyze_seed_report.py
 scripts/13_build_eval_candidates.py
 scripts/14_run_realistic_100_eval.py
+scripts/15_prepare_realistic_eval_review.py
+scripts/run_realistic_100_eval_automation.ps1
+scripts/realistic_100_eval_status.ps1
 ```
 
 Этот контур является параллельным quality/eval слоем, а не заменой bot runtime. Цель: логировать реальные запросы, делать ручную разметку, формировать eval candidates и проверять retrieval improvements.
+
+Автоматизация realistic 100:
+
+```text
+19:00 — scripts/run_realistic_100_eval_automation.ps1 запускает полный realistic 100 eval.
+Каждый час — scripts/realistic_100_eval_status.ps1 -PrepareNextIfComplete снимает статус.
+Если rows >= 100, review готовится автоматически в data/realistic_100_eval_review.jsonl.
+10:00 следующего дня — финальная проверка: если rows < 100, сообщить текущий этап.
+```
 
 ## Ограничение Chat MVP
 
