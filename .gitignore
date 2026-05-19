@@ -63,3 +63,6 @@ meetings/**/meeting.json
 Thumbs.db
 .idea/
 .vscode/
+
+.claude/
+eval/reports/
