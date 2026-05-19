@@ -29,12 +29,102 @@
 Путь берётся из `paths.query_log` (`config.example.yaml`), по умолчанию
 `data/query_log.jsonl`.
 
+## Реализованный Минимальный Pipeline
+
+На текущей ветке реализован минимальный контур накопления датасета и
+ручной разметки:
+
+| Артефакт | Назначение | Статус |
+| --- | --- | --- |
+| `scripts/rag_common.py::append_query_log` | append-only логирование запросов с sensitive-фильтром | готово |
+| `scripts/04_query.py` | RAG-запросы и запись retrieval-логов | готово |
+| `scripts/09_chat.py` | project-only чат и запись chat-логов | готово |
+| `docs/quality/synthetic_seed_queries.jsonl` | стартовый synthetic seed вопросов | готово |
+| `scripts/10_review_queries.py` | подготовка `data/query_log_review.jsonl` для ручной разметки | готово |
+| `scripts/11_run_synthetic_seed.py` | прогон seed-вопросов через `04_query.py` | готово |
+| `scripts/12_analyze_seed_report.py` | markdown-сводка по `synthetic_seed_report.jsonl` | готово |
+| `scripts/13_build_eval_candidates.py` | сборка кандидатов eval-кейсов из review-разметки | готово |
+
+Это не framework обучения и не fine-tuning. Это контролируемый контур
+качества RAG: логирование, synthetic smoke, ручная разметка, кандидаты в
+regression/eval.
+
+## Рабочий Поток На Практике
+
+### 1. Накопить лог реальных запросов
+
+```powershell
+.\.venv\Scripts\python.exe scripts\04_query.py "Что входит в Паспорт ИС?" --top-k 8 --compact
+.\.venv\Scripts\python.exe scripts\09_chat.py "Что входит в Паспорт ИС?" --json
+```
+
+Результат автоматически дописывается в `data/query_log.jsonl`.
+
+### 2. Подготовить первые 100 строк к ручному review
+
+```powershell
+.\.venv\Scripts\python.exe scripts\10_review_queries.py --limit 100
+```
+
+Результат: `data/query_log_review.jsonl`.
+
+### 3. Разметить review-файл вручную
+
+В поле `review_verdict` указать один из вердиктов:
+
+- `ok`;
+- `missing_source`;
+- `garbage_source`;
+- `low_score`;
+- `hallucination`;
+- `out_of_scope`.
+
+В поле `review_comment` указать пояснение: какой источник ожидался, какой
+мусор попал, где галлюцинация или почему вопрос вне проектного контекста.
+
+### 4. Собрать кандидатов в eval
+
+```powershell
+.\.venv\Scripts\python.exe scripts\13_build_eval_candidates.py
+```
+
+Результат: `data/eval_candidates.jsonl`.
+
+Кандидаты не считаются утверждённым eval. Их нужно просмотреть вручную и
+только после этого переносить в постоянный regression-набор.
+
+### 5. Прогнать synthetic seed
+
+Дешёвый retrieval smoke без генерации LLM:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\11_run_synthetic_seed.py --limit 20
+```
+
+Полный LLM smoke на малом срезе:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\11_run_synthetic_seed.py --limit 10 --full-llm
+```
+
+Результат: `data/synthetic_seed_report.jsonl`.
+
+### 6. Построить сводку synthetic seed
+
+```powershell
+.\.venv\Scripts\python.exe scripts\12_analyze_seed_report.py
+```
+
+Результат: `data/synthetic_seed_summary.md`.
+
+Сводка показывает failures, категории, запросы без источников, низкие
+score и часто возвращаемые источники. Это помогает найти мусорные
+источники, слабые документы и regression после изменения фильтров.
+
 ## Шаг 1. Логирование
 
 Каждый запрос дописывается в `data/query_log.jsonl` (локальный runtime,
 исключён из Git, как и остальной `data/`).
-
-Минимальная запись на одну строку:
 
 Фактическая запись на одну строку (`09_chat.py`):
 
@@ -99,10 +189,9 @@ llm`) вместо `status`.
 | `hallucination` | ответ не опирается на источники |
 | `out_of_scope` | вопрос не про проектную документацию |
 
-Разметку вести рядом с логом (например, отдельная колонка/файл
-`data/query_log_review.jsonl`) или в markdown-таблице среза первых 100.
-Срез и сводка по вердиктам фиксируются по образцу
-`docs/quality/rag_eval_report_template.md`.
+Разметку вести в `data/query_log_review.jsonl`, который создаётся
+скриптом `scripts/10_review_queries.py`. Срез и сводка по вердиктам
+фиксируются по образцу `docs/quality/rag_eval_report_template.md`.
 
 ## Шаг 4. Коррекция
 
@@ -145,19 +234,23 @@ llm`) вместо `status`.
    ожидаемое поведение и ожидаемые источники. Без авторазметки: иначе
    накопим кейсы на мусоре.
 
-3. **Утверждённые eval-кейсы** — после ручного review «плохие» записи
-   превращаются в кейсы рядом с существующими
-   `docs/quality/rag_eval_questions.md` и baseline-отчётами
-   (`docs/quality/rag_eval_baseline_clean_2026-05-07.md`). Кейс: вопрос,
-   ожидаемый статус, ожидаемые источники, ссылка на исходный запрос.
+3. **Кандидаты eval** — `data/eval_candidates.jsonl`. Формируются
+   скриптом `scripts/13_build_eval_candidates.py` из ручной разметки.
+   Статус таких записей — только `candidate`, не `approved`.
 
-4. **Golden-ответы** — эталонные ответы для ключевых вопросов.
+4. **Утверждённые eval-кейсы** — после ручного review кандидаты
+   переносятся рядом с существующими `docs/quality/rag_eval_questions.md`
+   и baseline-отчётами (`docs/quality/rag_eval_baseline_clean_2026-05-07.md`).
+   Кейс: вопрос, ожидаемый статус, ожидаемые источники, ссылка на исходный
+   запрос.
+
+5. **Golden-ответы** — эталонные ответы для ключевых вопросов.
    Используются только для проверки качества ответа, не для дообучения.
 
-Порядок накопления строго ручной на слоях 2–4: запрос → лог (авто) →
-срез первых ~100 → разметка → утверждение кейсов → коррекция корпуса и
-параметров → повторный прогон. Автоматически переносить плохие ответы в
-eval запрещено.
+Порядок накопления строго ручной на слоях 2–5: запрос → лог (авто) →
+срез первых ~100 → разметка → кандидаты → утверждение кейсов → коррекция
+корпуса и параметров → повторный прогон. Автоматически переносить плохие
+ответы в eval запрещено.
 
 ## Граница Процесса
 
@@ -165,5 +258,17 @@ eval запрещено.
   и параметры retrieval, а не веса модели.
 - Модель эмбеддингов остаётся `bge-m3`; менять её только через
   явную миграцию cache (см. `AGENTS.md`).
-- Все рабочие данные (`data/query_log.jsonl`, разметка) локальные и не
-  коммитятся.
+- Все рабочие данные (`data/query_log.jsonl`, `data/query_log_review.jsonl`,
+  `data/synthetic_seed_report.jsonl`, `data/synthetic_seed_summary.md`,
+  `data/eval_candidates.jsonl`) локальные и не коммитятся.
+- Synthetic seed — это стартовый smoke/regression material, а не источник
+  истины. Его результаты нельзя считать эталоном без ручного review.
+
+## Что Не Делать
+
+- Не дообучать веса LLM на этих данных.
+- Не переносить автоматически плохие ответы в eval.
+- Не утверждать synthetic seed как golden set без просмотра человеком.
+- Не коммитить `data/query_log*.jsonl`, `data/synthetic_seed_report.jsonl`,
+  `data/synthetic_seed_summary.md`, `data/eval_candidates.jsonl`.
+- Не менять модель эмбеддингов без отдельной миграции cache.
