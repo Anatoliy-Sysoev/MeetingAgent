@@ -7,6 +7,10 @@
 Документ фиксирует фактически реализованный pipeline накопления и
 разметки запросов для локального RAG/Chat режима MeetingAgent.
 
+Это отдельный quality/evaluation контур. Он не заменяет целевой runtime
+Project Knowledge Bot (`src/asu_june_bot/`) и не должен трактовать
+`scripts/09_chat.py` как основную архитектуру бота.
+
 Важно: это не обучение весов LLM и не fine-tuning. Реализованный
 pipeline предназначен для:
 
@@ -44,6 +48,11 @@ pipeline предназначен для:
 Sensitive-запросы (`.env`, токены, пароли, системные инструкции)
 не логируются.
 
+`scripts/09_chat.py` здесь используется как legacy/prototype-источник
+логов для старого project-only baseline. Для целевого Project Knowledge
+Bot основной runtime находится в `src/asu_june_bot/` и
+`scripts/asu_june_bot_*.py`.
+
 ## 2. Synthetic Seed Dataset
 
 Реализован стартовый synthetic dataset:
@@ -63,7 +72,43 @@ Sensitive-запросы (`.env`, токены, пароли, системные
 
 Используется как reproducible smoke/regression corpus.
 
-## 3. Review Pipeline
+## 3. Realistic 100 Dataset
+
+Реализован набор из 100 реалистичных вопросов:
+
+```text
+`docs/quality/realistic_100_queries.jsonl`
+```
+
+Распределение:
+
+```text
+70 project queries
+20 boundary / mixed / ambiguous queries
+10 out_of_scope queries
+```
+
+Модель задаётся в каждой строке dataset:
+
+```text
+qwen2.5:7b-instruct  для основной проектной части
+qwen3:4b              для boundary-среза
+qwen3:8b              для out_of_scope-среза
+```
+
+Runner:
+
+```text
+`scripts/14_run_realistic_100_eval.py`
+```
+
+Отчёт runtime:
+
+```text
+`data/realistic_100_eval_report.jsonl`
+```
+
+## 4. Review Pipeline
 
 ### Подготовка review-среза
 
@@ -104,7 +149,7 @@ Sensitive-запросы (`.env`, токены, пароли, системные
 - approval только ручной;
 - automatic promotion запрещён.
 
-## 4. Synthetic Smoke Pipeline
+## 5. Synthetic Smoke Pipeline
 
 ### Прогон synthetic seed
 
@@ -175,6 +220,18 @@ synthetic_seed_report.jsonl
 12_analyze_seed_report.py
         ↓
 synthetic_seed_summary.md
+```
+
+Realistic 100:
+
+```text
+realistic_100_queries.jsonl
+        ↓
+14_run_realistic_100_eval.py
+        ↓
+realistic_100_eval_report.jsonl
+        ↓
+manual review
 ```
 
 ## Что НЕ Реализовано

@@ -1,163 +1,402 @@
 # MeetingAgent
 
-MeetingAgent - локальный продукт для превращения проектных документов и записей встреч в поисковую память проекта.
+MeetingAgent — локальный продукт для превращения проектных документов и записей встреч в поисковую память проекта.
 
-Цель продукта простая: каждый документ, встреча, решение, требование и задача должны стать находимыми, проверяемыми и пригодными для подготовки проектной и сдачной документации.
+Цель продукта: каждый документ, встреча, решение, требование и задача должны стать находимыми, проверяемыми и пригодными для подготовки проектной и сдачной документации.
 
-## Что Делает
+## Что делает
 
 - Строит RAG-индекс по проектной документации.
-- Отвечает на вопросы по проекту через очищенный project-only чат с источниками.
+- Поддерживает отдельный project-only бот по документации с API `/search` и `/chat`.
+- Даёт локальный Web UI для запросов к `/chat`.
+- Даёт Telegram adapter поверх локального `/chat`.
 - Следит за появлением новых записей встреч.
 - Транскрибирует аудио и видео через Whisper-совместимые модели.
 - Формирует memo, протокол, решения, риски и задачи.
-- Классифицирует материалы по этапу проекта, ФТТ, документу, результату и задаче.
+- Классифицирует материалы по этапу проекта, документу, результату и задаче.
 - Генерирует черновики проектных документов на основе существующих источников.
 
 ## Подпроекты
 
-### Asu June Bot
+### Project Knowledge Bot
 
-`Asu June Bot` — отдельный подпроект для локального AI-агента по проекту ЦП УПКС.
+`Project Knowledge Bot` — отдельный подпроект для локального AI-агента по проектной документации информационной системы.
 
-Назначение: отвечать только по загруженной проектной документации, анализировать ФТТ, ЦТА, ПР, СоИ, ПМИ, Паспорт ИС, протоколы встреч и давать ответы с проверяемыми источниками.
+Историческое рабочее имя в коде и путях:
 
-Документация подпроекта: `docs/subprojects/asu-june-bot/README.md`.
+```text
+asu_june_bot
+```
+
+Назначение:
+
+```text
+принимать вопросы по проектному корпусу
+отвечать только по источникам
+возвращать citations
+отказывать на внепроектные и смешанные запросы
+логировать chat-запуски
+измерять качество через baseline eval
+давать локальный UI и Telegram-вход
+```
+
+Документация подпроекта:
+
+```text
+docs/subprojects/asu-june-bot/README.md
+```
 
 Ключевые документы подпроекта:
 
-- `docs/subprojects/asu-june-bot/context.md`
-- `docs/subprojects/asu-june-bot/decisions.md`
-- `docs/subprojects/asu-june-bot/architecture.md`
-- `docs/subprojects/asu-june-bot/mvp.md`
-- `docs/subprojects/asu-june-bot/roadmap.md`
-- `docs/subprojects/asu-june-bot/todo.md`
-- `docs/subprojects/asu-june-bot/eval_questions.md`
-
-## Текущий Локальный Режим Работы
-
-Сейчас реализация скриптовая:
-
-- `run_full_rag.ps1` запускает полную сборку RAG.
-- `monitor_rag.ps1` выполняет один тик мониторинга долгих задач.
-- `scripts/01_inventory.py` инвентаризирует файлы проекта.
-- `scripts/02_extract_text.py` извлекает текст.
-- `scripts/03_build_index.py` режет текст на chunks и пополняет `data/embeddings_cache.jsonl` через `bge-m3`.
-- `scripts/05_build_numpy_index.py` собирает стабильный локальный numpy-индекс из готовых chunks и embeddings cache.
-- `scripts/04_query.py` выполняет запросы к RAG-индексу через numpy-поиск, без зависимости от ChromaDB.
-- `scripts/09_chat.py` выполняет project-only чат поверх numpy-RAG: отвечает только при наличии источников или возвращает отказ.
-- `scripts/06_transcribe_meeting.py` выполняет offline-транскрибацию одной папки встречи по `meeting.json`.
-- `scripts/07_generate_meeting_artifacts.py` создает memo, протокол и JSON-артефакты встречи из готового transcript. По умолчанию работает в быстром `extractive`-режиме; `--mode ollama` оставлен для экспериментов с локальной LLM.
-
-## Project-Only Chatbot MVP
-
-Проверка источников без вызова LLM:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\09_chat.py "Что входит в Паспорт ИС?" --sources-only --json
+```text
+docs/subprojects/asu-june-bot/TOMORROW_START.md
+docs/subprojects/asu-june-bot/context.md
+docs/subprojects/asu-june-bot/decisions.md
+docs/subprojects/asu-june-bot/architecture.md
+docs/subprojects/asu-june-bot/mvp.md
+docs/subprojects/asu-june-bot/roadmap.md
+docs/subprojects/asu-june-bot/todo.md
+docs/subprojects/asu-june-bot/RUNBOOK_V2.md
+docs/subprojects/asu-june-bot/telegram.md
+docs/subprojects/asu-june-bot/eval_questions.md
+docs/subprojects/asu-june-bot/product/README.md
 ```
 
-Полный ответ через локальную LLM:
+Текущий статус:
 
-```powershell
-.\.venv\Scripts\python.exe scripts\09_chat.py "Что входит в Паспорт ИС?" --json
+```text
+API Search MVP: закрыт
+API Chat MVP / POST /chat: закрыт с ограничениями
+Local Web UI: реализован, HTTP smoke пройден
+Telegram adapter: реализован, ждёт smoke с локальным token/chat id
+QH-1..QH-4: реализованы
+QH-5 Release Stabilization: PENDING_LOCAL_VALIDATION
+Docker: после фактического QH-5 passed
 ```
 
-Поведение MVP:
+## Текущий локальный режим работы
 
-- если найдены источники выше порога `--score-threshold`, бот отвечает и возвращает `sources`;
-- если источников нет или score низкий, бот отказывает и не отвечает из общих знаний;
-- sensitive-запросы про `.env`, `config.yaml`, токены, пароли и системные инструкции отклоняются;
-- `--sources-only` нужен для быстрой проверки retrieval без ожидания LLM.
+В репозитории есть два контура.
 
-Smoke-вопросы: `docs/quality/project_only_chatbot_smoke_questions.md`.
+### 1. Базовый MeetingAgent v1/baseline
 
-Локальные рабочие данные специально исключены из Git:
+Это старый общий RAG/meeting pipeline:
 
-- `data/`
-- `logs/`
-- `vector_db/` - устаревшая локальная папка ChromaDB, не используется основным поиском.
-- `data/numpy_index/`
-- `watched_folder/`
-- `meetings/**/source/`, `meetings/**/transcript/`, `meetings/**/artifacts/`, `meetings/**/exports/`
-- `meetings/**/meeting.json` - реальные карточки встреч являются runtime-данными; примеры лежат в `docs/examples/`.
-- `.venv/`
+```text
+run_full_rag.ps1
+monitor_rag.ps1
+scripts/01_inventory.py
+scripts/02_extract_text.py
+scripts/03_build_index.py
+scripts/05_build_numpy_index.py
+scripts/04_query.py
+scripts/09_chat.py
+scripts/06_transcribe_meeting.py
+scripts/07_generate_meeting_artifacts.py
+```
+
+`scripts/09_chat.py` считается legacy/prototype для project-only чата. Целевой bot runtime дальше развивается не там.
+
+### 2. Project Knowledge Bot v2.1/v2.2
+
+Целевой контур бота:
+
+```text
+scripts/asu_june_bot_apply_config_v2_1.py
+scripts/asu_june_bot_extract_text_v2.py
+scripts/asu_june_bot_build_chunks_v2.py
+scripts/asu_june_bot_audit_sources_v2.py
+scripts/asu_june_bot_build_index_v2.py
+scripts/asu_june_bot_health_v2.py
+scripts/asu_june_bot_search_v2.py
+scripts/asu_june_bot_guard_v2_eval.py
+scripts/asu_june_bot_api.py
+scripts/asu_june_bot_chat.py
+scripts/asu_june_bot_chat_eval.py
+scripts/asu_june_bot_telegram.py
+src/asu_june_bot/
+eval/cases/base.jsonl
+```
+
+Реализованные endpoints:
+
+```text
+GET /
+GET /ui
+GET /health
+POST /search
+POST /chat
+```
+
+Ключевое разделение:
+
+```text
+/search = evidence/context endpoint
+/chat = answer with citations endpoint
+/ui = локальная HTML-страница поверх /chat
+Telegram adapter = внешний вход поверх локального /chat
+```
+
+`/search` не должен генерировать осмысленный ответ. Он возвращает sources/context/diagnostics. Осмысленный ответ формирует `/chat` через `ChatService`.
+
+## Project Knowledge Bot: быстрые команды
+
+### Завтрашнее восстановление
+
+```text
+docs/subprojects/asu-june-bot/TOMORROW_START.md
+```
+
+### Health
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_health_v2.py
+```
+
+### API + UI
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_api.py --host 127.0.0.1 --port 8000
+```
+
+Открыть:
+
+```text
+http://127.0.0.1:8000/
+http://127.0.0.1:8000/ui
+```
+
+### Chat CLI
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_chat.py "Как происходит авторизация пользователей?" --mode hybrid --top-k 5 --model qwen2.5:7b-instruct --max-tokens 500 --timeout-sec 300 --json --output data\asu_june_bot\smoke_chat_ad.json
+```
+
+### Telegram adapter
+
+```powershell
+$env:ASU_JUNE_BOT_TELEGRAM_TOKEN='PASTE_TOKEN_HERE'
+$env:ASU_JUNE_BOT_CHAT_API_URL='http://127.0.0.1:8000/chat'
+.\.venv\Scripts\python.exe scripts\asu_june_bot_telegram.py
+```
+
+Подробно:
+
+```text
+docs/subprojects/asu-june-bot/telegram.md
+```
+
+### Eval baseline
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_chat_eval.py --cases eval\cases\base.jsonl --label baseline --model qwen2.5:7b-instruct --top-k 5
+```
+
+## Ограничения ввода
+
+Для `/search`, `/chat`, Web UI и Telegram adapter установлен единый лимит:
+
+```text
+MAX_QUERY_CHARS = 2000
+```
+
+Слишком длинные запросы отсекаются до запуска retrieval/LLM.
+
+## Runtime-данные
+
+Локальные рабочие данные исключены из Git:
+
+```text
+data/
+logs/
+vector_db/
+watched_folder/
+meetings/**/source/
+meetings/**/transcript/
+meetings/**/artifacts/
+meetings/**/exports/
+meetings/**/meeting.json
+.venv/
+eval/reports/
+```
+
+Для Project Knowledge Bot runtime хранится в:
+
+```text
+data/asu_june_bot/chunks_v2.jsonl
+data/asu_june_bot/embeddings_cache_v2.jsonl
+data/asu_june_bot/numpy_index_v2/
+data/asu_june_bot/chat_runs.jsonl
+```
 
 Используй `config.example.yaml` как шаблон для локального `config.yaml`.
 
-## Работа С Codex
+## Работа с Codex
 
-В этом репозитории действует правило пет-проектов: одна папка - один Git-репозиторий, а значимые изменения записываются в Git.
+В этом репозитории действует правило: одна папка — один Git-репозиторий, значимые изменения записываются в Git.
 
 Перед изменениями прочитай:
 
-- `AGENTS.md`
-- `docs/context.md`
-- `docs/decisions.md`
-- `docs/todo.md`
+```text
+AGENTS.md
+docs/context.md
+docs/decisions.md
+docs/todo.md
+```
 
-Для подпроекта Asu June Bot дополнительно прочитай:
+Для Project Knowledge Bot дополнительно прочитай:
 
-- `docs/subprojects/asu-june-bot/README.md`
-- `docs/subprojects/asu-june-bot/context.md`
-- `docs/subprojects/asu-june-bot/decisions.md`
-- `docs/subprojects/asu-june-bot/todo.md`
+```text
+docs/subprojects/asu-june-bot/README.md
+docs/subprojects/asu-june-bot/TOMORROW_START.md
+docs/subprojects/asu-june-bot/context.md
+docs/subprojects/asu-june-bot/decisions.md
+docs/subprojects/asu-june-bot/todo.md
+docs/subprojects/asu-june-bot/RUNBOOK_V2.md
+```
 
-Перед завершением рабочей сессии обнови `docs/context.md` и `docs/todo.md`, затем проверь `git status`. Если работа велась по Asu June Bot, обнови также `docs/subprojects/asu-june-bot/context.md` и `docs/subprojects/asu-june-bot/todo.md`.
+Перед завершением рабочей сессии обнови:
 
-## Структура Продукта
+```text
+docs/context.md
+docs/todo.md
+docs/subprojects/asu-june-bot/context.md
+docs/subprojects/asu-june-bot/todo.md
+```
+
+Если работа меняла продуктовый статус бота, проверь также:
+
+```text
+docs/subprojects/asu-june-bot/README.md
+docs/subprojects/asu-june-bot/architecture.md
+docs/subprojects/asu-june-bot/mvp.md
+docs/subprojects/asu-june-bot/roadmap.md
+docs/subprojects/asu-june-bot/product/README.md
+```
+
+## Структура продукта
 
 ```text
 MeetingAgent/
-  apps/                  Продуктовые интерфейсы: CLI, локальный API, desktop/web UI
-  src/meeting_agent/      Будущий Python-пакет
-  scripts/                Текущие рабочие скрипты
-  templates/              Шаблоны prompt и документов
-  docs/                   Продукт, архитектура, эксплуатация, безопасность
-  tests/                  Unit, integration и evaluation-тесты
-  data/                   Локальные сгенерированные данные, игнорируются Git
-  logs/                   Локальные логи, игнорируются Git
-  vector_db/              Устаревшая локальная папка ChromaDB, игнорируется Git
-  watched_folder/         Входящие медиа/документы, игнорируются Git
+  apps/                    Продуктовые интерфейсы: CLI, локальный API, desktop/web UI
+  src/asu_june_bot/         Целевой runtime Project Knowledge Bot
+  src/meeting_agent/        Будущий общий Python-пакет MeetingAgent
+  scripts/                  Рабочие скрипты v1 и bot v2
+  templates/                Шаблоны prompt и документов
+  docs/                     Продукт, архитектура, эксплуатация, безопасность
+  docs/subprojects/         Документация подпроектов
+  tests/                    Unit, integration и evaluation-тесты
+  eval/                     Eval cases / golden answers / runtime reports
+  data/                     Локальные сгенерированные данные, игнорируются Git
+  logs/                     Локальные логи, игнорируются Git
+  vector_db/                Устаревшая локальная папка ChromaDB, игнорируется Git
+  watched_folder/           Входящие медиа/документы, игнорируются Git
 ```
 
-## Принципы Продукта
+## Принципы продукта
 
 - **Локальная обработка по умолчанию**: проектные данные остаются на машине пользователя.
 - **Опора на источники**: каждый ответ или документ должен ссылаться на исходные файлы и фрагменты встреч.
 - **Продолжение после сбоев**: долгие задачи должны продолжаться из cache.
 - **Прозрачность**: пользователь должен видеть, что обработано, пропущено, классифицировано и создано.
-- **Понимание проекта**: система должна учитывать этапы, ФТТ, архитектуру, сдачные документы, решения и задачи.
+- **Project-only дисциплина**: отказ лучше неподтвержденного ответа.
+- **Измеримость качества**: изменения search/chat/context должны проверяться через smoke/eval.
 
-## Ближайшие Вехи
+## Ближайшие вехи
 
-1. Довести `Project-Only Chatbot MVP`: smoke-прогон, настройка порогов, затем local API `/chat`.
-2. Поддерживать RAG baseline и улучшать слабые места retrieval: ПМИ, aggregation-запросы, `source_type`.
-3. Проверить и улучшить offline-транскрибацию тестовой встречи через `scripts/06_transcribe_meeting.py`.
-4. Проверить extractive-артефакты встречи из `scripts/07_generate_meeting_artifacts.py` и решить, где нужна ручная редактура или LLM-режим.
-5. Добавить watcher для входящих записей из `watched_folder/`.
-6. Собрать локальный API и небольшой UI для inbox, поиска, встреч и генерации.
+1. Закрыть Telegram smoke Project Knowledge Bot.
+2. Выполнить final QH gate и зафиксировать QH-5 как `PASSED`, если все условия выполнены.
+3. После QH-5 перейти к Docker stage.
+4. Параллельно прогнать realistic 100 eval и начать manual review dataset pipeline.
+5. По общему MeetingAgent вернуться к incremental RAG update и meeting watcher после стабилизации бота.
 
-Подробное видение и полный план развития: `docs/product/PRODUCT_VISION_AND_PLAN.md`.
+## Навигация по документации
 
-Рабочая карта этапов и ФТТ: `docs/product/PROJECT_STAGES_AND_FTT.md`.
+Общая архитектура и технические диаграммы:
 
-Дорожная карта project-only чат-бота: `docs/product/PROJECT_ONLY_CHATBOT_MVP.md`.
+```text
+docs/architecture/ARCHITECTURE.md
+docs/architecture/TECHNICAL_FILE_RELATIONSHIPS.md
+```
 
-Таксономия этапов проекта и типов документов: `docs/product/PROJECT_TAXONOMY.md`.
+Подробное видение и полный план развития MeetingAgent:
 
-Словарь терминов и заготовка `initial_prompt` для транскрибации: `docs/glossary.md`.
+```text
+docs/product/PRODUCT_VISION_AND_PLAN.md
+```
 
-Резервное копирование и хранение данных: `docs/operations/BACKUP_AND_RETENTION.md`.
+Рабочая карта этапов и требований:
 
-Контрольные вопросы для RAG baseline: `docs/quality/rag_eval_questions.md`.
+```text
+docs/product/PROJECT_STAGES_AND_FTT.md
+```
 
-Контрольные вопросы для чат-бота: `docs/quality/project_only_chatbot_smoke_questions.md`.
+Дорожная карта старого project-only chatbot baseline:
 
-Схема карточки встречи: `configs/schemas/meeting.schema.json`.
+```text
+docs/product/PROJECT_ONLY_CHATBOT_MVP.md
+```
 
-Шаблон карточки встречи: `docs/templates/MEETING_CARD.md`.
+Документация текущего Project Knowledge Bot:
 
-Исторический план параллельных работ во время первой RAG-сборки: `docs/product/PARALLEL_WORK_WHILE_RAG_BUILDS.md`.
+```text
+docs/subprojects/asu-june-bot/README.md
+docs/subprojects/asu-june-bot/architecture.md
+docs/subprojects/asu-june-bot/TECHNICAL_DIAGRAMS.md
+```
 
-Экспериментальный референс live-транскрибации: `docs/references/WHISPERDESK_EXPERIMENT.md`.
+Завтрашний чек-лист запуска:
+
+```text
+docs/subprojects/asu-june-bot/TOMORROW_START.md
+```
+
+Telegram adapter:
+
+```text
+docs/subprojects/asu-june-bot/telegram.md
+```
+
+Product package Project Knowledge Bot:
+
+```text
+docs/subprojects/asu-june-bot/product/README.md
+```
+
+Runbook Project Knowledge Bot:
+
+```text
+docs/subprojects/asu-june-bot/RUNBOOK_V2.md
+```
+
+Словарь терминов и заготовка `initial_prompt` для транскрибации:
+
+```text
+docs/glossary.md
+```
+
+Резервное копирование и хранение данных:
+
+```text
+docs/operations/BACKUP_AND_RETENTION.md
+```
+
+Контрольные вопросы для RAG baseline:
+
+```text
+docs/quality/rag_eval_questions.md
+docs/quality/QUERY_FEEDBACK_LOOP.md
+docs/quality/DATASET_PIPELINE_STATUS.md
+```
+
+Схема карточки встречи:
+
+```text
+configs/schemas/meeting.schema.json
+```
+
+Шаблон карточки встречи:
+
+```text
+docs/templates/MEETING_CARD.md
+```

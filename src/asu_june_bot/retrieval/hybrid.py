@@ -7,7 +7,7 @@ from .bm25 import BM25SearchAdapter
 from .models import SearchResult
 from .query_expansion import QueryExpander
 from .source_policy import SourcePolicy
-from .vector import VectorSearchAdapter
+from .vector import OllamaUnavailableError, VectorSearchAdapter
 
 
 def _chunk_key(result: SearchResult) -> str:
@@ -34,6 +34,7 @@ class HybridRetriever:
         query_expander: QueryExpander | None = None,
         vector_weight: float = 0.65,
         bm25_weight: float = 0.35,
+        hybrid_fallback_to_bm25: bool = True,
     ):
         self.vector_search = vector_search
         self.bm25_search = bm25_search
@@ -41,6 +42,8 @@ class HybridRetriever:
         self.query_expander = query_expander or QueryExpander()
         self.vector_weight = vector_weight
         self.bm25_weight = bm25_weight
+        self.hybrid_fallback_to_bm25 = hybrid_fallback_to_bm25
+        self.last_warnings: list[str] = []
 
     def search(
         self,
@@ -49,6 +52,7 @@ class HybridRetriever:
         include_source_types: list[str] | None = None,
         mode: str = "hybrid",
     ) -> list[SearchResult]:
+        self.last_warnings = []
         expanded_query, expansions = self.query_expander.expand(query)
         search_query = expanded_query if mode in ("hybrid", "vector") else query
         candidate_k = max(top_k * 3, top_k)
@@ -56,7 +60,14 @@ class HybridRetriever:
         bm25_results: list[SearchResult] = []
 
         if mode in ("hybrid", "vector") and self.vector_search is not None:
-            vector_results = self.vector_search.search(search_query, candidate_k, include_source_types=include_source_types)
+            try:
+                vector_results = self.vector_search.search(search_query, candidate_k, include_source_types=include_source_types)
+            except OllamaUnavailableError as exc:
+                if mode == "vector" or not self.hybrid_fallback_to_bm25:
+                    raise
+                self.last_warnings.append(f"vector_unavailable_fallback_to_bm25: {exc}")
+                vector_results = []
+
         if mode in ("hybrid", "bm25") and self.bm25_search is not None:
             # BM25 receives the expanded query too, because exact words like MDR/LDAPS/Blitz are useful.
             bm25_results = self.bm25_search.search(expanded_query, candidate_k, include_source_types=include_source_types)
@@ -65,6 +76,21 @@ class HybridRetriever:
             return self._renumber(self._with_expansion_diagnostics(vector_results[:top_k], expansions, expanded_query))
         if mode == "bm25":
             return self._renumber(self._with_expansion_diagnostics(bm25_results[:top_k], expansions, expanded_query))
+
+        if not vector_results and bm25_results and self.last_warnings:
+            fallback_results = self._with_expansion_diagnostics(bm25_results[:top_k], expansions, expanded_query)
+            fallback_results = [
+                replace(
+                    result,
+                    diagnostics={
+                        **result.diagnostics,
+                        "retrieval_warning": "; ".join(self.last_warnings),
+                        "fallback_mode": "bm25",
+                    },
+                )
+                for result in fallback_results
+            ]
+            return self._renumber(fallback_results)
 
         vector_norm = _normalize_scores(vector_results, "score")
         bm25_norm = _normalize_scores(bm25_results, "score")
@@ -86,6 +112,8 @@ class HybridRetriever:
                     "expanded_query": expanded_query if expansions else None,
                 }
             )
+            if self.last_warnings:
+                diagnostics["retrieval_warning"] = "; ".join(self.last_warnings)
 
             if existing is None:
                 merged[key] = replace(
@@ -155,4 +183,5 @@ def build_hybrid_retriever(
         query_expander=query_expander,
         vector_weight=float(retrieval_cfg.get("vector_weight", 0.65)),
         bm25_weight=float(retrieval_cfg.get("bm25_weight", 0.35)),
+        hybrid_fallback_to_bm25=bool(retrieval_cfg.get("hybrid_fallback_to_bm25", True)),
     )

@@ -15,9 +15,12 @@ __pycache__/
 !.env.example
 config.yaml
 config.local.yaml
+config.yaml.bak*
+*.bak_project_root
 
 # Runtime RAG data and generated artifacts
 _calibration/
+eval/reports/
 data/*
 !data/.gitkeep
 !data/README.md
@@ -36,6 +39,11 @@ meetings/**/_partials/*
 meetings/**/meeting.json
 !meetings/**/.gitkeep
 
+# Local experiments and one-off test scripts
+test_*.py
+*_test_local.py
+scratch_*.py
+
 # Large media and meeting inputs/outputs
 *.mp4
 *.mkv
@@ -48,6 +56,9 @@ meetings/**/meeting.json
 
 # Local indexes, caches, and database files
 *.jsonl
+!docs/quality/*.jsonl
+!eval/cases/*.jsonl
+!tests/**/*.jsonl
 *.sqlite
 *.sqlite3
 *.db
@@ -61,8 +72,6 @@ meetings/**/meeting.json
 # OS/editor noise
 .DS_Store
 Thumbs.db
+.claude/
 .idea/
 .vscode/
-
-.claude/
-eval/reports/

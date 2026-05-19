@@ -1,307 +1,313 @@
-# TODO Asu June Bot
+# TODO Project Knowledge Bot
 
-Обновлено: 2026-05-12.
+Обновлено: 2026-05-19.
 
-## Сейчас
+## Текущий статус
 
-- Утвердить рабочее название `Asu June Bot` или заменить его до расширения кодовой базы.
-- Не развивать дальше `scripts/09_chat.py` как основной продуктовый контур.
-- Использовать `scripts/09_chat.py` только как prototype и источник выводов.
-- Считать старый RAG MeetingAgent только v1/baseline.
-- Новый Asu June Bot v2 строить независимо: `extract_text_v2 -> chunks_v2 -> index_v2`.
-- Не опираться на старый `scripts/02_extract_text.py` для v2.
-- Не менять старый `run_full_rag.ps1`, `data/chunks.jsonl`, `data/embeddings_cache.jsonl` и `data/numpy_index` при проверке v2.
-- Проверить локально extractor v2: `scripts/asu_june_bot_extract_text_v2.py`.
-- Проверить локально chunking v2: `scripts/asu_june_bot_build_chunks_v2.py`.
-- После локальной проверки исправить runtime/import ошибки, если они появятся.
-- Оценить качество `blocks.jsonl` по DOCX/XLSX: порядок paragraph/table, table_row, headers, cells.
-- Оценить качество `chunks_v2.jsonl` по ФТТ и Паспорт ИС до подключения v2 к поиску.
+API Search MVP закрыт. CLI Chat MVP и API Chat MVP прошли smoke. Добавлены локальный Web UI, Telegram adapter и единый лимит длины запроса.
 
-## Сделано В Этом Срезе
-
-### Search MVP v1
-
-Создано:
+QH-этапы доведены до состояния:
 
 ```text
-src/asu_june_bot/
-  __init__.py
-  core/config.py
-  retrieval/models.py
-  retrieval/metadata.py
-  retrieval/source_policy.py
-  retrieval/bm25.py
-  retrieval/vector.py
-  retrieval/hybrid.py
-  retrieval/chunks.py
-  retrieval/query_expansion.py
-scripts/asu_june_bot_search.py
-configs/asu_june_bot/llm.yaml
-configs/asu_june_bot/retrieval.yaml
-configs/asu_june_bot/guardrails.yaml
-configs/asu_june_bot/query_expansion.yaml
-configs/asu_june_bot/source_policy.yaml
+QH-1 Observability + Eval Baseline        IMPLEMENTED
+QH-2 Source Quality Filter                IMPLEMENTED
+QH-3 Parent Expansion                     IMPLEMENTED
+QH-4 Semantic Warnings / Manual Labels    IMPLEMENTED
+QH-5 Release Stabilization                PENDING_LOCAL_VALIDATION
+QH-6 Feedback Dataset Loop                PLANNED_AFTER_QH5
 ```
 
-Реализовано:
-
-- `VectorSearchAdapter` поверх текущего numpy index MeetingAgent.
-- `BM25SearchAdapter` поверх `data/chunks.jsonl`.
-- `HybridRetriever`.
-- `QueryExpander`.
-- `SourcePolicy`.
-- эвристическое enrichment metadata: `source_type`, `document_type`, `module`, `stage`, `section`, `sections`.
-- CLI `scripts/asu_june_bot_search.py`.
-
-### Extraction v2
-
-Создано:
+Локальная проверка 2026-05-18:
 
 ```text
-src/asu_june_bot/ingestion/__init__.py
-src/asu_june_bot/ingestion/models.py
-src/asu_june_bot/ingestion/utils.py
-scripts/asu_june_bot_extract_text_v2.py
-run_asu_june_bot_rebuild_v2.ps1
+regression tests: 97 passed
+health_v2: ok
+API smoke: ok
+Web UI HTTP smoke: ok
+after_qh eval: 7/13, 53.8%
+baseline comparison: 6/13 -> 7/13
+smoke_report_qh_release.md создан
+Telegram smoke: не выполнен, нет локального token/chat id
+final QH gate: не запускался
 ```
 
-Реализовано:
-
-- самостоятельное сканирование `project_root` из `config.yaml`;
-- DOCX extraction в исходном порядке paragraph/table;
-- DOCX blocks: `heading`, `paragraph`, `table`, `table_row`;
-- XLSX/XLSB blocks: `sheet`, `table_row`;
-- PDF blocks: `page`;
-- PPTX blocks: `slide`, `shape_text`;
-- HTML/text blocks;
-- `documents.jsonl`, `blocks.jsonl`, `extraction_v2_report.json`, `extraction_v2_report.md` в `data/asu_june_bot/extracted_v2/`.
-
-### Chunking v2
-
-Создано:
+После ручного UI smoke и ревью Claude добавлен hardening:
 
 ```text
-docs/subprojects/asu-june-bot/chunking_strategy.md
-scripts/asu_june_bot_build_chunks_v2.py
-run_asu_june_bot_chunks_v2.ps1
-run_asu_june_bot_rebuild_v2.ps1
+routes_ui.py f-string fix
+ChatStatus.NO_ANSWER
+ChatStatus.SEARCH_ERROR
+public /search no_guard rejected
+safe include_source_types allowlist
+sanitized unhandled API errors
+short project queries added to guard regression: Паспорт ИС / Протокол ПСИ / сценарии ПМИ
 ```
 
-Реализовано:
-
-- сборка chunks v2 из `data/asu_june_bot/extracted_v2/blocks.jsonl`;
-- parent/child chunks;
-- child chunks по строкам таблиц;
-- metadata v2: `chunker_version`, `chunk_level`, `parent_chunk_id`, `block_id`, `block_type`, `requirement_id`, `sections`, `table_id`, `row_id`, `headers`, `cells`, `integration`, `protocol`;
-- отчеты `chunking_v2_report.json` и `chunking_v2_report.md`;
-- dry-run режим без записи файлов;
-- отдельные wrappers со своими логами.
-
-## Команды Локальной Проверки
-
-### Extraction v2
-
-Dry-run без записи файлов:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --dry-run --limit 5
-```
-
-Extraction только по ФТТ:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --path-contains "ФТТ"
-```
-
-Проверка результата extraction:
-
-```powershell
-Get-Content .\data\asu_june_bot\extracted_v2\extraction_v2_report.json
-(Get-Content .\data\asu_june_bot\extracted_v2\blocks.jsonl).Count
-Select-String -Path .\data\asu_june_bot\extracted_v2\blocks.jsonl -Pattern '"block_type": "table_row"' | Select-Object -First 10
-```
-
-### Chunking v2
-
-Dry-run после extraction:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_build_chunks_v2.py --dry-run --limit 5
-```
-
-Сборка chunks только по ФТТ из blocks v2:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_build_chunks_v2.py --path-contains "ФТТ"
-```
-
-Полная v2-пересборка extraction + chunks:
-
-```powershell
-.\run_asu_june_bot_rebuild_v2.ps1
-```
-
-Проверка результата chunking:
-
-```powershell
-Get-Content .\data\asu_june_bot\chunking_v2_report.json
-(Get-Content .\data\asu_june_bot\chunks_v2.jsonl).Count
-Select-String -Path .\data\asu_june_bot\chunks_v2.jsonl -Pattern '"requirement_id": "4.2.5"'
-```
-
-### Search MVP v1
-
-Hybrid search:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search.py "Какие интеграции заявлены в проекте?" --top-k 10 --json
-```
-
-BM25 exact search:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_search.py "ФТТ 4.2.5 НОВАДОК ЭЦП" --mode bm25 --top-k 10 --json
-```
-
-## Следующие Задачи Разработки
-
-### 1. Проверить Extraction v2 Локально
-
-- Запустить dry-run `--limit 5`.
-- Запустить extraction только по ФТТ.
-- Проверить, что `data/asu_june_bot/extracted_v2/blocks.jsonl` создается.
-- Проверить, что DOCX сохраняет исходный порядок `paragraph/table`.
-- Проверить, что DOCX-таблицы дают `table` и `table_row` blocks.
-- Проверить, что XLSX дает `sheet` и `table_row` blocks.
-- Проверить наличие `headers` и `cells` у `table_row`.
-
-### 2. Проверить Chunking v2 Локально
-
-- Запустить dry-run `--limit 5` после extraction.
-- Запустить сборку chunks только по ФТТ.
-- Проверить, что `data/chunks.jsonl` не меняется.
-- Проверить, что `data/asu_june_bot/chunks_v2.jsonl` создается.
-- Проверить наличие `parent` и `child` chunks.
-- Проверить, что табличные child chunks имеют `table_id`, `row_id`, `headers`, `cells`.
-- Проверить, что ФТТ-пункты получают `requirement_id`, где это возможно.
-
-### 3. Сравнить v1 и v2
-
-Минимальный baseline:
+После анализа потребности в обучении добавлен план feedback loop:
 
 ```text
-ФТТ 4.2.5 НОВАДОК ЭЦП
-Какие интеграции заявлены в проекте?
-Что входит в Паспорт ИС?
-Как работает интеграция с AD?
-Какие справочники передаются через MDR?
+docs/subprojects/asu-june-bot/QUERY_FEEDBACK_LOOP.md
 ```
 
-Пока сравнение ручное:
+Важно: QH-6 пока является документационно оформленным будущим этапом. Runtime-реализацию `/feedback`, UI-кнопок и Telegram feedback-команд не начинать до закрытия QH-5.
 
-- v1: `scripts/asu_june_bot_search.py` по текущему `data/chunks.jsonl`.
-- v2: просмотр `blocks.jsonl` и `chunks_v2.jsonl`.
-
-### 4. Исправить По Результату Smoke
-
-- Исправить runtime/import ошибки.
-- Уточнить source type inference.
-- Уточнить document_type inference.
-- Проверить, не генерирует ли extraction v2 слишком много шумных blocks.
-- Проверить, не генерирует ли chunking v2 слишком много мелких бесполезных chunks.
-- Улучшить обнаружение заголовков/таблиц в DOCX по результату реального ФТТ/ЦТА/Паспорта ИС.
-
-### 5. Подготовить Search По Chunks v2
-
-После локального smoke:
-
-- добавить CLI-флаг или отдельный скрипт для поиска по `chunks_v2.jsonl`;
-- сделать отдельный embeddings cache v2: `data/asu_june_bot/embeddings_cache_v2.jsonl`;
-- подготовить `data/asu_june_bot/numpy_index_v2/`, но не подключать его к основному search без сравнения.
-
-### 6. Подготовить API Search
-
-После CLI-smoke v2:
+Главные документы:
 
 ```text
-src/asu_june_bot/api/app.py
-src/asu_june_bot/api/routes_search.py
+docs/subprojects/asu-june-bot/TOMORROW_EXECUTION_PROTOCOL.md
+docs/subprojects/asu-june-bot/QH_HARDENING_CHECKLIST.md
+docs/subprojects/asu-june-bot/QH_STATUS.md
+docs/subprojects/asu-june-bot/FTT_STATUS.md
+docs/subprojects/asu-june-bot/QUERY_FEEDBACK_LOOP.md
+docs/subprojects/asu-june-bot/TECHNICAL_DIAGRAMS.md
 ```
 
-Endpoint:
+Важно: QH-5 можно закрывать только после локального regression, API smoke, UI smoke, Telegram smoke, after_qh eval и final QH gate.
+
+Принято решение: Docker-упаковка выполняется **после фактического QH-5 passed**, а не сейчас.
+
+## Следующий практический шаг
 
 ```text
-POST /search
-GET /health
+Telegram smoke
+final QH gate
+QH_STATUS.md / FTT_STATUS.md -> QH-5 PASSED только после gate
 ```
 
-### 7. Подготовить Chat MVP Только После Search
+## Сразу после QH-5
 
-Реализовать:
+```text
+1. Обновить QH_STATUS.md: QH-5 -> PASSED.
+2. Обновить FTT_STATUS.md.
+3. Принять решение: сначала QH-6 Feedback Dataset Loop или Docker Packaging.
+4. Если приоритет — качество ответов, начинать QH-6.
+5. Если приоритет — переносимость запуска, начинать Docker.
+```
 
-- `ProjectGuard`.
-- `ContextBuilder`.
-- `PromptBuilder`.
-- `LLMClient`.
-- `AnswerValidator`.
-- `ResponseFormatter`.
-- CLI `scripts/asu_june_bot_chat.py`.
+Рекомендация:
 
-## Вопросы для решения
+```text
+если завтра сдача/демо — сначала закрыть QH-5 и не расширять runtime;
+если после сдачи развиваем качество — первым делать QH-6 Feedback Dataset Loop;
+если нужна переносимость на другой ПК/сервер — первым делать Docker.
+```
 
-1. Оставляем ли название `Asu June Bot`?
-2. Нужно ли сразу добавлять Qdrant local или стартуем с numpy index v2?
-3. Нужен ли отдельный BM25 storage или достаточно строить BM25 in-memory при запуске?
-4. Как формировать ссылки на Яндекс.Диск: вручную через `source_links.json` или через будущий connector?
-5. Какие документы первого приоритета должны быть в baseline?
-6. Нужен ли режим `strict` и `analyst` отдельно?
-7. Какой формат embeddings cache v2 утвердить?
+## Закрыто ранее
 
-## Рекомендуемые решения по вопросам
+```text
+Extraction/Chunking v2.1
+Index/Search v2
+Search Quality v2.2
+ProjectGuard v2
+SearchService Commit 1
+FastAPI /health и /search
+API Search MVP smoke/docs
+Chat MVP design
+LLMClient + PromptBuilder
+ChatService + CLI skeleton
+Chat MVP hardening после внешнего ревью
+Chat MVP smoke на qwen2.5:7b-instruct
+POST /chat route implementation
+API Chat MVP smoke tests implementation
+POST /chat runtime smoke
+QH-1 Observability + Eval Baseline code implementation
+Product docs refresh
+Docker-after-QH-5 decision
+MAX_QUERY_CHARS = 2000
+Local Web UI: GET / and GET /ui
+Telegram adapter
+QH-2 Source Quality Filter
+QH-3 Parent Expansion
+QH-4 Semantic Warnings
+QH-5 release gate
+```
 
-1. Название можно оставить временно, но в коде использовать нейтральный пакет `asu_june_bot`.
-2. Стартовать с numpy index v2, Qdrant добавить после стабилизации API.
-3. BM25 строить in-memory по `chunks_v2.jsonl` на старте.
-4. Ссылки на Яндекс.Диск сначала через ручной `data/asu_june_bot/source_links.json`.
-5. В baseline включить ФТТ, ЦТА, ПР СМР, СоИ AD, СоИ Справочники, Паспорт ИС, ПМИ.
-6. Режимы нужны:
-   - `strict` — только подтвержденные факты;
-   - `analyst` — допускает выводы, но с явным отделением от фактов.
-7. Для v2 лучше сделать отдельный cache `data/asu_june_bot/embeddings_cache_v2.jsonl`, чтобы не смешивать chunk-id разных стратегий.
+## Закрыто после ревью Claude / ручного UI smoke
 
-## Definition of Done для Extraction v2
+```text
+UI answered-case smoke подтвержден вручную
+routes_ui.py f-string bug исправлен
+no_answer status добавлен
+search_error status добавлен
+AnswerValidator больше не превращает честное 'недостаточно данных' в validation_failed
+/search больше не принимает публичный no_guard
+SearchApiRequest extra='forbid'
+SourcePolicy ограничивает requested source types безопасным allowlist
+unhandled API errors санитизированы
+QH_HARDENING_CHECKLIST.md добавлен
+README/RUNBOOK/context обновлены
+```
 
-Extraction v2 считается готовым для первого сравнения, если:
+## Документационно добавлено для будущего обучения
 
-- `scripts/asu_june_bot_extract_text_v2.py --dry-run --limit 5` работает без ошибок.
-- `scripts/asu_june_bot_extract_text_v2.py --path-contains "ФТТ"` создает `blocks.jsonl`.
-- У DOCX сохраняется исходный порядок paragraph/table.
-- DOCX-таблицы дают `table_row` blocks.
-- XLSX/XLSB дают `sheet` и `table_row` blocks.
-- У `table_row` есть `headers` и `cells`.
-- Создаются `extraction_v2_report.json` и `extraction_v2_report.md`.
+```text
+QUERY_FEEDBACK_LOOP.md
+QH-6 Feedback Dataset Loop в roadmap
+QH-6 Feedback Dataset Loop в TODO
+README обновлен ссылкой на QUERY_FEEDBACK_LOOP.md
+```
 
-## Definition of Done для Chunking v2
+## Ожидаемые regression tests после pull
 
-Chunking v2 считается готовым для первого сравнения, если:
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\chat\test_chat_service.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\chat\test_semantic_warnings.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_health.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_search_smoke.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_chat_smoke.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_errors.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\retrieval\test_source_quality.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\retrieval\test_parent_expansion.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\retrieval\test_context_builder_qh.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\retrieval\test_source_policy.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\observability\test_chat_runs.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\eval\test_checks.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\eval\test_runner.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\qh\test_release_gate.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\test_project_guard_v2_cases.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\test_telegram_bot.py -q
+```
 
-- `scripts/asu_june_bot_build_chunks_v2.py --dry-run --limit 5` работает без ошибок после extraction.
-- `scripts/asu_june_bot_build_chunks_v2.py --path-contains "ФТТ"` создает `chunks_v2.jsonl`.
-- Старые `data/chunks.jsonl` и `data/numpy_index` не изменяются.
-- У всех v2 chunks есть `chunker_version = v2`.
-- Есть `parent` и `child` chunks.
-- Табличные child chunks имеют `table_id`, `row_id`, `headers`, `cells`.
-- ФТТ-пункты по возможности имеют `requirement_id`.
-- Создаются `chunking_v2_report.json` и `chunking_v2_report.md`.
+Ожидаемо:
 
-## Не делать
+```text
+нет FAILED
+нет ERROR
+```
 
-- Не добавлять новые if/regex прямо в старый `09_chat.py`.
-- Не менять старый `run_full_rag.ps1` под v2.
-- Не использовать старый `data/extracted_text/_metadata.jsonl` как вход для v2.
-- Не перезаписывать `data/chunks.jsonl` при сборке v2.
-- Не считать embeddings v2 в том же скрипте `asu_june_bot_build_chunks_v2.py`.
-- Не переносить Dify/RAGFlow в основной runtime.
-- Не начинать UI до API.
-- Не делать fine-tuning.
-- Не делать agentic tool-use до стабилизации project-only RAG.
+## API/UI hardening smoke
+
+После запуска API:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_api.py --host 127.0.0.1 --port 8000
+```
+
+Проверить:
+
+```text
+/search with no_guard=true -> HTTP 422
+AD project query -> answered
+weather query -> refused
+mixed query -> refused
+Протокол ПСИ -> answered/no_answer, но не validation_failed/refused
+сценарии ПМИ -> answered/no_answer, но не refused/validation_failed
+Паспорт ИС -> answered/no_answer, но не refused/validation_failed
+```
+
+Подробные команды:
+
+```text
+docs/subprojects/asu-june-bot/QH_HARDENING_CHECKLIST.md
+```
+
+## QH-1 baseline: первичный вывод
+
+Первый baseline:
+
+```text
+total = 13
+passed = 6
+failed = 7
+pass_rate = 46.2%
+```
+
+Не трактовать как провал `/chat`.
+
+Категории проблем:
+
+```text
+ложные eval failures: source_titles, clarify must_include
+project guard gap: логирование как проектный вопрос
+real retrieval/context gaps: ФТТ 4.2.5, short UML/source traps, no-context/SLA
+```
+
+Повторный eval после hardening/QH:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_chat_eval.py --cases eval\cases\base.jsonl --label after_qh --model qwen2.5:7b-instruct --top-k 5
+```
+
+Сравнить:
+
+```text
+eval/reports/*__baseline.md
+eval/reports/*__after_qh.md
+```
+
+## Что дальше после локального QH-5 passed
+
+Если тесты, API smoke, UI smoke, Telegram smoke и after_qh eval прошли приемлемо:
+
+```text
+1. Проверить уже созданный smoke_report_qh_release.md и при необходимости дописать Telegram smoke.
+2. Обновить QH_STATUS.md: QH-5 -> PASSED.
+3. Обновить FTT_STATUS.md.
+4. После этого можно начинать следующий этап: QH-6 Feedback Dataset Loop или Docker Packaging.
+```
+
+Если есть падения:
+
+```text
+1. Не начинать Docker.
+2. Не начинать QH-6 runtime.
+3. Исправить только блокирующие дефекты запуска/API/UI/Telegram.
+4. Quality defects retrieval/context фиксировать отдельно, не ломая демо.
+```
+
+## Важное ограничение результата
+
+Chat MVP smoke прошёл как structural validation, но не как полноценная semantic/factual validation.
+
+QH-4 добавляет warning-only слой, но не доказывает фактическую истинность каждого утверждения.
+
+Текущий `AnswerValidator` проверяет:
+
+```text
+пустой ответ
+наличие источников
+наличие ссылок [Sx]
+unknown citations
+external knowledge markers
+answer length
+citation density / coverage
+```
+
+QH-4 дополнительно предупреждает:
+
+```text
+weak_sources_present
+weak_primary_fallback
+parent_expansion_applied
+low_source_count
+low_citation_coverage
+structural_validation_errors
+```
+
+Он не проверяет:
+
+```text
+поддерживается ли каждое утверждение конкретным source text
+не делает ли модель спорный вывод из короткого UML/heading chunk
+нет ли semantic hallucination при формально корректных [Sx]
+```
+
+Это фиксируется как quality debt, а не runtime blocker.
+
+## Не делать сейчас
+
+```text
+не пытаться заставить /search писать осмысленные ответы
+не отправлять raw hybrid top-k в LLM
+не вызывать LLM при refused или clarify
+не развивать scripts/09_chat.py как основной runtime
+не подключать NeMo Guardrails, LangGraph, Dify/RAGFlow как runtime MVP
+не возвращаться к раздуванию OUT_OF_PROJECT_MARKERS
+не превращать QH-4 warnings в hard-fail
+не внедрять JSON-mode, retry, NLI и LLM-judge до накопления eval dataset
+не делать fine-tuning
+не делать Docker до фактического QH-5 passed
+не начинать QH-6 runtime до фактического QH-5 passed
+не коммитить Telegram token
+не открывать публичный no_guard
+не добавлять code/system_export в default source allowlist

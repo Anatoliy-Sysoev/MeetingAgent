@@ -24,8 +24,9 @@
   логирования;
 - после разбора первой сотни цикл повторяется на следующих срезах.
 
-Логирование реализовано в `scripts/04_query.py` и `scripts/09_chat.py`
-через общий помощник `append_query_log` в `scripts/rag_common.py`.
+Логирование реализовано в `scripts/04_query.py` и legacy/prototype
+`scripts/09_chat.py` через общий помощник `append_query_log` в
+`scripts/rag_common.py`.
 Путь берётся из `paths.query_log` (`config.example.yaml`), по умолчанию
 `data/query_log.jsonl`.
 
@@ -44,10 +45,16 @@
 | `scripts/11_run_synthetic_seed.py` | прогон seed-вопросов через `04_query.py` | готово |
 | `scripts/12_analyze_seed_report.py` | markdown-сводка по `synthetic_seed_report.jsonl` | готово |
 | `scripts/13_build_eval_candidates.py` | сборка кандидатов eval-кейсов из review-разметки | готово |
+| `docs/quality/realistic_100_queries.jsonl` | набор 70/20/10 реалистичных вопросов | готово |
+| `scripts/14_run_realistic_100_eval.py` | прогон realistic 100 с замером времени и разными моделями | готово |
 
 Это не framework обучения и не fine-tuning. Это контролируемый контур
 качества RAG: логирование, synthetic smoke, ручная разметка, кандидаты в
 regression/eval.
+
+Важно: целевой runtime Project Knowledge Bot находится в `src/asu_june_bot/`
+и `scripts/asu_june_bot_*.py`. Этот документ описывает вспомогательный
+quality/eval слой и старый baseline-контур.
 
 ## Рабочий Поток На Практике
 

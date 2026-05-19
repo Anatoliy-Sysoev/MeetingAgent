@@ -1,121 +1,350 @@
-# Список Задач
+# Список задач
 
 Обновлено: 2026-05-19.
 
 ## Сейчас
 
-- Использовать numpy-поиск как основной стабильный локальный RAG-поиск.
-- Использовать `scripts/09_chat.py` как текущий prototype Project-Only Chatbot MVP: ответ только по источникам проекта или корректный отказ.
-- Использовать `docs/quality/QUERY_FEEDBACK_LOOP.md` как основной регламент накопления датасета запросов: логировать → просматривать → размечать → корректировать.
-- Использовать `docs/quality/DATASET_PIPELINE_STATUS.md` как статус реализованного dataset pipeline.
-- Использовать `docs/quality/synthetic_seed_queries.jsonl` как стартовый synthetic smoke/regression corpus.
-- Использовать `scripts/10_review_queries.py` для подготовки `data/query_log_review.jsonl` из `data/query_log.jsonl`.
-- Использовать `scripts/11_run_synthetic_seed.py` для прогона synthetic seed через `scripts/04_query.py`.
-- Использовать `scripts/12_analyze_seed_report.py` для построения `data/synthetic_seed_summary.md`.
-- Использовать `scripts/13_build_eval_candidates.py` для подготовки `data/eval_candidates.jsonl` из ручной review-разметки.
-- Не считать synthetic seed и eval candidates утверждённым eval без ручного review.
-- Не дообучать веса LLM; текущий подход — ручной active-learning поверх RAG через корпус, exclude-правила, retrieval-параметры и regression-кейсы.
+### Приоритет 1. Project Knowledge Bot — QH-5 local validation
 
-## Ближайшие Практические Шаги
+Project Knowledge Bot v2.1/v2.2 доведён до состояния: Search API, Chat API, Web UI, Telegram adapter, QH-1..QH-4 реализованы в коде. Следующий практический шаг — локально подтвердить QH-5 на рабочем ПК.
 
-1. Подтянуть ветку `claude/model-training-guide-CAfwU` локально.
-2. Проверить синтаксис новых скриптов:
+Обновление 2026-05-18: большая часть QH-5 local validation выполнена.
 
-```powershell
-.\.venv\Scripts\python.exe -m py_compile scripts\10_review_queries.py scripts\11_run_synthetic_seed.py scripts\12_analyze_seed_report.py scripts\13_build_eval_candidates.py
+```text
+health_v2: ok
+regression tests: 97 passed
+API smoke: ok
+Web UI HTTP smoke: ok
+after_qh eval: 7/13, 53.8%
+baseline comparison: 6/13 -> 7/13
+smoke_report_qh_release.md создан
 ```
 
-3. Прогнать небольшой retrieval smoke на synthetic seed:
+QH-5 пока не закрыт: не выполнен Telegram smoke без локальных `ASU_JUNE_BOT_TELEGRAM_TOKEN` и `ASU_JUNE_BOT_ALLOWED_CHAT_IDS`; final QH gate не запускался.
 
-```powershell
-.\.venv\Scripts\python.exe scripts\11_run_synthetic_seed.py --limit 20
-.\.venv\Scripts\python.exe scripts\12_analyze_seed_report.py
+Главные документы:
+
+```text
+docs/subprojects/asu-june-bot/TOMORROW_START.md
+docs/subprojects/asu-june-bot/QH_STATUS.md
+docs/subprojects/asu-june-bot/FTT_STATUS.md
 ```
 
-4. Открыть `data/synthetic_seed_summary.md` и проверить:
+Закрыто:
 
-- failed rows;
-- запросы без sources;
-- low top score;
-- часто возвращаемые мусорные источники.
-
-5. Накопить первые реальные запросы через `scripts/04_query.py` и `scripts/09_chat.py`.
-6. Подготовить review-срез:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\10_review_queries.py --limit 100
+```text
+corpus/chunks/index/health/search готовы
+Search Quality v2.2 готов
+ProjectGuard v2 готов
+SearchService готов
+FastAPI /health и /search готовы
+API Search MVP smoke пройден
+ChatService готов
+CLI scripts/asu_june_bot_chat.py готов
+Chat MVP smoke пройден на qwen2.5:7b-instruct
+FastAPI POST /chat готов
+API Chat MVP smoke пройден
+Local Web UI реализован
+Telegram adapter реализован
+MAX_QUERY_CHARS = 2000 реализован
+QH-1 Observability + Eval Baseline реализован
+QH-2 Source Quality Filter реализован
+QH-3 Parent Expansion реализован
+QH-4 Semantic Warnings / Manual Labels реализован
+QH-5 release gate реализован
+product documentation обновлена
+chunks_v2 = 31302
+indexed_chunks = 31285
+embedding_model = bge-m3
+vector_ready = true
+bm25_ready = true
+ProjectGuard v2 false_allow = 0
 ```
 
-7. Вручную разметить `data/query_log_review.jsonl` verdict-ами:
+Финальные отчёты:
 
-- `ok`;
-- `missing_source`;
-- `garbage_source`;
-- `low_score`;
-- `hallucination`;
-- `out_of_scope`.
-
-8. Собрать кандидатов:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\13_build_eval_candidates.py
+```text
+docs/subprojects/asu-june-bot/smoke_report_project_guard_v2.md
+docs/subprojects/asu-june-bot/smoke_report_search_service_commit1.md
+docs/subprojects/asu-june-bot/smoke_report_api_search_mvp.md
+docs/subprojects/asu-june-bot/smoke_report_chat_mvp.md
+docs/subprojects/asu-june-bot/smoke_report_api_chat_mvp.md
 ```
 
-9. После ручного approval перенести часть candidates в постоянный regression/eval corpus.
+Отчёт QH smoke уже создан:
 
-## Далее
+```text
+docs/subprojects/asu-june-bot/smoke_report_qh_release.md
+```
 
-- Разобрать слабые вопросы baseline: ПМИ, инфраструктурные ограничения, архитектурные aggregation-запросы.
-- Проверить полноту индексации ПМИ: какие ПМИ-файлы реально попали в `chunks.jsonl`, сколько у них chunks и почему они ниже ФТТ в выдаче.
-- Проверить проблемные вопросы с `--no-dedupe`, чтобы понять, не скрыла ли дедупликация дополнительные подтверждающие источники.
-- Подобрать `--score-threshold` для project-only отказов на smoke-наборе.
-- Зафиксировать baseline project-only chatbot: проектные вопросы, внепроектные вопросы, threshold, модель, время ответа, качество источников, timeout и `llm_empty_response`.
-- Ввести или спроектировать метаданные `source_type`: `project_doc`, `system_export`, `analytical_note`, `instruction`.
-- Для aggregation-вопросов попробовать многоэтапный retrieval: сначала определить типы документов, затем искать внутри каждого типа.
-- Оценить, нужен ли BM25-гибрид или метаданные-фильтры, если системные HTML/TXT-экспорты продолжают вытеснять проектные документы в top-k.
-- Вынести CLI-логику project-only чат-бота в local API `/chat` только после успешного smoke-прогона и стабилизации project-only guardrail.
+Рекомендуемая chat-модель MVP:
 
-## Meeting Pipeline
+```text
+qwen2.5:7b-instruct
+```
 
-- Использовать `configs/schemas/meeting.schema.json` как контракт `FTT-MA-09` для всех будущих обработчиков встреч.
+Не использовать как default для Chat MVP:
+
+```text
+qwen3:4b
+qwen3:8b
+```
+
+Причины:
+
+```text
+qwen3:4b -> llm_empty_response / finish_reason=length даже с /no_think
+qwen3:8b -> timeout/обрыв на локальном CPU runtime
+```
+
+Следующий практический шаг:
+
+```text
+Telegram smoke, затем final QH gate
+```
+
+Сделать локально:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\chat\test_chat_service.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\chat\test_semantic_warnings.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_health.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_search_smoke.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\api\test_chat_smoke.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\retrieval\test_source_quality.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\retrieval\test_parent_expansion.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\retrieval\test_context_builder_qh.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\observability\test_chat_runs.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\eval\test_checks.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\eval\test_runner.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\qh\test_release_gate.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\test_project_guard_v2_cases.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\test_telegram_bot.py -q
+```
+
+Проверить gate:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_qh_gate.py --json
+```
+
+Ожидаемо до smoke/eval:
+
+```text
+status = pending_local_validation
+```
+
+После local regression/smoke и сравнения eval:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_qh_gate.py --local-validation-done --baseline-compared --json
+```
+
+Выполнить eval:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_chat_eval.py --cases eval\cases\base.jsonl --label after_qh --model qwen2.5:7b-instruct --top-k 5
+```
+
+Важно:
+
+```text
+after_qh может быть ниже 100%
+это не ошибка
+цель — убедиться, что QH-2/QH-3/QH-4 не ухудшили качество и стабилизировали weak source cases
+```
+
+## Приоритет 2. Docker после QH-5
+
+Docker начинать только после фактического QH-5 passed.
+
+## Приоритет 3. Dataset / retrieval quality pipeline
+
+Параллельный quality/eval слой реализован и не заменяет bot runtime.
+
+Готово:
+
+```text
+docs/quality/QUERY_FEEDBACK_LOOP.md
+docs/quality/DATASET_PIPELINE_STATUS.md
+docs/quality/synthetic_seed_queries.jsonl
+docs/quality/realistic_100_queries.jsonl
+scripts/10_review_queries.py
+scripts/11_run_synthetic_seed.py
+scripts/12_analyze_seed_report.py
+scripts/13_build_eval_candidates.py
+scripts/14_run_realistic_100_eval.py
+```
+
+Следующие действия:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\14_run_realistic_100_eval.py --limit 10
+```
+
+После smoke:
+
+```text
+1. полный realistic 100 run;
+2. ручной review результатов;
+3. candidate generation;
+4. manual approval;
+5. regression corpus;
+6. retrieval improvement: source_type, ПМИ, aggregation, thresholds.
+```
+
+Важно: автоматическое продвижение плохих ответов в regression запрещено.
+
+## Приоритет 4. Архитектурная документация
+
+Готово:
+
+```text
+docs/architecture/ARCHITECTURE.md
+docs/architecture/TECHNICAL_FILE_RELATIONSHIPS.md
+docs/subprojects/asu-june-bot/TECHNICAL_DIAGRAMS.md
+```
+
+Поддерживать эти документы при изменении:
+
+- `src/asu_june_bot/*`;
+- `scripts/asu_june_bot_*.py`;
+- meeting pipeline `06/07/08`;
+- dataset pipeline `10..14`;
+- схемы `meeting.schema.json`.
+
+Состав:
+
+```text
+Dockerfile
+.dockerignore
+docker-compose.yml
+.env.example for Docker
+docs/deployment/docker.md
+volume strategy для data/asu_june_bot
+healthcheck
+```
+
+Первый режим:
+
+```text
+Ollama на Windows host
+bot-api в Docker
+LLM endpoint через host.docker.internal
+```
+
+## Статус Project Knowledge Bot v2.1/v2.2
+
+Готово:
+
+- независимый pipeline v2.1: `apply_config_v2_1 -> extract_text_v2 -> chunks_v2 -> audit_sources_v2 -> build_index_v2 -> health_v2 -> search_v2`;
+- технические выгрузки, временные файлы, медиа и архивы исключены из основного корпуса;
+- extraction/chunking v2.1 пройдены: `documents=213`, `blocks=31076`, `chunks=31302`;
+- `system_export` отсутствует в основном корпусе;
+- `embeddings_cache_v2` собран: `cached_after=31285`, `missing_after=0`;
+- `numpy_index_v2` собран: `index_built=true`, `index_count=31285`, `embedding_dim=1024`;
+- `health_v2`: `status=ok`, `vector_ready=true`, `bm25_ready=true`, `ollama_available=true`, `embedding_model_installed=true`;
+- `QueryIntent`, `PostReranker`, `ContextBuilder` реализованы;
+- `ProjectGuard v2` реализован, `false_allow=0`;
+- `SearchService` реализован;
+- CLI `search_v2` работает через `SearchService`;
+- FastAPI `GET /health`, `POST /search`, `POST /chat` реализованы;
+- `ChatService`, `PromptBuilder`, `LLMClient`, `AnswerValidator`, `ResponseFormatter` реализованы;
+- `Local Web UI` реализован;
+- `Telegram adapter` реализован;
+- `ChatRunsLogger` и `EvalRunner` реализованы;
+- `SourceQualityFilter`, `ParentExpander`, `SemanticWarningAnalyzer`, `QHGate` реализованы.
+
+## Ограничение Chat MVP
+
+Текущий `AnswerValidator` выполняет structural validation, но не semantic/factual validation.
+
+Проверяется:
+
+```text
+пустой ответ
+наличие sources
+наличие ссылок [Sx]
+unknown citations
+external knowledge markers
+answer length
+citation density / coverage
+```
+
+QH-4 дополнительно предупреждает:
+
+```text
+weak_sources_present
+weak_primary_fallback
+parent_expansion_applied
+low_source_count
+low_citation_coverage
+structural_validation_errors
+```
+
+Не проверяется как hard-fail:
+
+```text
+поддерживается ли каждое утверждение конкретным source text
+не сделала ли модель спорный вывод из короткого UML/heading/caption chunk
+нет ли semantic hallucination при формально корректных [Sx]
+```
+
+Это quality debt. Не решать его вслепую до накопления dataset.
+
+## Статус старого RAG / Meeting pipeline
+
+- Использовать `docs/product/PROJECT_STAGES_AND_FTT.md` как основной список этапов и требований для общего MeetingAgent.
+- Для актуального статуса именно Project Knowledge Bot использовать `docs/subprojects/asu-june-bot/FTT_STATUS.md`.
+- Использовать numpy-поиск как основной стабильный локальный RAG-поиск v1.
+- Считать `scripts/09_chat.py` legacy/prototype project-only чата, не основной архитектурой Project Knowledge Bot.
+- Использовать `configs/schemas/meeting.schema.json` как контракт `FTT-MA-09` для будущих обработчиков встреч.
 - Использовать `scripts/06_transcribe_meeting.py` как минимальный offline CLI для одной встречи.
-- Использовать `scripts/08_process_meeting_pipeline.py` как первый оконный offline-pipeline для готовой записи: ASR по окнам, MAP по готовым окнам, затем REDUCE/RENDER.
-- Проверить качество первого transcript: акронимы ФТТ/ПМИ/ЦТА, таймкоды, разбиение на абзацы, шумные места.
-- Учитывать результат сравнения моделей: `small/int8` для быстрого черновика и live MVP, `large-v3-turbo/int8` для финальной offline-транскрибации важных встреч.
-- WhisperX оставить как эксперимент для word-level alignment/diarization, не включать в основной MVP pipeline.
+- Использовать `scripts/08_process_meeting_pipeline.py` как первый оконный offline-pipeline для готовой записи.
+- Использовать `docs/architecture/MEETING_ARTIFACTS_PIPELINE.md` как целевую архитектуру итогов встречи.
+- Использовать `scripts/07_generate_meeting_artifacts.py` как первый генератор `summarized`-состояния встречи, но считать `extractive` только скаффолдом контракта.
 
-## Позже
+## Далее по общему MeetingAgent
 
 - Добавить инкрементальный `update_rag.ps1` для новых, измененных и удаленных документов.
 - В `update_rag.ps1` обязательно обработать deletion: удаленные и попавшие под `exclude_path_patterns` документы должны исчезать из актуального индекса.
 - Добавить watcher/скрипт загрузки встреч из `watched_folder/` поверх уже готового `06_transcribe_meeting.py`.
-- Добавить локальный web UI.
-- Добавить DOCX export через `python-docx` или `docxtpl`, когда протоколы нужно будет отдавать заказчику как финальные документы.
-- Рассмотреть hybrid retrieval: BM25 + vector + reranker, если корпус вырастет примерно до 50k+ chunks или numpy/vector-only начнет стабильно промахиваться.
-- Рассмотреть FAISS поверх того же формата metadata, если numpy станет медленным на большем корпусе.
-- Рассмотреть pyannote 3.1 как основной путь diarization, когда появится потребность в speaker timeline.
+- Для future: добавить source links через `data/asu_june_bot/source_links.json`.
+- Для future: рассмотреть Qdrant только после стабилизации numpy index/API Search/Chat API.
 
-## Что Не Делать Сейчас
+## Когда вернуться
 
-- Не делать fine-tuning LLM на `query_log.jsonl`.
-- Не переносить автоматически плохие ответы в eval.
-- Не считать synthetic seed golden dataset.
-- Не коммитить runtime-данные из `data/`.
-- Не подключать DSPy/LangGraph/Dify до стабилизации базового project-only RAG.
-- Не делать Docker до завершения локального smoke и стабилизации минимального runtime.
+- Рассмотреть WhisperX, если появится UI с timeline или потребуется diarization.
+- Рассмотреть pyannote 3.1 как основной путь diarization, когда дойдем до live-сессий или UI с timeline.
+- Опционально добавить FAISS/Qdrant поверх того же формата metadata, если numpy станет медленным на большем корпусе.
 
-## Известные Риски
+## Продуктовые следующие шаги
 
-- Полная RAG-сборка долгая и зависит от стабильности Ollama.
+- Использовать `docs/product/PRODUCT_VISION_AND_PLAN.md` как основную карту общего MeetingAgent.
+- Использовать `docs/product/PROJECT_STAGES_AND_FTT.md` как рабочий чек-лист общего MeetingAgent.
+- Использовать `docs/subprojects/asu-june-bot/FTT_STATUS.md`, `architecture.md`, `mvp.md`, `roadmap.md`, `todo.md`, `RUNBOOK_V2.md` и smoke-отчёты как основной план реализации Project Knowledge Bot.
+- Позже добавить политику обновления схемы в код: при появлении `schema_version = 2` нужен явный скрипт миграции.
+- Для UI hardening позже рассмотреть OpenWebUI как оболочку над локальным API.
+
+## Известные риски
+
+- Metadata `section/requirement_id` пока может шуметь на табличных chunks.
 - ChromaDB локально нестабилен на загрузке HNSW-индекса, поэтому не должен быть критической зависимостью для поиска.
-- В выдаче может оставаться шум от похожих HTML/TXT-экспортов системы; точные дубли уже дедуплицируются по тексту.
-- Новый baseline `docs/quality/rag_eval_baseline_clean_2026-05-07.md` показал, что поиск по ПМИ и архитектурным сборным запросам требует улучшения.
-- Project-only отказ по одному `score_threshold` может быть слишком мягким или слишком жестким.
+- Сгенерированные документы требуют строгого ревью источников.
 - `qwen3:8b` на CPU может быть слишком медленным для интерактивного чата при большом prompt.
-- `qwen3:4b` может вернуть пустой `response` без HTTP-ошибки; такой случай должен считаться отказом `llm_empty_response`, а не успешным ответом.
+- `qwen3:4b` может вернуть пустой `response` без HTTP-ошибки; такой случай должен считаться `llm_empty_response`, а не успешным ответом.
+- Structural validation не ловит все semantic hallucinations.
 
-## Восстановление Контекста
+## Восстановление контекста в новом треде
+
+Для общего MeetingAgent:
 
 ```text
-Прочитай README.md, AGENTS.md, docs/context.md, docs/todo.md, docs/quality/QUERY_FEEDBACK_LOOP.md, docs/quality/DATASET_PIPELINE_STATUS.md и git log --oneline -10. Восстанови контекст проекта и предложи следующий практический шаг.
+Прочитай README.md, AGENTS.md, docs/context.md, docs/todo.md и git log --oneline -10. Восстанови контекст проекта и предложи следующий шаг.
+```
+
+Для Project Knowledge Bot:
+
+```text
+Прочитай README.md, AGENTS.md, docs/context.md, docs/todo.md и все активные файлы docs/subprojects/asu-june-bot/. Восстанови контекст подпроекта Project Knowledge Bot и предложи следующий практический шаг.
 ```

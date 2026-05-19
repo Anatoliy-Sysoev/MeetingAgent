@@ -1,209 +1,429 @@
-# Контекст Подпроекта Asu June Bot
+# Контекст Project Knowledge Bot
 
-Обновлено: 2026-05-12.
+Обновлено: 2026-05-19.
 
-## Назначение
+## 1. Назначение
 
-Asu June Bot — отдельный подпроект внутри MeetingAgent для разработки локального AI-агента по проекту ЦП УПКС.
+Project Knowledge Bot — отдельный подпроект внутри MeetingAgent для разработки локального project-only RAG/Chat сервиса по проектной документации информационной системы.
 
-Бот должен отвечать не как универсальный ChatGPT, а как проектный ассистент системного аналитика:
+Бот должен:
 
-- искать факты в проектной документации;
-- давать структурированные ответы;
-- ссылаться на документы, разделы, пункты и фрагменты;
+- искать факты в проектных источниках;
+- давать структурированные ответы с citations;
 - явно отделять подтвержденные факты от вывода;
-- отказывать на вопросы вне проекта или без источников.
+- отказывать на вопросы вне корпуса;
+- не запускать retrieval/LLM для refused/clarify;
+- генерировать ответы только по `primary_sources` и `supporting_sources`;
+- логировать chat-запуски для накопления dataset;
+- иметь baseline evaluation и release gate;
+- предоставлять локальный Web UI и Telegram adapter поверх `/chat`.
 
-## Ключевое Решение По v2
+Публичная документация подпроекта должна быть пригодна для выделения в отдельный репозиторий и не должна зависеть от конкретного заказчика или названия исходного внедрения.
 
-Asu June Bot теперь строит собственный независимый pipeline v2 и не опирается на старый `scripts/02_extract_text.py`.
-
-Старый pipeline MeetingAgent остается только как v1/baseline:
+Главные архитектурные документы:
 
 ```text
-run_full_rag.ps1
-  -> scripts/01_inventory.py
-  -> scripts/02_extract_text.py
-  -> scripts/03_build_index.py
-  -> scripts/05_build_numpy_index.py
+docs/subprojects/asu-june-bot/architecture.md
+docs/subprojects/asu-june-bot/TECHNICAL_DIAGRAMS.md
+docs/subprojects/asu-june-bot/RUNBOOK_V2.md
 ```
 
-Новый pipeline Asu June Bot:
+## 2. Текущий статус
+
+Подпроект доведён до уровня локального MVP:
 
 ```text
-run_asu_june_bot_rebuild_v2.ps1
-  -> scripts/asu_june_bot_extract_text_v2.py
-  -> scripts/asu_june_bot_build_chunks_v2.py
-  -> future: scripts/asu_june_bot_build_index_v2.py
+API Search MVP — PASSED
+CLI Chat MVP — PASSED_WITH_NOTES
+API Chat MVP / POST /chat — PASSED_WITH_NOTES
+Local Web UI / GET / and GET /ui — smoke подтвержден вручную
+Telegram adapter over local /chat — READY_FOR_LOCAL_SMOKE
+QH-1 Observability + Eval Baseline — реализован
+QH-2 Source Quality Filter — реализован
+QH-3 Parent Expansion — реализован
+QH-4 Semantic Warnings / Manual Labels — реализован
+QH-5 Release Gate — реализован, статус PENDING_LOCAL_VALIDATION
 ```
 
-Все новые runtime-данные пишутся в:
+После ручного UI smoke подтверждено:
 
 ```text
-data/asu_june_bot/
+GET / или /ui открывает страницу Project Knowledge Bot
+POST /chat вызывается из UI
+status=answered отображается
+answer отображается
+sources отображаются
+diagnostics отображается
+semantic_warnings отображаются
 ```
 
-и не перезаписывают:
+Выявлены и исправлены дефекты:
 
 ```text
-data/chunks.jsonl
-data/embeddings_cache.jsonl
-data/numpy_index/
+routes_ui.py f-string экранирование '{}' -> '{{}}'
+честный ответ 'недостаточно данных' больше не уходит в validation_failed, добавлен status=no_answer
+короткие проектные запросы 'Протокол ПСИ', 'Паспорт ИС', 'сценарии ПМИ' добавлены в guard regression
+публичный no_guard удалён из /search API
+include_source_types ограничен безопасным allowlist через SourcePolicy
+unhandled API errors санитизированы: наружу отдается request_id без repr(exc)
+SearchStatus.ERROR в ChatService мапится в status=search_error, а не llm_error
 ```
 
-## Почему выделен отдельный подпроект
-
-Попытка развивать project-only чат в `scripts/09_chat.py` показала архитектурный риск: один скрипт начал смешивать CLI, guard, retrieval, query expansion, document expansion, LLM-вызов, fallback и форматирование ответа.
-
-Решение: не продолжать раздувать `09_chat.py`, а выделить Asu June Bot в отдельный подпроект с собственной архитектурой, документацией, API-контрактом и eval-набором.
-
-`09_chat.py` допускается оставить как prototype, но новая реализация должна идти модульно.
-
-## Что уже реализовано
-
-### 1. Search MVP v1
-
-Начат первый технический слой Asu June Bot: search MVP поверх текущего v1 corpus.
-
-Добавлено:
+## 3. Текущий pipeline
 
 ```text
-src/asu_june_bot/
-  __init__.py
-  core/config.py
-  retrieval/models.py
-  retrieval/metadata.py
-  retrieval/source_policy.py
-  retrieval/bm25.py
-  retrieval/vector.py
-  retrieval/hybrid.py
-  retrieval/chunks.py
-  retrieval/query_expansion.py
-scripts/asu_june_bot_search.py
-configs/asu_june_bot/retrieval.yaml
-configs/asu_june_bot/source_policy.yaml
-configs/asu_june_bot/query_expansion.yaml
-configs/asu_june_bot/llm.yaml
-configs/asu_june_bot/guardrails.yaml
+User question
+  -> CLI / FastAPI / Web UI / Telegram adapter
+  -> SearchService
+      -> QueryIntent
+      -> ProjectGuard v2
+      -> BM25 / Vector / Hybrid retrieval
+      -> PostReranker
+      -> ContextBuilder
+          -> QH-2 Source Quality Filter
+          -> QH-3 Parent Expansion
+  -> ChatService
+      -> PromptBuilder
+      -> LLMClient
+      -> AnswerValidator
+      -> QH-4 SemanticWarningAnalyzer
+      -> ResponseFormatter
+      -> ChatRunsLogger
+  -> Response
 ```
 
-Что умеет текущий слой:
-
-- загружать основной `config.yaml` и конфиги Asu June Bot;
-- читать текущий `data/chunks.jsonl` MeetingAgent;
-- использовать существующий `data/numpy_index` через adapter;
-- строить BM25 in-memory без внешних зависимостей;
-- объединять vector и BM25 выдачу в `HybridRetriever`;
-- расширять запрос через `query_expansion.yaml`;
-- вычислять `source_type`, `document_type`, `module`, `stage`, `section`, `sections` эвристически по пути и тексту chunk;
-- применять `SourcePolicy`, чтобы по умолчанию отдавать приоритет проектным документам и не тащить `system_export` без явного запроса;
-- запускать CLI-поиск через `scripts/asu_june_bot_search.py`.
-
-### 2. Extraction v2
-
-Добавлен самостоятельный extractor v2:
+Ключевое правило:
 
 ```text
+/search возвращает evidence/context
+/chat возвращает осмысленный answer with citations
+/ui вызывает /chat
+Telegram adapter вызывает локальный /chat
+```
+
+## 4. Реализованные API endpoints
+
+```text
+GET /
+GET /ui
+GET /health
+POST /search
+POST /chat
+```
+
+`POST /search` возвращает:
+
+```text
+query_intent
+guard
+context.primary_sources
+context.supporting_sources
+context.excluded_sources
+results
+warnings
+diagnostics
+```
+
+`POST /chat` возвращает:
+
+```text
+status
+query
+answer
+sources
+search
+warnings
+diagnostics
+```
+
+Актуальные chat statuses:
+
+```text
+answered
+refused
+clarify
+no_sources
+no_answer
+search_error
+llm_error
+llm_empty_response
+validation_failed
+```
+
+## 5. Runtime-компоненты
+
+### Общие ограничения
+
+```text
+src/asu_june_bot/core/limits.py
+MAX_QUERY_CHARS = 2000
+```
+
+Лимит применяется в:
+
+```text
+ChatRequest
+SearchRequest
+POST /chat
+POST /search
+Web UI
+Telegram adapter
+```
+
+### Extraction / Chunking / Index
+
+```text
+scripts/asu_june_bot_apply_config_v2_1.py
 scripts/asu_june_bot_extract_text_v2.py
-src/asu_june_bot/ingestion/
-```
-
-Extractor v2 заново сканирует `project_root` из `config.yaml` и не читает старую папку `data/extracted_text`.
-
-Что делает extractor v2:
-
-- заново сканирует исходные файлы проекта;
-- поддерживает DOCX, XLSX/XLSB, PDF, PPTX, HTML и текстовые форматы;
-- для DOCX читает paragraph/table в исходном порядке документа;
-- для DOCX таблиц создает blocks `table` и `table_row`;
-- для XLSX/XLSB создает blocks `sheet` и `table_row`;
-- для PDF создает page blocks;
-- для PPTX создает slide/shape_text blocks;
-- пишет структурный результат в `data/asu_june_bot/extracted_v2/`.
-
-Выход extractor v2:
-
-```text
-data/asu_june_bot/extracted_v2/documents.jsonl
-data/asu_june_bot/extracted_v2/blocks.jsonl
-data/asu_june_bot/extracted_v2/extraction_v2_report.json
-data/asu_june_bot/extracted_v2/extraction_v2_report.md
-```
-
-### 3. Chunking v2
-
-Зафиксирована стратегия структурного chunking v2:
-
-```text
-docs/subprojects/asu-june-bot/chunking_strategy.md
-```
-
-Добавлен сборщик v2:
-
-```text
 scripts/asu_june_bot_build_chunks_v2.py
-run_asu_june_bot_chunks_v2.ps1
-run_asu_june_bot_rebuild_v2.ps1
+scripts/asu_june_bot_audit_sources_v2.py
+scripts/asu_june_bot_build_index_v2.py
+scripts/asu_june_bot_health_v2.py
 ```
 
-Chunking v2 читает только:
+### Search / Guard / API / UI
 
 ```text
-data/asu_june_bot/extracted_v2/blocks.jsonl
+src/asu_june_bot/search/
+src/asu_june_bot/retrieval/
+src/asu_june_bot/guardrails/
+src/asu_june_bot/health/
+src/asu_june_bot/api/
+src/asu_june_bot/api/routes_ui.py
+scripts/asu_june_bot_search_v2.py
+scripts/asu_june_bot_guard_v2_eval.py
+scripts/asu_june_bot_api.py
 ```
 
-Что делает v2-сборщик:
+### Chat / LLM / Telegram
 
-- строит parent/child chunks из blocks v2;
-- превращает строки таблиц в child chunks;
-- пытается заполнить `requirement_id`, `sections`, `document_type`, `source_type`, `integration`, `protocol`;
-- пишет результат в `data/asu_june_bot/chunks_v2.jsonl`;
-- пишет отчеты `chunking_v2_report.json` и `chunking_v2_report.md`;
-- не трогает `data/chunks.jsonl`, `data/embeddings_cache.jsonl`, `data/numpy_index` и `run_full_rag.ps1`.
+```text
+src/asu_june_bot/chat/
+src/asu_june_bot/llm/
+src/asu_june_bot/telegram_bot.py
+scripts/asu_june_bot_chat.py
+scripts/asu_june_bot_telegram.py
+```
 
-Проверочные команды:
+### Observability / Eval / QH
+
+```text
+src/asu_june_bot/observability/
+src/asu_june_bot/eval/
+src/asu_june_bot/qh/
+scripts/asu_june_bot_chat_eval.py
+scripts/asu_june_bot_qh_gate.py
+eval/cases/base.jsonl
+eval/golden_answers/*.md
+```
+
+## 6. Текущий локальный результат
+
+Corpus/index:
+
+```text
+documents = 213
+blocks = 31076
+chunks_v2 = 31302
+indexed_chunks = 31285
+skipped_code_chunks = 17
+embedding_model = bge-m3
+embedding_dim = 1024
+```
+
+Health:
+
+```text
+status = ok
+vector_ready = true
+bm25_ready = true
+ollama_available = true
+embedding_model_installed = true
+```
+
+ProjectGuard:
+
+```text
+false_allow = 0
+```
+
+Рекомендуемая chat-модель MVP:
+
+```text
+qwen2.5:7b-instruct
+```
+
+Не использовать как default:
+
+```text
+qwen3:4b
+qwen3:8b
+```
+
+Причины:
+
+```text
+qwen3:4b -> llm_empty_response / finish_reason=length
+qwen3:8b -> timeout/обрыв на CPU runtime
+```
+
+## 7. QH status
+
+```text
+QH-1 Observability + Eval Baseline — implemented
+QH-2 Source Quality Filter — implemented
+QH-3 Parent Expansion — implemented
+QH-4 Semantic Warnings / Manual Labels — implemented
+QH-5 Release Gate — implemented, pending local validation
+```
+
+QH-5 нельзя считать закрытым, пока не выполнены:
+
+```text
+local regression tests
+API smoke
+Web UI smoke
+Telegram smoke
+after_qh eval
+baseline comparison
+qh gate with --local-validation-done --baseline-compared
+smoke_report_qh_release.md
+```
+
+## 8. Завтрашний запуск
+
+Главный детальный документ:
+
+```text
+docs/subprojects/asu-june-bot/TOMORROW_EXECUTION_PROTOCOL.md
+```
+
+Короткий чек-лист:
+
+```text
+docs/subprojects/asu-june-bot/TOMORROW_START.md
+```
+
+Порядок:
+
+```text
+git pull
+health
+tests
+API
+Web UI
+Telegram adapter
+after_qh eval
+QH gate
+smoke report
+```
+
+Ключевые команды:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --dry-run --limit 5
-.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --path-contains "ФТТ"
-.\.venv\Scripts\python.exe scripts\asu_june_bot_build_chunks_v2.py --dry-run --limit 5
-.\run_asu_june_bot_rebuild_v2.ps1
+cd C:\Users\Сотрудник\Desktop\AI\MeetingAgent
+(Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned) ; (& .\.venv\Scripts\Activate.ps1)
+git switch main
+git pull --ff-only origin main
+.\.venv\Scripts\python.exe scripts\asu_june_bot_api.py --host 127.0.0.1 --port 8000
 ```
 
-## Проектная область знаний
+Открыть UI:
 
-Основная предметная область — проект ЦП УПКС: «Цифровая платформа управления проектами капитального строительства».
+```text
+http://127.0.0.1:8000/
+http://127.0.0.1:8000/ui
+```
 
-Ключевые документы и источники:
-
-- ФТТ;
-- ЦТА;
-- проектные решения по модулям;
-- соглашения об интеграции;
-- Паспорт ИС;
-- ПМИ и сценарии испытаний;
-- руководства администратора ИС и ИБ;
-- протоколы встреч;
-- решения, задачи, риски и открытые вопросы;
-- маппинги НСИ / СоИ / MDR.
-
-## Ближайшая цель
-
-Проверить новый independent v2 pipeline локально.
-
-Ожидаемый следующий шаг:
+Telegram:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --dry-run --limit 5
-.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py --path-contains "ФТТ"
-.\.venv\Scripts\python.exe scripts\asu_june_bot_build_chunks_v2.py --dry-run --limit 5
-.\run_asu_june_bot_rebuild_v2.ps1
+$env:ASU_JUNE_BOT_TELEGRAM_TOKEN='PASTE_TOKEN_HERE'
+$env:ASU_JUNE_BOT_CHAT_API_URL='http://127.0.0.1:8000/chat'
+$env:ASU_JUNE_BOT_ALLOWED_CHAT_IDS='YOUR_CHAT_ID'
+.\.venv\Scripts\python.exe scripts\asu_june_bot_telegram.py
 ```
 
-После проверки:
+## 9. Активная документация
 
-- исправить import/runtime ошибки;
-- оценить `blocks.jsonl` по DOCX и XLSX;
-- оценить `chunks_v2.jsonl` по ФТТ и Паспорт ИС;
-- сравнить v1 и v2 на baseline;
-- только потом проектировать `numpy_index_v2` и подключение v2 к `/search`.
+Главные документы:
+
+```text
+README.md
+TOMORROW_EXECUTION_PROTOCOL.md
+TOMORROW_START.md
+QH_STATUS.md
+FTT_STATUS.md
+architecture.md
+mvp.md
+roadmap.md
+decisions.md
+RUNBOOK_V2.md
+telegram.md
+todo.md
+eval_questions.md
+ideas.md
+product/
+smoke_report_*.md
+```
+
+## 10. Локальная проверка 2026-05-18
+
+Выполнено:
+
+```text
+health_v2: ok
+ollama: bge-m3 и qwen2.5:7b-instruct доступны
+regression tests: 97 passed
+QH gate до smoke: pending_local_validation
+API smoke: /health, /search, /chat проверены
+Web UI HTTP smoke: /ui отдаёт страницу с нужными элементами
+chat_runs.jsonl: пишется
+after_qh eval: 7/13, 53.8%
+baseline comparison: baseline 6/13, 46.2% -> after_qh 7/13, 53.8%
+```
+
+Создан отчёт:
+
+```text
+docs/subprojects/asu-june-bot/smoke_report_qh_release.md
+```
+
+QH-5 остаётся `PENDING_LOCAL_VALIDATION`, потому что Telegram smoke не выполнен без локальных `ASU_JUNE_BOT_TELEGRAM_TOKEN` и `ASU_JUNE_BOT_ALLOWED_CHAT_IDS`. Финальный gate не запускался намеренно.
+
+## 11. Следующие шаги
+
+Сейчас:
+
+```text
+1. Запустить Telegram adapter с локальным token/chat id.
+2. Проверить Telegram /health.
+3. Проверить Telegram project query.
+4. Проверить Telegram weather refused.
+5. После Telegram smoke запустить final QH gate.
+6. Если gate passed — обновить QH_STATUS.md и FTT_STATUS.md до QH-5 PASSED.
+```
+
+После QH-5 passed:
+
+```text
+1. Зафиксировать QH_STATUS.md и FTT_STATUS.md.
+2. Перейти к Docker stage.
+3. Не менять retrieval/guard без eval baseline.
+```
+
+## 12. Не делать сейчас
+
+```text
+не запускать --reset без причины
+не удалять data/asu_june_bot
+не пересчитывать embeddings, если индекс уже готов
+не менять модель embeddings bge-m3
+не коммитить Telegram token
+не пытаться заставить /search писать осмысленные ответы
+не подключать DSPy в runtime
+не делать LLM-as-judge/NLI до накопления dataset
+не делать Docker до QH-5 passed
+не развивать scripts/09_chat.py как основной runtime
+не смешивать старый RAG v1 и новый bot v2.1
+```

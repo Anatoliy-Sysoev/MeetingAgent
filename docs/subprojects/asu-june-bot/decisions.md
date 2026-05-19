@@ -1,24 +1,25 @@
-# Решения Подпроекта Asu June Bot
+# Решения Project Knowledge Bot
 
-Обновлено: 2026-05-12.
+Обновлено: 2026-05-16.
 
-## ADR-001. Выделить Asu June Bot как отдельный подпроект
+## ADR-001. Выделить Project Knowledge Bot как отдельный подпроект
 
 Дата: 2026-05-12.
 
-Решение: развитие project-only чат-бота выделяется в отдельный подпроект `Asu June Bot`.
+Решение: развитие project-only чат-бота выделяется в отдельный подпроект.
 
 Причина:
 
-- MeetingAgent шире: RAG, встречи, транскрибация, протоколы, документы.
-- Чат-бот по проекту требует отдельной архитектуры: project guard, router, source policy, retrieval, citations, validator, eval.
-- Текущий `scripts/09_chat.py` начал становиться монолитом.
+- базовый репозиторий шире: RAG, встречи, транскрибация, протоколы, документы;
+- бот по проектной документации требует отдельной архитектуры: guard, router, source policy, retrieval, citations, validator, eval;
+- старый `scripts/09_chat.py` начал становиться монолитом.
 
 Следствие:
 
-- `scripts/09_chat.py` остается prototype.
-- Новая реализация должна идти модульно.
-- Документация подпроекта хранится в `docs/subprojects/asu-june-bot/`.
+- `scripts/09_chat.py` остается legacy/prototype;
+- новая реализация ведётся модульно в `src/asu_june_bot/`;
+- документация подпроекта хранится в `docs/subprojects/asu-june-bot/`;
+- подпроект готовится к выделению в отдельный репозиторий.
 
 ## ADR-002. Не использовать Dify/RAGFlow как основное ядро MVP
 
@@ -28,16 +29,15 @@
 
 Причина:
 
-- Нужен не универсальный «чат с файлами», а AI-агент системного аналитика по ЦП УПКС.
-- Требуются специфичные связи: ФТТ ↔ ПР ↔ ЦТА ↔ ПМИ ↔ СоИ ↔ Паспорт ИС.
-- Нужно контролировать source policy, точные пункты, статус ответа и ограничения.
-- RAGFlow/Dify можно использовать как референс или лабораторию, но не как основной контур.
+- нужен не универсальный «чат с файлами», а управляемый project-only RAG/Chat сервис;
+- нужны строгие статусы, source policy, точные пункты, diagnostics и eval;
+- готовые платформы можно использовать как reference/lab, но не как основной runtime MVP.
 
 Следствие:
 
-- MVP: FastAPI + Ollama + локальный индекс.
-- Open WebUI допускается как UI-оболочка позже.
-- RAGFlow можно поднять отдельно для сравнения парсинга документов, но не смешивать с основным индексом.
+- MVP: FastAPI + локальный индекс + Ollama;
+- OpenWebUI допускается как UI-оболочка позже;
+- RAGFlow/Dify не смешиваются с основным индексом.
 
 ## ADR-003. Все LLM-вызовы через OpenAI-compatible API
 
@@ -45,63 +45,71 @@
 
 Решение: LLM-клиент проектируется через OpenAI-compatible интерфейс.
 
-Сейчас:
+Текущий runtime:
 
 ```text
-Ollama локально
-qwen3:4b / qwen3:8b
+Ollama local
+qwen2.5:7b-instruct
 ```
 
-Потом:
+Не использовать как default:
 
 ```text
-vLLM на GPU-сервере
-Qwen3 14B / 32B или другая модель
+qwen3:4b
+qwen3:8b
 ```
 
 Причина:
 
-- Нужно начать локально без GPU.
-- Нужно сохранить простой путь миграции на GPU.
-- Нельзя привязывать бизнес-логику агента к Ollama-specific API.
+- `qwen2.5:7b-instruct` прошла CLI/API smoke для Chat MVP;
+- `qwen3:4b` вернула `llm_empty_response / finish_reason=length` даже с `/no_think`;
+- `qwen3:8b` давала timeout/обрыв на локальном CPU runtime;
+- OpenAI-compatible adapter сохраняет путь миграции на GPU/vLLM.
 
 Следствие:
 
-- В коде использовать абстракцию `LLMClient`.
-- Конфиг должен содержать `base_url`, `model`, `timeout`, `max_tokens`, `temperature`.
-- Ollama-specific параметры держать в адаптере, не в бизнес-логике.
+- бизнес-логика зависит от `LLMClient`, а не от Ollama-specific API;
+- модель может задаваться в request/config;
+- Ollama-specific параметры держатся в adapter.
 
 ## ADR-004. Статусы ответа должны быть строгими
 
 Дата: 2026-05-12.
 
-Решение: использовать конечный набор статусов:
+Решение: использовать явные статусы поиска и чата.
+
+Search statuses:
+
+```text
+ok
+refused
+clarify
+error
+```
+
+Chat statuses:
 
 ```text
 answered
 refused
-partial
-error
+clarify
+no_sources
+llm_error
+llm_empty_response
+validation_failed
 ```
-
-Расшифровка:
-
-- `answered` — полноценный ответ по источникам.
-- `refused` — корректный отказ: вне проекта, нет источников, sensitive-запрос.
-- `partial` — частичный ответ: источники есть, но LLM не ответила или данных недостаточно.
-- `error` — техническая ошибка, не бизнес-отказ.
 
 Причина:
 
-- Нельзя считать `extractive_fallback` полноценным ответом.
-- Нельзя смешивать отказ из-за отсутствия источников и timeout LLM.
-- Для eval нужны стабильные статусы.
+- нельзя считать пустой ответ LLM успешным;
+- нельзя смешивать отказ guard, отсутствие источников и техническую ошибку;
+- eval требует стабильных статусов.
 
 Следствие:
 
-- `answer_mode=llm` может быть только при `answered`.
-- `answer_mode=extractive_fallback` должен быть `partial`, а не `answered`.
-- Timeout LLM при наличии источников — `partial`, если fallback включен; `error`, если fallback отключен.
+- `llm_empty_response` не превращается в `answered`;
+- `validation_failed` не скрывается как успешный ответ;
+- `refused/clarify` не вызывают LLM.
 
 ## ADR-005. Нет источников — нет ответа
 
@@ -112,20 +120,20 @@ error
 Правило:
 
 ```text
-Если релевантные источники не найдены, генерация LLM не вызывается.
+Если релевантные источники не найдены, содержательная генерация не допускается.
 ```
 
 Причина:
 
-- Требуется project-only режим.
-- Общие знания модели могут противоречить проектным документам.
-- Для системного аналитика критичнее проверяемость, чем «красивый ответ».
+- режим project-only требует проверяемости;
+- общие знания модели могут противоречить локальным документам;
+- для аналитика важнее трассируемость, чем правдоподобный ответ.
 
 Следствие:
 
-- Каждый содержательный ответ должен иметь citations.
-- Ответ без citations считается дефектом.
-- Для вопросов вне проекта — отказ до retrieval или после неудачного retrieval.
+- каждый `answered` должен иметь sources и citations;
+- ответ без citations считается дефектом;
+- отказ/уточнение возвращаются без вызова LLM.
 
 ## ADR-006. Source type обязателен для качества поиска
 
@@ -133,73 +141,334 @@ error
 
 Решение: каждый chunk должен иметь `source_type`.
 
-Минимальные типы:
+Default indexed source types:
 
 ```text
 project_doc
 meeting_artifact
 analytical_note
-system_export
-runtime_export
 instruction
+```
+
+Не входят в основной project-only индекс:
+
+```text
 code
+runtime_export
+system_export
+unknown
 ```
 
 Причина:
 
-- Системные экспорты могут вытеснять ФТТ/ЦТА/ПР из top-k.
-- Для разных вопросов нужны разные источники.
-- Для будущего RBAC и аудита нужен контроль происхождения данных.
-
-Следствие:
-
-- По умолчанию искать в `project_doc`, `meeting_artifact`, `analytical_note`, `instruction`.
-- `system_export` подключать только при явном вопросе про UI/админку/экспорт/технические данные.
+- технические выгрузки и код могут вытеснять проектные документы;
+- для разных вопросов нужны разные источники;
+- future RBAC и аудит требуют контроля происхождения данных.
 
 ## ADR-007. Query expansion хранить в конфигурации, не в коде
 
 Дата: 2026-05-12.
 
-Решение: словари расширения запроса должны лежать в `configs/asu_june_bot/query_expansion.yaml`.
+Решение: словари расширения запроса должны храниться в конфигурации.
 
 Причина:
 
-- Проектные термины будут меняться.
-- Нельзя каждый новый термин добавлять правкой Python-кода.
-- Аналитик должен иметь возможность редактировать словарь без разработки.
-
-Пример:
-
-```yaml
-integrations:
-  triggers:
-    - интеграции
-    - системные взаимодействия
-  expansions:
-    - MDR
-    - КШД
-    - СОИ
-    - Active Directory
-    - AD
-    - LDAPS
-    - Blitz IDP
-    - SMTP
-    - SIEM
-```
+- термины предметной области будут меняться;
+- добавление термина не должно требовать изменения Python-кода;
+- аналитик должен иметь возможность редактировать словарь без разработки.
 
 ## ADR-008. Eval обязателен до развития UI
 
-Дата: 2026-05-12.
+Дата: 2026-05-12; актуализировано 2026-05-16.
 
-Решение: до UI нужен baseline из проектных и внепроектных вопросов.
+Решение: до UI нужен baseline по guard/search/chat.
 
 Причина:
 
-- Без eval любые улучшения будут субъективными.
-- Нужно отдельно видеть ошибки guard, retrieval, reranking, LLM и validator.
+- без eval улучшения субъективны;
+- нужно видеть, где ошибка: guard, retrieval, reranker, context, LLM, validator;
+- source filter и parent expansion нельзя внедрять вслепую.
 
 Следствие:
 
-- Создать `eval_questions.md` и затем машинный `eval_questions.yaml`.
-- Минимум 30 вопросов для MVP.
-- Целевой уровень: 0 ответов без источников; отказ на 100% очевидно внепроектных вопросов; не менее 80% корректных источников в top-5 для проектных вопросов.
+- QH-1 добавляет `chat_runs.jsonl`, `eval/cases/base.jsonl`, `asu_june_bot_chat_eval.py`;
+- QH-2 source quality filter начинается только после baseline;
+- QH-3 parent expansion начинается только после оценки QH-2.
+
+## ADR-009. Не индексировать технические выгрузки в основном project-only корпусе
+
+Дата: 2026-05-13.
+
+Решение: папки и файлы технических выгрузок исключаются из основного корпуса.
+
+Исключаются:
+
+```text
+**/Система/**
+**/asu_docs_export/**
+**/asu_admin_export/**
+**/docs_html/**
+**/docs_text/**
+**/pages_html/**
+**/pages_text/**
+**/site_review_runs/**
+**/playwright/**
+**/exports/**
+**/screenshots/**
+**/*.har
+```
+
+Причина:
+
+- это runtime/system exports, а не нормативная проектная документация;
+- они создают шумные chunks;
+- они ухудшают поиск по ФТТ/архитектуре/проектным решениям/интеграциям.
+
+Следствие:
+
+- `system_export` не входит в default corpus;
+- при необходимости нужен отдельный `system_export_corpus`.
+
+## ADR-010. Локальный config.yaml обновлять через Python, а не PowerShell-литералы с русскими путями
+
+Дата: 2026-05-13.
+
+Решение: локальная настройка `config.yaml` выполняется Python-скриптом.
+
+Причина:
+
+- PowerShell-файл с русским путём в значении по умолчанию ломался из-за кодировки;
+- `config.yaml` локальный и не хранится в GitHub;
+- нужно безопасно обновлять `project_root`, include/exclude lists и backups.
+
+Следствие:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_apply_config_v2_1.py --project-root "C:\Users\Сотрудник\Desktop\!Проектные документы АСУ"
+```
+
+Старый PowerShell-путь не считать основным способом настройки.
+
+## ADR-011. DOCX/XLSX extraction должен сохранять табличную структуру
+
+Дата: 2026-05-13.
+
+Решение: extraction v2.1 сохраняет таблицы как `table` и `table_row` blocks с `headers` и `cells`.
+
+Причина:
+
+- значительная часть требований и интеграционных спецификаций находится в таблицах;
+- одна строка таблицы часто соответствует требованию, потоку, роли, атрибуту или сценарию;
+- точные ссылки требуют `table_id`, `row_id`, `headers`, `cells`.
+
+Следствие:
+
+- chunking строит child chunks по строкам таблиц;
+- eval должен проверять точные требования и табличные строки.
+
+## ADR-012. Embeddings cache v2 мониторится отдельным watchdog
+
+Дата: 2026-05-13.
+
+Решение: долгий этап `--embed-only` мониторится отдельной задачей Windows Task Scheduler.
+
+Причина:
+
+- embeddings cache на CPU может строиться десятки часов;
+- cache resumable по `chunk_id`;
+- monitor не должен трогать живой Python/Ollama процесс.
+
+Следствие:
+
+```text
+monitor_asu_june_bot_index_v2.ps1
+register_asu_june_bot_index_v2_watchdog.ps1
+```
+
+## ADR-013. Search Quality v2.2: LLM получает не raw top-k, а подготовленный context
+
+Дата: 2026-05-15.
+
+Решение: между retrieval и LLM-ответом обязателен слой:
+
+```text
+QueryIntent -> PostReranker -> ContextBuilder
+```
+
+Причина:
+
+- raw hybrid top-k может содержать шум;
+- LLM не должен сам решать, какие chunks считать primary;
+- exact requirement lookup и overview-запросы требуют разной сборки context.
+
+Следствие:
+
+- `/search` и CLI возвращают `primary_sources`, `supporting_sources`, `excluded_sources`;
+- `/chat` использует только `primary_sources + supporting_sources`.
+
+## ADR-014. ProjectGuard v2 вместо бесконечного расширения OUT_OF_SCOPE_MARKERS
+
+Дата: 2026-05-15.
+
+Решение: защита project-only режима строится как segmentation-based pipeline:
+
+```text
+QuerySegmenter -> RuleBasedScopeClassifier -> ScopeAggregator -> GuardPolicy -> ProjectGuard
+```
+
+Причина:
+
+- один общий словарь out-of-scope не масштабируется;
+- mixed-scope запросы могут содержать валидную и невалидную части;
+- простая логика `есть проектный маркер -> allow` опасна.
+
+Следствие:
+
+- guard запускается до retrieval;
+- `refused/clarify` не вызывают retrieval;
+- guard regression suite обязателен.
+
+## ADR-015. API Search должен повторять CLI search_v2 pipeline
+
+Дата: 2026-05-15.
+
+Решение: `POST /search` является thin HTTP adapter над `SearchService`.
+
+Причина:
+
+- дублирование CLI/API логики приведёт к расхождениям;
+- reusable `SearchService` нужен для CLI, API и ChatService.
+
+Статус:
+
+```text
+Реализовано
+```
+
+## ADR-016. ChatService — единая orchestration-точка для CLI и API chat
+
+Дата: 2026-05-15.
+
+Решение: `ChatService` является единственной бизнес-логикой chat-ответа.
+
+Причина:
+
+- `POST /chat` не должен дублировать guard/retrieval/context/generation;
+- CLI и API должны давать одинаковую логику ответа;
+- тесты должны проверять `ChatService` отдельно от FastAPI.
+
+Следствие:
+
+- `scripts/asu_june_bot_chat.py` использует `ChatService`;
+- `src/asu_june_bot/api/routes_chat.py` использует `ChatService`;
+- `ChatService` вызывает `SearchService`.
+
+Статус:
+
+```text
+Реализовано
+```
+
+## ADR-017. qwen2.5:7b-instruct — рекомендуемая chat-модель MVP
+
+Дата: 2026-05-15.
+
+Решение: для MVP использовать `qwen2.5:7b-instruct` как рекомендуемую chat-модель.
+
+Причина:
+
+- дала `answered` на project smoke;
+- `finish_reason=stop`;
+- `validation_errors=[]`;
+- qwen3 модели нестабильны на текущем CPU/Ollama runtime.
+
+Следствие:
+
+- default model в API/CLI — `qwen2.5:7b-instruct`;
+- qwen3 остаётся для экспериментов, но не для MVP default.
+
+## ADR-018. ChatRunsLogger и eval baseline до source quality filter
+
+Дата: 2026-05-16.
+
+Решение: сначала реализуется QH-1 Observability + Eval Baseline, затем source quality filter.
+
+Причина:
+
+- без baseline нельзя доказать, что filter улучшил качество;
+- parent expansion может раздуть prompt;
+- фактические failures должны определять следующий шаг.
+
+Следствие:
+
+- `ChatRunsLogger` пишет `data/asu_june_bot/chat_runs.jsonl`;
+- `scripts/asu_june_bot_chat_eval.py` формирует baseline reports;
+- QH-2 стартует только после анализа baseline.
+
+## ADR-019. Semantic/factual validation не входит в MVP как hard-fail
+
+Дата: 2026-05-16.
+
+Решение: на текущем MVP semantic/factual validation не блокирует ответ.
+
+Причина:
+
+- deterministic structural checks уже работают;
+- LLM-as-judge/NLI добавят сложность и latency;
+- пока нужен baseline и ручная разметка спорных ответов.
+
+Следствие:
+
+- semantic warnings могут появиться позже;
+- hard-fail по groundedness не внедряется до накопления dataset;
+- golden answers используются как manual-review reference.
+
+## ADR-020. Docker-упаковка только после QH-5 Release Stabilization
+
+Дата: 2026-05-16.
+
+Решение: Docker-упаковка Project Knowledge Bot выполняется после закрытия QH-5, а не сразу после появления `/chat`.
+
+Причина:
+
+- Docker решает воспроизводимость запуска, но не исправляет качество retrieval/context/chat;
+- если упаковать продукт до стабилизации качества, контейнер закрепит нестабильный runtime;
+- до Docker нужно завершить baseline, source quality filter, parent expansion decision, regression и документацию;
+- отдельный репозиторий будет проще сформировать после Docker-ready структуры.
+
+Gate перед Docker:
+
+```text
+QH-1 baseline report создан
+QH-2 source quality filter реализован или явно отменён по результатам baseline
+QH-3 parent expansion реализован или явно отменён как ненужный
+QH-4 semantic warnings/manual labels реализованы или перенесены в backlog
+QH-5 release stabilization закрыт
+README / architecture / mvp / roadmap / runbook синхронизированы
+runtime paths portable
+config secrets не попадают в Git
+regression и smoke проходят
+```
+
+Минимальный Docker scope:
+
+```text
+Dockerfile
+.dockerignore
+docker-compose.yml
+.env.example
+config.docker.example.yaml
+docs/deployment/docker.md
+bot-api service
+host volumes для data/eval/config
+```
+
+Первый docker-compose допускает Ollama на хосте Windows:
+
+```text
+Ollama на Windows host
+bot-api в Docker
+LLM endpoint через host.docker.internal
+```
+
+Позже можно добавить optional compose profile с Ollama внутри Docker.
