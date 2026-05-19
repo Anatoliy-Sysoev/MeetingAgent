@@ -360,7 +360,7 @@ baseline comparison: 6/13 -> 7/13
 ```text
 FastAPI /health перепроверен локально: status=ok, vector_ready=true, bm25_ready=true, guard_v2_ready=true
 добавлен scripts/asu_june_bot_start_telegram.ps1 для безопасного локального запуска Telegram adapter без передачи token в command line
-запущен smoke quality pipeline на первые 10 realistic-вопросов; runtime-логи и report остаются в logs/data и не коммитятся
+scripts/14_run_realistic_100_eval.py пишет START/DONE по каждому вопросу с flush=True, чтобы фоновый smoke было видно в logs
 ```
 
 Отчёт:

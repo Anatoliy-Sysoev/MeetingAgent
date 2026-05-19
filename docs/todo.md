@@ -27,7 +27,7 @@ QH-5 пока не закрыт: не выполнен Telegram smoke; final QH 
 ```text
 FastAPI /health перепроверен: ok
 добавлен безопасный Telegram launcher scripts/asu_june_bot_start_telegram.ps1
-запущен фоновый smoke realistic 100 eval на первых 10 вопросах
+runner realistic 100 eval теперь пишет START/DONE по каждому вопросу в stdout/log
 ```
 
 Главные документы:
