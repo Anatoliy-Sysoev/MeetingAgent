@@ -102,6 +102,16 @@ Runner:
 `scripts/14_run_realistic_100_eval.py`
 ```
 
+После PR #8 runner по умолчанию использует quality wrapper:
+
+```text
+`scripts/09_chat_quality.py`
+```
+
+Это включает `hybrid_vector_lexical` rerank и retrieval diagnostics из
+`scripts/rag_retrieval_quality.py`. Для исторического baseline можно передать
+`--chat-script scripts/09_chat.py`.
+
 Отчёт runtime:
 
 ```text

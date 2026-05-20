@@ -375,6 +375,7 @@ FastAPI /health перепроверен локально: status=ok, vector_rea
 scripts/14_run_realistic_100_eval.py пишет START/DONE по каждому вопросу с flush=True, чтобы фоновый smoke было видно в logs
 realistic 100 smoke --limit 10: 10/10 answered, failures=0, parse_errors=0, avg_duration_sec=131.4
 final QH gate: status=passed, pending=[]
+После PR #8 full realistic 100 automation по умолчанию запускает `scripts/09_chat_quality.py` через `scripts/14_run_realistic_100_eval.py --chat-script`, чтобы в прогон попал quality layer (`hybrid_vector_lexical` rerank + diagnostics). Baseline-режим через `scripts/09_chat.py` остаётся доступен явным `--chat-script`.
 ```
 
 Отчёт:
