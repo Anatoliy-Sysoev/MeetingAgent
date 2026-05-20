@@ -2,7 +2,8 @@
 param(
     [string]$ReportPath = "data\realistic_100_eval_report.jsonl",
     [string]$ReviewPath = "data\realistic_100_eval_review.jsonl",
-    [string]$SummaryPath = "data\realistic_100_eval_review_summary.json"
+    [string]$SummaryPath = "data\realistic_100_eval_review_summary.json",
+    [string]$ChatScript = "scripts\09_chat_quality.py"
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,6 +15,7 @@ $pythonExe = Join-Path $repoRoot ".venv\Scripts\python.exe"
 $runner = Join-Path $repoRoot "scripts\14_run_realistic_100_eval.py"
 $reviewer = Join-Path $repoRoot "scripts\15_prepare_realistic_eval_review.py"
 $statePath = Join-Path $repoRoot "data\realistic_100_eval_automation_state.json"
+$chatScriptPath = Join-Path $repoRoot $ChatScript
 
 if (-not (Test-Path -LiteralPath $pythonExe)) {
     throw "Python venv not found: $pythonExe"
@@ -23,6 +25,9 @@ if (-not (Test-Path -LiteralPath $runner)) {
 }
 if (-not (Test-Path -LiteralPath $reviewer)) {
     throw "Review preparer not found: $reviewer"
+}
+if (-not (Test-Path -LiteralPath $chatScriptPath)) {
+    throw "Chat script not found: $chatScriptPath"
 }
 
 $active = Get-CimInstance Win32_Process -Filter "name = 'python.exe'" |
@@ -47,6 +52,7 @@ $state = [ordered]@{
     report = $ReportPath
     review = $ReviewPath
     summary = $SummaryPath
+    chat_script = $ChatScript
     stdout_log = $outLog
     stderr_log = $errLog
 }
@@ -54,11 +60,12 @@ $state | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $statePath -Encoding
 
 Write-Host "Starting realistic 100 eval"
 Write-Host "Report: $ReportPath"
+Write-Host "Chat script: $ChatScript"
 Write-Host "Logs: $outLog / $errLog"
 
 $proc = Start-Process `
     -FilePath $pythonExe `
-    -ArgumentList @($runner, "--output", $ReportPath) `
+    -ArgumentList @($runner, "--output", $ReportPath, "--chat-script", $ChatScript) `
     -WorkingDirectory $repoRoot `
     -RedirectStandardOutput $outLog `
     -RedirectStandardError $errLog `
@@ -90,6 +97,7 @@ $state = [ordered]@{
     report = $ReportPath
     review = $ReviewPath
     summary = $SummaryPath
+    chat_script = $ChatScript
     stdout_log = $outLog
     stderr_log = $errLog
 }
