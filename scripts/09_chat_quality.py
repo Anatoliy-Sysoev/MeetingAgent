@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from rag_common import is_harmful_security_query, is_project_auth_query
 from rag_retrieval_quality import (
     build_quality_expansion,
     has_no_answer_marker,
@@ -91,20 +92,11 @@ def norm(text: str) -> str:
 
 
 def is_project_auth_question(question: str) -> bool:
-    lowered = f" {norm(question)} "
-    has_allowed_auth_term = any(term in lowered for term in PROJECT_AUTH_ALLOW_TERMS)
-    has_project_context = any(term in lowered for term in PROJECT_AUTH_CONTEXT_TERMS)
-    return has_allowed_auth_term and has_project_context
+    return is_project_auth_query(question)
 
 
 def is_harmful_security_question(question: str) -> bool:
-    lowered = norm(question)
-    has_security_marker = any(term in lowered for term in HARMFUL_SECURITY_TERMS)
-    if not has_security_marker:
-        return False
-    has_abuse_action = any(term in lowered for term in HARMFUL_SECURITY_ACTION_TERMS)
-    has_project_lookup = any(term in lowered for term in PROJECT_SECURITY_LOOKUP_TERMS)
-    return has_abuse_action or not has_project_lookup
+    return is_harmful_security_query(question)
 
 
 def target_labels(question: str) -> set[str]:

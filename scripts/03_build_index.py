@@ -1,50 +1,14 @@
 from __future__ import annotations
 
 import json
-import time
 from pathlib import Path
 from typing import Any
 
-import requests
 from tqdm import tqdm
 
 from rag_common import FileLock, chunk_text, ensure_runtime_dirs, jsonl_read, jsonl_write, load_config, resolve_work_path, stable_id
 from rag_metadata import enrich_chunk_metadata
-
-
-def ollama_embed(base_url: str, model: str, text: str, num_ctx: int, keep_alive: str) -> list[float]:
-    last_error: Exception | None = None
-    max_attempts = 15
-    for attempt in range(1, max_attempts + 1):
-        try:
-            resp = requests.post(
-                f"{base_url.rstrip('/')}/api/embeddings",
-                json={
-                    "model": model,
-                    "prompt": text,
-                    "keep_alive": keep_alive,
-                    "options": {
-                        "num_ctx": num_ctx,
-                    },
-                },
-                timeout=240,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["embedding"]
-        except Exception as exc:
-            last_error = exc
-            response_text = ""
-            if isinstance(exc, requests.HTTPError) and exc.response is not None:
-                response_text = exc.response.text[:1000]
-            wait_sec = min(180, 10 * attempt)
-            print(
-                f"Ollama embedding failed on attempt {attempt}/{max_attempts}: {exc}. "
-                f"Response: {response_text!r}. Retry in {wait_sec}s",
-                flush=True,
-            )
-            time.sleep(wait_sec)
-    raise RuntimeError(f"Ollama embedding failed after retries: {last_error}") from last_error
+from rag_ollama import ollama_embed
 
 
 def make_chunks(cfg: dict[str, Any]) -> list[dict[str, Any]]:
@@ -84,6 +48,7 @@ def load_embedding_cache(path: Path, expected_model: str) -> dict[str, dict[str,
     cache: dict[str, dict[str, Any]] = {}
     if not path.exists():
         return cache
+    corrupt_lines = 0
     with path.open("r", encoding="utf-8") as fp:
         for line in fp:
             line = line.strip()
@@ -92,6 +57,7 @@ def load_embedding_cache(path: Path, expected_model: str) -> dict[str, dict[str,
             try:
                 rec = json.loads(line)
             except json.JSONDecodeError:
+                corrupt_lines += 1
                 continue
             if rec.get("embedding_model") != expected_model:
                 continue
@@ -99,6 +65,11 @@ def load_embedding_cache(path: Path, expected_model: str) -> dict[str, dict[str,
             embedding = rec.get("embedding")
             if chunk_id and isinstance(embedding, list):
                 cache[chunk_id] = rec
+    if corrupt_lines:
+        print(
+            f"WARNING: skipped {corrupt_lines} corrupt lines in embeddings cache: {path}",
+            flush=True,
+        )
     return cache
 
 
@@ -146,7 +117,15 @@ def main() -> None:
         for chunk in tqdm(chunks, desc="Embedding cache", unit="chunk"):
             if chunk["chunk_id"] in embedding_cache:
                 continue
-            emb = ollama_embed(base_url, embedding_model, chunk["text"], embedding_num_ctx, keep_alive)
+            emb = ollama_embed(
+                base_url,
+                embedding_model,
+                chunk["text"],
+                embedding_num_ctx,
+                keep_alive,
+                timeout=240,
+                max_attempts=15,
+            )
             rec = {
                 "chunk_id": chunk["chunk_id"],
                 "embedding_model": embedding_model,
