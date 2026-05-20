@@ -376,6 +376,7 @@ scripts/14_run_realistic_100_eval.py пишет START/DONE по каждому �
 realistic 100 smoke --limit 10: 10/10 answered, failures=0, parse_errors=0, avg_duration_sec=131.4
 final QH gate: status=passed, pending=[]
 После PR #8 full realistic 100 automation по умолчанию запускает `scripts/09_chat_quality.py` через `scripts/14_run_realistic_100_eval.py --chat-script`, чтобы в прогон попал quality layer (`hybrid_vector_lexical` rerank + diagnostics). Baseline-режим через `scripts/09_chat.py` остаётся доступен явным `--chat-script`.
+Интеграционная ветка `codex/integrate-ftt-retrieval-quality` добавляет metadata enrichment для chunks (`doc_type`, `source_kind`, `section`, `requirement_id`), SQLite FTS5/BM25 builder `scripts/04_build_fts_index.py`, targeted lexical scan в quality wrapper и guard-исключения для проектных auth/security терминов. Ветка не заменяет основной `src/asu_june_bot` runtime; это quality/eval слой для проверки retrieval-гипотез.
 ```
 
 Отчёт:

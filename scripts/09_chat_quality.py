@@ -37,6 +37,44 @@ PROJECT_AUTH_CONTEXT_TERMS = (
     "авторизац",
 )
 
+HARMFUL_SECURITY_TERMS = (
+    "sql injection",
+    "sql-инъек",
+    "sql инъек",
+    "инъекц",
+    "эксплойт",
+    "эксплуат",
+    "взлом",
+)
+
+HARMFUL_SECURITY_ACTION_TERMS = (
+    "как выполнить",
+    "как сделать",
+    "как провести",
+    "как написать",
+    "обойти",
+    "сломать",
+    "взломать",
+    "украсть",
+    "получить токен",
+    "вытащить пароль",
+    "payload",
+    "пейлоад",
+)
+
+PROJECT_SECURITY_LOOKUP_TERMS = (
+    "фтт",
+    "требован",
+    "проект",
+    "документ",
+    "описан",
+    "указан",
+    "защит",
+    "мер",
+    "сои",
+    "цта",
+)
+
 TARGET_PATH_CHECKS = {
     "ftt": ("фтт", "функционально-технические"),
     "pr": ("проектное решение", "пр_смр", "строительный_контроль"),
@@ -57,6 +95,16 @@ def is_project_auth_question(question: str) -> bool:
     has_allowed_auth_term = any(term in lowered for term in PROJECT_AUTH_ALLOW_TERMS)
     has_project_context = any(term in lowered for term in PROJECT_AUTH_CONTEXT_TERMS)
     return has_allowed_auth_term and has_project_context
+
+
+def is_harmful_security_question(question: str) -> bool:
+    lowered = norm(question)
+    has_security_marker = any(term in lowered for term in HARMFUL_SECURITY_TERMS)
+    if not has_security_marker:
+        return False
+    has_abuse_action = any(term in lowered for term in HARMFUL_SECURITY_ACTION_TERMS)
+    has_project_lookup = any(term in lowered for term in PROJECT_SECURITY_LOOKUP_TERMS)
+    return has_abuse_action or not has_project_lookup
 
 
 def target_labels(question: str) -> set[str]:
@@ -160,6 +208,8 @@ def patch_chat(chat: Any) -> None:
     original_expand_contexts_by_document = chat.expand_contexts_by_document
 
     def is_sensitive_question_quality(question: str) -> bool:
+        if is_harmful_security_question(question):
+            return True
         if is_project_auth_question(question):
             return False
         return original_is_sensitive_question(question)
@@ -178,6 +228,7 @@ def patch_chat(chat: Any) -> None:
         include_excluded: bool,
         no_dedupe: bool,
     ) -> list[dict[str, Any]]:
+        chat._quality_current_question = question
         # Oversampling before lexical/section-aware rerank. This keeps the same public top_k,
         # but gives the reranker enough candidates for structured documents such as FTT/PMI.
         oversampled_top_k = max(top_k * 8, top_k, 48)
