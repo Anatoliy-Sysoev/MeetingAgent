@@ -95,7 +95,10 @@ def test_ui_endpoint_returns_local_chat_page() -> None:
         client.__exit__(None, None, None)
 
     assert response.status_code == 200
-    assert "Project Knowledge Bot" in response.text
+    assert "АСУ Джун бот" in response.text
+    assert "Проектные вопросы" in response.text
+    assert "Способ поиска" in response.text
+    assert "Сбалансированный" in response.text
     assert "/chat" in response.text
     assert str(MAX_QUERY_CHARS) in response.text
 
