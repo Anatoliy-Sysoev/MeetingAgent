@@ -194,6 +194,9 @@ scripts/run_realistic_100_eval_automation.ps1
 scripts/realistic_100_eval_status.ps1
 scripts/09_chat_quality.py
 scripts/rag_retrieval_quality.py
+scripts/rag_metadata.py
+scripts/rag_fts.py
+scripts/04_build_fts_index.py
 ```
 
 После PR #8 полный `realistic 100` должен запускаться через quality wrapper:
@@ -218,6 +221,7 @@ avg_duration_sec = 131.4
 Следующие действия:
 
 ```powershell
+.\.venv\Scripts\python.exe scripts\04_build_fts_index.py
 .\scripts\run_realistic_100_eval_automation.ps1
 ```
 
