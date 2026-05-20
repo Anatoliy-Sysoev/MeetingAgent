@@ -12,6 +12,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Пересборка локального SQLite FTS5/BM25 индекса по chunks.jsonl")
     parser.add_argument("--chunks", default=None, help="Путь к chunks.jsonl. По умолчанию берётся из config.yaml")
     parser.add_argument("--output", default="data/fts_index.sqlite", help="Путь к SQLite FTS5 индексу")
+    parser.add_argument("--progress-every", type=int, default=1000, help="Печатать прогресс каждые N chunks; 0 отключает прогресс")
     args = parser.parse_args()
 
     cfg = load_config()
@@ -25,7 +26,7 @@ def main() -> None:
     if not fts_path.is_absolute():
         fts_path = resolve_work_path(cfg, str(fts_path))
 
-    result = FTSIndex(fts_path).rebuild(chunks_path)
+    result = FTSIndex(fts_path).rebuild(chunks_path, progress_every=args.progress_every)
     result["chunks_path"] = str(chunks_path)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
