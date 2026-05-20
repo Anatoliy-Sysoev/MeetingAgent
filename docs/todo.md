@@ -53,6 +53,7 @@ Chat MVP smoke пройден на qwen2.5:7b-instruct
 FastAPI POST /chat готов
 API Chat MVP smoke пройден
 Local Web UI реализован
+Local Web UI readable redesign реализован: `АСУ Джун бот`, боковое меню будущих чатов, вкладки `Чат/Источники/Диагностика`, пользовательские названия параметров
 Telegram adapter реализован
 MAX_QUERY_CHARS = 2000 реализован
 QH-1 Observability + Eval Baseline реализован
@@ -297,6 +298,7 @@ LLM endpoint через host.docker.internal
 - FastAPI `GET /health`, `POST /search`, `POST /chat` реализованы;
 - `ChatService`, `PromptBuilder`, `LLMClient`, `AnswerValidator`, `ResponseFormatter` реализованы;
 - `Local Web UI` реализован;
+- `Local Web UI` приведён к рабочему стилю макетов АСУ; основной путь остаётся `UI -> /chat`, DSPy/Streamlit не подключены в runtime;
 - `Telegram adapter` реализован;
 - `ChatRunsLogger` и `EvalRunner` реализованы;
 - `SourceQualityFilter`, `ParentExpander`, `SemanticWarningAnalyzer`, `QHGate` реализованы.
