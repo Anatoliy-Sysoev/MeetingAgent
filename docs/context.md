@@ -78,6 +78,7 @@ API Search MVP: закрыт
 CLI Chat MVP: закрыт с ограничениями
 API Chat MVP / POST /chat: закрыт с ограничениями
 Local Web UI / GET / and GET /ui: реализован, HTTP smoke пройден
+Local Web UI readable redesign: реализован в стиле макетов АСУ из `Инструкции сайта/Макеты`, без Streamlit/DSPy runtime
 Telegram adapter: реализован, local smoke закрыт
 QH-1 Observability + Eval Baseline: реализован
 QH-2 Source Quality Filter: реализован и локально проверен
@@ -190,6 +191,7 @@ Telegram adapter вызывает локальный /chat
 ```
 
 `/search` не должен писать осмысленный ответ. Это диагностический endpoint retrieval/context.
+`/ui` остаётся тонкой HTML/JS-оболочкой над `/chat`: пользовательские названия параметров скрывают технические `hybrid/vector/bm25`, `model`, `top_k`, `include_diagnostics`, но не обходят ProjectGuard/retrieval/ChatService.
 
 ## Runtime-данные
 
@@ -362,6 +364,7 @@ health_v2: status=ok
 regression tests: 97 passed
 API smoke: /health ok, /search ok/refused, /chat answered/refused
 Web UI HTTP smoke: /ui status_code=200
+Web UI readable redesign smoke: /ui на 127.0.0.1:8001, title=`АСУ Джун бот`, боковое меню чатов и пользовательские названия параметров рендерятся
 chat_runs.jsonl: пишется
 after_qh eval: 7/13, 53.8%
 baseline comparison: 6/13 -> 7/13
