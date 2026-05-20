@@ -348,11 +348,28 @@ structural_validation_errors
 ```text
 scripts/09_chat.py остается legacy/prototype
 целевой runtime находится в src/asu_june_bot/ и scripts/asu_june_bot_*.py
+apps/ и src/meeting_agent/ пока scaffold, не production runtime
 qwen2.5:7b-instruct — default chat model MVP
 LLM вызывается только после allow + sources/context
 refused/clarify не вызывают retrieval/LLM
 QH-4 warnings не являются hard-fail
 Docker не начинается до фактического QH-5 passed
+```
+
+## Hardening 2026-05-20
+
+Закрыт audit-fix слой для старого RAG/ProjectBot:
+
+```text
+единый sensitive/harmful guard вынесен в scripts/rag_common.py
+scripts/04_query.py и scripts/09_chat.py отказывают на destructive SQL/security запросы до retrieval/LLM
+project auth terms Bearer Token/JWT/OAuth/OIDC/LDAPS/Blitz разрешены в проектном контексте
+общие stable_id/jsonl/Ollama client вынесены в src/asu_june_bot/core и src/asu_june_bot/llm
+src/asu_june_bot/retrieval/vector.py больше не импортирует scripts/rag_numpy_backend.py через sys.path
+scripts/rag_numpy_backend.py оставлен совместимой wrapper-оберткой на src/asu_june_bot/retrieval/numpy_backend.py
+scripts/08_process_meeting_pipeline.py больше не скрывает ошибку записи failed-state через except pass
+config.yaml/config.example.yaml содержат быстрый CPU-профиль, который читает scripts/09_chat.py
+добавлены requirements.txt и минимальная CI-проверка py_compile + pytest tests/asu_june_bot
 ```
 
 ## Локальная проверка Project Knowledge Bot 2026-05-18 / 2026-05-19

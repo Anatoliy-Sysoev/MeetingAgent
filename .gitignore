@@ -43,6 +43,7 @@ meetings/**/meeting.json
 test_*.py
 *_test_local.py
 scratch_*.py
+!tests/**/*.py
 
 # Large media and meeting inputs/outputs
 *.mp4

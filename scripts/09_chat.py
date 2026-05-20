@@ -8,10 +8,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import requests
-
-from rag_common import append_query_log, ensure_runtime_dirs, jsonl_read, load_config, resolve_work_path
+from rag_common import append_query_log, ensure_runtime_dirs, is_sensitive_query, jsonl_read, load_config, resolve_work_path
 from rag_numpy_backend import index_exists, load_index
+from rag_ollama import ollama_chat, ollama_embed
 
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -34,24 +33,6 @@ REFUSAL_SENSITIVE = "sensitive_or_system_request"
 REFUSAL_NO_INDEX = "rag_index_not_found"
 REFUSAL_LLM_ERROR = "llm_error"
 REFUSAL_LLM_EMPTY = "llm_empty_response"
-
-SENSITIVE_PATTERNS = (
-    ".env",
-    "config.yaml",
-    "пароль",
-    "пароли",
-    "password",
-    "token",
-    "токен",
-    "secret",
-    "секрет",
-    "system prompt",
-    "системный промпт",
-    "инструкции модели",
-    "developer message",
-    "api key",
-    "ключ api",
-)
 
 OBVIOUS_OUT_OF_SCOPE_PATTERNS = (
     r"\bпогод[аеуы]\b",
@@ -112,70 +93,6 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def ollama_embed(base_url: str, model: str, text: str, num_ctx: int = 8192, keep_alive: str = "24h") -> list[float]:
-    resp = requests.post(
-        f"{base_url.rstrip('/')}/api/embeddings",
-        json={
-            "model": model,
-            "prompt": text,
-            "keep_alive": keep_alive,
-            "options": {"num_ctx": num_ctx},
-        },
-        timeout=120,
-    )
-    resp.raise_for_status()
-    return resp.json()["embedding"]
-
-
-def normalize_llm_answer(raw: str) -> str:
-    """Remove model-internal thinking blocks and normalize whitespace."""
-    text = raw or ""
-    text = re.sub(r"<think>.*?</think>", "", text, flags=re.IGNORECASE | re.DOTALL)
-    text = re.sub(r"^Thinking\.\.\..*?\.\.\.done thinking\.\s*", "", text, flags=re.IGNORECASE | re.DOTALL)
-    return text.strip()
-
-
-def ollama_chat(
-    base_url: str,
-    model: str,
-    prompt: str,
-    temperature: float,
-    top_p: float,
-    num_predict: int,
-    timeout: int,
-    think: bool = False,
-) -> str:
-    resp = requests.post(
-        f"{base_url.rstrip('/')}/api/chat",
-        json={
-            "model": model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": (
-                        "Ты ProjectBot. Отвечай только по переданным проектным источникам. "
-                        "Не используй общие знания. Если данных недостаточно — откажись. "
-                        "Не выводи рассуждения, chain-of-thought или внутренний анализ."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
-            "stream": False,
-            "think": think,
-            "options": {
-                "temperature": temperature,
-                "top_p": top_p,
-                "num_predict": num_predict,
-            },
-        },
-        timeout=timeout,
-    )
-    resp.raise_for_status()
-    payload = resp.json()
-    message = payload.get("message") or {}
-    return normalize_llm_answer(message.get("content") or payload.get("response") or "")
-
-
 def preview_text(text: str, limit: int = 280) -> str:
     normalized = " ".join(str(text).split())
     if len(normalized) <= limit:
@@ -197,8 +114,7 @@ def read_prompt_template(path: Path) -> str:
 
 
 def is_sensitive_question(question: str) -> bool:
-    lowered = question.lower()
-    return any(pattern.lower() in lowered for pattern in SENSITIVE_PATTERNS)
+    return is_sensitive_query(question)
 
 
 def has_project_hint(question: str) -> bool:
@@ -636,13 +552,28 @@ def emit(result: dict[str, Any], args: argparse.Namespace, cfg: dict[str, Any] |
     output_result(result, args.json)
 
 
+def apply_config_defaults(args: argparse.Namespace, cfg: dict[str, Any]) -> None:
+    rag_cfg = cfg.get("rag", {})
+    generation_cfg = cfg.get("generation", {})
+    args.top_k = int(args.top_k if args.top_k is not None else rag_cfg.get("top_k", DEFAULT_TOP_K))
+    args.score_threshold = float(
+        args.score_threshold if args.score_threshold is not None else rag_cfg.get("score_threshold", DEFAULT_SCORE_THRESHOLD)
+    )
+    args.min_sources = int(args.min_sources if args.min_sources is not None else rag_cfg.get("min_sources", DEFAULT_MIN_SOURCES))
+    args.max_context_chars = int(
+        args.max_context_chars if args.max_context_chars is not None else rag_cfg.get("max_context_chars", DEFAULT_MAX_CONTEXT_CHARS)
+    )
+    args.num_predict = int(args.num_predict if args.num_predict is not None else generation_cfg.get("num_predict", DEFAULT_NUM_PREDICT))
+    args.timeout_sec = int(args.timeout_sec if args.timeout_sec is not None else generation_cfg.get("timeout_sec", DEFAULT_TIMEOUT_SEC))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Project-only чат-бот MeetingAgent поверх локального RAG")
     parser.add_argument("question", nargs="+", help="Вопрос к проектной базе знаний")
-    parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K, help="Сколько chunks искать до фильтрации")
-    parser.add_argument("--score-threshold", type=float, default=DEFAULT_SCORE_THRESHOLD, help="Минимальный score источника")
-    parser.add_argument("--min-sources", type=int, default=DEFAULT_MIN_SOURCES, help="Минимальное число источников выше порога")
-    parser.add_argument("--max-context-chars", type=int, default=DEFAULT_MAX_CONTEXT_CHARS, help="Максимальный размер контекста для LLM")
+    parser.add_argument("--top-k", type=int, default=None, help="Сколько chunks искать до фильтрации")
+    parser.add_argument("--score-threshold", type=float, default=None, help="Минимальный score источника")
+    parser.add_argument("--min-sources", type=int, default=None, help="Минимальное число источников выше порога")
+    parser.add_argument("--max-context-chars", type=int, default=None, help="Максимальный размер контекста для LLM")
     parser.add_argument("--source-char-limit", type=int, default=1800, help="Максимум символов одного источника в prompt")
     parser.add_argument("--document-expansion-chunks", type=int, default=DEFAULT_DOCUMENT_EXPANSION_CHUNKS, help="Сколько chunks брать из top-документа для LLM-контекста")
     parser.add_argument("--expand-top-documents", type=int, default=DEFAULT_EXPAND_TOP_DOCUMENTS, help="Сколько top-документов расширять соседними chunks")
@@ -651,8 +582,8 @@ def main() -> None:
     parser.add_argument("--prompt", default=DEFAULT_PROMPT_PATH, help="Путь к prompt-шаблону")
     parser.add_argument("--temperature", type=float, default=None, help="Температура генерации")
     parser.add_argument("--top-p", type=float, default=None, help="top_p генерации")
-    parser.add_argument("--num-predict", type=int, default=DEFAULT_NUM_PREDICT, help="Ограничение длины ответа Ollama")
-    parser.add_argument("--timeout-sec", type=int, default=DEFAULT_TIMEOUT_SEC, help="Timeout LLM-вызова")
+    parser.add_argument("--num-predict", type=int, default=None, help="Ограничение длины ответа Ollama")
+    parser.add_argument("--timeout-sec", type=int, default=None, help="Timeout LLM-вызова")
     parser.add_argument("--json", action="store_true", help="Вывести полный JSON-ответ")
     parser.add_argument("--sources-only", action="store_true", help="Не вызывать LLM, показать только найденные источники/отказ")
     parser.add_argument("--include-excluded", action="store_true", help="Не применять query-фильтр служебных и архивных путей")
@@ -671,7 +602,7 @@ def main() -> None:
         result = refusal_response(
             question,
             REFUSAL_SENSITIVE,
-            "Я отвечаю только по проектным материалам и не раскрываю системные инструкции, секреты или локальные конфигурации.",
+            "Я отвечаю только по проектным материалам, не раскрываю системные инструкции/секреты и не помогаю с опасными SQL или security-действиями.",
         )
         emit(result, args)
         return
@@ -687,6 +618,7 @@ def main() -> None:
 
     cfg = load_config()
     ensure_runtime_dirs(cfg)
+    apply_config_defaults(args, cfg)
     source_links = load_source_links(cfg)
 
     generation_cfg = cfg.get("generation", {})
@@ -753,7 +685,17 @@ def main() -> None:
         answer = ollama_chat(
             base_url,
             chat_model,
-            prompt,
+            [
+                {
+                    "role": "system",
+                    "content": (
+                        "Ты ProjectBot. Отвечай только по переданным проектным источникам. "
+                        "Не используй общие знания. Если данных недостаточно — откажись. "
+                        "Не выводи рассуждения, chain-of-thought или внутренний анализ."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
             temperature,
             top_p,
             args.num_predict,

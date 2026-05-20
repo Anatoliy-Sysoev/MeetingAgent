@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import re
 from fnmatch import fnmatch
@@ -9,6 +8,8 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from asu_june_bot.core.config import WORK_ROOT
+from asu_june_bot.core.hashing import stable_id as shared_stable_id
+from asu_june_bot.core.jsonl import jsonl_write as shared_jsonl_write
 from asu_june_bot.retrieval.metadata import enrich_metadata, infer_sections
 
 
@@ -54,7 +55,7 @@ def normalize_text(text: str) -> str:
 
 
 def stable_id(value: str, length: int = 32) -> str:
-    return hashlib.sha256(value.encode("utf-8", errors="ignore")).hexdigest()[:length]
+    return shared_stable_id(value, length=length)
 
 
 def sha256_file(path: Path, block_size: int = 1024 * 1024) -> str:
@@ -79,10 +80,7 @@ def read_text_guess(path: Path) -> str:
 
 
 def jsonl_write(path: Path, rows: Iterable[dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="\n") as fp:
-        for row in rows:
-            fp.write(json.dumps(row, ensure_ascii=False) + "\n")
+    shared_jsonl_write(path, rows)
 
 
 def is_office_temp_file(path: Path) -> bool:

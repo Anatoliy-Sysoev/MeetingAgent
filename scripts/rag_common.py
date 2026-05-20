@@ -4,9 +4,9 @@ import hashlib
 import json
 import os
 import re
+import sys
 import time
 from datetime import datetime, timezone
-from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -15,6 +15,13 @@ import yaml
 
 WORK_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = WORK_ROOT / "config.yaml"
+SRC_DIR = WORK_ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from asu_june_bot.core.hashing import stable_id as shared_stable_id  # noqa: E402
+from asu_june_bot.core.jsonl import jsonl_read as shared_jsonl_read, jsonl_write as shared_jsonl_write  # noqa: E402
+from asu_june_bot.core.path_filters import is_excluded_by_path_patterns as shared_is_excluded_by_path_patterns  # noqa: E402
 
 
 def load_config() -> dict[str, Any]:
@@ -43,44 +50,141 @@ def ensure_runtime_dirs(cfg: dict[str, Any]) -> None:
 
 
 def jsonl_read(path: Path) -> Iterable[dict[str, Any]]:
-    if not path.exists():
-        return
-    with path.open("r", encoding="utf-8") as fp:
-        for line in fp:
-            line = line.strip()
-            if line:
-                yield json.loads(line)
+    yield from shared_jsonl_read(path)
 
 
 def jsonl_write(path: Path, rows: Iterable[dict[str, Any]]) -> int:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    count = 0
-    with path.open("w", encoding="utf-8", newline="\n") as fp:
-        for row in rows:
-            fp.write(json.dumps(row, ensure_ascii=False) + "\n")
-            count += 1
-    return count
+    return shared_jsonl_write(path, rows)
 
 
-SENSITIVE_QUERY_PATTERNS = (
+STRICT_SENSITIVE_QUERY_PATTERNS = (
     ".env",
     "config.yaml",
     "пароль",
+    "пароли",
     "password",
-    "token",
-    "токен",
     "secret",
     "секрет",
     "system prompt",
     "системный промпт",
+    "инструкции модели",
+    "developer message",
     "api key",
     "ключ api",
 )
 
+TOKEN_SENSITIVE_QUERY_PATTERNS = (
+    "token",
+    "токен",
+)
+
+PROJECT_AUTH_ALLOW_TERMS = (
+    "bearer",
+    "jwt",
+    "oauth",
+    "oidc",
+    "ldaps",
+    "blitz",
+)
+
+PROJECT_AUTH_CONTEXT_TERMS = (
+    "цп упкс",
+    "сои",
+    "интеграц",
+    "справоч",
+    "mdr",
+    "active directory",
+    " ad ",
+    "авторизац",
+    "нси",
+)
+
+HARMFUL_SECURITY_TERMS = (
+    "sql injection",
+    "sql-инъек",
+    "sql инъек",
+    "инъекц",
+    "эксплойт",
+    "эксплуат",
+    "взлом",
+)
+
+DESTRUCTIVE_SQL_TERMS = (
+    "drop table",
+    "delete from",
+    "truncate table",
+    "удаления таблиц",
+    "удаления таблицы",
+    "удалить таблиц",
+    "удалить таблицу",
+    "удали таблиц",
+    "удали таблицу",
+)
+
+HARMFUL_SECURITY_ACTION_TERMS = (
+    "как выполнить",
+    "как сделать",
+    "как провести",
+    "как написать",
+    "напиши пример",
+    "пример sql",
+    "обойти",
+    "сломать",
+    "взломать",
+    "украсть",
+    "получить токен",
+    "вытащить пароль",
+    "payload",
+    "пейлоад",
+)
+
+PROJECT_SECURITY_LOOKUP_TERMS = (
+    "фтт",
+    "требован",
+    "проект",
+    "документ",
+    "описан",
+    "указан",
+    "защит",
+    "мер",
+    "сои",
+    "цта",
+)
+
+SENSITIVE_QUERY_PATTERNS = STRICT_SENSITIVE_QUERY_PATTERNS + TOKEN_SENSITIVE_QUERY_PATTERNS
+
+
+def normalize_query_text(text: str) -> str:
+    return " ".join(str(text or "").lower().replace("ё", "е").split())
+
+
+def is_project_auth_query(text: str) -> bool:
+    lowered = f" {normalize_query_text(text)} "
+    has_allowed_auth_term = any(term in lowered for term in PROJECT_AUTH_ALLOW_TERMS)
+    has_project_context = any(term in lowered for term in PROJECT_AUTH_CONTEXT_TERMS)
+    return has_allowed_auth_term and has_project_context
+
+
+def is_harmful_security_query(text: str) -> bool:
+    lowered = normalize_query_text(text)
+    has_harmful_marker = any(term in lowered for term in HARMFUL_SECURITY_TERMS)
+    has_destructive_sql = ("sql" in lowered or "запрос" in lowered) and any(term in lowered for term in DESTRUCTIVE_SQL_TERMS)
+    if not has_harmful_marker and not has_destructive_sql:
+        return False
+    has_abuse_action = any(term in lowered for term in HARMFUL_SECURITY_ACTION_TERMS)
+    has_project_lookup = any(term in lowered for term in PROJECT_SECURITY_LOOKUP_TERMS)
+    return has_destructive_sql or has_abuse_action or not has_project_lookup
+
 
 def is_sensitive_query(text: str) -> bool:
-    lowered = (text or "").lower()
-    return any(pattern in lowered for pattern in SENSITIVE_QUERY_PATTERNS)
+    lowered = normalize_query_text(text)
+    if is_harmful_security_query(lowered):
+        return True
+    if any(pattern in lowered for pattern in STRICT_SENSITIVE_QUERY_PATTERNS):
+        return True
+    if any(pattern in lowered for pattern in TOKEN_SENSITIVE_QUERY_PATTERNS):
+        return not is_project_auth_query(lowered)
+    return False
 
 
 def append_query_log(record: dict[str, Any], cfg: dict[str, Any] | None = None) -> None:
@@ -114,7 +218,7 @@ def sha256_file(path: Path, block_size: int = 1024 * 1024) -> str:
 
 
 def stable_id(text: str, length: int = 24) -> str:
-    return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:length]
+    return shared_stable_id(text, length=length)
 
 
 def normalize_text(text: str) -> str:
@@ -135,17 +239,7 @@ def is_under_excluded_dir(rel_path: Path, excluded: set[str]) -> bool:
 
 
 def is_excluded_by_path_patterns(rel_path: Path | str, patterns: Iterable[str]) -> bool:
-    normalized = str(rel_path).replace("\\", "/").strip("/").lower()
-    if not normalized:
-        return False
-
-    for raw_pattern in patterns:
-        pattern = str(raw_pattern).replace("\\", "/").strip("/").lower()
-        if not pattern:
-            continue
-        if fnmatchcase(normalized, pattern):
-            return True
-    return False
+    return shared_is_excluded_by_path_patterns(rel_path, patterns)
 
 
 def path_rel_to_project(cfg: dict[str, Any], path: Path) -> str:
