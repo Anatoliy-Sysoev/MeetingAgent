@@ -9,6 +9,7 @@ import requests
 from tqdm import tqdm
 
 from rag_common import FileLock, chunk_text, ensure_runtime_dirs, jsonl_read, jsonl_write, load_config, resolve_work_path, stable_id
+from rag_metadata import enrich_chunk_metadata
 
 
 def ollama_embed(base_url: str, model: str, text: str, num_ctx: int, keep_alive: str) -> list[float]:
@@ -63,20 +64,19 @@ def make_chunks(cfg: dict[str, Any]) -> list[dict[str, Any]]:
         for index, chunk in enumerate(chunk_text(text, chunk_size, overlap)):
             chunk_id = stable_id(f"{meta['sha256']}:{index}:{chunk[:120]}")
             db_id = stable_id(f"{meta['relative_path']}:{meta['sha256']}:{index}:{chunk[:120]}")
-            chunks.append(
-                {
-                    "chunk_id": chunk_id,
-                    "db_id": db_id,
-                    "text": chunk,
-                    "source_path": meta["source_path"],
-                    "relative_path": meta["relative_path"],
-                    "extension": meta["extension"],
-                    "sha256": meta["sha256"],
-                    "mtime": meta["mtime"],
-                    "chunk_index": index,
-                    "chars": len(chunk),
-                }
-            )
+            row = {
+                "chunk_id": chunk_id,
+                "db_id": db_id,
+                "text": chunk,
+                "source_path": meta["source_path"],
+                "relative_path": meta["relative_path"],
+                "extension": meta["extension"],
+                "sha256": meta["sha256"],
+                "mtime": meta["mtime"],
+                "chunk_index": index,
+                "chars": len(chunk),
+            }
+            chunks.append(enrich_chunk_metadata(row))
     return chunks
 
 
@@ -158,6 +158,10 @@ def main() -> None:
                 "mtime": chunk["mtime"],
                 "chunk_index": chunk["chunk_index"],
                 "chars": chunk["chars"],
+                "doc_type": chunk.get("doc_type"),
+                "source_kind": chunk.get("source_kind"),
+                "section": chunk.get("section"),
+                "requirement_id": chunk.get("requirement_id"),
             }
             append_embedding_cache(embeddings_cache_path, rec)
             embedding_cache[chunk["chunk_id"]] = rec
@@ -169,7 +173,7 @@ def main() -> None:
                     "chunks_path": str(chunks_path),
                     "embeddings_cache": str(embeddings_cache_path),
                     "embedding_model": embedding_model,
-                    "next_step": "Запустите scripts/05_build_numpy_index.py для пересборки локального numpy-индекса.",
+                    "next_step": "Запустите scripts/05_build_numpy_index.py и scripts/04_build_fts_index.py для пересборки индексов.",
                 },
                 ensure_ascii=False,
                 indent=2,
