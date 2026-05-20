@@ -199,6 +199,8 @@ scripts/rag_fts.py
 scripts/04_build_fts_index.py
 ```
 
+`scripts/04_build_fts_index.py` строит SQLite FTS5 индекс во временный `.tmp` файл, показывает прогресс и атомарно заменяет готовый `data/fts_index.sqlite`.
+
 После PR #8 полный `realistic 100` должен запускаться через quality wrapper:
 
 ```powershell
