@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 import re
 from collections import Counter
 from typing import Any
@@ -16,6 +15,8 @@ NO_ANSWER_MARKERS = (
     "в найденных фрагментах недостаточно",
     "в источниках отсутств",
 )
+
+WEAK_SOURCE_REASON = "weak_source_quality_gate"
 
 STOPWORDS = {
     "что", "как", "какие", "какая", "какой", "каким", "где", "когда", "и", "или",
@@ -192,6 +193,29 @@ def rerank_contexts(question: str, contexts: list[dict[str, Any]], top_k: int) -
     return reranked[:top_k]
 
 
+def source_quality_decision(sources: list[dict[str, Any]], min_lexical: float = 0.20) -> dict[str, Any]:
+    if not sources:
+        return {"ok": False, "reason": "no_sources"}
+    top = sources[0]
+    quality = top.get("quality") or {}
+    lexical = float(quality.get("lexical_score", 0.0) or 0.0)
+    matched_terms = quality.get("matched_terms") or []
+    matched_numbers = quality.get("matched_numbers") or []
+    phrase_matches = quality.get("phrase_matches") or []
+    path_boost = float(quality.get("path_boost", 0.0) or 0.0)
+    strong_anchor = bool(matched_terms or matched_numbers or phrase_matches or path_boost > 0)
+    ok = lexical >= min_lexical or strong_anchor
+    return {
+        "ok": ok,
+        "reason": None if ok else WEAK_SOURCE_REASON,
+        "lexical_score": lexical,
+        "matched_terms": matched_terms,
+        "matched_numbers": matched_numbers,
+        "phrase_matches": phrase_matches,
+        "path_boost": path_boost,
+    }
+
+
 def quality_confidence(sources: list[dict[str, Any]], threshold: float, answer: str | None = None) -> float:
     if not sources:
         return 0.0
@@ -224,6 +248,19 @@ def quality_confidence(sources: list[dict[str, Any]], threshold: float, answer: 
     return round(max(0.0, min(base, 0.98)), 4)
 
 
+def answer_sections(answer: str) -> dict[str, str]:
+    text = str(answer or "")
+    first_pos: int | None = None
+    for marker in ("Ограничения:", "Источники:", "Обоснование:"):
+        pos = text.lower().find(marker.lower())
+        if pos >= 0 and (first_pos is None or pos < first_pos):
+            first_pos = pos
+    if first_pos is None:
+        return {"main": text, "tail": ""}
+    return {"main": text[:first_pos], "tail": text[first_pos:]}
+
+
 def has_no_answer_marker(answer: str) -> bool:
-    lowered = normalize_text(answer)
-    return any(marker in lowered for marker in NO_ANSWER_MARKERS)
+    sections = answer_sections(answer)
+    lowered_main = normalize_text(sections["main"])
+    return any(marker in lowered_main for marker in NO_ANSWER_MARKERS)
