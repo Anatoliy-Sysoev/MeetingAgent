@@ -22,30 +22,60 @@ STOPWORDS = {
     "что", "как", "какие", "какая", "какой", "каким", "где", "когда", "и", "или",
     "в", "во", "на", "по", "про", "для", "с", "со", "из", "от", "до", "при",
     "это", "есть", "сказано", "указано", "описано", "относятся", "относится",
-    "требования", "требований", "проект", "система", "системы",
+    "требования", "требований", "проект", "система", "системы", "реализовано", "реализована",
 }
 
 DOMAIN_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("ftt", ("фтт", "функционально-технические требования", "требования")),
-    ("construction_control", ("смр", "строительный контроль", "замечания", "предписание", "инспекционные документы")),
+    ("ftt", ("фтт", "функционально-технические требования", "требования", "таблица 8")),
+    ("pr", ("проектное решение", "пр", "сценарии функционирования", "бизнес-процесс", "статусная схема", "таблица соответствия")),
+    ("cta", ("цта", "целевая техническая архитектура", "архитектура", "kubernetes", "postgresql", "minio", "loki", "grafana", "siem", "rto", "rpo")),
+    ("soi_ad", ("сои ad", "active directory", "ad", "ldaps", "группы ad", "авторизация", "синхронизация", "учетные записи", "порт 636")),
+    ("soi_nsi", ("сои справочники", "нси", "mdr", "кшд", "справочники", "справочник", "bearer token", "rest api")),
+    ("construction_control", ("смр", "строительный контроль", "замечания", "предписание", "инспекционные документы", "акт проверки", "акт устранения")),
     ("edms", ("новадок", "эдо", "документооборот")),
     ("signature", ("эцп", "электронная подпись", "подписание")),
-    ("analytics", ("аналитика", "дашборд", "витрина", "отчет", "отчёт")),
+    ("analytics", ("аналитика", "дашборд", "дашборды", "витрина", "отчет", "отчёт")),
     ("performance", ("производительность", "нагрузочное", "2520", "600", "120", "пользователей")),
-    ("pmi", ("пми", "сфт", "снт", "сценарии", "испытания")),
+    ("export", ("экспорт", "выгрузка", "pdf", "excel", "csv", "xml", "печатные формы")),
+    ("pmi", ("пми", "сфт", "снт", "сценарии", "испытания", "программа и методика")),
     ("psi", ("пси", "протокол испытаний", "рекомендации", "открытые вопросы")),
-    ("ad", ("active directory", "ad", "ldaps", "группы ad", "авторизация")),
-    ("nsi", ("нси", "mdr", "кшд", "справочники", "справочник")),
-    ("cta", ("цта", "архитектура", "kubernetes", "postgresql", "minio", "loki", "grafana")),
+    ("passport", ("паспорт ис", "паспорт информационной системы")),
 )
 
 FTT_SECTION_HINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("4.1", ("инспекционные документы", "результаты инспекционной деятельности", "строительный контроль")),
-    ("4.2.1", ("замечания", "создание замечания", "устранение замечания")),
-    ("4.2.5", ("новадок", "эцп", "электронная подпись", "подписание", "предписание")),
-    ("4.3", ("аналитика", "дашборд", "отчет", "отчёт")),
+    ("4.1", ("инспекционные документы", "формирования, ведения и подписания", "строительный контроль", "эцп")),
+    ("4.2.1", ("результаты проведения инспекционной деятельности", "проверки", "замечания", "создание замечания")),
+    ("4.2.2", ("автоматическая генерации инспекционных документов", "акт проверки", "предписания")),
+    ("4.2.3", ("фото", "видео", "фотофиксация", "видеофиксация", "недостатков")),
+    ("4.2.4", ("актов об устранении", "устранении недостатков", "акт устранения")),
+    ("4.2.5", ("новадок", "эцп", "электронная подпись", "подписание", "предписание", "акты проверки", "акты устранения")),
+    ("4.2.7", ("статусы карточек", "статусы документов", "статусы недостатков", "статусная модель")),
+    ("4.2.8", ("аналитической информации", "недостаткам", "замечаниям", "срок", "оповещении")),
+    ("4.2.10", ("назначение", "замещение", "инспектора ск", "ответственный инспектор")),
+    ("4.3", ("аналитика", "дашборд", "дашборды", "прогресс", "контроль устранения")),
     ("9.6", ("сквозное кодирование", "связи между модулями", "тэгирование", "тегирование")),
-    ("10.8", ("производительность", "нагрузочное", "2520", "600", "120", "пользователей")),
+    ("10.8", ("экспорт", "pdf", "xml", "excel", "csv", "отфильтрованных данных", "печатные формы")),
+)
+
+DOC_TYPE_HINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("ftt", ("фтт", "функционально-технические", "задание заказчика", "таблица 8")),
+    ("pr", ("проектное решение", "пр_смр", "строительный_контроль", "сценарии функционирования", "статусная схема")),
+    ("cta", ("цта", "целевая техническая архитектура", "архитектура", "kubernetes", "postgresql", "minio")),
+    ("soi_ad", ("сои_ad", "active directory", "ad.docx", "ldaps", "группы ad")),
+    ("soi_nsi", ("сои_справочники", "справочники", "mdr", "кшд", "bearer")),
+    ("pmi", ("пми", "программа и методика", "сценарии испытаний", "сфт", "снт")),
+    ("psi", ("пси", "протокол испытаний")),
+    ("passport", ("паспорт ис", "паспорт_ис")),
+)
+
+QUERY_TO_DOC_TYPE: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("ftt", ("фтт", "требован", "4.1", "4.2", "4.3", "9.6", "10.8", "2520", "600 одновременно")),
+    ("pr", ("проектное решение", "как реализовано", "статус", "бизнес-процесс", "сценарии функционирования", "роль")),
+    ("cta", ("цта", "архитектур", "postgresql", "minio", "kubernetes", "loki", "grafana", "siem", "rto", "rpo")),
+    ("soi_ad", ("active directory", "ldaps", "групп", "учетн", "авторизац", "ad")),
+    ("soi_nsi", ("mdr", "кшд", "справоч", "нси", "bearer", "rest api")),
+    ("pmi", ("пми", "сфт", "снт", "сценар", "методик")),
+    ("psi", ("пси", "протокол испыт", "открытые вопросы", "рекомендац")),
 )
 
 
@@ -75,15 +105,48 @@ def extract_domain_terms(text: str) -> set[str]:
     for section, hints in FTT_SECTION_HINTS:
         if section in lowered or any(hint in lowered for hint in hints):
             terms.add(f"ftt_section:{section}")
+    for doc_type, hints in QUERY_TO_DOC_TYPE:
+        if any(hint in lowered for hint in hints):
+            terms.add(f"doc_type:{doc_type}")
     return terms
+
+
+def expected_doc_types(question: str) -> set[str]:
+    lowered = normalize_text(question)
+    out: set[str] = set()
+    for doc_type, hints in QUERY_TO_DOC_TYPE:
+        if any(hint in lowered for hint in hints):
+            out.add(doc_type)
+    return out
+
+
+def path_doc_type(relative_path: str) -> str | None:
+    path = normalize_text(relative_path)
+    for doc_type, hints in DOC_TYPE_HINTS:
+        if any(hint in path for hint in hints):
+            return doc_type
+    return None
 
 
 def build_quality_expansion(question: str) -> str:
     lowered = normalize_text(question)
     extras: list[str] = []
 
-    if "фтт" in lowered or "требован" in lowered:
-        extras.extend(["ФТТ", "функционально-технические требования", "требования", "Этап 1"])
+    docs = expected_doc_types(question)
+    if "ftt" in docs:
+        extras.extend(["ФТТ", "функционально-технические требования", "Таблица 8", "Этап 1", "СМР Строительный контроль"])
+    if "pr" in docs:
+        extras.extend(["Проектное решение", "сценарии функционирования", "статусная схема", "роли", "права доступа"])
+    if "cta" in docs:
+        extras.extend(["ЦТА", "целевая техническая архитектура", "PostgreSQL", "MinIO", "Kubernetes", "Grafana Loki", "SIEM", "RTO", "RPO"])
+    if "soi_ad" in docs:
+        extras.extend(["СОИ AD", "Active Directory", "LDAPS", "порт 636", "группы AD", "учетные записи", "авторизация"])
+    if "soi_nsi" in docs:
+        extras.extend(["СОИ Справочники", "MDR", "КШД", "НСИ", "справочники", "Bearer Token", "REST API"])
+    if "pmi" in docs:
+        extras.extend(["ПМИ", "СФТ", "СНТ", "сценарии испытаний", "программа и методика испытаний"])
+    if "psi" in docs:
+        extras.extend(["ПСИ", "протокол испытаний", "открытые вопросы", "рекомендации", "результаты испытаний"])
 
     for section, hints in FTT_SECTION_HINTS:
         if section in lowered or any(hint in lowered for hint in hints):
@@ -91,17 +154,17 @@ def build_quality_expansion(question: str) -> str:
             extras.extend(hints)
 
     if "инспекцион" in lowered or "эцп" in lowered or "новадок" in lowered:
-        extras.extend(["инспекционные документы", "ЭЦП", "электронная подпись", "НОВАДОК", "4.2.5"])
+        extras.extend(["инспекционные документы", "ЭЦП", "электронная подпись", "НОВАДОК", "4.1", "4.2.5"])
     if "пользовател" in lowered or "производитель" in lowered or "нагруз" in lowered:
-        extras.extend(["2520", "600", "120", "нагрузочное тестирование", "производительность", "10.8"])
+        extras.extend(["2520", "600", "120", "нагрузочное тестирование", "производительность", "Таблица 9", "Таблица 10"])
     if "сквоз" in lowered or "кодирован" in lowered or "тэг" in lowered or "тег" in lowered:
         extras.extend(["9.6", "сквозное кодирование", "связи между модулями", "тэгирование", "тегирование"])
     if "аналит" in lowered or "дашборд" in lowered:
-        extras.extend(["4.3", "аналитика", "дашборды", "отчеты", "отчёты"])
+        extras.extend(["4.3", "4.2.8", "аналитика", "дашборды", "отчеты", "отчёты"])
     if "замечан" in lowered or "предписан" in lowered:
-        extras.extend(["4.2.1", "замечания", "предписания", "строительный контроль"])
-    if "пми" in lowered or "пси" in lowered or "сфт" in lowered or "снт" in lowered:
-        extras.extend(["ПМИ", "ПСИ", "СФТ", "СНТ", "сценарии испытаний", "протокол испытаний"])
+        extras.extend(["4.2.1", "4.2.2", "4.2.5", "4.2.8", "замечания", "предписания", "строительный контроль"])
+    if "экспорт" in lowered or "выгруз" in lowered or "pdf" in lowered or "excel" in lowered or "csv" in lowered:
+        extras.extend(["10.8", "экспорт", "выгрузка", "PDF", "Excel", "CSV", "XML", "печатные формы"])
 
     seen: set[str] = set()
     unique = []
@@ -145,16 +208,19 @@ def lexical_score(question: str, document: str, relative_path: str = "") -> dict
             if hint in question_norm and hint in document_norm:
                 phrase_matches.append(hint)
 
-    has_ftt_path = "фтт" in path_norm or "функционально" in path_norm
-    asks_ftt = "фтт" in question_norm or "требован" in question_norm
-    path_boost = 0.08 if asks_ftt and has_ftt_path else 0.0
+    expected_docs = expected_doc_types(question_norm)
+    actual_doc = path_doc_type(path_norm)
+    doc_type_match = bool(actual_doc and actual_doc in expected_docs)
+    doc_type_mismatch = bool(expected_docs and actual_doc and actual_doc not in expected_docs)
+    path_boost = 0.16 if doc_type_match else 0.0
 
-    phrase_bonus = min(0.25, 0.05 * len(set(phrase_matches)))
-    number_bonus = 0.25 * number_overlap
-    term_bonus = 0.30 * term_overlap
-    token_bonus = 0.25 * token_overlap
+    phrase_bonus = min(0.30, 0.06 * len(set(phrase_matches)))
+    number_bonus = 0.30 * number_overlap
+    term_bonus = 0.34 * term_overlap
+    token_bonus = 0.24 * token_overlap
+    mismatch_penalty = 0.10 if doc_type_mismatch else 0.0
 
-    score = min(1.0, token_bonus + term_bonus + number_bonus + phrase_bonus + path_boost)
+    score = max(0.0, min(1.0, token_bonus + term_bonus + number_bonus + phrase_bonus + path_boost - mismatch_penalty))
 
     return {
         "lexical_score": round(score, 6),
@@ -165,6 +231,10 @@ def lexical_score(question: str, document: str, relative_path: str = "") -> dict
         "matched_terms": matched_terms,
         "matched_numbers": matched_numbers,
         "phrase_matches": sorted(set(phrase_matches)),
+        "expected_doc_types": sorted(expected_docs),
+        "actual_doc_type": actual_doc,
+        "doc_type_match": doc_type_match,
+        "doc_type_mismatch": doc_type_mismatch,
         "path_boost": path_boost,
     }
 
@@ -176,11 +246,15 @@ def rerank_contexts(question: str, contexts: list[dict[str, Any]], top_k: int) -
         vector_score = float(ctx.get("score", 0.0))
         q = lexical_score(question, str(ctx.get("document", "")), str(meta.get("relative_path", "")))
         lexical = float(q["lexical_score"])
-        final_score = min(1.0, 0.65 * vector_score + 0.35 * lexical)
+        final_score = min(1.0, 0.58 * vector_score + 0.42 * lexical)
         if lexical >= 0.35:
-            final_score = min(1.0, final_score + 0.08)
+            final_score = min(1.0, final_score + 0.10)
         if q.get("matched_numbers"):
-            final_score = min(1.0, final_score + 0.07)
+            final_score = min(1.0, final_score + 0.09)
+        if q.get("doc_type_match"):
+            final_score = min(1.0, final_score + 0.08)
+        if q.get("doc_type_mismatch"):
+            final_score = max(0.0, final_score - 0.08)
         meta["retrieval"] = "hybrid_vector_lexical"
         meta["quality"] = {
             **q,
@@ -203,7 +277,8 @@ def source_quality_decision(sources: list[dict[str, Any]], min_lexical: float = 
     matched_numbers = quality.get("matched_numbers") or []
     phrase_matches = quality.get("phrase_matches") or []
     path_boost = float(quality.get("path_boost", 0.0) or 0.0)
-    strong_anchor = bool(matched_terms or matched_numbers or phrase_matches or path_boost > 0)
+    doc_type_match = bool(quality.get("doc_type_match"))
+    strong_anchor = bool(matched_terms or matched_numbers or phrase_matches or path_boost > 0 or doc_type_match)
     ok = lexical >= min_lexical or strong_anchor
     return {
         "ok": ok,
@@ -213,6 +288,9 @@ def source_quality_decision(sources: list[dict[str, Any]], min_lexical: float = 
         "matched_numbers": matched_numbers,
         "phrase_matches": phrase_matches,
         "path_boost": path_boost,
+        "doc_type_match": doc_type_match,
+        "expected_doc_types": quality.get("expected_doc_types") or [],
+        "actual_doc_type": quality.get("actual_doc_type"),
     }
 
 
@@ -227,19 +305,22 @@ def quality_confidence(sources: list[dict[str, Any]], threshold: float, answer: 
     number_overlap = float(quality.get("number_overlap", 0.0) or 0.0)
     matched_terms = quality.get("matched_terms") or []
     matched_numbers = quality.get("matched_numbers") or []
+    doc_type_match = bool(quality.get("doc_type_match"))
 
-    base = min(0.92, max(0.0, (top_score - threshold) / max(1.0 - threshold, 1e-6)))
+    base = min(0.90, max(0.0, (top_score - threshold) / max(1.0 - threshold, 1e-6)))
     if lexical < 0.15:
-        base *= 0.55
+        base *= 0.45
     elif lexical < 0.30:
-        base *= 0.75
+        base *= 0.70
     else:
-        base = min(0.95, base + 0.10)
+        base = min(0.94, base + 0.10)
 
     if matched_terms:
-        base = min(0.96, base + 0.05 * min(len(matched_terms), 3))
+        base = min(0.96, base + 0.04 * min(len(matched_terms), 3))
     if matched_numbers:
         base = min(0.97, base + 0.08 * min(len(matched_numbers), 2))
+    if doc_type_match:
+        base = min(0.97, base + 0.06)
     if term_overlap >= 0.75 or number_overlap >= 0.75:
         base = min(0.98, base + 0.08)
 
