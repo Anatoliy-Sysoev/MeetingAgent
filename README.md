@@ -276,9 +276,9 @@ docs/subprojects/asu-june-bot/product/README.md
 
 ```text
 MeetingAgent/
-  apps/                    Продуктовые интерфейсы: CLI, локальный API, desktop/web UI
+  apps/                    Scaffold будущих продуктовых интерфейсов; активный UI сейчас в src/asu_june_bot/api
   src/asu_june_bot/         Целевой runtime Project Knowledge Bot
-  src/meeting_agent/        Будущий общий Python-пакет MeetingAgent
+  src/meeting_agent/        Scaffold будущего общего Python-пакета MeetingAgent
   scripts/                  Рабочие скрипты v1 и bot v2
   templates/                Шаблоны prompt и документов
   docs/                     Продукт, архитектура, эксплуатация, безопасность
@@ -290,6 +290,8 @@ MeetingAgent/
   vector_db/                Устаревшая локальная папка ChromaDB, игнорируется Git
   watched_folder/           Входящие медиа/документы, игнорируются Git
 ```
+
+Важно: `apps/` и `src/meeting_agent/` сейчас являются каркасом, а не production runtime. Активный код чат-бота находится в `src/asu_june_bot/` и `scripts/asu_june_bot_*.py`; `scripts/09_chat.py` оставлен как legacy/prototype CLI для project-only baseline и hardening-проверок.
 
 ## Принципы продукта
 

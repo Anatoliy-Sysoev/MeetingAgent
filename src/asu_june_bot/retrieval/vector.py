@@ -1,47 +1,13 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import Any
 
-import requests
-
 from asu_june_bot.core.config import resolve_work_path
+from asu_june_bot.llm.ollama_common import OllamaUnavailableError, ollama_embed
 from .metadata import enrich_metadata
 from .models import SearchResult
+from .numpy_backend import index_exists, load_index
 from .source_policy import SourcePolicy
-
-
-WORK_ROOT = Path(__file__).resolve().parents[3]
-SCRIPTS_DIR = WORK_ROOT / "scripts"
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
-
-from rag_numpy_backend import index_exists, load_index  # noqa: E402
-
-
-class OllamaUnavailableError(RuntimeError):
-    pass
-
-
-def ollama_embed(base_url: str, model: str, text: str, num_ctx: int = 8192, keep_alive: str = "24h") -> list[float]:
-    try:
-        resp = requests.post(
-            f"{base_url.rstrip('/')}/api/embeddings",
-            json={
-                "model": model,
-                "prompt": text,
-                "keep_alive": keep_alive,
-                "options": {"num_ctx": num_ctx},
-            },
-            timeout=120,
-        )
-        resp.raise_for_status()
-        return resp.json()["embedding"]
-    except requests.exceptions.ConnectionError as exc:
-        raise OllamaUnavailableError(
-            f"Ollama недоступен по адресу {base_url}. Запусти Ollama и проверь модель embeddings: ollama list"
-        ) from exc
 
 
 class VectorSearchAdapter:

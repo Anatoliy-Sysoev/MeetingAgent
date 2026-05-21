@@ -10,10 +10,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import requests
 from jsonschema import Draft202012Validator
 
 from rag_common import load_config
+from rag_ollama import ollama_generate as shared_ollama_generate
 
 
 STATUS_TRANSCRIBED = "transcribed"
@@ -572,23 +572,16 @@ def ollama_generate(
     keep_alive: str,
     timeout_sec: int,
 ) -> str:
-    response = requests.post(
-        f"{base_url.rstrip('/')}/api/generate",
-        json={
-            "model": model,
-            "prompt": prompt,
-            "stream": False,
-            "keep_alive": keep_alive,
-            "options": {
-                "temperature": temperature,
-                "top_p": top_p,
-                "num_ctx": num_ctx,
-            },
-        },
+    return shared_ollama_generate(
+        base_url,
+        model,
+        prompt,
+        temperature,
+        top_p,
         timeout=timeout_sec,
+        num_ctx=num_ctx,
+        keep_alive=keep_alive,
     )
-    response.raise_for_status()
-    return response.json().get("response", "").strip()
 
 
 def extract_json_object(text: str) -> dict[str, Any]:

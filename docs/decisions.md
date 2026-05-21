@@ -405,3 +405,18 @@ Backlog-направления остаются точечными: `source_type
 - для диагностики сохраняются ручные параметры CLI: `--top-k`, `--max-context-chars`, `--source-char-limit`, `--num-predict`, `--timeout-sec`, `--model`.
 
 Следствие: полный/тяжелый профиль можно запускать вручную, но дефолтный CLI-профиль должен оставаться быстрым. Для быстрых проверок использовать `--sources-only --json`, а для полного ответа на CPU начинать с `--top-k 3 --max-context-chars 4500 --source-char-limit 1200 --num-predict 400 --timeout-sec 120`.
+
+## 2026-05-20 - Hardening Guard, Config И Общих Runtime-Слоев
+
+Решение: sensitive/security guard стал общим для `scripts/rag_common.py`, `scripts/04_query.py`, `scripts/09_chat.py` и quality wrapper. Project auth-термины (`Bearer Token`, `JWT`, `OAuth`, `OIDC`, `LDAPS`, `Blitz`) разрешены только в проектном контексте, а destructive SQL/security-abuse запросы отклоняются до retrieval и LLM.
+
+Также быстрый профиль ProjectBot теперь живёт в `config.yaml`/`config.example.yaml`, а `scripts/09_chat.py` читает эти значения как default. Общие функции `stable_id`, JSONL и Ollama-клиент вынесены в `src/asu_june_bot/core` и `src/asu_june_bot/llm`, чтобы не держать несколько расходящихся реализаций.
+
+Почему:
+
+- realistic/eval прогон показал false-refuse по проектному `Bearer Token` и опасный ответ на SQL delete;
+- два набора sensitive-паттернов дрейфовали между `rag_common` и `09_chat`;
+- hardcoded defaults в `09_chat.py` маскировали реальные значения `config.yaml`;
+- `src/asu_june_bot` не должен импортировать `scripts/*` через `sys.path`, иначе runtime становится хрупким.
+
+Следствие: `apps/` и `src/meeting_agent/` явно считаются scaffold до появления реального кода, а минимальная CI-проверка должна выполнять `py_compile` и `pytest tests/asu_june_bot`.

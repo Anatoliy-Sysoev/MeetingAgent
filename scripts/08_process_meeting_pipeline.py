@@ -227,8 +227,12 @@ def mark_failed(meeting_path: Path, meeting: dict[str, Any] | None, exc: BaseExc
     }
     try:
         artifacts07.write_json_atomic(meeting_path, meeting)
-    except Exception:
-        pass
+    except Exception as write_exc:  # noqa: BLE001 - failure persistence must not hide original error.
+        print(
+            f"WARNING[{stage}]: failed to persist meeting failed state to {meeting_path}: {write_exc}",
+            file=sys.stderr,
+            flush=True,
+        )
 
 
 def cut_window_audio(media_path: Path, audio_path: Path, window: WindowSpec, force: bool) -> bool:

@@ -376,12 +376,14 @@ structural_validation_errors
 
 ## Известные риски
 
+- После hardening 2026-05-20 проверить full realistic 100 eval заново: guard и retrieval теперь должны иначе обрабатывать SQL/delete, Bearer Token/JWT/OAuth/LDAPS и quality diagnostics.
 - Metadata `section/requirement_id` пока может шуметь на табличных chunks.
 - ChromaDB локально нестабилен на загрузке HNSW-индекса, поэтому не должен быть критической зависимостью для поиска.
 - Сгенерированные документы требуют строгого ревью источников.
 - `qwen3:8b` на CPU может быть слишком медленным для интерактивного чата при большом prompt.
 - `qwen3:4b` может вернуть пустой `response` без HTTP-ошибки; такой случай должен считаться `llm_empty_response`, а не успешным ответом.
 - Structural validation не ловит все semantic hallucinations.
+- Оптимизировать `NumpyRagIndex.query` с `np.argsort` на `np.argpartition`, когда корпус вырастет и сортировка всего массива станет измеримой проблемой.
 
 ## Восстановление контекста в новом треде
 

@@ -8,55 +8,23 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import requests
 
 from rag_common import (
     append_query_log,
     ensure_runtime_dirs,
     is_excluded_by_path_patterns,
+    is_sensitive_query,
     jsonl_read,
     load_config,
     resolve_work_path,
     stable_id,
 )
 from rag_numpy_backend import index_exists, load_index
+from rag_ollama import ollama_embed, ollama_generate
 
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
-
-
-def ollama_embed(base_url: str, model: str, text: str, num_ctx: int = 8192, keep_alive: str = "24h") -> list[float]:
-    resp = requests.post(
-        f"{base_url.rstrip('/')}/api/embeddings",
-        json={
-            "model": model,
-            "prompt": text,
-            "keep_alive": keep_alive,
-            "options": {"num_ctx": num_ctx},
-        },
-        timeout=120,
-    )
-    resp.raise_for_status()
-    return resp.json()["embedding"]
-
-
-def ollama_chat(base_url: str, model: str, prompt: str, temperature: float, top_p: float) -> str:
-    resp = requests.post(
-        f"{base_url.rstrip('/')}/api/generate",
-        json={
-            "model": model,
-            "prompt": prompt,
-            "stream": False,
-            "options": {
-                "temperature": temperature,
-                "top_p": top_p,
-            },
-        },
-        timeout=300,
-    )
-    resp.raise_for_status()
-    return resp.json().get("response", "").strip()
 
 
 def build_prompt(question: str, contexts: list[dict[str, Any]]) -> str:
@@ -228,6 +196,22 @@ def main() -> None:
     cfg = load_config()
     ensure_runtime_dirs(cfg)
 
+    if is_sensitive_query(question):
+        refusal = {
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "question": question,
+            "status": "refused",
+            "refusal_reason": "sensitive_or_harmful_request",
+            "answer": "Запрос отклонён: утилита отвечает только по проектным материалам и не обрабатывает секреты, системные инструкции или опасные SQL/security-действия.",
+            "contexts": [],
+        }
+        if args.raw:
+            print(json.dumps(refusal, ensure_ascii=False, indent=2))
+        else:
+            print(refusal["answer"])
+        append_query_log({"source": "04_query", "question": question, "status": "refused", "refusal_reason": refusal["refusal_reason"]}, cfg)
+        return
+
     base_url = cfg["ollama"]["base_url"]
     embedding_model = cfg["ollama"]["embedding_model"]
     embedding_num_ctx = int(cfg["ollama"].get("embedding_num_ctx", 8192))
@@ -308,7 +292,7 @@ def main() -> None:
         return
 
     prompt = build_prompt(question, contexts)
-    answer = ollama_chat(base_url, chat_model, prompt, temperature, top_p)
+    answer = ollama_generate(base_url, chat_model, prompt, temperature, top_p, timeout=300)
     print(answer)
     append_query_log({**log_record, "mode": "llm", "answer": answer}, cfg)
 
