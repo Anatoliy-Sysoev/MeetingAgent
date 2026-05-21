@@ -13,6 +13,7 @@ from rag_retrieval_quality import (
     lexical_score,
     quality_confidence,
     rerank_contexts,
+    source_quality_decision,
 )
 
 
@@ -176,7 +177,6 @@ def targeted_contexts(chat: Any, cfg: dict[str, Any], question: str, limit: int)
 
 
 def reattach_quality_to_contexts(question: str, contexts: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    # document_expansion creates fresh contexts and drops quality metadata. Recompute it here.
     return rerank_contexts(question, contexts, len(contexts))
 
 
@@ -221,8 +221,6 @@ def patch_chat(chat: Any) -> None:
         no_dedupe: bool,
     ) -> list[dict[str, Any]]:
         chat._quality_current_question = question
-        # Oversampling before lexical/section-aware rerank. This keeps the same public top_k,
-        # but gives the reranker enough candidates for structured documents such as FTT/PMI.
         oversampled_top_k = max(top_k * 8, top_k, 48)
         raw_contexts = original_query_contexts(
             cfg,
@@ -273,6 +271,9 @@ def patch_chat(chat: Any) -> None:
         details: str | None = None,
     ) -> dict[str, Any]:
         result = original_answer_response(question, answer, sources, threshold, answer_mode, details)
+
+        quality_gate = source_quality_decision(sources)
+
         result["confidence"] = quality_confidence(sources, threshold, answer)
         result.setdefault("diagnostics", {})
         result["diagnostics"]["retrieval_quality"] = {
@@ -280,7 +281,15 @@ def patch_chat(chat: Any) -> None:
             "rerank": "hybrid_vector_lexical_with_targeted_scan",
             "oversampling": "top_k_x8_min_48",
             "top_source_quality": sources[0].get("quality") if sources else None,
+            "source_quality_gate": quality_gate,
         }
+
+        if not quality_gate.get("ok"):
+            result["status"] = "no_answer"
+            result["refusal_reason"] = quality_gate.get("reason") or "insufficient_grounding_in_sources"
+            result["diagnostics"]["weak_source_gate_triggered"] = True
+            return result
+
         if has_no_answer_marker(answer):
             result["status"] = "no_answer"
             result["refusal_reason"] = "insufficient_grounding_in_sources"
@@ -303,8 +312,6 @@ def patch_chat(chat: Any) -> None:
                     "matched_terms": quality.get("matched_terms"),
                     "matched_numbers": quality.get("matched_numbers"),
                     "phrase_matches": quality.get("phrase_matches"),
-                    "target_path_labels": quality.get("target_path_labels"),
-                    "path_target_match": quality.get("path_target_match"),
                 }
             )
         return record
