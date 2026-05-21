@@ -12,12 +12,17 @@ rag:
   search_backend: "numpy"
   chunk_size_chars: 3000
   chunk_overlap_chars: 300
-  top_k: 12
-  max_context_chars: 24000
+  # Быстрый CPU-профиль ProjectBot; CLI scripts/09_chat.py читает эти значения как default.
+  top_k: 4
+  score_threshold: 0.35
+  min_sources: 1
+  max_context_chars: 6000
 
 generation:
-  temperature: 0.2
-  top_p: 0.9
+  temperature: 0.1
+  top_p: 0.8
+  num_predict: 700
+  timeout_sec: 180
 
 transcription:
   model: "large-v3-turbo"

@@ -1,0 +1,20 @@
+# Runtime and test dependencies for MeetingAgent / Project Knowledge Bot.
+# Keep secrets and machine-local model caches out of this file.
+beautifulsoup4
+fastapi
+faster-whisper
+httpx
+jsonschema
+lxml
+numpy
+openpyxl
+pandas
+pydantic
+PyMuPDF
+pytest
+python-docx
+python-pptx
+PyYAML
+requests
+tqdm
+uvicorn

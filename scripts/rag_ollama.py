@@ -8,10 +8,10 @@ SRC_DIR = WORK_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from asu_june_bot.retrieval.numpy_backend import (  # noqa: E402,F401
-    NumpyRagIndex,
-    build_index,
-    index_exists,
-    load_embedding_cache,
-    load_index,
+from asu_june_bot.llm.ollama_common import (  # noqa: E402,F401
+    OllamaUnavailableError,
+    normalize_llm_answer,
+    ollama_chat,
+    ollama_embed,
+    ollama_generate,
 )
