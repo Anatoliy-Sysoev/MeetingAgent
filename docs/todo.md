@@ -22,6 +22,9 @@ project security allowlist
 compact realistic review builder
 FTT section-aware rerank
 FTT requirement-id routing
+source tiering
+hard doc-type routing
+low-priority source penalties
 ```
 
 Новые retrieval-компоненты:
@@ -62,12 +65,16 @@ python scripts/18_targeted_bucket_eval.py --review data/realistic_500_eval_revie
 python scripts/18_targeted_bucket_eval.py --review data/realistic_500_eval_review.jsonl --bucket soi_nsi_mdr_bearer
 ```
 
-Expected first validation target:
+Expected validation targets:
 
 ```text
 reduce ftt_missing
-reduce low_score in FTT category
-increase exact section grounding
+reduce soi_ad_missing
+reduce pr_missing
+reduce cta_missing
+reduce soi_nsi_mdr_bearer
+reduce garbage_source
+reduce low_score
 ```
 
 ### Priority 2
@@ -121,6 +128,25 @@ ftt_section_boost
 FTT path-aware retrieval
 ```
 
+Implemented hard routing:
+
+```text
+source_tier
+hard_route_boost
+hard_route_penalty
+unknown-doc penalties
+low-priority penalties
+```
+
+Implemented routing expansions:
+
+```text
+AD/LDAPS anchors
+Bearer/MDR/НСИ anchors
+CTA infra anchors
+PR business-flow anchors
+```
+
 Source tiering roadmap:
 
 ```text
@@ -143,9 +169,25 @@ site export
 
 Tier 4:
 raw json/api dumps
+HAR/network exports
+DOM exports
 ```
 
 ### Priority 3
+
+```text
+guard refinement
+```
+
+Need:
+
+```text
+project security allowlist hardening
+JWT/Bearer/LDAPS project-safe routing
+harmful payload separation
+```
+
+### Priority 4
 
 ```text
 realistic-500 rerun after retrieval fixes
@@ -161,7 +203,7 @@ remove hallucination
 increase grounded answered
 ```
 
-### Priority 4
+### Priority 5
 
 ```text
 stable approved regression corpus
