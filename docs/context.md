@@ -208,14 +208,27 @@ Guard evolution:
 ```text
 harmful security queries -> refused
 project security/auth questions -> allowed
+project-safe security lookup -> allowed
 ```
 
-Примеры allowed:
+Project-safe allowlist:
 
 ```text
 Bearer Token MDR
 JWT/OAuth/OIDC в проекте
 LDAPS/AD интеграция
+DN/UPN
+app_ccpm группы
+порт 636
+```
+
+Allowed project-safe lookups:
+
+```text
+где описан JWT
+как используется Bearer Token
+какие меры защиты описаны в ЦТА
+как интегрирован LDAPS
 ```
 
 Примеры refused:
@@ -225,4 +238,6 @@ SQL injection payload
 взлом
 обход авторизации
 эксплойт
+получить токен
+вытащить пароль
 ```
