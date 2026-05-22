@@ -20,6 +20,8 @@ bucket-driven retrieval expansion
 harmful security guard
 project security allowlist
 compact realistic review builder
+FTT section-aware rerank
+FTT requirement-id routing
 ```
 
 Новые retrieval-компоненты:
@@ -58,6 +60,14 @@ python scripts/18_targeted_bucket_eval.py --review data/realistic_500_eval_revie
 python scripts/18_targeted_bucket_eval.py --review data/realistic_500_eval_review.jsonl --bucket pr_missing
 python scripts/18_targeted_bucket_eval.py --review data/realistic_500_eval_review.jsonl --bucket soi_ad_missing
 python scripts/18_targeted_bucket_eval.py --review data/realistic_500_eval_review.jsonl --bucket soi_nsi_mdr_bearer
+```
+
+Expected first validation target:
+
+```text
+reduce ftt_missing
+reduce low_score in FTT category
+increase exact section grounding
 ```
 
 ### Priority 2
@@ -100,6 +110,15 @@ prioritize exact requirement ids:
 4.3
 9.6
 10.8
+```
+
+Implemented in rerank:
+
+```text
+exact_ftt_section_matches
+ftt_section_hint_matches
+ftt_section_boost
+FTT path-aware retrieval
 ```
 
 Source tiering roadmap:
