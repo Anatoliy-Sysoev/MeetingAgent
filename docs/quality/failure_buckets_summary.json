@@ -1,0 +1,30 @@
+[
+  {
+    "bucket": "ФТТ не находится",
+    "count": 98
+  },
+  {
+    "bucket": "MDR/НСИ/Bearer Token ломается",
+    "count": 30
+  },
+  {
+    "bucket": "ПР не находится",
+    "count": 44
+  },
+  {
+    "bucket": "Прочие retrieval/review проблемы",
+    "count": 174
+  },
+  {
+    "bucket": "ЦТА не находится",
+    "count": 35
+  },
+  {
+    "bucket": "СоИ AD/LDAPS не находится",
+    "count": 49
+  },
+  {
+    "bucket": "hallucination при слабых источниках",
+    "count": 2
+  }
+]
