@@ -63,10 +63,10 @@ FTT_SECTION_HINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 DOC_TYPE_HINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("ftt", ("фтт", "функционально-технические", "задание заказчика", "таблица 8")),
-    ("pr", ("проектное решение", "пр_смр", "строительный_контроль", "сценарии функционирования", "статусная схема")),
-    ("cta", ("цта", "целевая техническая архитектура", "архитектура", "kubernetes", "postgresql", "minio")),
-    ("soi_ad", ("сои_ad", "active directory", "ad.docx", "ldaps", "группы ad")),
-    ("soi_nsi", ("сои_справочники", "справочники", "mdr", "кшд", "bearer")),
+    ("pr", ("проектное решение", "пр_смр", "строительный_контроль", "сценарии функционирования", "статусная схема", "модуль строительный контроль")),
+    ("cta", ("цта", "целевая техническая архитектура", "архитектура", "kubernetes", "postgresql", "minio", "loki", "grafana")),
+    ("soi_ad", ("сои_ad", "active directory", "ad.docx", "ldaps", "группы ad", "учетные записи")),
+    ("soi_nsi", ("сои_справочники", "справочники", "mdr", "кшд", "bearer", "нси")),
     ("pmi", ("пми", "программа и методика", "сценарии испытаний", "сфт", "снт")),
     ("psi", ("пси", "протокол испытаний")),
     ("passport", ("паспорт ис", "паспорт_ис")),
@@ -74,13 +74,24 @@ DOC_TYPE_HINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 QUERY_TO_DOC_TYPE: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("ftt", ("фтт", "требован", "4.1", "4.2", "4.3", "9.6", "10.8", "2520", "600 одновременно")),
-    ("pr", ("проектное решение", "как реализовано", "статус", "бизнес-процесс", "сценарии функционирования", "роль")),
-    ("cta", ("цта", "архитектур", "postgresql", "minio", "kubernetes", "loki", "grafana", "siem", "rto", "rpo")),
-    ("soi_ad", ("active directory", "ldaps", "групп", "учетн", "авторизац", "ad")),
-    ("soi_nsi", ("mdr", "кшд", "справоч", "нси", "bearer", "rest api")),
+    ("pr", ("проектное решение", "как реализовано", "статус", "бизнес-процесс", "сценарии функционирования", "роль", "дашборд", "предписание", "акт проверки")),
+    ("cta", ("цта", "архитектур", "postgresql", "minio", "kubernetes", "loki", "grafana", "siem", "rto", "rpo", "контур", "сервер")),
+    ("soi_ad", ("active directory", "ldaps", "ldap", "групп", "учетн", "авторизац", "ad", "app_ccpm", "dn", "upn", "636")),
+    ("soi_nsi", ("mdr", "кшд", "справоч", "нси", "bearer", "rest api", "external_id", "deletion_mark", "is_actual", "контрагент", "организац")),
     ("pmi", ("пми", "сфт", "снт", "сценар", "методик")),
     ("psi", ("пси", "протокол испыт", "открытые вопросы", "рекомендац")),
 )
+
+TIER1_DOC_TYPES = {"ftt", "pr", "cta", "soi_ad", "soi_nsi"}
+TIER2_DOC_TYPES = {"pmi", "psi", "passport"}
+TIER3_PATH_HINTS = (
+    "transcript", "транскрип", "subtitles", ".srt", ".vtt", "макет", "макеты", "инструкции сайта",
+    "_analysis", "site_review", "site export", "docs_html", "docs_text", "pages_html", "pages_text",
+)
+TIER4_PATH_HINTS = (
+    "api-", "raw", "dump", "json", "har", "network", "console", "dom.html", "ui-inventory", "mutating-requests",
+)
+LOW_PRIORITY_EXTENSIONS = {".json", ".har", ".html", ".htm", ".srt", ".vtt", ".tsv", ".log"}
 
 
 def normalize_text(text: str) -> str:
@@ -104,6 +115,63 @@ def extract_ftt_sections(text: str) -> set[str]:
     numbers = extract_numbers_and_sections(text)
     known = {section for section, _ in FTT_SECTION_HINTS}
     return {number for number in numbers if number in known}
+
+
+def extension_from_path(relative_path: str) -> str:
+    path = str(relative_path or "").lower()
+    match = re.search(r"(\.[a-z0-9]+)$", path)
+    return match.group(1) if match else ""
+
+
+def is_low_priority_question(question: str) -> bool:
+    lowered = normalize_text(question)
+    return any(term in lowered for term in ("макет", "инструкция сайта", "транскрип", "лог", "json", "api dump", "har", "dom"))
+
+
+def source_tier(relative_path: str, actual_doc_type: str | None, question: str = "") -> dict[str, Any]:
+    path = normalize_text(relative_path)
+    ext = extension_from_path(relative_path)
+    explicit_low_priority_question = is_low_priority_question(question)
+    if actual_doc_type in TIER1_DOC_TYPES:
+        return {"source_tier": 1, "source_tier_reason": f"tier1_doc_type:{actual_doc_type}", "source_tier_penalty": 0.0}
+    if actual_doc_type in TIER2_DOC_TYPES:
+        return {"source_tier": 2, "source_tier_reason": f"tier2_doc_type:{actual_doc_type}", "source_tier_penalty": 0.0}
+    if any(hint in path for hint in TIER4_PATH_HINTS) or ext in LOW_PRIORITY_EXTENSIONS:
+        penalty = 0.02 if explicit_low_priority_question else 0.22
+        return {"source_tier": 4, "source_tier_reason": "tier4_raw_export_or_low_priority_extension", "source_tier_penalty": penalty}
+    if any(hint in path for hint in TIER3_PATH_HINTS):
+        penalty = 0.02 if explicit_low_priority_question else 0.16
+        return {"source_tier": 3, "source_tier_reason": "tier3_transcript_mockup_or_analysis", "source_tier_penalty": penalty}
+    return {"source_tier": 2, "source_tier_reason": "tier2_default_project_artifact", "source_tier_penalty": 0.0}
+
+
+def doc_type_routing_signal(question: str, actual_doc_type: str | None, relative_path: str) -> dict[str, Any]:
+    expected_docs = expected_doc_types(question)
+    tier = source_tier(relative_path, actual_doc_type, question)
+    doc_type_match = bool(actual_doc_type and actual_doc_type in expected_docs)
+    doc_type_mismatch = bool(expected_docs and actual_doc_type and actual_doc_type not in expected_docs)
+    unknown_when_expected = bool(expected_docs and not actual_doc_type)
+    hard_route_penalty = 0.0
+    hard_route_boost = 0.0
+    if doc_type_match:
+        hard_route_boost += 0.14
+    if doc_type_mismatch:
+        hard_route_penalty += 0.18
+    if unknown_when_expected and int(tier["source_tier"]) >= 3:
+        hard_route_penalty += 0.18
+    elif unknown_when_expected:
+        hard_route_penalty += 0.08
+    hard_route_penalty += float(tier["source_tier_penalty"])
+    return {
+        "expected_doc_types": sorted(expected_docs),
+        "actual_doc_type": actual_doc_type,
+        "doc_type_match": doc_type_match,
+        "doc_type_mismatch": doc_type_mismatch,
+        "unknown_doc_type_when_expected": unknown_when_expected,
+        "hard_route_boost": round(hard_route_boost, 6),
+        "hard_route_penalty": round(min(hard_route_penalty, 0.45), 6),
+        **tier,
+    }
 
 
 def ftt_section_signal(question: str, document: str, relative_path: str = "") -> dict[str, Any]:
@@ -185,13 +253,13 @@ def build_quality_expansion(question: str) -> str:
     if "ftt" in docs:
         extras.extend(["ФТТ", "функционально-технические требования", "Таблица 8", "Этап 1", "СМР Строительный контроль"])
     if "pr" in docs:
-        extras.extend(["Проектное решение", "сценарии функционирования", "статусная схема", "роли", "права доступа"])
+        extras.extend(["Проектное решение", "сценарии функционирования", "статусная схема", "роли", "права доступа", "Core API", "Disk API", "Building API"])
     if "cta" in docs:
-        extras.extend(["ЦТА", "целевая техническая архитектура", "PostgreSQL", "MinIO", "Kubernetes", "Grafana Loki", "SIEM", "RTO", "RPO"])
+        extras.extend(["ЦТА", "целевая техническая архитектура", "PostgreSQL", "MinIO", "Kubernetes", "Grafana Loki", "SIEM", "RTO", "RPO", "контур"])
     if "soi_ad" in docs:
-        extras.extend(["СОИ AD", "Active Directory", "LDAPS", "порт 636", "группы AD", "учетные записи", "авторизация"])
+        extras.extend(["СОИ AD", "Active Directory", "LDAPS", "порт 636", "группы AD", "учетные записи", "авторизация", "DN", "UPN", "app_ccpm"])
     if "soi_nsi" in docs:
-        extras.extend(["СОИ Справочники", "MDR", "КШД", "НСИ", "справочники", "Bearer Token", "REST API"])
+        extras.extend(["СОИ Справочники", "MDR", "КШД", "НСИ", "справочники", "Bearer Token", "REST API", "external_id", "deletion_mark"])
     if "pmi" in docs:
         extras.extend(["ПМИ", "СФТ", "СНТ", "сценарии испытаний", "программа и методика испытаний"])
     if "psi" in docs:
@@ -264,11 +332,13 @@ def lexical_score(question: str, document: str, relative_path: str = "") -> dict
     ftt_signal = ftt_section_signal(question_norm, document_norm, path_norm)
     ftt_section_boost = float(ftt_signal.get("ftt_section_boost", 0.0) or 0.0)
 
-    expected_docs = expected_doc_types(question_norm)
     actual_doc = path_doc_type(path_norm)
-    doc_type_match = bool(actual_doc and actual_doc in expected_docs)
-    doc_type_mismatch = bool(expected_docs and actual_doc and actual_doc not in expected_docs)
+    routing = doc_type_routing_signal(question_norm, actual_doc, relative_path)
+    doc_type_match = bool(routing["doc_type_match"])
+    doc_type_mismatch = bool(routing["doc_type_mismatch"])
     path_boost = 0.16 if doc_type_match else 0.0
+    hard_route_boost = float(routing.get("hard_route_boost", 0.0) or 0.0)
+    hard_route_penalty = float(routing.get("hard_route_penalty", 0.0) or 0.0)
 
     phrase_bonus = min(0.30, 0.06 * len(set(phrase_matches)))
     number_bonus = 0.30 * number_overlap
@@ -276,7 +346,7 @@ def lexical_score(question: str, document: str, relative_path: str = "") -> dict
     token_bonus = 0.24 * token_overlap
     mismatch_penalty = 0.10 if doc_type_mismatch else 0.0
 
-    score = max(0.0, min(1.0, token_bonus + term_bonus + number_bonus + phrase_bonus + path_boost + bucket_boost + ftt_section_boost - mismatch_penalty))
+    score = max(0.0, min(1.0, token_bonus + term_bonus + number_bonus + phrase_bonus + path_boost + hard_route_boost + bucket_boost + ftt_section_boost - mismatch_penalty - hard_route_penalty))
 
     return {
         "lexical_score": round(score, 6),
@@ -287,13 +357,10 @@ def lexical_score(question: str, document: str, relative_path: str = "") -> dict
         "matched_terms": matched_terms,
         "matched_numbers": matched_numbers,
         "phrase_matches": sorted(set(phrase_matches)),
-        "expected_doc_types": sorted(expected_docs),
-        "actual_doc_type": actual_doc,
-        "doc_type_match": doc_type_match,
-        "doc_type_mismatch": doc_type_mismatch,
         "path_boost": path_boost,
         "bucket_boost": bucket_boost,
         "bucket_signals": bucket_signal.get("bucket_signals", []),
+        **routing,
         **ftt_signal,
     }
 
@@ -311,16 +378,18 @@ def rerank_contexts(question: str, contexts: list[dict[str, Any]], top_k: int) -
         if q.get("matched_numbers"):
             final_score = min(1.0, final_score + 0.09)
         if q.get("doc_type_match"):
-            final_score = min(1.0, final_score + 0.08)
+            final_score = min(1.0, final_score + 0.10)
         if q.get("exact_ftt_section_matches"):
             final_score = min(1.0, final_score + 0.14)
         if q.get("ftt_section_hint_matches"):
             final_score = min(1.0, final_score + 0.08)
         if q.get("bucket_signals"):
             final_score = min(1.0, final_score + min(0.12, float(q.get("bucket_boost", 0.0) or 0.0)))
+        final_score = min(1.0, final_score + float(q.get("hard_route_boost", 0.0) or 0.0))
+        final_score = max(0.0, final_score - float(q.get("hard_route_penalty", 0.0) or 0.0))
         if q.get("doc_type_mismatch"):
-            final_score = max(0.0, final_score - 0.08)
-        meta["retrieval"] = "hybrid_vector_lexical_bucket_section"
+            final_score = max(0.0, final_score - 0.10)
+        meta["retrieval"] = "hybrid_vector_lexical_bucket_section_tiered"
         meta["quality"] = {
             **q,
             "vector_score": round(vector_score, 6),
@@ -344,11 +413,13 @@ def source_quality_decision(sources: list[dict[str, Any]], min_lexical: float = 
     path_boost = float(quality.get("path_boost", 0.0) or 0.0)
     bucket_boost = float(quality.get("bucket_boost", 0.0) or 0.0)
     ftt_section_boost = float(quality.get("ftt_section_boost", 0.0) or 0.0)
+    hard_route_boost = float(quality.get("hard_route_boost", 0.0) or 0.0)
     bucket_signals = quality.get("bucket_signals") or []
     doc_type_match = bool(quality.get("doc_type_match"))
     ftt_section_match = bool(quality.get("exact_ftt_section_matches") or quality.get("ftt_section_hint_matches"))
-    strong_anchor = bool(matched_terms or matched_numbers or phrase_matches or path_boost > 0 or bucket_boost > 0 or ftt_section_boost > 0 or bucket_signals or doc_type_match or ftt_section_match)
-    ok = lexical >= min_lexical or strong_anchor
+    source_tier_value = int(quality.get("source_tier") or 2)
+    strong_anchor = bool(matched_terms or matched_numbers or phrase_matches or path_boost > 0 or bucket_boost > 0 or ftt_section_boost > 0 or hard_route_boost > 0 or bucket_signals or doc_type_match or ftt_section_match)
+    ok = (lexical >= min_lexical or strong_anchor) and not (source_tier_value >= 4 and not doc_type_match and lexical < 0.35)
     return {
         "ok": ok,
         "reason": None if ok else WEAK_SOURCE_REASON,
@@ -359,8 +430,13 @@ def source_quality_decision(sources: list[dict[str, Any]], min_lexical: float = 
         "path_boost": path_boost,
         "bucket_boost": bucket_boost,
         "ftt_section_boost": ftt_section_boost,
+        "hard_route_boost": hard_route_boost,
+        "hard_route_penalty": quality.get("hard_route_penalty"),
+        "source_tier": quality.get("source_tier"),
+        "source_tier_reason": quality.get("source_tier_reason"),
         "bucket_signals": bucket_signals,
         "doc_type_match": doc_type_match,
+        "doc_type_mismatch": quality.get("doc_type_mismatch"),
         "ftt_section_match": ftt_section_match,
         "expected_doc_types": quality.get("expected_doc_types") or [],
         "actual_doc_type": quality.get("actual_doc_type"),
@@ -383,6 +459,7 @@ def quality_confidence(sources: list[dict[str, Any]], threshold: float, answer: 
     doc_type_match = bool(quality.get("doc_type_match"))
     bucket_signals = quality.get("bucket_signals") or []
     ftt_section_match = bool(quality.get("exact_ftt_section_matches") or quality.get("ftt_section_hint_matches"))
+    source_tier_value = int(quality.get("source_tier") or 2)
 
     base = min(0.90, max(0.0, (top_score - threshold) / max(1.0 - threshold, 1e-6)))
     if lexical < 0.15:
@@ -397,13 +474,17 @@ def quality_confidence(sources: list[dict[str, Any]], threshold: float, answer: 
     if matched_numbers:
         base = min(0.97, base + 0.08 * min(len(matched_numbers), 2))
     if doc_type_match:
-        base = min(0.97, base + 0.06)
+        base = min(0.97, base + 0.08)
     if ftt_section_match:
         base = min(0.98, base + 0.10)
     if bucket_signals:
         base = min(0.97, base + 0.06)
     if term_overlap >= 0.75 or number_overlap >= 0.75:
         base = min(0.98, base + 0.08)
+    if source_tier_value >= 3 and not doc_type_match:
+        base *= 0.65
+    if source_tier_value >= 4 and not doc_type_match:
+        base *= 0.45
 
     if answer and has_no_answer_marker(answer):
         base = min(base, 0.25)
