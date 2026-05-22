@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from rag_bucket_quality import detect_buckets, path_matches_bucket
 from rag_common import is_harmful_security_query, is_project_auth_query
 from rag_retrieval_quality import (
     build_quality_expansion,
@@ -18,64 +19,6 @@ from rag_retrieval_quality import (
 
 
 CHAT_PATH = Path(__file__).with_name("09_chat.py")
-
-PROJECT_AUTH_ALLOW_TERMS = (
-    "bearer",
-    "jwt",
-    "oauth",
-    "oidc",
-    "ldaps",
-    "blitz",
-)
-
-PROJECT_AUTH_CONTEXT_TERMS = (
-    "цп упкс",
-    "сои",
-    "интеграц",
-    "справоч",
-    "mdr",
-    "active directory",
-    " ad ",
-    "авторизац",
-)
-
-HARMFUL_SECURITY_TERMS = (
-    "sql injection",
-    "sql-инъек",
-    "sql инъек",
-    "инъекц",
-    "эксплойт",
-    "эксплуат",
-    "взлом",
-)
-
-HARMFUL_SECURITY_ACTION_TERMS = (
-    "как выполнить",
-    "как сделать",
-    "как провести",
-    "как написать",
-    "обойти",
-    "сломать",
-    "взломать",
-    "украсть",
-    "получить токен",
-    "вытащить пароль",
-    "payload",
-    "пейлоад",
-)
-
-PROJECT_SECURITY_LOOKUP_TERMS = (
-    "фтт",
-    "требован",
-    "проект",
-    "документ",
-    "описан",
-    "указан",
-    "защит",
-    "мер",
-    "сои",
-    "цта",
-)
 
 TARGET_PATH_CHECKS = {
     "ftt": ("фтт", "функционально-технические"),
@@ -120,9 +63,12 @@ def target_labels(question: str) -> set[str]:
     return labels
 
 
-def path_matches(relative_path: str, labels: set[str]) -> bool:
+def path_matches(relative_path: str, labels: set[str], question: str = "") -> bool:
     path = norm(relative_path)
-    return any(any(fragment in path for fragment in TARGET_PATH_CHECKS.get(label, ())) for label in labels)
+    static_match = any(any(fragment in path for fragment in TARGET_PATH_CHECKS.get(label, ())) for label in labels)
+    if static_match:
+        return True
+    return any(path_matches_bucket(relative_path, bucket) for bucket in detect_buckets(question))
 
 
 def row_to_context(row: dict[str, Any], score: float, retrieval: str) -> dict[str, Any]:
@@ -148,7 +94,8 @@ def row_to_context(row: dict[str, Any], score: float, retrieval: str) -> dict[st
 
 def targeted_contexts(chat: Any, cfg: dict[str, Any], question: str, limit: int) -> list[dict[str, Any]]:
     labels = target_labels(question)
-    if not labels:
+    buckets = detect_buckets(question)
+    if not labels and not buckets:
         return []
 
     chunks_path = chat.resolve_work_path(cfg, cfg["paths"].get("chunks", "data/chunks.jsonl"))
@@ -158,15 +105,22 @@ def targeted_contexts(chat: Any, cfg: dict[str, Any], question: str, limit: int)
     scored: list[dict[str, Any]] = []
     for row in chat.jsonl_read(chunks_path):
         relative_path = str(row.get("relative_path") or "")
-        if not path_matches(relative_path, labels):
+        if not path_matches(relative_path, labels, question):
             continue
         text = str(row.get("text") or "")
         q = lexical_score(question, text, relative_path)
         lexical = float(q.get("lexical_score", 0.0) or 0.0)
-        if lexical < 0.20 and not q.get("matched_numbers") and not q.get("phrase_matches"):
+        if lexical < 0.16 and not q.get("matched_numbers") and not q.get("phrase_matches") and not q.get("bucket_signals"):
             continue
-        score = min(1.0, 0.30 + lexical + (0.12 if q.get("matched_numbers") else 0.0) + (0.08 if q.get("phrase_matches") else 0.0))
-        ctx = row_to_context(row, score, "targeted_lexical_scan")
+        score = min(
+            1.0,
+            0.30
+            + lexical
+            + (0.12 if q.get("matched_numbers") else 0.0)
+            + (0.08 if q.get("phrase_matches") else 0.0)
+            + min(0.12, float(q.get("bucket_boost", 0.0) or 0.0)),
+        )
+        ctx = row_to_context(row, score, "targeted_bucket_scan")
         meta = dict(ctx["metadata"])
         meta["quality"] = {**q, "vector_score": 0.0, "final_score": round(score, 6)}
         ctx["metadata"] = meta
@@ -278,7 +232,7 @@ def patch_chat(chat: Any) -> None:
         result.setdefault("diagnostics", {})
         result["diagnostics"]["retrieval_quality"] = {
             "enabled": True,
-            "rerank": "hybrid_vector_lexical_with_targeted_scan",
+            "rerank": "hybrid_vector_lexical_bucket_with_targeted_scan",
             "oversampling": "top_k_x8_min_48",
             "top_source_quality": sources[0].get("quality") if sources else None,
             "source_quality_gate": quality_gate,
@@ -312,6 +266,8 @@ def patch_chat(chat: Any) -> None:
                     "matched_terms": quality.get("matched_terms"),
                     "matched_numbers": quality.get("matched_numbers"),
                     "phrase_matches": quality.get("phrase_matches"),
+                    "bucket_boost": quality.get("bucket_boost"),
+                    "bucket_signals": quality.get("bucket_signals"),
                 }
             )
         return record
