@@ -4,6 +4,8 @@ import re
 from collections import Counter
 from typing import Any
 
+from rag_bucket_quality import bucket_doc_types, bucket_expansion, bucket_source_signal
+
 
 NO_ANSWER_MARKERS = (
     "недостаточно информации",
@@ -108,6 +110,7 @@ def extract_domain_terms(text: str) -> set[str]:
     for doc_type, hints in QUERY_TO_DOC_TYPE:
         if any(hint in lowered for hint in hints):
             terms.add(f"doc_type:{doc_type}")
+    terms.update(f"doc_type:{doc_type}" for doc_type in bucket_doc_types(text))
     return terms
 
 
@@ -117,6 +120,7 @@ def expected_doc_types(question: str) -> set[str]:
     for doc_type, hints in QUERY_TO_DOC_TYPE:
         if any(hint in lowered for hint in hints):
             out.add(doc_type)
+    out.update(bucket_doc_types(question))
     return out
 
 
@@ -147,6 +151,8 @@ def build_quality_expansion(question: str) -> str:
         extras.extend(["ПМИ", "СФТ", "СНТ", "сценарии испытаний", "программа и методика испытаний"])
     if "psi" in docs:
         extras.extend(["ПСИ", "протокол испытаний", "открытые вопросы", "рекомендации", "результаты испытаний"])
+
+    extras.extend(bucket_expansion(question))
 
     for section, hints in FTT_SECTION_HINTS:
         if section in lowered or any(hint in lowered for hint in hints):
@@ -208,6 +214,9 @@ def lexical_score(question: str, document: str, relative_path: str = "") -> dict
             if hint in question_norm and hint in document_norm:
                 phrase_matches.append(hint)
 
+    bucket_signal = bucket_source_signal(question_norm, document_norm, path_norm)
+    bucket_boost = float(bucket_signal.get("bucket_boost", 0.0) or 0.0)
+
     expected_docs = expected_doc_types(question_norm)
     actual_doc = path_doc_type(path_norm)
     doc_type_match = bool(actual_doc and actual_doc in expected_docs)
@@ -220,7 +229,7 @@ def lexical_score(question: str, document: str, relative_path: str = "") -> dict
     token_bonus = 0.24 * token_overlap
     mismatch_penalty = 0.10 if doc_type_mismatch else 0.0
 
-    score = max(0.0, min(1.0, token_bonus + term_bonus + number_bonus + phrase_bonus + path_boost - mismatch_penalty))
+    score = max(0.0, min(1.0, token_bonus + term_bonus + number_bonus + phrase_bonus + path_boost + bucket_boost - mismatch_penalty))
 
     return {
         "lexical_score": round(score, 6),
@@ -236,6 +245,8 @@ def lexical_score(question: str, document: str, relative_path: str = "") -> dict
         "doc_type_match": doc_type_match,
         "doc_type_mismatch": doc_type_mismatch,
         "path_boost": path_boost,
+        "bucket_boost": bucket_boost,
+        "bucket_signals": bucket_signal.get("bucket_signals", []),
     }
 
 
@@ -246,16 +257,18 @@ def rerank_contexts(question: str, contexts: list[dict[str, Any]], top_k: int) -
         vector_score = float(ctx.get("score", 0.0))
         q = lexical_score(question, str(ctx.get("document", "")), str(meta.get("relative_path", "")))
         lexical = float(q["lexical_score"])
-        final_score = min(1.0, 0.58 * vector_score + 0.42 * lexical)
+        final_score = min(1.0, 0.55 * vector_score + 0.45 * lexical)
         if lexical >= 0.35:
             final_score = min(1.0, final_score + 0.10)
         if q.get("matched_numbers"):
             final_score = min(1.0, final_score + 0.09)
         if q.get("doc_type_match"):
             final_score = min(1.0, final_score + 0.08)
+        if q.get("bucket_signals"):
+            final_score = min(1.0, final_score + min(0.12, float(q.get("bucket_boost", 0.0) or 0.0)))
         if q.get("doc_type_mismatch"):
             final_score = max(0.0, final_score - 0.08)
-        meta["retrieval"] = "hybrid_vector_lexical"
+        meta["retrieval"] = "hybrid_vector_lexical_bucket"
         meta["quality"] = {
             **q,
             "vector_score": round(vector_score, 6),
@@ -277,8 +290,10 @@ def source_quality_decision(sources: list[dict[str, Any]], min_lexical: float = 
     matched_numbers = quality.get("matched_numbers") or []
     phrase_matches = quality.get("phrase_matches") or []
     path_boost = float(quality.get("path_boost", 0.0) or 0.0)
+    bucket_boost = float(quality.get("bucket_boost", 0.0) or 0.0)
+    bucket_signals = quality.get("bucket_signals") or []
     doc_type_match = bool(quality.get("doc_type_match"))
-    strong_anchor = bool(matched_terms or matched_numbers or phrase_matches or path_boost > 0 or doc_type_match)
+    strong_anchor = bool(matched_terms or matched_numbers or phrase_matches or path_boost > 0 or bucket_boost > 0 or bucket_signals or doc_type_match)
     ok = lexical >= min_lexical or strong_anchor
     return {
         "ok": ok,
@@ -288,6 +303,8 @@ def source_quality_decision(sources: list[dict[str, Any]], min_lexical: float = 
         "matched_numbers": matched_numbers,
         "phrase_matches": phrase_matches,
         "path_boost": path_boost,
+        "bucket_boost": bucket_boost,
+        "bucket_signals": bucket_signals,
         "doc_type_match": doc_type_match,
         "expected_doc_types": quality.get("expected_doc_types") or [],
         "actual_doc_type": quality.get("actual_doc_type"),
@@ -306,6 +323,7 @@ def quality_confidence(sources: list[dict[str, Any]], threshold: float, answer: 
     matched_terms = quality.get("matched_terms") or []
     matched_numbers = quality.get("matched_numbers") or []
     doc_type_match = bool(quality.get("doc_type_match"))
+    bucket_signals = quality.get("bucket_signals") or []
 
     base = min(0.90, max(0.0, (top_score - threshold) / max(1.0 - threshold, 1e-6)))
     if lexical < 0.15:
@@ -320,6 +338,8 @@ def quality_confidence(sources: list[dict[str, Any]], threshold: float, answer: 
     if matched_numbers:
         base = min(0.97, base + 0.08 * min(len(matched_numbers), 2))
     if doc_type_match:
+        base = min(0.97, base + 0.06)
+    if bucket_signals:
         base = min(0.97, base + 0.06)
     if term_overlap >= 0.75 or number_overlap >= 0.75:
         base = min(0.98, base + 0.08)
