@@ -25,6 +25,8 @@ FTT requirement-id routing
 source tiering
 hard doc-type routing
 low-priority source penalties
+project-safe security allowlist
+JWT/Bearer/LDAPS safe routing
 ```
 
 Новые retrieval-компоненты:
@@ -63,6 +65,7 @@ python scripts/18_targeted_bucket_eval.py --review data/realistic_500_eval_revie
 python scripts/18_targeted_bucket_eval.py --review data/realistic_500_eval_review.jsonl --bucket pr_missing
 python scripts/18_targeted_bucket_eval.py --review data/realistic_500_eval_review.jsonl --bucket soi_ad_missing
 python scripts/18_targeted_bucket_eval.py --review data/realistic_500_eval_review.jsonl --bucket soi_nsi_mdr_bearer
+python scripts/18_targeted_bucket_eval.py --review data/realistic_500_eval_review.jsonl --bucket guard_wrong_refuse_allow
 ```
 
 Expected validation targets:
@@ -73,6 +76,7 @@ reduce soi_ad_missing
 reduce pr_missing
 reduce cta_missing
 reduce soi_nsi_mdr_bearer
+reduce guard_wrong_refuse_allow
 reduce garbage_source
 reduce low_score
 ```
@@ -147,6 +151,16 @@ CTA infra anchors
 PR business-flow anchors
 ```
 
+Implemented guard refinement:
+
+```text
+project-safe JWT routing
+project-safe Bearer routing
+project-safe LDAPS routing
+safe security lookup separation
+harmful abuse separation
+```
+
 Source tiering roadmap:
 
 ```text
@@ -176,20 +190,6 @@ DOM exports
 ### Priority 3
 
 ```text
-guard refinement
-```
-
-Need:
-
-```text
-project security allowlist hardening
-JWT/Bearer/LDAPS project-safe routing
-harmful payload separation
-```
-
-### Priority 4
-
-```text
 realistic-500 rerun after retrieval fixes
 ```
 
@@ -201,9 +201,10 @@ reduce low_score
 reduce garbage_source
 remove hallucination
 increase grounded answered
+reduce bad_refusal
 ```
 
-### Priority 5
+### Priority 4
 
 ```text
 stable approved regression corpus
