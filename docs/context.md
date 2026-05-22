@@ -65,6 +65,25 @@ review verdicts
   -> realistic rerun
 ```
 
+Targeted rerun теперь сохраняет machine-readable артефакты:
+
+```text
+data/targeted_bucket_eval/<bucket>_<timestamp>.jsonl
+data/targeted_bucket_eval/<bucket>_<timestamp>.summary.json
+```
+
+Summary включает:
+
+```text
+status_counts
+returncode_counts
+parse_errors
+failures
+confidence
+sources_count
+retrieval diagnostics
+```
+
 Approved regression set:
 
 ```text
