@@ -76,27 +76,70 @@ STRICT_SENSITIVE_QUERY_PATTERNS = (
 TOKEN_SENSITIVE_QUERY_PATTERNS = (
     "token",
     "токен",
+    "bearer",
+    "jwt",
 )
 
 PROJECT_AUTH_ALLOW_TERMS = (
     "bearer",
+    "bearer token",
+    "токен",
+    "token",
     "jwt",
     "oauth",
     "oidc",
     "ldaps",
+    "ldap",
+    "active directory",
     "blitz",
+    "блиц",
 )
 
 PROJECT_AUTH_CONTEXT_TERMS = (
     "цп упкс",
+    "проект",
+    "проектн",
+    "документ",
+    "требован",
+    "описан",
+    "указан",
     "сои",
+    "цта",
     "интеграц",
     "справоч",
     "mdr",
+    "кшд",
     "active directory",
     " ad ",
     "авторизац",
+    "аутентификац",
     "нси",
+    "ldaps",
+    "ldap",
+    "порт 636",
+    "групп",
+    "app_ccpm",
+    "dn",
+    "upn",
+)
+
+PROJECT_AUTH_SAFE_ACTION_TERMS = (
+    "что",
+    "как в проекте",
+    "где описан",
+    "где указ",
+    "какой",
+    "какие",
+    "описан",
+    "указан",
+    "используется",
+    "применяется",
+    "работает",
+    "интеграция",
+    "синхронизация",
+    "срок жизни",
+    "авторизация",
+    "аутентификация",
 )
 
 HARMFUL_SECURITY_TERMS = (
@@ -107,6 +150,15 @@ HARMFUL_SECURITY_TERMS = (
     "эксплойт",
     "эксплуат",
     "взлом",
+    "xss",
+    "csrf",
+    "rce",
+    "remote code execution",
+    "privilege escalation",
+    "повышение привилег",
+    "обход авторизации",
+    "обойти авторизацию",
+    "bypass auth",
 )
 
 DESTRUCTIVE_SQL_TERMS = (
@@ -128,20 +180,27 @@ HARMFUL_SECURITY_ACTION_TERMS = (
     "как написать",
     "напиши пример",
     "пример sql",
+    "дай payload",
+    "payload",
+    "пейлоад",
     "обойти",
     "сломать",
     "взломать",
     "украсть",
+    "вытащить",
     "получить токен",
+    "получить jwt",
     "вытащить пароль",
-    "payload",
-    "пейлоад",
+    "подобрать пароль",
+    "эксплуатировать",
+    "эксплойт",
 )
 
 PROJECT_SECURITY_LOOKUP_TERMS = (
     "фтт",
     "требован",
     "проект",
+    "проектн",
     "документ",
     "описан",
     "указан",
@@ -149,6 +208,10 @@ PROJECT_SECURITY_LOOKUP_TERMS = (
     "мер",
     "сои",
     "цта",
+    "пми",
+    "пси",
+    "проверить защищенность",
+    "тестировать защищенность",
 )
 
 SENSITIVE_QUERY_PATTERNS = STRICT_SENSITIVE_QUERY_PATTERNS + TOKEN_SENSITIVE_QUERY_PATTERNS
@@ -162,11 +225,22 @@ def is_project_auth_query(text: str) -> bool:
     lowered = f" {normalize_query_text(text)} "
     has_allowed_auth_term = any(term in lowered for term in PROJECT_AUTH_ALLOW_TERMS)
     has_project_context = any(term in lowered for term in PROJECT_AUTH_CONTEXT_TERMS)
-    return has_allowed_auth_term and has_project_context
+    has_safe_lookup = any(term in lowered for term in PROJECT_AUTH_SAFE_ACTION_TERMS)
+    return has_allowed_auth_term and has_project_context and (has_safe_lookup or not any(term in lowered for term in HARMFUL_SECURITY_ACTION_TERMS))
+
+
+def is_project_security_lookup_query(text: str) -> bool:
+    lowered = normalize_query_text(text)
+    has_project_lookup = any(term in lowered for term in PROJECT_SECURITY_LOOKUP_TERMS)
+    has_harmful_topic = any(term in lowered for term in HARMFUL_SECURITY_TERMS)
+    has_abuse_action = any(term in lowered for term in HARMFUL_SECURITY_ACTION_TERMS)
+    return has_project_lookup and has_harmful_topic and not has_abuse_action
 
 
 def is_harmful_security_query(text: str) -> bool:
     lowered = normalize_query_text(text)
+    if is_project_auth_query(lowered) or is_project_security_lookup_query(lowered):
+        return False
     has_harmful_marker = any(term in lowered for term in HARMFUL_SECURITY_TERMS)
     has_destructive_sql = ("sql" in lowered or "запрос" in lowered) and any(term in lowered for term in DESTRUCTIVE_SQL_TERMS)
     if not has_harmful_marker and not has_destructive_sql:
@@ -262,53 +336,17 @@ def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
         return []
     if len(text) <= chunk_size:
         return [text]
-
     chunks: list[str] = []
     start = 0
     while start < len(text):
         end = min(len(text), start + chunk_size)
-        if end < len(text):
-            split_at = max(text.rfind("\n\n", start, end), text.rfind(". ", start, end))
-            if split_at > start + int(chunk_size * 0.55):
-                end = split_at + 1
-        chunk = text[start:end].strip()
-        if chunk:
-            chunks.append(chunk)
+        chunks.append(text[start:end])
         if end >= len(text):
             break
         start = max(0, end - overlap)
     return chunks
 
 
-def print_summary(title: str, items: dict[str, Any]) -> None:
-    print(f"\n{title}")
-    print("=" * len(title))
-    for key, value in items.items():
-        print(f"{key}: {value}")
-
-
-class FileLock:
-    def __init__(self, path: Path, stale_after_sec: int = 24 * 3600):
-        self.path = path
-        self.stale_after_sec = stale_after_sec
-        self.fd: int | None = None
-
-    def __enter__(self) -> "FileLock":
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        if self.path.exists():
-            age = time.time() - self.path.stat().st_mtime
-            if age > self.stale_after_sec:
-                self.path.unlink(missing_ok=True)
-        try:
-            self.fd = os.open(str(self.path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError as exc:
-            detail = self.path.read_text(encoding="utf-8", errors="replace") if self.path.exists() else ""
-            raise RuntimeError(f"Lock already exists: {self.path}\n{detail}") from exc
-        os.write(self.fd, f"pid={os.getpid()}\nstarted={time.strftime('%Y-%m-%d %H:%M:%S')}\n".encode("utf-8"))
-        return self
-
-    def __exit__(self, exc_type, exc, tb) -> None:
-        if self.fd is not None:
-            os.close(self.fd)
-            self.fd = None
-        self.path.unlink(missing_ok=True)
+def throttle_sleep(delay: float) -> None:
+    if delay > 0:
+        time.sleep(delay)
