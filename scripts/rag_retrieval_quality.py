@@ -51,8 +51,10 @@ FTT_SECTION_HINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("4.2.3", ("фото", "видео", "фотофиксация", "видеофиксация", "недостатков")),
     ("4.2.4", ("актов об устранении", "устранении недостатков", "акт устранения")),
     ("4.2.5", ("новадок", "эцп", "электронная подпись", "подписание", "предписание", "акты проверки", "акты устранения")),
+    ("4.2.6", ("уведомление контрагенту", "вызова инспектора", "приемки работ", "приёмки работ", "рассылки уведомления")),
     ("4.2.7", ("статусы карточек", "статусы документов", "статусы недостатков", "статусная модель")),
     ("4.2.8", ("аналитической информации", "недостаткам", "замечаниям", "срок", "оповещении")),
+    ("4.2.9", ("типовых нарушений", "нормативные правовые акты", "нормативных правовых актов", "нтд")),
     ("4.2.10", ("назначение", "замещение", "инспектора ск", "ответственный инспектор")),
     ("4.3", ("аналитика", "дашборд", "дашборды", "прогресс", "контроль устранения")),
     ("9.6", ("сквозное кодирование", "связи между модулями", "тэгирование", "тегирование")),
@@ -96,6 +98,49 @@ def tokenize(text: str) -> list[str]:
 def extract_numbers_and_sections(text: str) -> set[str]:
     lowered = normalize_text(text)
     return set(re.findall(r"\b\d+(?:\.\d+)+\b|\b\d{2,5}\b", lowered))
+
+
+def extract_ftt_sections(text: str) -> set[str]:
+    numbers = extract_numbers_and_sections(text)
+    known = {section for section, _ in FTT_SECTION_HINTS}
+    return {number for number in numbers if number in known}
+
+
+def ftt_section_signal(question: str, document: str, relative_path: str = "") -> dict[str, Any]:
+    question_norm = normalize_text(question)
+    document_norm = normalize_text(document)
+    path_norm = normalize_text(relative_path)
+    query_sections = extract_ftt_sections(question_norm)
+    document_sections = extract_ftt_sections(document_norm + " " + path_norm)
+    exact_matches = sorted(query_sections & document_sections)
+
+    hint_matches: dict[str, list[str]] = {}
+    for section, hints in FTT_SECTION_HINTS:
+        if section not in query_sections:
+            continue
+        hits = [hint for hint in hints if hint in document_norm]
+        if hits:
+            hint_matches[section] = hits[:10]
+
+    has_ftt_path = path_doc_type(path_norm) == "ftt"
+    boost = 0.0
+    if exact_matches and has_ftt_path:
+        boost += 0.28
+    elif exact_matches:
+        boost += 0.18
+    if hint_matches:
+        boost += min(0.18, 0.06 * sum(len(v) for v in hint_matches.values()))
+    if query_sections and has_ftt_path:
+        boost += 0.08
+
+    return {
+        "query_ftt_sections": sorted(query_sections),
+        "document_ftt_sections": sorted(document_sections),
+        "exact_ftt_section_matches": exact_matches,
+        "ftt_section_hint_matches": hint_matches,
+        "ftt_section_boost": round(min(boost, 0.42), 6),
+        "ftt_path_match": has_ftt_path,
+    }
 
 
 def extract_domain_terms(text: str) -> set[str]:
@@ -216,6 +261,8 @@ def lexical_score(question: str, document: str, relative_path: str = "") -> dict
 
     bucket_signal = bucket_source_signal(question_norm, document_norm, path_norm)
     bucket_boost = float(bucket_signal.get("bucket_boost", 0.0) or 0.0)
+    ftt_signal = ftt_section_signal(question_norm, document_norm, path_norm)
+    ftt_section_boost = float(ftt_signal.get("ftt_section_boost", 0.0) or 0.0)
 
     expected_docs = expected_doc_types(question_norm)
     actual_doc = path_doc_type(path_norm)
@@ -229,7 +276,7 @@ def lexical_score(question: str, document: str, relative_path: str = "") -> dict
     token_bonus = 0.24 * token_overlap
     mismatch_penalty = 0.10 if doc_type_mismatch else 0.0
 
-    score = max(0.0, min(1.0, token_bonus + term_bonus + number_bonus + phrase_bonus + path_boost + bucket_boost - mismatch_penalty))
+    score = max(0.0, min(1.0, token_bonus + term_bonus + number_bonus + phrase_bonus + path_boost + bucket_boost + ftt_section_boost - mismatch_penalty))
 
     return {
         "lexical_score": round(score, 6),
@@ -247,6 +294,7 @@ def lexical_score(question: str, document: str, relative_path: str = "") -> dict
         "path_boost": path_boost,
         "bucket_boost": bucket_boost,
         "bucket_signals": bucket_signal.get("bucket_signals", []),
+        **ftt_signal,
     }
 
 
@@ -264,11 +312,15 @@ def rerank_contexts(question: str, contexts: list[dict[str, Any]], top_k: int) -
             final_score = min(1.0, final_score + 0.09)
         if q.get("doc_type_match"):
             final_score = min(1.0, final_score + 0.08)
+        if q.get("exact_ftt_section_matches"):
+            final_score = min(1.0, final_score + 0.14)
+        if q.get("ftt_section_hint_matches"):
+            final_score = min(1.0, final_score + 0.08)
         if q.get("bucket_signals"):
             final_score = min(1.0, final_score + min(0.12, float(q.get("bucket_boost", 0.0) or 0.0)))
         if q.get("doc_type_mismatch"):
             final_score = max(0.0, final_score - 0.08)
-        meta["retrieval"] = "hybrid_vector_lexical_bucket"
+        meta["retrieval"] = "hybrid_vector_lexical_bucket_section"
         meta["quality"] = {
             **q,
             "vector_score": round(vector_score, 6),
@@ -291,9 +343,11 @@ def source_quality_decision(sources: list[dict[str, Any]], min_lexical: float = 
     phrase_matches = quality.get("phrase_matches") or []
     path_boost = float(quality.get("path_boost", 0.0) or 0.0)
     bucket_boost = float(quality.get("bucket_boost", 0.0) or 0.0)
+    ftt_section_boost = float(quality.get("ftt_section_boost", 0.0) or 0.0)
     bucket_signals = quality.get("bucket_signals") or []
     doc_type_match = bool(quality.get("doc_type_match"))
-    strong_anchor = bool(matched_terms or matched_numbers or phrase_matches or path_boost > 0 or bucket_boost > 0 or bucket_signals or doc_type_match)
+    ftt_section_match = bool(quality.get("exact_ftt_section_matches") or quality.get("ftt_section_hint_matches"))
+    strong_anchor = bool(matched_terms or matched_numbers or phrase_matches or path_boost > 0 or bucket_boost > 0 or ftt_section_boost > 0 or bucket_signals or doc_type_match or ftt_section_match)
     ok = lexical >= min_lexical or strong_anchor
     return {
         "ok": ok,
@@ -304,10 +358,14 @@ def source_quality_decision(sources: list[dict[str, Any]], min_lexical: float = 
         "phrase_matches": phrase_matches,
         "path_boost": path_boost,
         "bucket_boost": bucket_boost,
+        "ftt_section_boost": ftt_section_boost,
         "bucket_signals": bucket_signals,
         "doc_type_match": doc_type_match,
+        "ftt_section_match": ftt_section_match,
         "expected_doc_types": quality.get("expected_doc_types") or [],
         "actual_doc_type": quality.get("actual_doc_type"),
+        "exact_ftt_section_matches": quality.get("exact_ftt_section_matches") or [],
+        "ftt_section_hint_matches": quality.get("ftt_section_hint_matches") or {},
     }
 
 
@@ -324,6 +382,7 @@ def quality_confidence(sources: list[dict[str, Any]], threshold: float, answer: 
     matched_numbers = quality.get("matched_numbers") or []
     doc_type_match = bool(quality.get("doc_type_match"))
     bucket_signals = quality.get("bucket_signals") or []
+    ftt_section_match = bool(quality.get("exact_ftt_section_matches") or quality.get("ftt_section_hint_matches"))
 
     base = min(0.90, max(0.0, (top_score - threshold) / max(1.0 - threshold, 1e-6)))
     if lexical < 0.15:
@@ -339,6 +398,8 @@ def quality_confidence(sources: list[dict[str, Any]], threshold: float, answer: 
         base = min(0.97, base + 0.08 * min(len(matched_numbers), 2))
     if doc_type_match:
         base = min(0.97, base + 0.06)
+    if ftt_section_match:
+        base = min(0.98, base + 0.10)
     if bucket_signals:
         base = min(0.97, base + 0.06)
     if term_overlap >= 0.75 or number_overlap >= 0.75:
