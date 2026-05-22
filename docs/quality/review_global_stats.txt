@@ -1,0 +1,8 @@
+Global review verdict counts:
+- missing_source: 138
+- ok: 79
+- low_score: 197
+- garbage_source: 9
+- bad_refusal: 28
+- hallucination: 1
+- out_of_scope: 48
