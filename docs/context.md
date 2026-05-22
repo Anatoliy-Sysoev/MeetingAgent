@@ -109,6 +109,8 @@ vector retrieval
 + source-quality hard gate
 + FTT section-aware rerank
 + requirement-id routing
++ source tiering
++ doc-type hard routing
 ```
 
 FTT retrieval tuning:
@@ -119,6 +121,51 @@ section-level rerank boosts
 FTT requirement-id extraction
 FTT section hint routing
 FTT path-aware retrieval
+```
+
+Source tiering:
+
+```text
+Tier 1:
+ФТТ
+ПР
+ЦТА
+СоИ
+
+Tier 2:
+ПМИ
+ПСИ
+Паспорт ИС
+
+Tier 3:
+transcript
+макеты
+_analysis
+site export
+
+Tier 4:
+raw json/api dumps
+HAR/network exports
+DOM exports
+```
+
+Hard routing:
+
+```text
+query doc-type detection
+hard route boosts
+hard route penalties
+low-priority source penalties
+unknown-doc penalties
+```
+
+Retrieval expansion:
+
+```text
+AD/LDAPS routing
+Bearer/MDR/НСИ routing
+PR business-flow routing
+CTA infra routing
 ```
 
 Rerank теперь учитывает:
@@ -135,6 +182,9 @@ metadata routing
 ftt_section_boost
 exact_ftt_section_matches
 ftt_section_hint_matches
+source_tier
+hard_route_boost
+hard_route_penalty
 ```
 
 Hard source-quality gate:
