@@ -107,6 +107,18 @@ vector retrieval
 + bucket expansion
 + metadata-aware rerank
 + source-quality hard gate
++ FTT section-aware rerank
++ requirement-id routing
+```
+
+FTT retrieval tuning:
+
+```text
+exact FTT section matching
+section-level rerank boosts
+FTT requirement-id extraction
+FTT section hint routing
+FTT path-aware retrieval
 ```
 
 Rerank теперь учитывает:
@@ -120,6 +132,9 @@ bucket_signals
 doc_type_match
 path boosts
 metadata routing
+ftt_section_boost
+exact_ftt_section_matches
+ftt_section_hint_matches
 ```
 
 Hard source-quality gate:
