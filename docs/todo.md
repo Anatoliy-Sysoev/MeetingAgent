@@ -19,6 +19,7 @@ SQLite FTS5 lexical retrieval
 bucket-driven retrieval expansion
 harmful security guard
 project security allowlist
+compact realistic review builder
 ```
 
 Новые retrieval-компоненты:
@@ -26,6 +27,7 @@ project security allowlist
 ```text
 scripts/rag_bucket_quality.py
 scripts/18_targeted_bucket_eval.py
+scripts/19_build_compact_review.py
 ```
 
 Bucket-driven retrieval:
@@ -73,6 +75,55 @@ metadata routing
 rerank boosts
 path routing
 chunk overlap tuning
+section-aware retrieval
+requirement-id routing
+source tiering
+citation validator
+```
+
+FTT retrieval:
+
+```text
+prioritize exact requirement ids:
+4.1
+4.2
+4.2.1
+4.2.2
+4.2.3
+4.2.4
+4.2.5
+4.2.6
+4.2.7
+4.2.8
+4.2.9
+4.2.10
+4.3
+9.6
+10.8
+```
+
+Source tiering roadmap:
+
+```text
+Tier 1:
+ФТТ
+ПР
+ЦТА
+СоИ
+
+Tier 2:
+ПМИ
+ПСИ
+Приложения
+
+Tier 3:
+transcript
+макеты
+_analysis
+site export
+
+Tier 4:
+raw json/api dumps
 ```
 
 ### Priority 3
@@ -89,6 +140,20 @@ reduce low_score
 reduce garbage_source
 remove hallucination
 increase grounded answered
+```
+
+### Priority 4
+
+```text
+stable approved regression corpus
+```
+
+Build:
+
+```text
+compact labeled review
+approved regression set
+bucket-specific regression subsets
 ```
 
 ## Long-term ideas
