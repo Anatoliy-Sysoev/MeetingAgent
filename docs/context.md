@@ -399,6 +399,34 @@ final QH gate: status=passed, pending=[]
 Интеграционная ветка `codex/integrate-ftt-retrieval-quality` добавляет metadata enrichment для chunks (`doc_type`, `source_kind`, `section`, `requirement_id`), SQLite FTS5/BM25 builder `scripts/04_build_fts_index.py`, targeted lexical scan в quality wrapper и guard-исключения для проектных auth/security терминов. Ветка не заменяет основной `src/asu_june_bot` runtime; это quality/eval слой для проверки retrieval-гипотез.
 ```
 
+## Realistic 500 Eval 2026-05-22
+
+На ветке `codex/retrieval-source-quality-gate` добавлен dataset и выполнен полный прогон realistic 500 через `scripts/09_chat_quality.py`.
+
+Git-артефакты:
+
+```text
+docs/quality/realistic_500_queries.jsonl
+docs/quality/realistic_500_eval_report.jsonl
+docs/quality/realistic_500_eval_review.jsonl
+docs/quality/realistic_500_eval_review_summary.json
+```
+
+Результат прогона:
+
+```text
+rows = 500/500
+failures = 0
+parse_errors = 0
+scopes = project 350, boundary 100, out_of_scope 50
+models = qwen2.5:7b-instruct 350, qwen3:4b 100, qwen3:8b 50
+statuses = answered 335, no_answer 104, refused 61
+avg_duration_sec = 125.774
+max_duration_sec = 440.042
+```
+
+`review`-файл подготовлен для ручного заполнения `review_verdict` и `review_comment`.
+
 Отчёт:
 
 ```text

@@ -1,0 +1,28 @@
+{
+  "created_at": "2026-05-22T11:55:52.905407+00:00",
+  "input_rows": 500,
+  "review_rows": 500,
+  "scopes": {
+    "project": 350,
+    "boundary": 100,
+    "out_of_scope": 50
+  },
+  "models": {
+    "qwen2.5:7b-instruct": 350,
+    "qwen3:4b": 100,
+    "qwen3:8b": 50
+  },
+  "statuses": {
+    "answered": 335,
+    "no_answer": 104,
+    "refused": 61
+  },
+  "returncodes": {
+    "0": 500
+  },
+  "parse_errors": 0,
+  "failures": 0,
+  "output": "data\\realistic_500_eval_review.jsonl",
+  "next_step": "Manual review: fill review_verdict and review_comment before candidate generation.",
+  "summary": "data\\realistic_500_eval_review_summary.json"
+}

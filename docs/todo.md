@@ -377,6 +377,7 @@ structural_validation_errors
 ## Известные риски
 
 - После hardening 2026-05-20 проверить full realistic 100 eval заново: guard и retrieval теперь должны иначе обрабатывать SQL/delete, Bearer Token/JWT/OAuth/LDAPS и quality diagnostics.
+- По `docs/quality/realistic_500_eval_review.jsonl` заполнить `review_verdict` и `review_comment`, затем собрать approved regression / failure buckets для QH-6.
 - Metadata `section/requirement_id` пока может шуметь на табличных chunks.
 - ChromaDB локально нестабилен на загрузке HNSW-индекса, поэтому не должен быть критической зависимостью для поиска.
 - Сгенерированные документы требуют строгого ревью источников.
