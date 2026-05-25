@@ -24,6 +24,8 @@ class ChatRequest:
     query: str
     mode: str = "hybrid"
     top_k: int = 8
+    chunks_path: str = "data/asu_june_bot/chunks_v2.jsonl"
+    index_dir: str = "data/asu_june_bot/numpy_index_v2"
     include_source_types: list[str] | None = None
     model: str | None = None
     temperature: float = 0.0
@@ -48,6 +50,7 @@ class ChatSource:
     chunk_id: str | None = None
     title: str | None = None
     path: str | None = None
+    source_url: str | None = None
     section: str | None = None
     requirement_id: str | None = None
     source_type: str | None = None
@@ -62,6 +65,7 @@ class ChatSource:
             "chunk_id": self.chunk_id,
             "title": self.title,
             "path": self.path,
+            "source_url": self.source_url,
             "section": self.section,
             "requirement_id": self.requirement_id,
             "source_type": self.source_type,

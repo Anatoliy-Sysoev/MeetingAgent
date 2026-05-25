@@ -17,6 +17,7 @@ class SourceDocument:
     document_type: str | None = None
     stage: str | None = None
     module: str | None = None
+    source_url: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -39,6 +40,7 @@ class ExtractedBlock:
     document_type: str | None = None
     stage: str | None = None
     module: str | None = None
+    source_url: str | None = None
     page: int | None = None
     slide: int | None = None
     sheet: str | None = None

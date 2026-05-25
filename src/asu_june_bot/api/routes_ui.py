@@ -715,14 +715,20 @@ HTML_TEMPLATE = """<!doctype html>
         row.className = 'source-row';
 
         const body = document.createElement('div');
-        const title = document.createElement('div');
+        const title = item.source_url ? document.createElement('a') : document.createElement('div');
         title.className = 'source-title';
         title.textContent = item.title || item.path || item.relative_path || item.source_ref || 'Источник';
+        if (item.source_url) {
+          title.href = item.source_url;
+          title.target = '_blank';
+          title.rel = 'noopener noreferrer';
+        }
 
         const meta = document.createElement('div');
         meta.className = 'muted';
         meta.textContent = [
           item.source_ref ? `ссылка: ${item.source_ref}` : '',
+          item.source_url ? 'cloud' : '',
           item.section ? `раздел: ${item.section}` : '',
           item.chunk_index !== undefined ? `chunk: ${item.chunk_index}` : ''
         ].filter(Boolean).join(' • ');

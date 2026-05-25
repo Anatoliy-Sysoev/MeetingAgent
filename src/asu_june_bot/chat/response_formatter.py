@@ -17,5 +17,7 @@ class ResponseFormatter:
                 detail = source.section or source.requirement_id or source.source_type or ""
                 suffix = f" — {detail}" if detail else ""
                 lines.append(f"[{source.source_ref}] {label}{suffix}")
+                if source.source_url:
+                    lines.append(f"    {source.source_url}")
             return "\n".join(lines).strip()
         return text

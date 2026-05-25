@@ -35,6 +35,7 @@ class SearchResult:
             "bm25_score": None if self.bm25_score is None else round(float(self.bm25_score), 6),
             "matched_by": self.matched_by,
             "document": self.metadata.get("relative_path"),
+            "source_url": self.metadata.get("source_url"),
             "document_type": self.metadata.get("document_type"),
             "source_type": self.metadata.get("source_type"),
             "module": self.metadata.get("module"),

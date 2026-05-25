@@ -84,11 +84,23 @@ def load_completed_source_ids(documents_path: Path) -> set[str]:
     return {str(row.get("source_id")) for row in rows if row.get("source_id")}
 
 
+def load_source_links(path: Path) -> dict[str, str]:
+    links: dict[str, str] = {}
+    for row in read_jsonl_if_exists(path):
+        rel = str(row.get("relative_path") or "").replace("\\", "/").strip("/")
+        url = str(row.get("source_url") or "").strip()
+        if rel and url:
+            links[rel] = url
+    return links
+
+
 def make_source_document(cfg: dict[str, Any], path: Path) -> SourceDocument:
     relative_path = relative_to_project(cfg, path)
     sha = sha256_file(path)
     source_id = stable_id(f"source:{relative_path}:{sha}", length=32)
     probe_meta = enrich_block_metadata(relative_path, path.suffix.lower(), relative_path)
+    source_links = cfg.get("source_links") if isinstance(cfg.get("source_links"), dict) else {}
+    source_url = source_links.get(relative_path.replace("\\", "/")) if source_links else None
     stat = path.stat()
     return SourceDocument(
         source_id=source_id,
@@ -102,6 +114,7 @@ def make_source_document(cfg: dict[str, Any], path: Path) -> SourceDocument:
         document_type=probe_meta.get("document_type"),
         stage=probe_meta.get("stage"),
         module=probe_meta.get("module"),
+        source_url=source_url,
     )
 
 
@@ -150,6 +163,7 @@ def make_block(
         document_type=enriched.get("document_type"),
         stage=enriched.get("stage"),
         module=enriched.get("module"),
+        source_url=source.source_url,
         page=page,
         slide=slide,
         sheet=sheet,
@@ -655,9 +669,26 @@ def main() -> None:
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR, help="Output directory")
     parser.add_argument("--reset", action="store_true", help="Delete output directory before extraction and start from scratch")
     parser.add_argument("--no-resume", action="store_true", help="Do not skip already extracted source_id records")
+    parser.add_argument("--project-root", default=None, help="Override project_root without editing config.yaml")
+    parser.add_argument("--source-links", default=None, help="Optional source_links.jsonl from asu_june_bot_build_source_links.py")
+    parser.add_argument("--exclude-dir", action="append", default=[], help="Additional directory name to exclude. Can be repeated.")
+    parser.add_argument("--exclude-path-pattern", action="append", default=[], help="Additional fnmatch path pattern to exclude. Can be repeated.")
     args = parser.parse_args()
 
     cfg = load_config()
+    if args.project_root:
+        project_root = Path(args.project_root).resolve()
+        if not project_root.exists():
+            raise FileNotFoundError(f"Project root not found: {project_root}")
+        cfg["project_root"] = project_root.as_posix()
+        cfg["project_root_path"] = project_root
+    if args.source_links:
+        source_links_path = resolve_work_path(cfg, args.source_links)
+        cfg["source_links"] = load_source_links(source_links_path)
+    if args.exclude_dir:
+        cfg["exclude_dirs"] = list(cfg.get("exclude_dirs") or []) + list(args.exclude_dir)
+    if args.exclude_path_pattern:
+        cfg["exclude_path_patterns"] = list(cfg.get("exclude_path_patterns") or []) + list(args.exclude_path_pattern)
     output_dir = resolve_work_path(cfg, args.output_dir)
     blocks_path = output_dir / "blocks.jsonl"
     documents_path = output_dir / "documents.jsonl"

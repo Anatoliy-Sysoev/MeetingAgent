@@ -24,6 +24,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("query", help="Project question")
     parser.add_argument("--mode", choices=["hybrid", "vector", "bm25"], default="hybrid")
     parser.add_argument("--top-k", type=int, default=8)
+    parser.add_argument("--chunks-path", default="data/asu_june_bot/chunks_v2.jsonl")
+    parser.add_argument("--index-dir", default="data/asu_june_bot/numpy_index_v2")
     parser.add_argument("--model", default=None)
     parser.add_argument("--llm-base-url", default=None)
     parser.add_argument("--temperature", type=float, default=0.0)
@@ -52,6 +54,8 @@ def main() -> None:
             query=args.query,
             mode=args.mode,
             top_k=args.top_k,
+            chunks_path=args.chunks_path,
+            index_dir=args.index_dir,
             model=model,
             temperature=args.temperature,
             max_tokens=args.max_tokens,
