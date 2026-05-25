@@ -161,3 +161,88 @@ SQL injection payload
 обход авторизации
 эксплойт
 ```
+
+## NTK Yandex Corpus
+
+2026-05-25 создана ветка:
+
+```text
+codex/ntk-yandex-corpus
+```
+
+Цель ветки: собрать отдельный Project Knowledge Bot corpus по очищенной папке Яндекс.Диска:
+
+```text
+C:\Users\Сотрудник\Desktop\Yandex.Disk\Документы НТК Сдача
+```
+
+Runtime-каталог:
+
+```text
+data/asu_june_bot_ntk/
+```
+
+Добавлены:
+
+```text
+scripts/asu_june_bot_build_source_links.py
+scripts/asu_june_bot_ntk_smoke_eval.py
+scripts/monitor_asu_june_bot_ntk_index.ps1
+docs/quality/ntk_yandex_smoke_questions.jsonl
+docs/subprojects/asu-june-bot/NTK_YANDEX_CORPUS.md
+```
+
+В `src/asu_june_bot` добавлена сквозная поддержка:
+
+```text
+source_url в ingestion models
+source_url в chunks metadata
+source_url в SearchResult.to_dict()
+source_url в ChatSource
+source_url в CLI formatter
+source_url как кликабельная ссылка в Web UI
+```
+
+Собрано локально:
+
+```text
+source_links.jsonl: 1166 local files, 325 matched source_url
+extracted_v2: 171 documents, 31018 blocks, 0 errors
+chunks_v2.jsonl: 31136 chunks
+chunks with source_url: 29196
+```
+
+BM25-only smoke:
+
+```text
+cases: 20
+ok: 8
+source_url_in_top5: 12
+status_counts: ok=12, clarify=7, refused=1
+```
+
+Решение:
+
+```text
+дефолт бота на NTK corpus пока не переключён
+ждём окончания embeddings/vector index
+после готовности data/asu_june_bot_ntk/numpy_index_v2 выполнить hybrid smoke
+```
+
+Фоновая сборка индекса запущена:
+
+```text
+script: scripts/asu_june_bot_build_index_v2.py
+chunks: data/asu_june_bot_ntk/chunks_v2.jsonl
+cache: data/asu_june_bot_ntk/embeddings_cache_v2.jsonl
+index: data/asu_june_bot_ntk/numpy_index_v2
+report: data/asu_june_bot_ntk/index_v2_report.json
+```
+
+Фоновый watchdog запущен:
+
+```text
+scripts/monitor_asu_june_bot_ntk_index.ps1 -Loop -IntervalMinutes 30
+```
+
+Watchdog не удаляет данные. Если build-процесс упадёт до появления `manifest.json`, он перезапустит тот же resumable build.

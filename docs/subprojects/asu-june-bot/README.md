@@ -98,6 +98,12 @@ docs/subprojects/asu-june-bot/FTT_STATUS.md
 docs/subprojects/asu-june-bot/QUERY_FEEDBACK_LOOP.md
 ```
 
+Отдельный боевой корпус по очищенной папке НТК в Яндекс.Диске:
+
+```text
+docs/subprojects/asu-june-bot/NTK_YANDEX_CORPUS.md
+```
+
 Рабочая chat-модель MVP:
 
 ```text

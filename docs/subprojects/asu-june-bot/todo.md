@@ -72,6 +72,28 @@ docs/subprojects/asu-june-bot/TECHNICAL_DIAGRAMS.md
 Docker packaging или QH-6 Feedback Dataset Loop
 ```
 
+## NTK Yandex Corpus
+
+Текущий практический шаг на ветке `codex/ntk-yandex-corpus`:
+
+```text
+дождаться завершения data/asu_june_bot_ntk embeddings/index build
+запустить hybrid smoke по docs/quality/ntk_yandex_smoke_questions.jsonl
+не переключать дефолт бота до подтверждения качества
+```
+
+Команда проверки прогресса:
+
+```powershell
+(Get-Content .\data\asu_june_bot_ntk\embeddings_cache_v2.jsonl -Encoding UTF8).Count
+```
+
+Инструкция:
+
+```text
+docs/subprojects/asu-june-bot/NTK_YANDEX_CORPUS.md
+```
+
 ## Сразу после QH-5
 
 ```text

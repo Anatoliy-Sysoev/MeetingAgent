@@ -26,6 +26,7 @@ Project Knowledge Bot — отдельный подпроект внутри Mee
 docs/subprojects/asu-june-bot/architecture.md
 docs/subprojects/asu-june-bot/TECHNICAL_DIAGRAMS.md
 docs/subprojects/asu-june-bot/RUNBOOK_V2.md
+docs/subprojects/asu-june-bot/NTK_YANDEX_CORPUS.md
 ```
 
 ## 2. Текущий статус
@@ -157,6 +158,37 @@ validation_failed
 ```text
 src/asu_june_bot/core/limits.py
 MAX_QUERY_CHARS = 2000
+```
+
+### NTK Yandex Corpus
+
+2026-05-25 начата отдельная ветка `codex/ntk-yandex-corpus` для корпуса:
+
+```text
+C:\Users\Сотрудник\Desktop\Yandex.Disk\Документы НТК Сдача
+```
+
+Runtime:
+
+```text
+data/asu_june_bot_ntk/
+```
+
+Состояние:
+
+```text
+source links built
+extraction complete
+chunks built
+embeddings/index build running in background
+BM25-only smoke: 8/20
+default corpus switch: not done
+```
+
+Главная инструкция:
+
+```text
+docs/subprojects/asu-june-bot/NTK_YANDEX_CORPUS.md
 ```
 
 Лимит применяется в:

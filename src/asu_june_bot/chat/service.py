@@ -55,6 +55,8 @@ class ChatService:
                 query=request.query,
                 mode=request.mode,
                 top_k=request.top_k,
+                chunks_path=request.chunks_path,
+                index_dir=request.index_dir,
                 include_source_types=request.include_source_types,
                 include_diagnostics=request.include_diagnostics,
             )

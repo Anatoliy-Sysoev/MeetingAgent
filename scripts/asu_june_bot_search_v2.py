@@ -97,6 +97,8 @@ def print_human(payload: dict[str, Any]) -> None:
         print(f"Тип: {item.get('document_type')} | Source type: {item.get('source_type')} | Модуль: {item.get('module')}")
         print(f"Раздел: {item.get('section')} | Requirement: {requirement_id} | Chunk: {item.get('chunk_index')}")
         print(f"Путь: {get_path(item)}")
+        if item.get("source_url"):
+            print(f"Cloud URL: {item.get('source_url')}")
         print(f"Фрагмент: {item.get('text_preview')}")
         print("-" * 100)
 

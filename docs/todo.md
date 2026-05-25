@@ -42,6 +42,44 @@ hallucination bucket
 
 ## Следующий этап
 
+### Priority 0
+
+```text
+Дождаться завершения NTK Yandex embeddings/index build
+```
+
+Проверка прогресса:
+
+```powershell
+(Get-Content .\data\asu_june_bot_ntk\embeddings_cache_v2.jsonl -Encoding UTF8).Count
+```
+
+Проверка watchdog:
+
+```powershell
+Get-Content .\logs\ntk_yandex_index_watchdog.log -Tail 20 -Encoding UTF8
+```
+
+После появления:
+
+```text
+data/asu_june_bot_ntk/numpy_index_v2/manifest.json
+```
+
+запустить hybrid smoke:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_ntk_smoke_eval.py `
+  --mode hybrid `
+  --chunks-path data\asu_june_bot_ntk\chunks_v2.jsonl `
+  --index-dir data\asu_june_bot_ntk\numpy_index_v2 `
+  --output data\asu_june_bot_ntk\smoke_eval_hybrid.jsonl
+```
+
+Дефолт бота переключать на `data/asu_june_bot_ntk` только если hybrid smoke лучше текущего корпуса.
+
+Incremental update для Yandex-папки делать после подтверждения качества нового корпуса.
+
 ### Priority 1
 
 ```text

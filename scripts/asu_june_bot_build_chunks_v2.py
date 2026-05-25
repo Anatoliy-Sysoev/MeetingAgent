@@ -172,7 +172,7 @@ def base_chunk_metadata(block: dict[str, Any], text: str) -> dict[str, Any]:
         "source_type": block.get("source_type") or enriched.get("source_type"),
         "source_path": block.get("source_path"),
         "relative_path": block.get("relative_path"),
-        "source_url": None,
+        "source_url": block.get("source_url"),
         "extension": block.get("extension"),
         "sha256": block.get("sha256"),
         "mtime": block.get("mtime"),

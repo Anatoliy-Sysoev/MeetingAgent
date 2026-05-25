@@ -1,0 +1,20 @@
+{"id":"NTK-SMOKE-001","scope":"project","category":"ftt","query":"Что в ФТТ указано по требованию 4.1 о формировании и подписании инспекционных документов?","expected_doc_type":"ФТТ"}
+{"id":"NTK-SMOKE-002","scope":"project","category":"ftt","query":"Какие функции строительного контроля перечислены в ФТТ 4.2?","expected_doc_type":"ФТТ"}
+{"id":"NTK-SMOKE-003","scope":"project","category":"ftt","query":"Что ФТТ 4.2.5 говорит о связке актов проверки, предписаний и НОВАДОК?","expected_doc_type":"ФТТ"}
+{"id":"NTK-SMOKE-004","scope":"project","category":"ftt","query":"Какие ограничения по производительности указаны для 2520 пользователей и 600 одновременно работающих пользователей?","expected_doc_type":"ФТТ"}
+{"id":"NTK-SMOKE-005","scope":"project","category":"cta","query":"Что указано в ЦТА по PostgreSQL, MinIO и Kubernetes?","expected_doc_type":"ЦТА"}
+{"id":"NTK-SMOKE-006","scope":"project","category":"cta","query":"Что указано в ЦТА по логированию через Grafana Loki и интеграции с SIEM?","expected_doc_type":"ЦТА"}
+{"id":"NTK-SMOKE-007","scope":"project","category":"cta","query":"Какие требования к RTO и RPO описаны в архитектуре системы?","expected_doc_type":"ЦТА"}
+{"id":"NTK-SMOKE-008","scope":"project","category":"pr","query":"Как в ПР реализована работа со статусами замечаний строительного контроля?","expected_doc_type":"ПР"}
+{"id":"NTK-SMOKE-009","scope":"project","category":"pr","query":"Какие документы формируются автоматически после проведения инспекционной проверки?","expected_doc_type":"ПР"}
+{"id":"NTK-SMOKE-010","scope":"project","category":"pr","query":"Какие роли предусмотрены для модуля строительного контроля?","expected_doc_type":"ПР"}
+{"id":"NTK-SMOKE-011","scope":"project","category":"soi_ad","query":"Как в СоИ AD описана синхронизация пользователей и групп через LDAPS?","expected_doc_type":"СоИ AD"}
+{"id":"NTK-SMOKE-012","scope":"project","category":"soi_ad","query":"Какие группы AD app_ccpm используются для ролей строительного контроля?","expected_doc_type":"СоИ AD"}
+{"id":"NTK-SMOKE-013","scope":"project","category":"soi_nsi","query":"Как используется Bearer Token при интеграции MDR/НСИ?","expected_doc_type":"СоИ Справочники"}
+{"id":"NTK-SMOKE-014","scope":"project","category":"soi_nsi","query":"Какие поля справочников MDR описаны для полного среза и дельта-изменений?","expected_doc_type":"СоИ Справочники"}
+{"id":"NTK-SMOKE-015","scope":"project","category":"pmi","query":"Как в ПМИ описаны сценарии проверки аналитических дашбордов?","expected_doc_type":"ПМИ"}
+{"id":"NTK-SMOKE-016","scope":"project","category":"passport","query":"Что входит в Паспорт ИС и какие связанные документы в нём указаны?","expected_doc_type":"Паспорт ИС"}
+{"id":"NTK-SMOKE-017","scope":"project","category":"nsi_register","query":"Какие регламенты ведения объектов НСИ есть в корпусе?","expected_doc_type":"Реестр НСИ"}
+{"id":"NTK-SMOKE-018","scope":"project","category":"export","query":"Какие ограничения есть на экспорт данных в PDF, Excel и CSV?","expected_doc_type":"ФТТ"}
+{"id":"NTK-SMOKE-019","scope":"boundary","category":"security_project","query":"Как организована передача событий безопасности в SIEM?","expected_doc_type":"ЦТА"}
+{"id":"NTK-SMOKE-020","scope":"out_of_scope","category":"non_project","query":"Как приготовить карбонару?","expected_status":"refused"}

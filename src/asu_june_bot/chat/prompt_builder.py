@@ -63,6 +63,7 @@ def source_to_chat_source(source: dict[str, Any], source_ref: str, bucket: str) 
         chunk_id=_metadata_value(source, "chunk_id", "id"),
         title=_metadata_value(source, "title", "document_title", "file_name", "filename", "document"),
         path=_metadata_value(source, "path", "source_path", "file_path", "relative_path"),
+        source_url=_metadata_value(source, "source_url", "cloud_url", "public_url"),
         section=_metadata_value(source, "section", "section_title", "section_path"),
         requirement_id=_metadata_value(source, "requirement_id"),
         source_type=_metadata_value(source, "source_type"),
