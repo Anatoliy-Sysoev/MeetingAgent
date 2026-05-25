@@ -8,4 +8,3 @@
 - извлеченный текст;
 - chunks;
 - embeddings cache.
-

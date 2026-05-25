@@ -74,6 +74,42 @@
 - пишет `transcript/segments.jsonl` и `transcript/transcript.md`;
 - при ошибке переводит встречу в `failed` и записывает причину в `meeting.json.last_error`.
 
+## Экспериментальный GigaAM-Профиль
+
+GigaAM был поднят локально как отдельный ASR-эксперимент, но не включён в основной pipeline.
+
+Документация эксперимента:
+
+```text
+docs/references/GIGAAM_EXPERIMENT.md
+```
+
+Зафиксированный рабочий путь:
+
+```text
+отдельный venv: %LOCALAPPDATA%\MeetingAgent\gigaam-venv312
+модель: v3_e2e_rnnt
+режим: CPU, fp16_encoder=False
+длинная запись: ffmpeg -> audio_16k_mono.wav -> 24-second chunks -> model.transcribe()
+```
+
+Фактический локальный прогон:
+
+```text
+meetings/2026-05-19__asu-novatek-stroycontrol-gigaam/
+chunks_total = 224
+chunks_done = 224
+errors = []
+elapsed_sec_this_run = 1070.2
+```
+
+Правила:
+
+- HF token передавать только через env-переменные и не коммитить;
+- model cache, audio chunks, transcript и meeting runtime не коммитить;
+- до отдельного benchmark GigaAM не считается заменой `faster-whisper`;
+- для production нужен адаптер с тем же контрактом `segments.jsonl`, что у `06_transcribe_meeting.py`.
+
 ## Итоги Встречи
 
 После статуса `transcribed` следующий слой pipeline создает человекочитаемые и машинные артефакты встречи.

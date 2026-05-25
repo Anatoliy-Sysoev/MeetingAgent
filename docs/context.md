@@ -142,3 +142,32 @@ SQL injection payload
 обход авторизации
 эксплойт
 ```
+
+## GigaAM ASR Experiment 2026-05-25
+
+Локальный GigaAM-путь зафиксирован как reference-документация:
+
+```text
+docs/references/GIGAAM_EXPERIMENT.md
+```
+
+Фактическая локальная среда:
+
+```text
+venv = %LOCALAPPDATA%\MeetingAgent\gigaam-venv312
+model = v3_e2e_rnnt
+device = cpu
+fp16_encoder = false
+```
+
+Фактический прогон:
+
+```text
+meeting = meetings/2026-05-19__asu-novatek-stroycontrol-gigaam/
+chunks_total = 224
+chunks_done = 224
+errors = []
+elapsed_sec_this_run = 1070.2
+```
+
+Решение: GigaAM остаётся экспериментальным ASR fallback. Основной MeetingAgent pipeline пока использует `faster-whisper`; для GigaAM нужен отдельный адаптер и benchmark качества.

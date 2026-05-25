@@ -102,4 +102,5 @@ agentic retrieval
 graph retrieval
 citation validator
 structured answer synthesis
+GigaAM ASR backend benchmark
 ```

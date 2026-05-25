@@ -420,3 +420,18 @@ Backlog-направления остаются точечными: `source_type
 - `src/asu_june_bot` не должен импортировать `scripts/*` через `sys.path`, иначе runtime становится хрупким.
 
 Следствие: `apps/` и `src/meeting_agent/` явно считаются scaffold до появления реального кода, а минимальная CI-проверка должна выполнять `py_compile` и `pytest tests/asu_june_bot`.
+
+## 2026-05-25 - GigaAM Зафиксирован Как Экспериментальный ASR Fallback
+
+Решение: локальный GigaAM-прогон фиксируется как экспериментальный ASR fallback для русскоязычных встреч, но не становится default backend MeetingAgent. Основной production-путь остаётся `faster-whisper`: `large-v3-turbo/int8` для важных offline-встреч и `small/int8` для быстрого draft/live профиля.
+
+Подробности эксперимента: `docs/references/GIGAAM_EXPERIMENT.md`.
+
+Почему:
+
+- GigaAM успешно обработал длинную встречу локально на CPU через отдельный Python 3.12 venv и ручной chunking;
+- отдельный `%LOCALAPPDATA%\MeetingAgent\gigaam-venv312` не ломает основной `.venv` MeetingAgent;
+- для включения в продукт нужен отдельный адаптер, единый контракт segments и честное сравнение качества с `faster-whisper`;
+- Hugging Face token, model cache и transcript/runtime-артефакты не должны попадать в Git.
+
+Следствие: GigaAM можно использовать для лабораторных сравнений и ручных прогонов, но `scripts/06_transcribe_meeting.py` и `scripts/08_process_meeting_pipeline.py` пока не переключаются на него.
