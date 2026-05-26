@@ -3,10 +3,11 @@ from __future__ import annotations
 from typing import Any
 
 
-DEFAULT_ALLOWED_SOURCE_TYPES = ["project_doc", "meeting_artifact", "analytical_note", "instruction"]
+DEFAULT_ALLOWED_SOURCE_TYPES = ["project_doc", "meeting_artifact", "meeting_chunk", "analytical_note", "instruction"]
 DEFAULT_SOURCE_TYPE_WEIGHTS = {
     "project_doc": 1.0,
     "meeting_artifact": 0.9,
+    "meeting_chunk": 0.88,
     "analytical_note": 0.82,
     "instruction": 0.82,
     "system_export": 0.12,
