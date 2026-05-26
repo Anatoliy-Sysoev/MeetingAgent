@@ -25,23 +25,21 @@ extractor = load_script_module("asu_june_bot_extract_text_v2_for_tests", "script
 chunker = load_script_module("asu_june_bot_build_chunks_v2_for_tests", "scripts/asu_june_bot_build_chunks_v2.py")
 
 
-def test_excel_rows_are_capped_and_trailing_empty_columns_removed() -> None:
+def test_excel_rows_remove_fully_empty_columns_before_capping() -> None:
     rows = [
-        ["Наименование", "Код", "", "", ""] + [""] * 200,
-        ["Работа", "R-1", "", "", ""] + [""] * 200,
+        ["Наименование", "", "Код", "", ""] + [""] * 200,
+        ["Работа", "", "R-1", "", ""] + [""] * 200,
     ]
 
-    trimmed = extractor.trim_empty_columns(rows, max_cols=120)
+    trimmed = extractor.trim_empty_columns(rows, hard_limit=120)
 
     assert trimmed == [["Наименование", "Код"], ["Работа", "R-1"]]
 
 
 def test_excel_rows_are_hard_capped_when_sheet_has_far_non_empty_cells() -> None:
-    row = [""] * 300
-    row[0] = "Наименование"
-    row[250] = "аномальный хвост"
+    row = [f"value-{idx}" for idx in range(300)]
 
-    trimmed = extractor.trim_empty_columns([row], max_cols=120)
+    trimmed = extractor.trim_empty_columns([row], hard_limit=120)
 
     assert len(trimmed[0]) == 120
 

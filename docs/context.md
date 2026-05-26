@@ -25,7 +25,8 @@ document_type=unknown у большой доли xlsx/pptx/pdf/НСИ-матер
 ```text
 scripts/asu_june_bot_extract_text_v2.py:
   - Excel rows обрезаются по полезной ширине;
-  - введён hard cap 120 колонок;
+  - сначала удаляются полностью пустые Excel-колонки;
+  - введены soft warning 120 колонок и hard cap 250 колонок;
   - table_row text строится из непустых key:value pairs;
   - headers/cells больше не раздуваются пустыми col_N.
 
@@ -39,7 +40,8 @@ scripts/asu_june_bot_build_chunks_v2.py:
 src/asu_june_bot/retrieval/metadata.py:
   - добавлены document_type для "Справочник НСИ",
     "Методика/Регламент НСИ", "Статус/Презентация",
-    "Схема/Диаграмма".
+    "Схема/Диаграмма";
+  - pptx не типизируется только по расширению: нужен WIP/status-маркер.
 ```
 
 Проверка на старых blocks для `4 СВОК РД.xlsx`:
