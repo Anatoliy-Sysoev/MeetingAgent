@@ -135,6 +135,12 @@
         "segments": {
           "$ref": "#/$defs/relative_path"
         },
+        "speaker_transcript": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "chunks": {
+          "$ref": "#/$defs/relative_path"
+        },
         "memo": {
           "$ref": "#/$defs/relative_path"
         },

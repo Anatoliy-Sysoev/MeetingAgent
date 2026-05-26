@@ -391,3 +391,37 @@ FTT-MA-11: нормализованный source/audio_16k_mono.wav фиксир
 .\.venv\Scripts\python.exe -m pytest tests\unit\test_meeting_ingest_audio.py -q
 2 passed
 ```
+
+## 2026-05-26 — Реализован speaker transcript и meeting-aware chunking
+
+Добавлены:
+
+```text
+scripts/24_merge_transcript_speakers.py
+scripts/26_chunk_meeting.py
+tests/unit/test_meeting_speaker_chunk.py
+```
+
+Расширена схема:
+
+```text
+configs/schemas/meeting.schema.json
+artifacts.speaker_transcript
+artifacts.chunks
+```
+
+Поведение:
+
+```text
+24_merge_transcript_speakers.py читает transcript/segments.jsonl и создает transcript/speaker_transcript.jsonl + .txt;
+без diarization каждая реплика получает speaker=SPEAKER_UNKNOWN, speaker_name=SPEAKER_UNKNOWN, source=MIX;
+26_chunk_meeting.py создает transcript/chunks.jsonl с source_type=meeting_chunk, timestamps, speakers, sources и utterance_ids;
+chunker ограничивает chunk по времени и символам, но не разрывает отдельную реплику.
+```
+
+Проверка:
+
+```text
+.\.venv\Scripts\python.exe -m pytest tests\unit\test_meeting_speaker_chunk.py tests\unit\test_meeting_ingest_audio.py -q
+4 passed
+```

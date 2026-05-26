@@ -131,6 +131,68 @@ mono
 - пишет `transcript/segments.jsonl` и `transcript/transcript.md`;
 - при ошибке переводит встречу в `failed` и записывает причину в `meeting.json.last_error`.
 
+### 4. Speaker Transcript
+
+MVP пока не требует diarization. После ASR можно создать speaker transcript с `SPEAKER_UNKNOWN`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\24_merge_transcript_speakers.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug
+```
+
+Выход:
+
+```text
+transcript/speaker_transcript.jsonl
+transcript/speaker_transcript.txt
+```
+
+Каждая реплика содержит:
+
+```text
+utterance_id
+segment_index
+speaker = SPEAKER_UNKNOWN
+speaker_name = SPEAKER_UNKNOWN
+source = MIX
+start
+end
+text
+```
+
+Когда появится diarization, этот шаг станет местом слияния ASR segments и speaker intervals.
+
+### 5. Meeting-Aware Chunking
+
+Для RAG и LLM analysis transcript режется на чанки с учетом времени и реплик:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\26_chunk_meeting.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug
+```
+
+Выход:
+
+```text
+transcript/chunks.jsonl
+```
+
+Chunk содержит:
+
+```text
+chunk_id
+meeting_id
+source_type = meeting_chunk
+start
+end
+speakers
+sources
+text
+utterance_ids
+```
+
+По умолчанию chunk ограничен 180 секундами и 6000 символами. Скрипт не разрывает отдельную реплику; если следующая реплика превышает лимит, открывается новый chunk.
+
 ## Итоги Встречи
 
 После статуса `transcribed` следующий слой pipeline создает человекочитаемые и машинные артефакты встречи.

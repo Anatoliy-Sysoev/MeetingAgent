@@ -252,6 +252,8 @@ docs/product/PROJECT_STAGES_AND_FTT.md
 - будущий scripts/23_diarize_meeting.py остается optional.
 ```
 
+Статус: реализовано 2026-05-26 через `scripts/24_merge_transcript_speakers.py`.
+
 ### Priority 3
 
 ```text
@@ -261,4 +263,18 @@ docs/product/PROJECT_STAGES_AND_FTT.md
 - source_type meeting_chunk/meeting_decision/meeting_action_item;
 - timestamps и meeting_id в metadata;
 - source-quality gate для meeting chunks.
+```
+
+Статус: chunking реализован 2026-05-26 через `scripts/26_chunk_meeting.py`; indexing остается следующим шагом.
+
+### Priority 4
+
+```text
+Реализовать semantic enrichment и meeting indexing:
+- scripts/27_enrich_meeting_chunks.py;
+- scripts/28_index_meeting_chunks.py;
+- topic/semantic_type/entities;
+- decisions/action_items/risks/open_questions candidates;
+- source_type meeting_chunk в retrieval metadata;
+- smoke search по одной встрече.
 ```
