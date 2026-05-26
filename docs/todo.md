@@ -179,3 +179,19 @@ graph retrieval
 citation validator
 structured answer synthesis
 ```
+
+## GigaAM / ASR Backlog
+
+```text
+При следующем ручном GigaAM-прогоне использовать scripts/run_gigaam_transcribe.ps1,
+а не inline-команды из чата.
+
+Если GigaAM станет постоянным ASR-путем, добавить интеграцию с meeting card:
+source/media_files -> transcript/segments.jsonl -> meeting.json status.
+
+Проверить качество GigaAM против faster-whisper на 2-3 русскоязычных встречах:
+термины проекта, обрывы на чанках, шум, имена, пригодность для source_refs.
+
+Не коммитить runtime output из Downloads или meetings/**/transcript;
+для Git фиксировать только отчет в docs/references или curated transcript excerpt.
+```

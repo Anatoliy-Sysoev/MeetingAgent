@@ -300,3 +300,29 @@ scripts/monitor_asu_june_bot_ntk_index.ps1 -Loop -IntervalMinutes 30
 ```
 
 Watchdog не удаляет данные. Если build-процесс упадёт до появления `manifest.json`, он перезапустит тот же resumable build.
+
+## 2026-05-26 — GigaAM-прогон записи про схему уровня поддержки
+
+Зафиксирован ручной ASR-прогон файла `%USERPROFILE%\Downloads\Схема уровня поддержки.mp4` через локальный `GigaAM`.
+
+Результат прогона:
+
+```text
+duration: 00:06:29
+model: gigaam/v3_e2e_rnnt
+chunks: 17
+nonempty_chunks: 17
+errors: 0
+runtime output: %USERPROFILE%\Downloads\gigaam_support_scheme
+tracked report: docs/references/GIGAAM_SUPPORT_SCHEME_RUN_2026-05-26.md
+```
+
+Добавлен воспроизводимый wrapper:
+
+```text
+scripts/run_gigaam_transcribe.ps1
+scripts/gigaam_transcribe_chunks.py
+docs/operations/GIGAAM_TRANSCRIPTION.md
+```
+
+Важная деталь окружения: GigaAM и `sentencepiece` могут падать на tokenizer в пути с кириллицей `%USERPROFILE%\.cache\gigaam`. Для стабильного повторного запуска используется ASCII-cache `%ProgramData%\gigaam_cache`; wrapper копирует туда локальные файлы модели, если они уже есть в user-cache.
