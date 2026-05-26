@@ -27,7 +27,13 @@ CHUNKER_VERSION = "v2"
 PROJECT_NAME = "ЦП УПКС"
 SECTION_RE = re.compile(r"(?<!\d)(\d+(?:\.\d+){1,5})\s*\.", re.UNICODE)
 TEXT_CHILD_MAX_CHARS = 2500
+TABLE_ROW_MAX_CHARS = 2000
 SOURCE_PARENT_MAX_CHARS = 6000
+MAX_STORED_HEADERS = 120
+MAX_STORED_CELLS = 120
+MAX_ROW_HEADER_CHARS = 1200
+NOISE_TEXT_RE = re.compile(r"^[\s{}\[\],.;:…._\\/-]+$|^(end|окончание|далее)\.?$", re.IGNORECASE)
+MEANINGFUL_TEXT_RE = re.compile(r"[А-Яа-яA-Za-z0-9]{2,}", re.UNICODE)
 
 
 def utc_now() -> str:
@@ -107,18 +113,22 @@ def block_text(block: dict[str, Any]) -> str:
     text = normalize_text(block.get("text") or "")
     block_type = str(block.get("block_type") or "")
     if block_type == "table_row":
-        headers = block.get("headers") or []
-        header_text = " | ".join(str(item) for item in headers)
+        cells = block.get("cells") or {}
+        cell_lines = [
+            f"{key}: {value}"
+            for key, value in cells.items()
+            if normalize_text(value)
+        ]
+        row_text = "\n".join(cell_lines) if cell_lines else text
         prefix = [
             f"Документ: {block.get('relative_path')}",
             f"Таблица: {block.get('table_id') or ''}".strip(),
             f"Лист: {block.get('sheet')}" if block.get("sheet") else "",
-            f"Заголовки: {header_text}" if header_text else "",
             f"Строка: {block.get('row_id') or block.get('row_index') or ''}".strip(),
         ]
-        return normalize_text("\n".join([item for item in prefix if item]) + "\n" + text)
+        return normalize_text("\n".join([item for item in prefix if item]) + "\n" + row_text)
     if block_type in {"table", "sheet"}:
-        headers = block.get("headers") or []
+        headers = compact_headers(block.get("headers") or [])
         header_text = " | ".join(str(item) for item in headers)
         prefix = [
             f"Документ: {block.get('relative_path')}",
@@ -126,7 +136,15 @@ def block_text(block: dict[str, Any]) -> str:
             f"Лист: {block.get('sheet')}" if block.get("sheet") else "",
             f"Заголовки: {header_text}" if header_text else "",
         ]
-        return normalize_text("\n".join([item for item in prefix if item]) + "\n" + text)
+        cleaned_lines = [
+            line
+            for line in text.splitlines()
+            if not line.strip().lower().startswith(("лист:", "заголовки:", "таблица "))
+        ]
+        payload = normalize_text("\n".join(cleaned_lines))
+        if len(payload) > SOURCE_PARENT_MAX_CHARS:
+            payload = ""
+        return normalize_text("\n".join([item for item in prefix if item]) + ("\n" + payload if payload else ""))
     return text
 
 
@@ -140,6 +158,15 @@ def split_long_text(text: str, max_chars: int = TEXT_CHILD_MAX_CHARS) -> list[st
     chunks: list[str] = []
     current: list[str] = []
     for para in paragraphs:
+        if len(para) > max_chars:
+            if current:
+                chunks.append("\n\n".join(current))
+                current = []
+            for start in range(0, len(para), max_chars):
+                piece = para[start : start + max_chars].strip()
+                if piece:
+                    chunks.append(piece)
+            continue
         current_text = "\n\n".join(current)
         if current and len(current_text) + len(para) > max_chars:
             chunks.append(current_text)
@@ -148,6 +175,45 @@ def split_long_text(text: str, max_chars: int = TEXT_CHILD_MAX_CHARS) -> list[st
     if current:
         chunks.append("\n\n".join(current))
     return chunks
+
+
+def is_noise_text(text: str) -> bool:
+    clean = normalize_text(text)
+    if not clean:
+        return True
+    if len(clean) <= 3:
+        return True
+    if len(clean) < 50 and NOISE_TEXT_RE.fullmatch(clean) and not MEANINGFUL_TEXT_RE.search(clean):
+        return True
+    return False
+
+
+def compact_headers(headers: list[Any]) -> list[str]:
+    return [str(item) for item in headers[:MAX_STORED_HEADERS]]
+
+
+def compact_cells(cells: dict[str, Any]) -> dict[str, str]:
+    compact: dict[str, str] = {}
+    for key, value in cells.items():
+        clean_value = normalize_text(value)
+        if not clean_value:
+            continue
+        compact[str(key)] = clean_value
+        if len(compact) >= MAX_STORED_CELLS:
+            break
+    return compact
+
+
+def compact_row_header(headers: list[Any]) -> str | None:
+    row_header = " | ".join(compact_headers(headers))
+    return row_header[:MAX_ROW_HEADER_CHARS] if row_header else None
+
+
+def append_chunk(chunks: list[dict[str, Any]], chunk: dict[str, Any]) -> bool:
+    if is_noise_text(str(chunk.get("text") or "")):
+        return False
+    chunks.append(chunk)
+    return True
 
 
 def base_chunk_metadata(block: dict[str, Any], text: str) -> dict[str, Any]:
@@ -225,10 +291,10 @@ def make_chunk(
         "table_id": table_id,
         "table_title": block.get("title"),
         "row_id": row_id,
-        "row_header": " | ".join(str(item) for item in (block.get("headers") or [])) or None,
+        "row_header": compact_row_header(block.get("headers") or []),
         "row_index": block.get("row_index"),
-        "headers": block.get("headers") or [],
-        "cells": block.get("cells") or {},
+        "headers": compact_headers(block.get("headers") or []),
+        "cells": compact_cells(block.get("cells") or {}),
         "title": title or block.get("title") or block.get("parent_hint"),
         "text": clean_text,
         "text_hash": text_hash(clean_text),
@@ -272,9 +338,9 @@ def build_chunks_for_source(blocks: list[dict[str, Any]]) -> list[dict[str, Any]
 
     source_parent = make_source_parent(blocks, chunk_index)
     if source_parent:
-        chunks.append(source_parent)
-        current_parent_id = source_parent["chunk_id"]
-        chunk_index += 1
+        if append_chunk(chunks, source_parent):
+            current_parent_id = source_parent["chunk_id"]
+            chunk_index += 1
 
     for block in blocks:
         btype = str(block.get("block_type") or "")
@@ -291,7 +357,9 @@ def build_chunks_for_source(blocks: list[dict[str, Any]]) -> list[dict[str, Any]
                 parent_chunk_id=source_parent["chunk_id"] if source_parent else None,
                 title=block.get("title") or block.get("parent_hint"),
             )
-            chunks.append(parent)
+            if not append_chunk(chunks, parent):
+                chunk_index += 1
+                continue
             current_parent_id = parent["chunk_id"]
             if btype in {"table", "sheet"}:
                 table_key = f"{block.get('table_id') or ''}:{block.get('sheet') or ''}"
@@ -302,16 +370,18 @@ def build_chunks_for_source(blocks: list[dict[str, Any]]) -> list[dict[str, Any]
         if btype == "table_row":
             table_key = f"{block.get('table_id') or ''}:{block.get('sheet') or ''}"
             parent_id = current_table_parent_by_key.get(table_key) or current_parent_id
-            child = make_chunk(
-                block=block,
-                text=text,
-                chunk_index=chunk_index,
-                chunk_level="child",
-                parent_chunk_id=parent_id,
-                title=block.get("title") or block.get("parent_hint"),
-            )
-            chunks.append(child)
-            chunk_index += 1
+            for row_part_index, piece in enumerate(split_long_text(text, max_chars=TABLE_ROW_MAX_CHARS)):
+                child = make_chunk(
+                    block=block,
+                    text=piece,
+                    chunk_index=chunk_index,
+                    chunk_level="child",
+                    parent_chunk_id=parent_id,
+                    title=block.get("title") or block.get("parent_hint"),
+                )
+                child["row_part_index"] = row_part_index if row_part_index else None
+                append_chunk(chunks, child)
+                chunk_index += 1
             continue
 
         for piece in split_long_text(text):
@@ -323,7 +393,7 @@ def build_chunks_for_source(blocks: list[dict[str, Any]]) -> list[dict[str, Any]
                 parent_chunk_id=current_parent_id,
                 title=block.get("title") or block.get("parent_hint"),
             )
-            chunks.append(child)
+            append_chunk(chunks, child)
             chunk_index += 1
 
     return chunks

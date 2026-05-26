@@ -1,6 +1,6 @@
 # TODO
 
-Обновлено: 2026-05-22.
+Обновлено: 2026-05-26.
 
 ## Retrieval quality roadmap
 
@@ -45,7 +45,9 @@ hallucination bucket
 ### Priority 0
 
 ```text
-Дождаться завершения NTK Yandex embeddings/index build
+Принять решение по текущей NTK Yandex embeddings/index build:
+- дать старой сборке закончиться как baseline старого чанкинга;
+- или остановить и пересобрать после chunk-quality фиксов.
 ```
 
 Проверка прогресса:
@@ -79,6 +81,40 @@ data/asu_june_bot_ntk/numpy_index_v2/manifest.json
 Дефолт бота переключать на `data/asu_june_bot_ntk` только если hybrid smoke лучше текущего корпуса.
 
 Incremental update для Yandex-папки делать после подтверждения качества нового корпуса.
+
+### Priority 0.1
+
+Пересобрать NTK corpus после chunk-quality фиксов:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_extract_text_v2.py `
+  --project-root "$env:USERPROFILE\Desktop\Yandex.Disk\Документы НТК Сдача" `
+  --source-links data\asu_june_bot_ntk\source_links.jsonl `
+  --output-dir data\asu_june_bot_ntk\extracted_v2 `
+  --reset
+
+.\.venv\Scripts\python.exe scripts\asu_june_bot_build_chunks_v2.py `
+  --blocks-path data\asu_june_bot_ntk\extracted_v2\blocks.jsonl `
+  --output-dir data\asu_june_bot_ntk
+```
+
+После пересборки проверить:
+
+```text
+gt6000 должен резко снизиться;
+lt80 должен снизиться за счёт удаления микрошума;
+unknown document_type должен снизиться;
+source_url coverage не должен ухудшиться;
+4 СВОК РД.xlsx не должен создавать 100k+ chunks.
+```
+
+Не делать пока без отдельного решения:
+
+```text
+hardcoded fallback source_url;
+канонизация версий ПР как единственный режим;
+удаление всех WIP/pptx из корпуса.
+```
 
 ### Priority 1
 

@@ -45,6 +45,7 @@ from asu_june_bot.ingestion.utils import (  # noqa: E402
 EXTRACTOR_VERSION = "v2.1"
 DEFAULT_OUTPUT_DIR = "data/asu_june_bot/extracted_v2"
 TEXT_EXTENSIONS = {".md", ".txt", ".json", ".yml", ".yaml", ".drawio", ".puml", ".bpmn", ".srt"}
+MAX_EXCEL_COLUMNS = 120
 
 
 def utc_now() -> str:
@@ -210,6 +211,45 @@ def unique_headers(values: list[str]) -> list[str]:
     return headers
 
 
+def trim_empty_columns(rows: list[list[str]], max_cols: int = MAX_EXCEL_COLUMNS) -> list[list[str]]:
+    """Keep only the useful part of a worksheet used range.
+
+    Some Excel files report thousands of formatted columns as part of the used
+    range. Those empty/generated columns later become col_N headers repeated in
+    every table_row chunk, which can inflate one row into hundreds of thousands
+    of characters.
+    """
+    if not rows:
+        return []
+    last_non_empty = -1
+    for row in rows:
+        for idx, value in enumerate(row):
+            if str(value or "").strip():
+                last_non_empty = max(last_non_empty, idx)
+    if last_non_empty < 0:
+        return []
+    width = min(last_non_empty + 1, max_cols)
+    return [row[:width] for row in rows]
+
+
+def compact_table_cells(headers: list[str], values: list[str]) -> dict[str, str]:
+    cells: dict[str, str] = {}
+    for idx, value in enumerate(values[: len(headers)]):
+        clean_value = normalize_text(value)
+        if not clean_value:
+            continue
+        header = headers[idx] if idx < len(headers) else f"col_{idx + 1}"
+        cells[header] = clean_value
+    return cells
+
+
+def row_text_from_cells(row_label: str, cells: dict[str, str]) -> str:
+    if not cells:
+        return ""
+    pairs = [f"{key}: {value}" for key, value in cells.items()]
+    return row_label + "\n" + "\n".join(pairs)
+
+
 def header_score(values: list[str]) -> int:
     text = " ".join(values).lower()
     keywords = (
@@ -314,13 +354,14 @@ def extract_docx_v2(path: Path, source: SourceDocument) -> list[ExtractedBlock]:
                     continue
                 if not any(values):
                     continue
-                cells = {headers[col_idx] if col_idx < len(headers) else f"col_{col_idx + 1}": value for col_idx, value in enumerate(values)}
+                cells = compact_table_cells(headers, values)
+                if not cells:
+                    continue
                 row_text = "\n".join(
                     [
                         f"Таблица {table_index}",
                         f"Контекст: {table_title}" if table_title else "",
-                        "Заголовки: " + " | ".join(headers),
-                        f"Строка {idx + 1}: " + " | ".join(values),
+                        row_text_from_cells(f"Строка {idx + 1}:", cells),
                     ]
                 )
                 block = make_block(
@@ -355,10 +396,17 @@ def extract_xlsx_with_openpyxl(path: Path, source: SourceDocument) -> list[Extra
     for sheet in workbook.worksheets:
         raw_rows = [[normalize_cell(cell) for cell in row] for row in sheet.iter_rows(values_only=True)]
         raw_rows = [row for row in raw_rows if any(row)]
+        raw_rows = trim_empty_columns(raw_rows)
+        raw_rows = [row for row in raw_rows if any(row)]
         if not raw_rows:
             continue
         header_idx = detect_header_row(raw_rows)
         headers = unique_headers(raw_rows[header_idx])
+        if len(headers) >= MAX_EXCEL_COLUMNS:
+            print(
+                f"[extract:xlsx] {source.relative_path} / {sheet.title}: worksheet width capped at {MAX_EXCEL_COLUMNS} columns",
+                file=sys.stderr,
+            )
         sheet_name = str(sheet.title)
         sheet_text = f"Лист: {sheet_name}\nЗаголовки: " + " | ".join(headers)
         block = make_block(
@@ -377,13 +425,13 @@ def extract_xlsx_with_openpyxl(path: Path, source: SourceDocument) -> list[Extra
         for row_idx, values in enumerate(raw_rows, start=1):
             if row_idx - 1 == header_idx:
                 continue
-            normalized_values = values[: len(headers)] + [""] * max(0, len(headers) - len(values))
-            cells = {headers[idx]: normalized_values[idx] if idx < len(normalized_values) else "" for idx in range(len(headers))}
+            cells = compact_table_cells(headers, values)
+            if not cells:
+                continue
             row_text = "\n".join(
                 [
                     f"Лист: {sheet_name}",
-                    "Заголовки: " + " | ".join(headers),
-                    f"Строка {row_idx}: " + " | ".join(values),
+                    row_text_from_cells(f"Строка {row_idx}:", cells),
                 ]
             )
             block = make_block(
@@ -414,10 +462,17 @@ def extract_xlsb_with_pandas(path: Path, source: SourceDocument) -> list[Extract
         df = df.fillna("")
         raw_rows = [[normalize_cell(value) for value in row] for row in df.values.tolist()]
         raw_rows = [row for row in raw_rows if any(row)]
+        raw_rows = trim_empty_columns(raw_rows)
+        raw_rows = [row for row in raw_rows if any(row)]
         if not raw_rows:
             continue
         header_idx = detect_header_row(raw_rows)
         headers = unique_headers(raw_rows[header_idx])
+        if len(headers) >= MAX_EXCEL_COLUMNS:
+            print(
+                f"[extract:xlsb] {source.relative_path} / {sheet_name}: worksheet width capped at {MAX_EXCEL_COLUMNS} columns",
+                file=sys.stderr,
+            )
         sheet_title = str(sheet_name)
         sheet_text = f"Лист: {sheet_title}\nЗаголовки: " + " | ".join(headers)
         block = make_block(
@@ -436,13 +491,13 @@ def extract_xlsb_with_pandas(path: Path, source: SourceDocument) -> list[Extract
         for row_idx, values in enumerate(raw_rows, start=1):
             if row_idx - 1 == header_idx:
                 continue
-            normalized_values = values[: len(headers)] + [""] * max(0, len(headers) - len(values))
-            cells = {headers[idx]: normalized_values[idx] if idx < len(normalized_values) else "" for idx in range(len(headers))}
+            cells = compact_table_cells(headers, values)
+            if not cells:
+                continue
             row_text = "\n".join(
                 [
                     f"Лист: {sheet_title}",
-                    "Заголовки: " + " | ".join(headers),
-                    f"Строка {row_idx}: " + " | ".join(values),
+                    row_text_from_cells(f"Строка {row_idx}:", cells),
                 ]
             )
             block = make_block(

@@ -1,6 +1,58 @@
 # Контекст проекта
 
-Обновлено: 2026-05-22.
+Обновлено: 2026-05-26.
+
+## NTK Yandex corpus chunk quality
+
+Ветка `codex/ntk-yandex-corpus` используется для отдельного корпуса по очищенной папке:
+
+```text
+C:\Users\Сотрудник\Desktop\Yandex.Disk\Документы НТК Сдача
+```
+
+Найденные проблемы качества чанков:
+
+```text
+гигантские Excel table_row chunks до ~401k символов;
+микрошумовые чанки: "{", "}", "},", "end", "…";
+document_type=unknown у большой доли xlsx/pptx/pdf/НСИ-материалов;
+дубли между версиями ПР-документов;
+локальные missing source_url для пары документов.
+```
+
+Реализован безопасный технический слой очистки:
+
+```text
+scripts/asu_june_bot_extract_text_v2.py:
+  - Excel rows обрезаются по полезной ширине;
+  - введён hard cap 120 колонок;
+  - table_row text строится из непустых key:value pairs;
+  - headers/cells больше не раздуваются пустыми col_N.
+
+scripts/asu_june_bot_build_chunks_v2.py:
+  - table_row больше не дублирует "Заголовки";
+  - table_row проходит через split_long_text;
+  - добавлен hard split длинных абзацев;
+  - headers/cells в metadata ограничены;
+  - микрошумовые чанки фильтруются без удаления смысловых заголовков.
+
+src/asu_june_bot/retrieval/metadata.py:
+  - добавлены document_type для "Справочник НСИ",
+    "Методика/Регламент НСИ", "Статус/Презентация",
+    "Схема/Диаграмма".
+```
+
+Проверка на старых blocks для `4 СВОК РД.xlsx`:
+
+```text
+до фикса: table_row chunks до ~401k символов;
+после нового chunker на старых blocks:
+  max_chars=3843
+  gt6000=0
+  document_type=Справочник НСИ
+```
+
+Полная польза появится после пересборки extractor -> chunks -> embeddings/index. Текущая long-running embeddings-сборка идёт по старому `chunks_v2.jsonl`; она может остаться как baseline старого чанкинга или быть остановлена отдельным решением.
 
 ## Retrieval quality evolution
 
