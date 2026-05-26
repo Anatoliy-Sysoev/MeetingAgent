@@ -106,7 +106,7 @@ def infer_document_type(metadata: dict[str, Any]) -> str | None:
             ),
             "Справочник НСИ",
         ),
-        (("wip", "результаты", "results", "итоги недели", "roadblock", ".pptx"), "Статус/Презентация"),
+        (("wip", "результаты", "results", "итоги недели", "roadblock"), "Статус/Презентация"),
         (("схема", "диаграмма", "drawio", ".drawio"), "Схема/Диаграмма"),
         (("протокол", "protocol"), "Протокол"),
         (("wiki", "вики"), "Wiki"),
@@ -120,7 +120,7 @@ def infer_document_type(metadata: dict[str, Any]) -> str | None:
     extension = str(metadata.get("extension") or "").lower()
     if extension in {".xlsx", ".xlsb"} and ("справоч" in search_area or "нси" in search_area):
         return "Справочник НСИ"
-    if extension == ".pptx":
+    if extension == ".pptx" and any(marker in search_area for marker in ("wip", "результаты", "results", "итоги недели", "roadblock")):
         return "Статус/Презентация"
     return None
 

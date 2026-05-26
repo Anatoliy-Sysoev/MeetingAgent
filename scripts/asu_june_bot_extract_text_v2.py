@@ -45,7 +45,8 @@ from asu_june_bot.ingestion.utils import (  # noqa: E402
 EXTRACTOR_VERSION = "v2.1"
 DEFAULT_OUTPUT_DIR = "data/asu_june_bot/extracted_v2"
 TEXT_EXTENSIONS = {".md", ".txt", ".json", ".yml", ".yaml", ".drawio", ".puml", ".bpmn", ".srt"}
-MAX_EXCEL_COLUMNS = 120
+EXCEL_SOFT_COLUMN_LIMIT = 120
+EXCEL_HARD_COLUMN_LIMIT = 250
 
 
 def utc_now() -> str:
@@ -211,7 +212,7 @@ def unique_headers(values: list[str]) -> list[str]:
     return headers
 
 
-def trim_empty_columns(rows: list[list[str]], max_cols: int = MAX_EXCEL_COLUMNS) -> list[list[str]]:
+def trim_empty_columns(rows: list[list[str]], hard_limit: int = EXCEL_HARD_COLUMN_LIMIT) -> list[list[str]]:
     """Keep only the useful part of a worksheet used range.
 
     Some Excel files report thousands of formatted columns as part of the used
@@ -221,15 +222,17 @@ def trim_empty_columns(rows: list[list[str]], max_cols: int = MAX_EXCEL_COLUMNS)
     """
     if not rows:
         return []
-    last_non_empty = -1
-    for row in rows:
-        for idx, value in enumerate(row):
-            if str(value or "").strip():
-                last_non_empty = max(last_non_empty, idx)
-    if last_non_empty < 0:
+    width = max(len(row) for row in rows)
+    useful_columns = [
+        idx
+        for idx in range(width)
+        if any(idx < len(row) and str(row[idx] or "").strip() for row in rows)
+    ]
+    if not useful_columns:
         return []
-    width = min(last_non_empty + 1, max_cols)
-    return [row[:width] for row in rows]
+    if len(useful_columns) > hard_limit:
+        useful_columns = useful_columns[:hard_limit]
+    return [[row[idx] if idx < len(row) else "" for idx in useful_columns] for row in rows]
 
 
 def compact_table_cells(headers: list[str], values: list[str]) -> dict[str, str]:
@@ -402,9 +405,9 @@ def extract_xlsx_with_openpyxl(path: Path, source: SourceDocument) -> list[Extra
             continue
         header_idx = detect_header_row(raw_rows)
         headers = unique_headers(raw_rows[header_idx])
-        if len(headers) >= MAX_EXCEL_COLUMNS:
+        if len(headers) > EXCEL_SOFT_COLUMN_LIMIT:
             print(
-                f"[extract:xlsx] {source.relative_path} / {sheet.title}: worksheet width capped at {MAX_EXCEL_COLUMNS} columns",
+                f"[extract:xlsx] {source.relative_path} / {sheet.title}: worksheet width remains high after trimming: {len(headers)} columns",
                 file=sys.stderr,
             )
         sheet_name = str(sheet.title)
@@ -468,9 +471,9 @@ def extract_xlsb_with_pandas(path: Path, source: SourceDocument) -> list[Extract
             continue
         header_idx = detect_header_row(raw_rows)
         headers = unique_headers(raw_rows[header_idx])
-        if len(headers) >= MAX_EXCEL_COLUMNS:
+        if len(headers) > EXCEL_SOFT_COLUMN_LIMIT:
             print(
-                f"[extract:xlsb] {source.relative_path} / {sheet_name}: worksheet width capped at {MAX_EXCEL_COLUMNS} columns",
+                f"[extract:xlsb] {source.relative_path} / {sheet_name}: worksheet width remains high after trimming: {len(headers)} columns",
                 file=sys.stderr,
             )
         sheet_title = str(sheet_name)
