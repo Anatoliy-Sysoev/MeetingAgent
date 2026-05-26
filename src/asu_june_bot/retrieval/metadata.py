@@ -27,6 +27,9 @@ ANALYTICAL_NOTE_HINTS = (
     "сравнен",
     "маппинг",
     "mapping",
+    "wip",
+    "результаты",
+    "roadblock",
 )
 
 MEETING_HINTS = (
@@ -89,6 +92,22 @@ def infer_document_type(metadata: dict[str, Any]) -> str | None:
         (("сои справоч", "соглашение об интеграции справоч", "соглашение об интеграции нси", "mdr", "кшд"), "СоИ Справочники"),
         (("реестр объектов нси", "реест объектов нси", "реестр нси"), "Реестр НСИ"),
         (("руководство администратора", "руководство пользователя", "инструкция пользователя", "инструкция администратора"), "Руководство"),
+        (("регламент ведения", "методика ведения", "мвд ", "ведение объекта нси"), "Методика/Регламент НСИ"),
+        (
+            (
+                "справочник",
+                "классификатор",
+                "свок",
+                "реестр нормативных",
+                "перечень справочников",
+                "атрибутный состав",
+                "модель данных нси",
+                "маппинг выгрузок",
+            ),
+            "Справочник НСИ",
+        ),
+        (("wip", "результаты", "results", "итоги недели", "roadblock", ".pptx"), "Статус/Презентация"),
+        (("схема", "диаграмма", "drawio", ".drawio"), "Схема/Диаграмма"),
         (("протокол", "protocol"), "Протокол"),
         (("wiki", "вики"), "Wiki"),
         (("bpmn", "бизнес процесс", "to be", "as is"), "BPMN / Процесс"),
@@ -98,6 +117,11 @@ def infer_document_type(metadata: dict[str, Any]) -> str | None:
     for markers, doc_type in candidates:
         if any(marker in search_area for marker in markers):
             return doc_type
+    extension = str(metadata.get("extension") or "").lower()
+    if extension in {".xlsx", ".xlsb"} and ("справоч" in search_area or "нси" in search_area):
+        return "Справочник НСИ"
+    if extension == ".pptx":
+        return "Статус/Презентация"
     return None
 
 
