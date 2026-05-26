@@ -252,6 +252,58 @@ text
 
 `meeting_chunk` добавлен в default allowed source types для `scripts/asu_june_bot_build_index_v2.py` и retrieval source policy. Для сборки отдельного индекса по встречам можно передать `data/meeting_chunks.jsonl` как `--chunks-path` в index builder.
 
+### 8. Smoke Meeting Search
+
+Быстрый поиск по экспортированным meeting chunks работает без Ollama и без основного индекса:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\31_meeting_search.py `
+  "какие решения приняли" `
+  --chunks-path data\meeting_chunks.jsonl
+```
+
+Фильтр по одной карточке встречи:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\31_meeting_search.py `
+  "задачи Сергей" `
+  --chunks-path data\meeting_chunks.jsonl `
+  --meeting-id YYYY-MM-DD__slug
+```
+
+JSON-вывод для интеграции с ботом или UI:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\31_meeting_search.py `
+  "какие риски" `
+  --chunks-path data\meeting_chunks.jsonl `
+  --json
+```
+
+Отдельный smoke numpy index по встречам собирается той же сборкой v2, но с отдельными путями:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_build_index_v2.py `
+  --chunks-path data\meeting_chunks.jsonl `
+  --cache-path data\meeting_embeddings_cache.jsonl `
+  --index-dir data\meeting_numpy_index `
+  --report-path data\meeting_index_report.json `
+  --include-source-type meeting_chunk `
+  --limit 20
+```
+
+Если embeddings уже есть и нужно только пересобрать numpy-файлы:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_build_index_v2.py `
+  --chunks-path data\meeting_chunks.jsonl `
+  --cache-path data\meeting_embeddings_cache.jsonl `
+  --index-dir data\meeting_numpy_index `
+  --report-path data\meeting_index_report.json `
+  --include-source-type meeting_chunk `
+  --index-only
+```
+
 ## Итоги Встречи
 
 После статуса `transcribed` следующий слой pipeline создает человекочитаемые и машинные артефакты встречи.

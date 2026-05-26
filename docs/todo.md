@@ -265,7 +265,7 @@ docs/product/PROJECT_STAGES_AND_FTT.md
 - source-quality gate для meeting chunks.
 ```
 
-Статус: chunking реализован 2026-05-26 через `scripts/26_chunk_meeting.py`; indexing остается следующим шагом.
+Статус: реализовано 2026-05-26 через `scripts/26_chunk_meeting.py` и `scripts/28_index_meeting_chunks.py`.
 
 ### Priority 4
 
@@ -293,4 +293,21 @@ meeting_chunk добавлен в default source policy/index source types.
 собрать отдельный smoke numpy index по data/meeting_chunks.jsonl;
 добавить meeting search CLI;
 заменить heuristic enrichment на LLM map/reduce для production artifacts.
+```
+
+Статус update 2026-05-26:
+
+```text
+meeting search CLI реализован через scripts/31_meeting_search.py;
+smoke lexical search работает без Ollama и отдельного numpy index;
+команда сборки data/meeting_numpy_index по data/meeting_chunks.jsonl зафиксирована в docs/operations/MEETING_PIPELINE.md;
+фактическая сборка индекса не запускалась, потому что в текущем workspace нет runtime data/meeting_chunks.jsonl.
+```
+
+Следующий шаг:
+
+```text
+прогнать 28_index_meeting_chunks.py на реальной карточке встречи;
+после появления data/meeting_chunks.jsonl собрать data/meeting_numpy_index;
+проверить scripts/31_meeting_search.py на реальном запросе по встрече.
 ```

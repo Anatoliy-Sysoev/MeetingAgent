@@ -465,3 +465,31 @@ enrichment_mode=heuristic_v1 и needs_review=true, поэтому это пер�
 .\.venv\Scripts\python.exe -m pytest tests\unit\test_meeting_enrich_index.py tests\unit\test_meeting_speaker_chunk.py tests\unit\test_meeting_ingest_audio.py -q
 6 passed
 ```
+
+## 2026-05-26 — Добавлен smoke meeting search CLI
+
+Добавлены:
+
+```text
+scripts/31_meeting_search.py
+tests/unit/test_meeting_search.py
+```
+
+Поведение:
+
+```text
+31_meeting_search.py читает data/meeting_chunks.jsonl;
+по умолчанию ищет только source_type=meeting_chunk;
+работает без Ollama и numpy index через lexical smoke search;
+сохраняет в ответе meeting_id, meeting_title, timestamp_start/timestamp_end, speakers, topic, semantic_type и text preview;
+поддерживает --meeting-id, --top-k и --json.
+```
+
+Команда отдельной smoke-сборки numpy index по встречам зафиксирована в `docs/operations/MEETING_PIPELINE.md`. В текущем workspace runtime-файл `data/meeting_chunks.jsonl` отсутствует, поэтому фактическая сборка `data/meeting_numpy_index` не запускалась.
+
+Проверка:
+
+```text
+.\.venv\Scripts\python.exe -m pytest tests\unit\test_meeting_search.py -q
+3 passed
+```
