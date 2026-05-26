@@ -485,11 +485,41 @@ tests/unit/test_meeting_search.py
 поддерживает --meeting-id, --top-k и --json.
 ```
 
-Команда отдельной smoke-сборки numpy index по встречам зафиксирована в `docs/operations/MEETING_PIPELINE.md`. В текущем workspace runtime-файл `data/meeting_chunks.jsonl` отсутствует, поэтому фактическая сборка `data/meeting_numpy_index` не запускалась.
+Команда отдельной smoke-сборки numpy index по встречам зафиксирована в `docs/operations/MEETING_PIPELINE.md`.
 
 Проверка:
 
 ```text
 .\.venv\Scripts\python.exe -m pytest tests\unit\test_meeting_search.py -q
 3 passed
+```
+
+## 2026-05-26 — Первый реальный smoke-прогон встречи
+
+Использована запись `Схема уровня поддержки`. Исходный mp4 по старому пути отсутствовал, поэтому карточка создана из готового GigaAM output:
+
+```text
+C:\Users\Сотрудник\Downloads\gigaam_support_scheme\audio_16k_mono.wav
+C:\Users\Сотрудник\Downloads\gigaam_support_scheme\segments_gigaam.jsonl
+```
+
+Runtime artifacts, которые не коммитятся:
+
+```text
+meetings/2026-05-26__support-scheme/
+data/meeting_chunks.jsonl
+data/meeting_embeddings_cache.jsonl
+data/meeting_numpy_index/
+data/meeting_index_report.json
+```
+
+Результат:
+
+```text
+24_merge_transcript_speakers.py: 17 utterances
+26_chunk_meeting.py: 3 chunks
+27_enrich_meeting_chunks.py: 3 enriched chunks
+28_index_meeting_chunks.py: 3 rows in data/meeting_chunks.jsonl
+asu_june_bot_build_index_v2.py: 3 bge-m3 embeddings, dim=1024, data/meeting_numpy_index built
+31_meeting_search.py: smoke search по meeting_id=2026-05-26__support-scheme возвращает 3 фрагмента с таймкодами
 ```

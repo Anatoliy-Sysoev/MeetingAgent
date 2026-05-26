@@ -279,19 +279,19 @@ docs/product/PROJECT_STAGES_AND_FTT.md
 - smoke search по одной встрече.
 ```
 
-Статус: частично реализовано 2026-05-26:
+Статус: реализовано 2026-05-26:
 
 ```text
 scripts/27_enrich_meeting_chunks.py готов как heuristic MVP enrichment;
 scripts/28_index_meeting_chunks.py готов как export в data/meeting_chunks.jsonl;
-meeting_chunk добавлен в default source policy/index source types.
+meeting_chunk добавлен в default source policy/index source types;
+scripts/31_meeting_search.py готов для smoke search по встречам;
+на реальной встрече 2026-05-26__support-scheme собран data/meeting_numpy_index: 3 chunks, bge-m3, dim=1024.
 ```
 
 Осталось:
 
 ```text
-собрать отдельный smoke numpy index по data/meeting_chunks.jsonl;
-добавить meeting search CLI;
 заменить heuristic enrichment на LLM map/reduce для production artifacts.
 ```
 
@@ -300,14 +300,14 @@ meeting_chunk добавлен в default source policy/index source types.
 ```text
 meeting search CLI реализован через scripts/31_meeting_search.py;
 smoke lexical search работает без Ollama и отдельного numpy index;
-команда сборки data/meeting_numpy_index по data/meeting_chunks.jsonl зафиксирована в docs/operations/MEETING_PIPELINE.md;
-фактическая сборка индекса не запускалась, потому что в текущем workspace нет runtime data/meeting_chunks.jsonl.
+отдельный smoke numpy index по data/meeting_chunks.jsonl собран на встрече 2026-05-26__support-scheme;
+runtime artifacts лежат в meetings/2026-05-26__support-scheme/ и data/meeting_* и не коммитятся.
 ```
 
 Следующий шаг:
 
 ```text
-прогнать 28_index_meeting_chunks.py на реальной карточке встречи;
-после появления data/meeting_chunks.jsonl собрать data/meeting_numpy_index;
-проверить scripts/31_meeting_search.py на реальном запросе по встрече.
+добавить LLM map/reduce extraction для summary/decisions/tasks/risks/open_questions;
+сделать structured artifacts с source timestamps;
+подключить meeting search к будущему API/боту.
 ```
