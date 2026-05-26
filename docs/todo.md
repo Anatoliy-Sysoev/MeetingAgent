@@ -220,6 +220,8 @@ docs/product/PROJECT_STAGES_AND_FTT.md
 - идемпотентность и понятная ошибка при конфликте slug.
 ```
 
+Статус: реализовано 2026-05-26. Следующие улучшения: пакетный watcher и очередь jobs.
+
 ### Priority 0.1
 
 ```text
@@ -229,6 +231,8 @@ docs/product/PROJECT_STAGES_AND_FTT.md
 - status/report без пересоздания успешного результата без --force;
 - ошибки писать в meeting.json.last_error или pipeline report.
 ```
+
+Статус: реализовано 2026-05-26. Успешный шаг оставляет processing_status=new, потому что audio_extracted пока не является статусом meeting.schema.json.
 
 ### Priority 1
 

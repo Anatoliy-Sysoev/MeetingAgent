@@ -364,3 +364,30 @@ RAG quality: realistic eval, manual review, approved regression set и targeted 
 Meeting pipeline: добавлена привязка к roadmap 2026-05-26 и ближайшим шагам 20/21;
 GigaAM: зафиксирован как fallback/experimental ASR workflow, не как замена основного faster-whisper пути.
 ```
+
+## 2026-05-26 — Реализован первый слой FTT-MA-08/09/11
+
+Добавлены:
+
+```text
+scripts/20_ingest_meeting.py
+scripts/21_extract_audio.py
+tests/unit/test_meeting_ingest_audio.py
+```
+
+Что закрывает:
+
+```text
+FTT-MA-08: входящий mp4/mp3/wav/m4a превращается в карточку встречи;
+FTT-MA-09: meeting.json создается по configs/schemas/meeting.schema.json;
+FTT-MA-11: нормализованный source/audio_16k_mono.wav фиксируется как MIX-аудио с duration metadata.
+```
+
+Принятое поведение: `21_extract_audio.py` на успешном извлечении не меняет `processing_status` на несуществующий `audio_extracted`, а оставляет `new`, чтобы текущий ASR-контракт мог продолжать работу без миграции схемы. При ошибке встреча переводится в `failed` с `last_error`.
+
+Проверка:
+
+```text
+.\.venv\Scripts\python.exe -m pytest tests\unit\test_meeting_ingest_audio.py -q
+2 passed
+```

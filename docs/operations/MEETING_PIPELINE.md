@@ -47,6 +47,63 @@
 
 ## Offline-Транскрибация MVP
 
+### 1. Ingest Встречи
+
+Новая запись сначала превращается в каноническую карточку встречи:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\20_ingest_meeting.py `
+  --file "$env:USERPROFILE\Downloads\meeting.mp4" `
+  --title "Встреча по АСУ"
+```
+
+Скрипт создает:
+
+```text
+meetings/YYYY-MM-DD__slug/
+  meeting.json
+  source/<original_file>
+  transcript/
+  artifacts/
+  exports/
+  _partials/
+```
+
+Правила:
+
+- `meeting_id` строится как `YYYY-MM-DD__slug`, не UUID;
+- исходное медиа копируется в `source/`;
+- `meeting.json` валидируется по `configs/schemas/meeting.schema.json`;
+- исходное медиа добавляется в `rag.no_index_artifacts`;
+- `processing_status = new`.
+
+### 2. Audio Extraction
+
+Перед ASR можно нормализовать аудио:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\21_extract_audio.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug
+```
+
+Выход:
+
+```text
+source/audio_16k_mono.wav
+```
+
+Формат:
+
+```text
+wav
+mono
+16000 Hz
+```
+
+Успешный audio extraction не вводит новый статус схемы и оставляет `processing_status = new`, чтобы следующий ASR-шаг мог стартовать без миграции `meeting.schema.json`. Нормализованный WAV добавляется в `source.media_files` и `rag.no_index_artifacts`.
+
+### 3. ASR
+
 Минимальный обработчик одной встречи:
 
 ```powershell
