@@ -67,10 +67,10 @@ MeetingAgent должен уметь относить документы, вст
 | `MA-01` | RAG-фундамент | Собрать корпус документов, chunks, embeddings и устойчивый поиск. | `FTT-MA-02` - `FTT-MA-06`, `FTT-MA-15` | Работает: numpy backend, hybrid retrieval, FTS5, rerank, bucket routing и source-quality gate |
 | `MA-02` | Качество поиска | Проверить RAG на реальных вопросах, убрать мусор, зафиксировать метрики. | `FTT-MA-07` | Работает: realistic eval pipeline, manual review, approved regression set и targeted bucket eval; продолжается улучшение по buckets |
 | `MA-03` | Карточка встречи | Описать единый формат папки встречи и артефактов. | `FTT-MA-08`, `FTT-MA-09`, `FTT-MA-20` | Контракт создан: `meeting.json`, JSON-схема, markdown template; MVP roadmap обновлен 2026-05-26 |
-| `MA-04` | Offline-транскрибация записи | Обрабатывать готовые видео/аудио из watched folder. | `FTT-MA-08`, `FTT-MA-11` | Базовый слой готов: `20_ingest_meeting.py`, `21_extract_audio.py`, speaker transcript, meeting chunks, CLI одной встречи, GigaAM wrapper; watcher/queue запланированы |
+| `MA-04` | Offline-транскрибация записи | Обрабатывать готовые видео/аудио из watched folder. | `FTT-MA-08`, `FTT-MA-11` | Базовый слой готов: `20_ingest_meeting.py`, `21_extract_audio.py`, speaker transcript, meeting chunks, enrichment export, CLI одной встречи, GigaAM wrapper; watcher/queue запланированы |
 | `MA-05` | Live-транскрибация встречи | Писать черновой транскрипт в процессе встречи. | `FTT-MA-10`, `FTT-MA-11` | Запланировано, есть эксперимент WhisperDesk |
 | `MA-06` | Memo, протокол, задачи | Генерировать структурированные итоги встречи. | `FTT-MA-12`, `FTT-MA-20` | Скаффолд: prompt-пакет, JSON-схемы, extractive CLI; production-генератор не закрыт |
-| `MA-07` | Классификация и маршрутизация | Определять этап проекта, ФТТ, документ и задачу. | `FTT-MA-13`, `FTT-MA-15` | Запланировано |
+| `MA-07` | Классификация и маршрутизация | Определять этап проекта, ФТТ, документ и задачу. | `FTT-MA-13`, `FTT-MA-15` | Начато: heuristic meeting enrichment и export meeting_chunk в RAG-compatible JSONL; project classifier запланирован |
 | `MA-08` | Генерация документов | Собирать черновики документов на основе источников. | `FTT-MA-14`, `FTT-MA-20` | Запланировано |
 | `MA-09` | Project-Only Chatbot MVP | Дать очищенного чат-бота, который отвечает только по источникам проекта. | `FTT-MA-05`, `FTT-MA-06`, `FTT-MA-07`, `FTT-MA-16`, `FTT-MA-17`, `FTT-MA-18`, `FTT-MA-21` | Реализован: `/search`, `/chat`, Web UI, Telegram adapter, QH-1..QH-5 passed; Docker следующий этап |
 | `MA-10` | Локальный API и UI | Дать интерфейс для inbox, поиска, встреч и документов. | `FTT-MA-16`, `FTT-MA-17` | Частично готово для Project Knowledge Bot: FastAPI endpoints и Web UI; meeting inbox/jobs UI запланированы |
@@ -443,8 +443,8 @@ scripts/06_transcribe_meeting.py, 07_generate_meeting_artifacts.py и 08_process
 22_transcribe_meeting.py как wrapper/рефактор над 06_transcribe_meeting.py
 24_merge_transcript_speakers.py с SPEAKER_UNKNOWN (готово)
 26_chunk_meeting.py (готово)
-27_enrich_meeting_chunks.py
-28_index_meeting_chunks.py
+27_enrich_meeting_chunks.py (heuristic MVP готово)
+28_index_meeting_chunks.py (RAG-compatible export готово)
 29_analyze_meeting.py
 31_meeting_search.py
 ```

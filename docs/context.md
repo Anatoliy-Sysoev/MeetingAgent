@@ -425,3 +425,43 @@ chunker ограничивает chunk по времени и символам, 
 .\.venv\Scripts\python.exe -m pytest tests\unit\test_meeting_speaker_chunk.py tests\unit\test_meeting_ingest_audio.py -q
 4 passed
 ```
+
+## 2026-05-26 — Реализован semantic enrichment и meeting index export
+
+Добавлены:
+
+```text
+scripts/27_enrich_meeting_chunks.py
+scripts/28_index_meeting_chunks.py
+tests/unit/test_meeting_enrich_index.py
+```
+
+Расширена схема:
+
+```text
+configs/schemas/meeting.schema.json
+artifacts.enriched_chunks
+```
+
+Интеграция с retrieval:
+
+```text
+scripts/asu_june_bot_build_index_v2.py default source types теперь включают meeting_chunk;
+src/asu_june_bot/retrieval/source_policy.py default allowed source types теперь включают meeting_chunk;
+meeting_chunk получил source weight 0.88.
+```
+
+Поведение:
+
+```text
+27_enrich_meeting_chunks.py добавляет topic, semantic_type, entities, decisions/action_items/risks/open_questions candidates, importance_score, quality_flags;
+enrichment_mode=heuristic_v1 и needs_review=true, поэтому это первичный MVP-слой, а не финальная LLM-аналитика;
+28_index_meeting_chunks.py экспортирует enriched chunks в data/meeting_chunks.jsonl в RAG-compatible формате с meeting_id, title, timestamps, speakers, topic и semantic_type.
+```
+
+Проверка:
+
+```text
+.\.venv\Scripts\python.exe -m pytest tests\unit\test_meeting_enrich_index.py tests\unit\test_meeting_speaker_chunk.py tests\unit\test_meeting_ingest_audio.py -q
+6 passed
+```

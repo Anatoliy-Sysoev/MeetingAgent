@@ -36,7 +36,7 @@ DEFAULT_INDEX_DIR = "data/asu_june_bot/numpy_index_v2"
 DEFAULT_REPORT_PATH = "data/asu_june_bot/index_v2_report.json"
 DEFAULT_MAX_EMBEDDING_CHARS = 3000
 MIN_EMBEDDING_CHARS = 800
-DEFAULT_INDEX_SOURCE_TYPES = ["project_doc", "meeting_artifact", "analytical_note", "instruction"]
+DEFAULT_INDEX_SOURCE_TYPES = ["project_doc", "meeting_artifact", "meeting_chunk", "analytical_note", "instruction"]
 
 
 def utc_now() -> str:

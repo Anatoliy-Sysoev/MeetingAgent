@@ -193,6 +193,65 @@ utterance_ids
 
 По умолчанию chunk ограничен 180 секундами и 6000 символами. Скрипт не разрывает отдельную реплику; если следующая реплика превышает лимит, открывается новый chunk.
 
+### 6. Semantic Enrichment MVP
+
+Первый enrichment-слой работает детерминированно, без LLM:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\27_enrich_meeting_chunks.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug
+```
+
+Выход:
+
+```text
+artifacts/enriched_chunks.jsonl
+```
+
+Скрипт добавляет:
+
+```text
+topic
+semantic_type
+entities
+decisions
+action_items
+risks
+open_questions
+importance_score
+quality_flags
+needs_review = true
+```
+
+Это MVP-слой для indexing/search и первичного отбора. Он не заменяет production LLM analysis и помечает значимые кандидаты как требующие проверки.
+
+### 7. Meeting Index Export
+
+Для попадания meeting chunks в общий RAG-контур используется экспорт в совместимый JSONL:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\28_index_meeting_chunks.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug `
+  --output data\meeting_chunks.jsonl
+```
+
+Экспортированные rows имеют:
+
+```text
+source_type = meeting_chunk
+document_type = Протокол
+meeting_id
+meeting_title
+timestamp_start
+timestamp_end
+speaker_names
+topic
+semantic_type
+text
+```
+
+`meeting_chunk` добавлен в default allowed source types для `scripts/asu_june_bot_build_index_v2.py` и retrieval source policy. Для сборки отдельного индекса по встречам можно передать `data/meeting_chunks.jsonl` как `--chunks-path` в index builder.
+
 ## Итоги Встречи
 
 После статуса `transcribed` следующий слой pipeline создает человекочитаемые и машинные артефакты встречи.

@@ -278,3 +278,19 @@ docs/product/PROJECT_STAGES_AND_FTT.md
 - source_type meeting_chunk в retrieval metadata;
 - smoke search по одной встрече.
 ```
+
+Статус: частично реализовано 2026-05-26:
+
+```text
+scripts/27_enrich_meeting_chunks.py готов как heuristic MVP enrichment;
+scripts/28_index_meeting_chunks.py готов как export в data/meeting_chunks.jsonl;
+meeting_chunk добавлен в default source policy/index source types.
+```
+
+Осталось:
+
+```text
+собрать отдельный smoke numpy index по data/meeting_chunks.jsonl;
+добавить meeting search CLI;
+заменить heuristic enrichment на LLM map/reduce для production artifacts.
+```

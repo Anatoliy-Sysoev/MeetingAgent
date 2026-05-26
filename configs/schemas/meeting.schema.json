@@ -141,6 +141,9 @@
         "chunks": {
           "$ref": "#/$defs/relative_path"
         },
+        "enriched_chunks": {
+          "$ref": "#/$defs/relative_path"
+        },
         "memo": {
           "$ref": "#/$defs/relative_path"
         },
