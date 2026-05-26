@@ -195,3 +195,63 @@ source/media_files -> transcript/segments.jsonl -> meeting.json status.
 Не коммитить runtime output из Downloads или meetings/**/transcript;
 для Git фиксировать только отчет в docs/references или curated transcript excerpt.
 ```
+
+## MeetingAgent MVP Pipeline
+
+```text
+Принят roadmap от ingest записи до meeting search:
+docs/meeting_agent_architecture.md
+docs/meeting_agent_mvp_scope.md
+```
+
+### Priority 0
+
+```text
+Реализовать scripts/20_ingest_meeting.py:
+- вход mp4/mp3/wav/m4a;
+- создание meetings/<meeting_id>/;
+- meeting_id как YYYY-MM-DD__slug;
+- копирование raw/source файла;
+- meeting.json по configs/schemas/meeting.schema.json;
+- processing_status = new;
+- идемпотентность и понятная ошибка при конфликте slug.
+```
+
+### Priority 0.1
+
+```text
+Реализовать scripts/21_extract_audio.py:
+- ffmpeg -> source/audio_16k_mono.wav;
+- mono 16000 Hz;
+- status/report без пересоздания успешного результата без --force;
+- ошибки писать в meeting.json.last_error или pipeline report.
+```
+
+### Priority 1
+
+```text
+Свести существующий scripts/06_transcribe_meeting.py с целевым шагом 22_transcribe_meeting:
+- проверить segment schema;
+- добавить txt/srt/vtt/json exports при необходимости;
+- не ломать текущий transcript/segments.jsonl и transcript/transcript.md.
+```
+
+### Priority 2
+
+```text
+Сделать diarization-lite:
+- speaker_transcript.jsonl;
+- speaker = SPEAKER_UNKNOWN без pyannote;
+- будущий scripts/23_diarize_meeting.py остается optional.
+```
+
+### Priority 3
+
+```text
+Реализовать meeting-aware chunking и indexing:
+- scripts/26_chunk_meeting.py;
+- scripts/28_index_meeting_chunks.py;
+- source_type meeting_chunk/meeting_decision/meeting_action_item;
+- timestamps и meeting_id в metadata;
+- source-quality gate для meeting chunks.
+```

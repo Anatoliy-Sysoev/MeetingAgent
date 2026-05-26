@@ -326,3 +326,24 @@ docs/operations/GIGAAM_TRANSCRIPTION.md
 ```
 
 Важная деталь окружения: GigaAM и `sentencepiece` могут падать на tokenizer в пути с кириллицей `%USERPROFILE%\.cache\gigaam`. Для стабильного повторного запуска используется ASCII-cache `%ProgramData%\gigaam_cache`; wrapper копирует туда локальные файлы модели, если они уже есть в user-cache.
+
+## 2026-05-26 — MeetingAgent roadmap принят как MVP-план
+
+Зафиксирован детальный план развития MeetingAgent от ingest записи до meeting search:
+
+```text
+docs/meeting_agent_architecture.md
+docs/meeting_agent_mvp_scope.md
+```
+
+План принят с адаптацией под уже существующие решения:
+
+```text
+meeting_id остается slug YYYY-MM-DD__short-title, не UUID;
+каноническая карточка встречи остается meetings/<meeting_id>/, не data/meetings/<meeting_id>/;
+текущие статусы meeting.schema.json сохраняются до отдельной миграции схемы;
+scripts/06_transcribe_meeting.py, 07_generate_meeting_artifacts.py и 08_process_meeting_pipeline.py считаются существующей базой для новых шагов 22/29;
+diarization не блокирует MVP: допустим SPEAKER_UNKNOWN.
+```
+
+Следующий практический шаг: реализовать `scripts/20_ingest_meeting.py` и `scripts/21_extract_audio.py` поверх текущего `configs/schemas/meeting.schema.json`, не создавая второй несовместимый storage contract.
