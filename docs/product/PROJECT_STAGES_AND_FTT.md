@@ -1,6 +1,6 @@
 # Этапы Проекта И ФТТ MeetingAgent
 
-Обновлено: 2026-05-12.
+Обновлено: 2026-05-26.
 
 Этот документ - рабочая карта реализации MeetingAgent. По нему можно идти как по чек-листу: какой этап делаем сейчас, какие пункты ФТТ закрываем, какой артефакт должен появиться и как понять, что этап готов.
 
@@ -64,16 +64,16 @@ MeetingAgent должен уметь относить документы, вст
 | Этап | Название | Цель | ФТТ | Статус |
 | --- | --- | --- | --- | --- |
 | `MA-00` | Основание продукта | Репозиторий, правила работы, документация, Git-дисциплина. | `FTT-MA-01`, `FTT-MA-18` | Готово |
-| `MA-01` | RAG-фундамент | Собрать корпус документов, chunks, embeddings и устойчивый поиск. | `FTT-MA-02` - `FTT-MA-06`, `FTT-MA-15` | Работает, нужен baseline качества |
-| `MA-02` | Качество поиска | Проверить RAG на реальных вопросах, убрать мусор, зафиксировать метрики. | `FTT-MA-07` | Следующий этап |
-| `MA-03` | Карточка встречи | Описать единый формат папки встречи и артефактов. | `FTT-MA-08`, `FTT-MA-09`, `FTT-MA-20` | Начато: контракт `meeting.json` создан |
-| `MA-04` | Offline-транскрибация записи | Обрабатывать готовые видео/аудио из watched folder. | `FTT-MA-08`, `FTT-MA-11` | Начато: CLI одной встречи прошел реальный прогон; оконный pipeline прошел 2-window smoke |
+| `MA-01` | RAG-фундамент | Собрать корпус документов, chunks, embeddings и устойчивый поиск. | `FTT-MA-02` - `FTT-MA-06`, `FTT-MA-15` | Работает: numpy backend, hybrid retrieval, FTS5, rerank, bucket routing и source-quality gate |
+| `MA-02` | Качество поиска | Проверить RAG на реальных вопросах, убрать мусор, зафиксировать метрики. | `FTT-MA-07` | Работает: realistic eval pipeline, manual review, approved regression set и targeted bucket eval; продолжается улучшение по buckets |
+| `MA-03` | Карточка встречи | Описать единый формат папки встречи и артефактов. | `FTT-MA-08`, `FTT-MA-09`, `FTT-MA-20` | Контракт создан: `meeting.json`, JSON-схема, markdown template; MVP roadmap обновлен 2026-05-26 |
+| `MA-04` | Offline-транскрибация записи | Обрабатывать готовые видео/аудио из watched folder. | `FTT-MA-08`, `FTT-MA-11` | Начато: CLI одной встречи, оконный pipeline, GigaAM wrapper и реальный GigaAM-прогон; не хватает unified ingest/audio-extract шагов 20/21 |
 | `MA-05` | Live-транскрибация встречи | Писать черновой транскрипт в процессе встречи. | `FTT-MA-10`, `FTT-MA-11` | Запланировано, есть эксперимент WhisperDesk |
 | `MA-06` | Memo, протокол, задачи | Генерировать структурированные итоги встречи. | `FTT-MA-12`, `FTT-MA-20` | Скаффолд: prompt-пакет, JSON-схемы, extractive CLI; production-генератор не закрыт |
 | `MA-07` | Классификация и маршрутизация | Определять этап проекта, ФТТ, документ и задачу. | `FTT-MA-13`, `FTT-MA-15` | Запланировано |
 | `MA-08` | Генерация документов | Собирать черновики документов на основе источников. | `FTT-MA-14`, `FTT-MA-20` | Запланировано |
-| `MA-09` | Project-Only Chatbot MVP | Дать очищенного чат-бота, который отвечает только по источникам проекта. | `FTT-MA-05`, `FTT-MA-06`, `FTT-MA-07`, `FTT-MA-16`, `FTT-MA-17`, `FTT-MA-18`, `FTT-MA-21` | Следующий этап |
-| `MA-10` | Локальный API и UI | Дать интерфейс для inbox, поиска, встреч и документов. | `FTT-MA-16`, `FTT-MA-17` | Запланировано |
+| `MA-09` | Project-Only Chatbot MVP | Дать очищенного чат-бота, который отвечает только по источникам проекта. | `FTT-MA-05`, `FTT-MA-06`, `FTT-MA-07`, `FTT-MA-16`, `FTT-MA-17`, `FTT-MA-18`, `FTT-MA-21` | Реализован: `/search`, `/chat`, Web UI, Telegram adapter, QH-1..QH-5 passed; Docker следующий этап |
+| `MA-10` | Локальный API и UI | Дать интерфейс для inbox, поиска, встреч и документов. | `FTT-MA-16`, `FTT-MA-17` | Частично готово для Project Knowledge Bot: FastAPI endpoints и Web UI; meeting inbox/jobs UI запланированы |
 | `MA-11` | Эксплуатация и надежность | Watchdog, восстановление, backup, аудит, безопасность. | `FTT-MA-18`, `FTT-MA-19` | Частично готово |
 
 ## ФТТ MeetingAgent
@@ -140,7 +140,7 @@ MeetingAgent должен уметь относить документы, вст
 
 **Критерий готовности:** пользователь может понять, из какого документа взят ответ.
 
-**Статус:** работает базово, нужен более компактный вывод.
+**Статус:** работает. Для Project Knowledge Bot дополнительно реализованы `/search`, `/chat`, Web UI и Telegram adapter с выводом sources/citations.
 
 ### `FTT-MA-07` Evaluation И Baseline Качества
 
@@ -150,7 +150,7 @@ MeetingAgent должен уметь относить документы, вст
 
 **Критерий готовности:** есть 10-20 вопросов по ФТТ, ПМИ, Паспорту ИС, архитектуре и сдачной документации; для каждого зафиксированы ожидаемые источники и фактический top-k.
 
-**Статус:** baseline снят на очищенном корпусе; нужны порог приемки и follow-up по слабым вопросам.
+**Статус:** работает. Есть realistic-100/500, manual review pipeline, failure buckets, approved regression set, targeted bucket eval и smoke-наборы для NTK corpus. Продолжается улучшение по слабым buckets.
 
 ### `FTT-MA-08` Обработка Входящих Записей
 
@@ -162,7 +162,7 @@ MeetingAgent должен уметь относить документы, вст
 
 **Критерий готовности:** новое медиа не теряется, не обрабатывается дважды и получает статус.
 
-**Статус:** минимальный offline CLI создан и проверен на реальной записи: получены `transcript.md` и `segments.jsonl`. Watcher и очередь jobs запланированы отдельно.
+**Статус:** начато. Минимальный offline CLI создан и проверен на реальной записи: получены `transcript.md` и `segments.jsonl`. Добавлен GigaAM fallback-wrapper и реальный прогон записи `Схема уровня поддержки.mp4`. Watcher, очередь jobs и единый ingest/audio-extract слой запланированы отдельно.
 
 ### `FTT-MA-09` Карточка Встречи
 
@@ -190,7 +190,7 @@ meetings/
 
 **Критерий готовности:** любую встречу можно открыть как самостоятельный пакет данных.
 
-**Статус:** первый контракт создан; следующий шаг - пример карточки и проверка схемы на реальной offline-встрече.
+**Статус:** контракт создан. Есть `configs/schemas/meeting.schema.json`, `docs/templates/MEETING_CARD.md`, архитектура и MVP scope в `docs/meeting_agent_architecture.md` и `docs/meeting_agent_mvp_scope.md`. Следующий шаг - `scripts/20_ingest_meeting.py` и `scripts/21_extract_audio.py` без создания второго storage-контракта.
 
 ### `FTT-MA-10` Live-Транскрибация Встречи
 
@@ -233,7 +233,7 @@ meetings/
 
 **Критерий готовности:** каждый сегмент transcript имеет `source`, `start`, `end`, `text`; для live MVP source должен различать минимум `MIC`, `SYS` и `MIX`.
 
-**Статус:** запланировано.
+**Статус:** частично готово для offline-записей: сегменты transcript имеют `start/end/text`; live-источники `MIC/SYS/MIX` и diarization пока запланированы. Для MVP meeting pipeline допустим `SPEAKER_UNKNOWN`.
 
 ### `FTT-MA-12` Memo, Протокол, Решения, Риски И Задачи
 
@@ -408,13 +408,46 @@ meetings/
 
 - `docs/product/PROJECT_ONLY_CHATBOT_MVP.md`;
 - project-only prompt/policy;
-- CLI или локальный API endpoint `/chat`;
+- CLI и локальный API endpoint `/chat`;
 - evaluation-набор вопросов для чат-бота;
 - отчет первого smoke-прогона.
 
 **Критерий готовности:** пользователь может задать вопрос по проекту, получить ответ с источниками или корректный отказ. Внепроектные вопросы и вопросы без источников не приводят к выдуманным ответам.
 
-**Статус:** запланировано на ближайшую разработку.
+**Статус:** реализовано для Project Knowledge Bot: `POST /search`, `POST /chat`, `GET /ui`, локальный Web UI, Telegram adapter и QH-1..QH-5 release stabilization. Следующий этап - Docker и перенос lessons learned в общий MeetingAgent UI/jobs слой.
+
+## Meeting Pipeline MVP Roadmap 2026-05-26
+
+Новый детальный roadmap зафиксирован отдельно:
+
+```text
+docs/meeting_agent_architecture.md
+docs/meeting_agent_mvp_scope.md
+```
+
+Принятая адаптация под текущий репозиторий:
+
+```text
+meeting_id = YYYY-MM-DD__slug, не UUID;
+карточка встречи = meetings/<meeting_id>/, не data/meetings/<meeting_id>/;
+data/ остается для runtime indexes/cache/eval;
+diarization не блокирует MVP: speaker может быть SPEAKER_UNKNOWN;
+scripts/06_transcribe_meeting.py, 07_generate_meeting_artifacts.py и 08_process_meeting_pipeline.py являются существующей базой для целевых шагов 22/29.
+```
+
+Ближайший practical slice:
+
+```text
+20_ingest_meeting.py
+21_extract_audio.py
+22_transcribe_meeting.py как wrapper/рефактор над 06_transcribe_meeting.py
+24_merge_transcript_speakers.py с SPEAKER_UNKNOWN
+26_chunk_meeting.py
+27_enrich_meeting_chunks.py
+28_index_meeting_chunks.py
+29_analyze_meeting.py
+31_meeting_search.py
+```
 
 ## Матрица Выполнения
 
@@ -423,12 +456,12 @@ meetings/
 | 1 | RAG evaluation baseline | `FTT-MA-07` | набор вопросов и отчет | 10-20 запросов дают ожидаемые источники или фиксируют проблему |
 | 2 | Улучшение query output | `FTT-MA-06` | обновленный вывод `04_query.py` | видны score, path, chunk, короткая цитата |
 | 3 | Схема карточки встречи | `FTT-MA-09`, `FTT-MA-20` | `configs/schemas/meeting.schema.json` + markdown template | meeting folder можно проверить без кода |
-| 4 | Offline ingest записи | `FTT-MA-08`, `FTT-MA-11` | watcher/CLI для медиа | новое видео создает сессию и transcript |
+| 4 | Offline ingest записи | `FTT-MA-08`, `FTT-MA-11` | `20_ingest_meeting.py`, `21_extract_audio.py`, ASR wrapper | новое видео создает карточку, audio wav и transcript |
 | 5 | Live-транскрибация MVP | `FTT-MA-10`, `FTT-MA-11` | live CLI или prototype module | mic/system audio пишутся в JSONL/TXT |
 | 6 | Prompts для memo, протокола и задач | `FTT-MA-12` | prompt-пакет, схемы и оконный pipeline | Скаффолд готов; 2-window smoke прошел; production map-reduce-render требует полного прогона и ручной оценки |
 | 7 | Project classifier | `FTT-MA-13` | classifier prompt/module | meeting получает `PRJ-*`, ФТТ-кандидаты и confidence |
 | 8 | Инкрементальное обновление RAG | `FTT-MA-15` | `update_rag.ps1` / скрипт | новый протокол попадает в RAG без полной пересборки |
-| 9 | Project-only chatbot | `FTT-MA-21`, `FTT-MA-05`, `FTT-MA-06`, `FTT-MA-16`, `FTT-MA-18` | CLI/API чат | отвечает только по проектным источникам или отказывает |
+| 9 | Project-only chatbot | `FTT-MA-21`, `FTT-MA-05`, `FTT-MA-06`, `FTT-MA-16`, `FTT-MA-17`, `FTT-MA-18` | CLI/API/Web UI/Telegram чат | реализовано, QH-1..QH-5 passed; следующий шаг Docker |
 | 10 | Document generation briefs | `FTT-MA-14`, `FTT-MA-20` | briefs for Паспорт ИС, ПМИ, архитектура | черновик с источниками и TODO-checks |
 | 11 | Локальный API | `FTT-MA-16` | API-приложение | search/meeting/jobs работают через API |
 | 12 | Локальный UI | `FTT-MA-17` | web-интерфейс | пользователь проходит основной сценарий без консоли |
@@ -438,7 +471,9 @@ meetings/
 
 ### Сессия 1: Зафиксировать Качество RAG
 
-Цель: понять, насколько текущий numpy-поиск пригоден для реальных задач.
+Статус: выполнено и расширено.
+
+Цель: понять, насколько текущий numpy/hybrid-поиск пригоден для реальных задач.
 
 Делаем:
 
@@ -447,9 +482,11 @@ meetings/
 - фиксируем top-k источники, дубли, провалы, ожидаемые документы;
 - решаем, нужен ли reranking или чистка backup-документов.
 
-Закрывает: `FTT-MA-07`.
+Закрывает: `FTT-MA-07`. Сейчас продолжается bucket-driven улучшение retrieval quality.
 
 ### Сессия 2: Спроектировать Карточку Встречи
+
+Статус: выполнено как контракт, требуется рабочий ingest.
 
 Цель: договориться о формате, в который попадут и offline-записи, и live-сессии.
 
@@ -461,9 +498,24 @@ meetings/
 - статусы обработки;
 - список обязательных артефактов.
 
-Закрывает: `FTT-MA-09`, `FTT-MA-20`.
+Закрывает: `FTT-MA-09`, `FTT-MA-20`. Следующий шаг: `20_ingest_meeting.py` и `21_extract_audio.py`.
 
-### Сессия 3: Live-Транскрибация
+### Сессия 3: Offline Meeting MVP
+
+Цель: пройти один реальный файл через каноническую карточку встречи.
+
+Делаем:
+
+- `20_ingest_meeting.py`;
+- `21_extract_audio.py`;
+- ASR через `06_transcribe_meeting.py` или thin wrapper `22_transcribe_meeting.py`;
+- `speaker_transcript.jsonl` с `SPEAKER_UNKNOWN`;
+- meeting-aware chunks;
+- indexing/search по meeting chunks.
+
+Закрывает практический срез `FTT-MA-08`, `FTT-MA-09`, `FTT-MA-11`, частично `FTT-MA-12`, `FTT-MA-15`.
+
+### Сессия 4: Live-Транскрибация
 
 Цель: вынести из WhisperDesk не код как есть, а рабочий опыт.
 
@@ -477,7 +529,7 @@ meetings/
 
 Закрывает: `FTT-MA-10`, `FTT-MA-11`.
 
-### Сессия 4: Memo И Протокол
+### Сессия 5: Memo И Протокол
 
 Цель: превратить transcript в полезный проектный артефакт.
 
@@ -491,7 +543,7 @@ meetings/
 
 Закрывает скаффолд `FTT-MA-12`; production-готовность требует map-reduce-render прогона и ручной оценки качества.
 
-### Сессия 5: Классификация По Этапам И ФТТ
+### Сессия 6: Классификация По Этапам И ФТТ
 
 Цель: MeetingAgent должен сказать, к какому этапу и пунктам ФТТ относится встреча.
 
@@ -505,7 +557,9 @@ meetings/
 
 Закрывает: `FTT-MA-13`.
 
-### Сессия 6: Project-Only Chatbot MVP
+### Сессия 7: Project-Only Chatbot MVP
+
+Статус: реализовано, следующий шаг Docker.
 
 Цель: сделать первый очищенный чат по проектной памяти.
 

@@ -202,6 +202,9 @@ source/media_files -> transcript/segments.jsonl -> meeting.json status.
 Принят roadmap от ingest записи до meeting search:
 docs/meeting_agent_architecture.md
 docs/meeting_agent_mvp_scope.md
+
+Основной checklist ФТТ обновлен:
+docs/product/PROJECT_STAGES_AND_FTT.md
 ```
 
 ### Priority 0

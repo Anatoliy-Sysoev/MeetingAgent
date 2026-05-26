@@ -347,3 +347,20 @@ diarization не блокирует MVP: допустим SPEAKER_UNKNOWN.
 ```
 
 Следующий практический шаг: реализовать `scripts/20_ingest_meeting.py` и `scripts/21_extract_audio.py` поверх текущего `configs/schemas/meeting.schema.json`, не создавая второй несовместимый storage contract.
+
+## 2026-05-26 — ФТТ MeetingAgent актуализированы
+
+Обновлен основной execution checklist:
+
+```text
+docs/product/PROJECT_STAGES_AND_FTT.md
+```
+
+Синхронизированы статусы:
+
+```text
+Project Knowledge Bot: /search, /chat, Web UI, Telegram adapter и QH-1..QH-5 отмечены как реализованные;
+RAG quality: realistic eval, manual review, approved regression set и targeted bucket eval отмечены как рабочие;
+Meeting pipeline: добавлена привязка к roadmap 2026-05-26 и ближайшим шагам 20/21;
+GigaAM: зафиксирован как fallback/experimental ASR workflow, не как замена основного faster-whisper пути.
+```
