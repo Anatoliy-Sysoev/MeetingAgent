@@ -293,7 +293,17 @@ runtime artifacts лежат в meetings/2026-05-26__support-scheme/ и data/mee
 Следующий шаг:
 
 ```text
-добавить LLM map/reduce extraction для summary/decisions/tasks/risks/open_questions;
-сделать structured artifacts с source timestamps;
+LLM map/reduce extraction реализован в scripts/29_analyze_meeting.py;
+structured artifacts с source timestamps созданы на smoke-встрече 2026-05-26__support-scheme;
 подключить meeting search к будущему API/боту.
+```
+
+### Priority 5
+
+```text
+Подключить structured meeting artifacts к индексации и поиску:
+- экспортировать decisions/tasks/risks/open_questions как отдельные source_type;
+- добавить meeting_decision/meeting_action_item/meeting_risk/meeting_open_question buckets;
+- проверить 31_meeting_search.py и будущий bot/API на вопросах "какие решения", "какие задачи", "какие риски";
+- сохранить таймкоды в ответах.
 ```

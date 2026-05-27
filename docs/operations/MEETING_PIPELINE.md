@@ -304,6 +304,39 @@ JSON-вывод для интеграции с ботом или UI:
   --index-only
 ```
 
+### 9. LLM Map-Reduce Analysis
+
+Структурированные артефакты встречи создаются после enrichment:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\29_analyze_meeting.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug `
+  --mode ollama-map-reduce `
+  --model qwen2.5:7b-instruct `
+  --force
+```
+
+Выход:
+
+```text
+artifacts/summary.md
+artifacts/protocol.md
+artifacts/decisions.json
+artifacts/tasks.json
+artifacts/risks.json
+artifacts/open_questions.json
+artifacts/_partials/llm_map_reduce/
+```
+
+Правила:
+
+- MAP работает по `artifacts/enriched_chunks.jsonl`;
+- каждый финальный пункт получает `source_refs` с `path`, `start`, `end`, `quote`;
+- JSON валидируется по `configs/schemas/meeting.*.schema.json`;
+- если отдельный MAP/REDUCE ответ модели не парсится или не успевает по timeout, скрипт сохраняет raw output и использует безопасный extractive fallback для этой части;
+- для строгой отладки без fallback есть флаг `--strict-llm`;
+- повторный запуск с `--force` перезаписывает итоговые артефакты, но переиспользует уже готовые partial JSON; для полного пересчета partials добавить `--recompute-partials`.
+
 ## Итоги Встречи
 
 После статуса `transcribed` следующий слой pipeline создает человекочитаемые и машинные артефакты встречи.

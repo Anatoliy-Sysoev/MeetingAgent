@@ -545,3 +545,46 @@ data/meeting_index_report.json
 asu_june_bot_build_index_v2.py: 3 bge-m3 embeddings, dim=1024, data/meeting_numpy_index built
 31_meeting_search.py: smoke search по meeting_id=2026-05-26__support-scheme возвращает 3 фрагмента с таймкодами
 ```
+
+## 2026-05-27 — Реализован LLM map-reduce analysis
+
+Добавлены:
+
+```text
+scripts/29_analyze_meeting.py
+tests/unit/test_meeting_analyze.py
+```
+
+Поведение:
+
+```text
+29_analyze_meeting.py читает artifacts/enriched_chunks.jsonl;
+MAP вызывает локальный Ollama по каждому meeting chunk;
+REDUCE объединяет MAP partials в summary/decisions/tasks/risks/open_questions;
+каждый финальный пункт получает source_refs с path/start/end/quote;
+итоговые JSON валидируются по configs/schemas/meeting.*.schema.json;
+при битом JSON или timeout скрипт сохраняет raw output и использует fallback только для сломанной части;
+успешный запуск переводит meeting.json processing_status в summarized.
+```
+
+Первый реальный прогон:
+
+```text
+meeting_id: 2026-05-26__support-scheme
+model: qwen2.5:7b-instruct
+mode: ollama-map-reduce
+MAP: 3 chunks
+REDUCE: timeout, использован deterministic fallback поверх MAP partials
+decisions: 3
+tasks: 5
+risks: 3
+open_questions: 3
+status: summarized
+```
+
+Проверка:
+
+```text
+.\.venv\Scripts\python.exe -m pytest tests\unit\test_meeting_analyze.py tests\unit\test_meeting_search.py tests\unit\test_meeting_enrich_index.py -q
+7 passed
+```
