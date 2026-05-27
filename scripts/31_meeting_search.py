@@ -22,6 +22,13 @@ from asu_june_bot.core.config import load_config, resolve_work_path  # noqa: E40
 DEFAULT_CHUNKS_PATH = "data/meeting_chunks.jsonl"
 DEFAULT_TOP_K = 5
 TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9]{2,}")
+MEETING_SOURCE_TYPES = {
+    "meeting_chunk",
+    "meeting_decision",
+    "meeting_action_item",
+    "meeting_risk",
+    "meeting_open_question",
+}
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -38,7 +45,7 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
                 row = json.loads(line)
             except json.JSONDecodeError as exc:
                 raise ValueError(f"Invalid JSONL at {path}:{line_no}: {exc}") from exc
-            if row.get("source_type") == "meeting_chunk" and str(row.get("text") or "").strip():
+            if row.get("source_type") in MEETING_SOURCE_TYPES and str(row.get("text") or "").strip():
                 rows.append(row)
     return rows
 
@@ -53,6 +60,10 @@ def row_search_text(row: dict[str, Any]) -> str:
         str(row.get("meeting_title") or ""),
         str(row.get("topic") or ""),
         str(row.get("semantic_type") or ""),
+        str(row.get("artifact_type") or ""),
+        str(row.get("artifact_id") or ""),
+        str(row.get("status") or ""),
+        str(row.get("owner") or ""),
         str(row.get("meeting_id") or ""),
     ]
     speaker_names = row.get("speaker_names") or []
@@ -78,6 +89,7 @@ def lexical_score(query: str, row: dict[str, Any]) -> float:
     if query_lower and query_lower in haystack_lower:
         score += 1.0
 
+    source_type = str(row.get("source_type") or "").lower()
     semantic_type = str(row.get("semantic_type") or "").lower()
     query_set = set(query_tokens)
     semantic_boosts = {
@@ -86,6 +98,14 @@ def lexical_score(query: str, row: dict[str, Any]) -> float:
         "risk": {"риск", "риски", "опасность", "проблема"},
         "open_question": {"вопрос", "вопросы", "открыто", "уточнить"},
     }
+    source_boosts = {
+        "meeting_decision": semantic_boosts["decision"],
+        "meeting_action_item": semantic_boosts["action_item"],
+        "meeting_risk": semantic_boosts["risk"],
+        "meeting_open_question": semantic_boosts["open_question"],
+    }
+    if source_type in source_boosts and query_set.intersection(source_boosts[source_type]):
+        score += 1.0
     if semantic_type in semantic_boosts and query_set.intersection(semantic_boosts[semantic_type]):
         score += 0.35
 
@@ -134,6 +154,7 @@ def search_meeting_chunks(
             {
                 "rank": rank,
                 "score": item["score"],
+                "source_type": row.get("source_type"),
                 "meeting_id": row.get("meeting_id"),
                 "meeting_title": row.get("meeting_title"),
                 "timestamp_start": row.get("timestamp_start"),
@@ -141,6 +162,8 @@ def search_meeting_chunks(
                 "speaker_names": row.get("speaker_names") or [],
                 "topic": row.get("topic"),
                 "semantic_type": row.get("semantic_type"),
+                "artifact_type": row.get("artifact_type"),
+                "artifact_id": row.get("artifact_id"),
                 "chunk_id": row.get("chunk_id"),
                 "text_preview": make_preview(str(row.get("text") or "")),
             }
@@ -156,9 +179,12 @@ def format_result(result: dict[str, Any]) -> str:
     time_end = result.get("timestamp_end") or "??:??:??"
     topic = result.get("topic") or "Без темы"
     semantic_type = result.get("semantic_type") or "unknown"
+    source_type = result.get("source_type") or "meeting"
+    artifact_id = result.get("artifact_id")
+    artifact_suffix = f" | {artifact_id}" if artifact_id else ""
     return (
         f"{result['rank']}. score={result['score']:.3f} | {title} | {time_start}-{time_end} | "
-        f"{speaker_text} | {semantic_type} | {topic}\n"
+        f"{speaker_text} | {source_type} | {semantic_type}{artifact_suffix} | {topic}\n"
         f"   {result['text_preview']}"
     )
 

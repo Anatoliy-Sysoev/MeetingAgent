@@ -337,6 +337,51 @@ artifacts/_partials/llm_map_reduce/
 - для строгой отладки без fallback есть флаг `--strict-llm`;
 - повторный запуск с `--force` перезаписывает итоговые артефакты, но переиспользует уже готовые partial JSON; для полного пересчета partials добавить `--recompute-partials`.
 
+### 10. Structured Artifact Indexing
+
+После `29_analyze_meeting.py` structured JSON-артефакты можно экспортировать в общий meeting index как отдельные source types:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\32_index_meeting_artifacts.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug `
+  --output data\meeting_chunks.jsonl
+```
+
+Экспортируемые типы:
+
+```text
+artifacts/decisions.json -> meeting_decision
+artifacts/tasks.json -> meeting_action_item
+artifacts/risks.json -> meeting_risk
+artifacts/open_questions.json -> meeting_open_question
+```
+
+Каждая row содержит:
+
+```text
+meeting_id
+meeting_title
+artifact_type
+artifact_id
+source_type
+timestamp_start
+timestamp_end
+source_refs
+text
+```
+
+`31_meeting_search.py` читает эти source types вместе с `meeting_chunk` и повышает релевантность structured rows для запросов про решения, задачи, риски и открытые вопросы.
+
+После экспорта нужно пересобрать smoke numpy index:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_build_index_v2.py `
+  --chunks-path data\meeting_chunks.jsonl `
+  --cache-path data\meeting_embeddings_cache.jsonl `
+  --index-dir data\meeting_numpy_index `
+  --report-path data\meeting_index_report.json
+```
+
 ## Итоги Встречи
 
 После статуса `transcribed` следующий слой pipeline создает человекочитаемые и машинные артефакты встречи.

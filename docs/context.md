@@ -301,3 +301,53 @@ project-safe security questions -> allow
 harmful abuse -> refuse
 out-of-scope бытовые вопросы -> refused/out_of_scope
 ```
+
+## MeetingAgent status на 2026-05-27
+
+Базовый meeting pipeline реализован от готовой GigaAM-транскрибации до structured artifacts и отдельного meeting index.
+
+Сделано:
+
+```text
+20_ingest_meeting.py: карточка встречи и source media;
+24_merge_transcript_speakers.py: diarization-lite speaker transcript;
+26_chunk_meeting.py: meeting-aware chunks с таймкодами;
+27_enrich_meeting_chunks.py: heuristic enrichment;
+28_index_meeting_chunks.py: export raw meeting chunks в data/meeting_chunks.jsonl;
+29_analyze_meeting.py: LLM map-reduce artifacts summary/protocol/decisions/tasks/risks/open_questions;
+31_meeting_search.py: smoke search по meeting_chunk и structured meeting source types;
+32_index_meeting_artifacts.py: export decisions/tasks/risks/open_questions как отдельные source_type.
+```
+
+Новые indexed source types:
+
+```text
+meeting_decision
+meeting_action_item
+meeting_risk
+meeting_open_question
+```
+
+Реальный smoke на встрече `2026-05-26__support-scheme`:
+
+```text
+32_index_meeting_artifacts.py: 14 structured rows
+data/meeting_chunks.jsonl total: 17 rows
+source_type counts:
+  meeting_chunk: 3
+  meeting_decision: 3
+  meeting_action_item: 5
+  meeting_risk: 3
+  meeting_open_question: 3
+data/meeting_numpy_index rebuilt: 17 embeddings, bge-m3, dim=1024
+31_meeting_search.py "какие решения приняли": первые результаты meeting_decision DEC-001..DEC-003
+```
+
+Текущая проблема:
+
+```text
+локальный LLM REDUCE на CPU нестабилен: qwen2.5:7b-instruct может уходить в timeout;
+qwen3:8b слишком медленный для надежного полного map-reduce;
+иногда LLM возвращает битый JSON или лишний текст;
+fallback сохраняет работоспособность pipeline, но качество итогов пока требует ручного review.
+```

@@ -264,3 +264,37 @@ docs/product/PROJECT_STAGES_AND_FTT.md
 - копирование raw/source файла;
 - meeting.json по configs/schemas/meeting.schema.json;
 ```
+
+## MeetingAgent next steps на 2026-05-27
+
+Сделано:
+
+```text
+scripts/32_index_meeting_artifacts.py реализован;
+decisions/tasks/risks/open_questions экспортируются как отдельные source_type:
+  meeting_decision
+  meeting_action_item
+  meeting_risk
+  meeting_open_question
+31_meeting_search.py ищет по structured source types и приоритизирует их для вопросов про решения/задачи/риски/вопросы;
+source_policy и asu_june_bot_build_index_v2.py разрешают structured meeting source types по умолчанию;
+на 2026-05-26__support-scheme meeting index пересобран: 17 rows, 17 embeddings.
+```
+
+Осталось:
+
+```text
+подключить meeting search к API/боту;
+добавить regression questions для meeting_decision/meeting_action_item/meeting_risk/meeting_open_question;
+улучшить качество LLM extraction и REDUCE timeout;
+добавить speaker mapping/diarization;
+после стабилизации JSON-артефактов сделать DOCX export протокола.
+```
+
+Текущая проблема:
+
+```text
+локальный LLM REDUCE на CPU нестабилен и может уходить в timeout;
+fallback делает pipeline рабочим, но качество decisions/tasks/risks/open_questions требует review;
+runtime artifacts в meetings/ и data/meeting_* ignored, в Git хранится код и воспроизводимая документация.
+```
