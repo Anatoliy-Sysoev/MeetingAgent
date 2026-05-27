@@ -81,8 +81,6 @@ LLM корректно ответил, что в переданных источ
   но не проверял наличие RTO/RPO anchors в найденных источниках.
 ```
 
-Следующий шаг: NTK corpus использовать только через feature flag для ручного тестирования. Не считать корпус готовым к global default до фикса `NTK-SMOKE-007` и повторной chat-level проверки.
-
 Feature flag уже добавлен:
 
 ```text
@@ -90,24 +88,43 @@ configs/asu_june_bot/corpus.yaml
 ASU_JUNE_BOT_ACTIVE_CORPUS=default|ntk
 ```
 
-Перед глобальным переключением нужно закрыть follow-up кейсы:
+Follow-up кейсы:
 
 ```text
 NTK-SMOKE-007:
-- retrieval/routing false positive закрыт;
+- закрыт;
 - отдельный intent `cta_recovery_rto_rpo` добавлен;
 - chat-level `asu_june_bot_chat.py` по запросу "Что указано в ЦТА про RTO и RPO?" теперь поднимает recovery chunks с RTO=4 часа и RPO=4 часа;
-- в smoke добавлен `expected_terms_in_top5`, чтобы этот кейс больше не проходил только по doc_type=ЦТА
+- в smoke добавлен `expected_terms_in_top5`, чтобы этот кейс больше не проходил только по doc_type=ЦТА.
 
 NTK-SMOKE-012:
 - внесен targeted retrieval-fix;
-- повторно проверить вручную, достаточно ли top-2 с chunk "Роли / группы AD" и app_ccpm_ul_cc_01/02/03
+- повторно проверить вручную, достаточно ли top-2 с chunk "Роли / группы AD" и app_ccpm_ul_cc_01/02/03.
 
 NTK-SMOKE-017:
-- внесен targeted retrieval-fix;
-- smoke теперь валится только на этом кейсе;
-- причина уже не в retrieval, а в устаревшем expectation: top-1..top-5 идут в `Методика/Регламент НСИ`, а smoke всё ещё ожидает `Реестр НСИ`;
-- следующий шаг: ручной review и решение, менять ли `expected_doc_type`/ожидание кейса на регламентный документ
+- ручной review выполнен;
+- expectation обновлен: для вопроса про регламенты ведения объектов НСИ правильный expected_doc_type=`Методика/Регламент НСИ`, а не `Реестр НСИ`;
+- причина: запрос спрашивает именно про регламентные/методические документы, а не про сам реестр объектов;
+- в `docs/quality/ntk_yandex_smoke_questions.jsonl` добавлено expected_terms_in_top5=[регламент, нси].
+```
+
+Следующий шаг перед расширенным использованием NTK corpus:
+
+```powershell
+$env:ASU_JUNE_BOT_ACTIVE_CORPUS = "ntk"
+.\.venv\Scripts\python.exe scripts\asu_june_bot_ntk_smoke_eval.py `
+  --mode hybrid `
+  --chunks-path data\asu_june_bot_ntk\chunks_v2.jsonl `
+  --index-dir data\asu_june_bot_ntk\numpy_index_v2 `
+  --output data\asu_june_bot_ntk\smoke_eval_hybrid.jsonl `
+  --summary data\asu_june_bot_ntk\smoke_eval_hybrid_summary.json
+```
+
+Ожидаемый результат после обновления expectation:
+
+```text
+20/20 ok,
+если NTK-SMOKE-017 остаётся в top-1..top-5 по Методика/Регламент НСИ и содержит anchors `регламент` + `нси`.
 ```
 
 Incremental update для Yandex-папки делать после подтверждения качества нового корпуса.
