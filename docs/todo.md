@@ -2,6 +2,53 @@
 
 Обновлено: 2026-05-27.
 
+## Сейчас: NTK realistic-100 new eval
+
+Запущен фоновый прогон нового набора:
+
+```text
+docs/quality/ntk_realistic_100_new_queries.jsonl
+```
+
+Параметры запуска:
+
+```text
+active_corpus: ntk
+chat_script: scripts/asu_june_bot_chat.py
+mode: hybrid
+model: qwen2.5:7b-instruct
+cases: 100
+```
+
+Runtime outputs:
+
+```text
+data/ntk_realistic_100_new_eval_report.jsonl
+data/ntk_realistic_100_new_eval_review.jsonl
+data/ntk_realistic_100_new_eval_review_summary.json
+```
+
+Мониторинг:
+
+```text
+automation_id: ntk-realistic-100-hourly-monitor
+frequency: hourly
+```
+
+Следующий шаг после завершения:
+
+```text
+1. Проверить status=review_ready.
+2. Заполнить review_verdict и review_comment в data/ntk_realistic_100_new_eval_review.jsonl.
+3. Разобрать отдельными buckets:
+   - AD / app_ccpm / roles;
+   - NSI regulations / weak_primary_fallback;
+   - out_of_scope;
+   - harmful_security;
+   - no_answer / missing_source.
+4. Зафиксировать review summary в docs/quality перед следующими retrieval-правками.
+```
+
 ## Retrieval quality roadmap
 
 ### Реализовано

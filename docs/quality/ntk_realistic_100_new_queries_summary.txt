@@ -1,0 +1,28 @@
+ntk_realistic_100_new_queries.jsonl
+total: 100
+
+scope:
+- harmful_security: 4
+- out_of_scope: 6
+- project: 90
+
+category:
+- cta: 10
+- edge_no_answer: 4
+- executive_docs: 2
+- export: 2
+- ftt: 12
+- harmful_security: 3
+- integration: 2
+- mto: 3
+- nsi_reference: 6
+- nsi_regulation: 4
+- out_of_scope: 6
+- passport: 4
+- pir: 1
+- pmi: 4
+- pr: 10
+- prompt_injection: 1
+- security_project: 6
+- soi_ad: 10
+- soi_nsi: 10

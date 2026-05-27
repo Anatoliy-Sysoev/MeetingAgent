@@ -32,20 +32,39 @@ def run_case(case: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
     if not chat_script.is_absolute():
         chat_script = WORK_ROOT / chat_script
 
-    cmd = [
-        sys.executable,
-        str(chat_script),
-        query,
-        "--json",
-        "--model",
-        model,
-        "--top-k",
-        str(args.top_k),
-        "--num-predict",
-        str(args.max_tokens),
-        "--timeout-sec",
-        str(args.timeout_sec),
-    ]
+    if chat_script.name == "asu_june_bot_chat.py":
+        cmd = [
+            sys.executable,
+            str(chat_script),
+            query,
+            "--json",
+            "--model",
+            model,
+            "--mode",
+            str(args.mode),
+            "--top-k",
+            str(args.top_k),
+            "--max-tokens",
+            str(args.max_tokens),
+            "--timeout-sec",
+            str(args.timeout_sec),
+            "--no-log",
+        ]
+    else:
+        cmd = [
+            sys.executable,
+            str(chat_script),
+            query,
+            "--json",
+            "--model",
+            model,
+            "--top-k",
+            str(args.top_k),
+            "--num-predict",
+            str(args.max_tokens),
+            "--timeout-sec",
+            str(args.timeout_sec),
+        ]
 
     started = time.perf_counter()
     started_at = utc_now()
@@ -134,6 +153,7 @@ def main() -> None:
     parser.add_argument("--dataset", default=str(DEFAULT_DATASET), help="JSONL dataset")
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help="JSONL report")
     parser.add_argument("--chat-script", default=str(DEFAULT_CHAT_SCRIPT), help="Chat CLI script: 09_chat_quality.py для quality-run или 09_chat.py для baseline")
+    parser.add_argument("--mode", choices=["hybrid", "vector", "bm25"], default="hybrid", help="Retrieval mode for asu_june_bot_chat.py")
     parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K)
     parser.add_argument("--max-tokens", type=int, default=DEFAULT_MAX_TOKENS)
     parser.add_argument("--timeout-sec", type=int, default=DEFAULT_TIMEOUT_SEC)

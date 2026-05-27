@@ -2,6 +2,59 @@
 
 Обновлено: 2026-05-27.
 
+## NTK realistic-100 new eval
+
+2026-05-27 добавлен новый набор из 100 вопросов для NTK corpus:
+
+```text
+docs/quality/ntk_realistic_100_new_queries.jsonl
+docs/quality/ntk_realistic_100_new_queries_overview.csv
+docs/quality/ntk_realistic_100_new_queries_summary.txt
+```
+
+Состав набора:
+
+```text
+total: 100
+scope:
+  project: 90
+  out_of_scope: 6
+  harmful_security: 4
+model:
+  qwen2.5:7b-instruct: 100
+```
+
+Прогон запущен в фоне через:
+
+```powershell
+.\scripts\run_realistic_100_eval_automation.ps1 `
+  -DatasetPath docs\quality\ntk_realistic_100_new_queries.jsonl `
+  -ReportPath data\ntk_realistic_100_new_eval_report.jsonl `
+  -ReviewPath data\ntk_realistic_100_new_eval_review.jsonl `
+  -SummaryPath data\ntk_realistic_100_new_eval_review_summary.json `
+  -ChatScript scripts\asu_june_bot_chat.py `
+  -Mode hybrid `
+  -ActiveCorpus ntk
+```
+
+Runtime outputs не коммитятся:
+
+```text
+data/ntk_realistic_100_new_eval_report.jsonl
+data/ntk_realistic_100_new_eval_review.jsonl
+data/ntk_realistic_100_new_eval_review_summary.json
+logs/realistic_100_eval_full_*.out.log
+logs/realistic_100_eval_full_*.err.log
+```
+
+Для контроля создан hourly monitor в Codex app:
+
+```text
+automation_id: ntk-realistic-100-hourly-monitor
+```
+
+`scripts/14_run_realistic_100_eval.py` теперь умеет запускать новый `scripts/asu_june_bot_chat.py`: для него используется `--max-tokens`, `--mode hybrid` и `--no-log`, а не legacy `--num-predict`.
+
 ## NTK Obsidian vault rebuild
 
 27.05.2026 добавлен воспроизводимый генератор полной пересборки Obsidian vault по корпусу NTK Yandex:

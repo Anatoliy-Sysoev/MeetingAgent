@@ -64,9 +64,12 @@ else {
 $payload = [ordered]@{
     status = $status
     rows = $rows
+    dataset = if ($state -and $state.dataset) { $state.dataset } else { $null }
     report = $ReportPath
     review = $ReviewPath
     chat_script = if ($state -and $state.chat_script) { $state.chat_script } else { $null }
+    mode = if ($state -and $state.mode) { $state.mode } else { $null }
+    active_corpus = if ($state -and $state.active_corpus) { $state.active_corpus } else { $null }
     review_exists = $reviewExists
     summary_exists = $summaryExists
     active_eval_pids = @($activeEval | ForEach-Object { $_.ProcessId })
