@@ -28,6 +28,15 @@ data/ntk_realistic_100_new_eval_review.jsonl
 data/ntk_realistic_100_new_eval_review_summary.json
 ```
 
+Технический рестарт 2026-05-28:
+
+```text
+первый прогон остановлен на 34/100;
+причина: UnicodeEncodeError при печати JSON в cp1251 stdout;
+исправлено: runner передает дочернему chat-процессу PYTHONUTF8=1 и PYTHONIOENCODING=utf-8;
+прогон перезапущен с чистыми output paths.
+```
+
 Мониторинг:
 
 ```text

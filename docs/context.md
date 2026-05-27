@@ -55,6 +55,14 @@ automation_id: ntk-realistic-100-hourly-monitor
 
 `scripts/14_run_realistic_100_eval.py` теперь умеет запускать новый `scripts/asu_june_bot_chat.py`: для него используется `--max-tokens`, `--mode hybrid` и `--no-log`, а не legacy `--num-predict`.
 
+2026-05-28 первый фоновый прогон был остановлен на `34/100`, потому что часть строк падала технически на Windows stdout encoding:
+
+```text
+UnicodeEncodeError: cp1251 cannot encode combining marks / special symbols
+```
+
+Это не retrieval/LLM failure. Исправлено в runner: дочерний chat-процесс запускается с `PYTHONUTF8=1` и `PYTHONIOENCODING=utf-8`. Испорченные runtime reports перенесены в `*.bad_cp1251_<timestamp>`, прогон перезапущен с чистыми output paths.
+
 ## NTK Obsidian vault rebuild
 
 27.05.2026 добавлен воспроизводимый генератор полной пересборки Obsidian vault по корпусу NTK Yandex:
