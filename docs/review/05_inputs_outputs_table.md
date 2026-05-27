@@ -143,20 +143,20 @@ PowerShell-скрипты дополнительно:
 | CLI | Default | Назначение |
 |---|---|---|
 | `question` (pos, nargs="+") | — | Вопрос. |
-| `--top-k` | 12 | Сколько chunks искать до фильтрации. |
+| `--top-k` | 4 | Сколько chunks искать до фильтрации. |
 | `--score-threshold` | 0.35 | Минимальный score источника. |
 | `--min-sources` | 1 | Минимум источников выше порога. |
-| `--max-context-chars` | 14000 | Лимит prompt context. |
+| `--max-context-chars` | 6000 | Лимит prompt context. |
 | `--source-char-limit` | 1800 | Максимум на один источник в prompt. |
 | `--document-expansion-chunks` | 6 | Сколько chunks брать из top-документа для расширения. |
-| `--expand-top-documents` | 2 | Сколько top-документов расширять. |
+| `--expand-top-documents` | 1 | Сколько top-документов расширять. |
 | `--no-document-expansion` | False | Отключить расширение. |
 | `--model` | None (из config) | Ollama chat model. |
-| `--prompt` | `configs/prompts/chat.md` | Путь к prompt-шаблону. |
+| `--prompt` | `configs/prompts/project_only_chat.md` | Путь к prompt-шаблону. |
 | `--temperature` | None (из config) | |
 | `--top-p` | None | |
-| `--num-predict` | 1024 | Лимит длины ответа Ollama. |
-| `--timeout-sec` | 240 | HTTP timeout. |
+| `--num-predict` | 700 | Лимит длины ответа Ollama. |
+| `--timeout-sec` | 180 | HTTP timeout. |
 | `--json` | False | JSON-вывод. |
 | `--sources-only` | False | Не вызывать LLM, только источники. |
 | `--include-excluded` | False | Без query-фильтра путей. |
@@ -166,7 +166,7 @@ PowerShell-скрипты дополнительно:
 
 | Категория | Значение |
 |---|---|
-| Reads | `config.yaml`; `data/numpy_index/*`; `data/chunks.jsonl` (для document expansion в `load_document_chunks`); `data/source_links.json` (если есть); `configs/prompts/chat.md` или `--prompt`. |
+| Reads | `config.yaml`; `data/numpy_index/*`; `data/chunks.jsonl` (для document expansion в `load_document_chunks`); `data/source_links.json` (если есть); `configs/prompts/project_only_chat.md` или `--prompt`. |
 | Writes | `data/query_log.jsonl` (append). |
 | Network | `/api/embeddings` + `/api/generate` (если LLM включён). |
 | Exit codes | `0` норма. |
