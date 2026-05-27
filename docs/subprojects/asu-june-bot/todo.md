@@ -80,7 +80,7 @@ Docker packaging или QH-6 Feedback Dataset Loop
 data/asu_june_bot_ntk embeddings/index build завершен
 manifest.json создан
 BM25 smoke после пересборки: 8/20 ok
-hybrid smoke после освобождения Ollama: 8/20 ok
+hybrid smoke после расширения project markers/routing: 20/20 ok
 не переключать дефолт бота до подтверждения качества
 ```
 
@@ -90,10 +90,10 @@ hybrid smoke после освобождения Ollama: 8/20 ok
 Test-Path .\data\asu_june_bot_ntk\numpy_index_v2\manifest.json
 ```
 
-Следующий шаг: разобрать failed_ids из hybrid smoke и улучшить retrieval/routing:
+Следующий шаг: вручную просмотреть ответы/источники последнего hybrid smoke:
 
 ```powershell
-Get-Content .\data\asu_june_bot_ntk\smoke_eval_hybrid_summary.json -Encoding UTF8
+Get-Content .\data\asu_june_bot_ntk\smoke_eval_hybrid_after_markers_v3_summary.json -Encoding UTF8
 ```
 
 Инструкция:

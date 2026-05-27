@@ -420,3 +420,20 @@ Backlog-направления остаются точечными: `source_type
 - `src/asu_june_bot` не должен импортировать `scripts/*` через `sys.path`, иначе runtime становится хрупким.
 
 Следствие: `apps/` и `src/meeting_agent/` явно считаются scaffold до появления реального кода, а минимальная CI-проверка должна выполнять `py_compile` и `pytest tests/asu_june_bot`.
+
+## 2026-05-27 - NTK Project Markers И Lexical-First Hybrid Для Точных Якорей
+
+Решение: Project Knowledge Bot получил расширенные project-scope markers для NTK corpus: ФТТ/ПР/ЦТА/СоИ/ПМИ/Паспорт ИС, performance anchors (`2520`, `600 одновременно`), CTA anchors (`RTO`, `RPO`, `PostgreSQL`, `MinIO`, `Kubernetes`), AD/LDAPS/app_ccpm, MDR/НСИ/Bearer Token, НСИ-регламенты и экспорт PDF/Excel/CSV.
+
+Для точных якорей hybrid retrieval временно смещает вес в сторону BM25/lexical (`0.58`) против vector (`0.42`). Это нужно, чтобы короткие точные термины вроде `app_ccpm`, `Bearer Token`, `2520`, `RTO/RPO`, `LDAPS` не терялись в embedding-поиске.
+
+Почему:
+
+- smoke по NTK corpus показал false-clarify на проектных вопросах без явного названия документа;
+- `Паспорт ИС` с хвостом "связанные документы" ошибочно уходил в отказ;
+- `карбонара` уходила в clarify, а должна быть out-of-scope/refused;
+- для `app_ccpm` чистый BM25 находил `СоИ AD`, но hybrid с высоким vector-весом отдавал верхние места `ПР`/`ЦТА`.
+
+Результат: `scripts/asu_june_bot_ntk_smoke_eval.py --mode hybrid` на 20 контрольных вопросах NTK corpus дал `20/20 ok`, `source_url_in_top5=19/20`, `failed_ids=[]`.
+
+Следствие: дефолтный корпус всё ещё не переключается автоматически. Перед переключением нужен ручной просмотр ответов и источников по `data/asu_june_bot_ntk/smoke_eval_hybrid_after_markers_v3.jsonl`.

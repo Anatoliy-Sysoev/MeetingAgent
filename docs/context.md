@@ -71,10 +71,10 @@ Smoke после пересборки:
 
 ```text
 BM25: 8/20 ok, source_url_in_top5=12/20
-hybrid: 8/20 ok, source_url_in_top5=12/20
+hybrid after project markers/routing: 20/20 ok, source_url_in_top5=19/20
 ```
 
-Решение: дефолт бота на `data/asu_june_bot_ntk` пока не переключать. Сначала нужно разобрать failed_ids и улучшить retrieval/routing.
+Решение: дефолт бота на `data/asu_june_bot_ntk` пока не переключать автоматически. Следующий шаг — ручной просмотр ответов и источников по smoke, затем решение о переключении корпуса.
 
 ## Retrieval quality evolution
 
@@ -296,11 +296,21 @@ source_url_in_top5: 12
 status_counts: ok=12, clarify=7, refused=1
 ```
 
+Hybrid smoke после расширения project markers и routing:
+
+```text
+cases: 20
+ok: 20
+source_url_in_top5: 19
+status_counts: ok=19, refused=1
+failed_ids: []
+```
+
 Решение:
 
 ```text
 дефолт бота на NTK corpus пока не переключён
-разобрать failed_ids hybrid smoke и улучшить retrieval/routing
+провести ручной просмотр smoke answers/sources
 incremental update проектировать только после подтверждения качества
 ```
 

@@ -180,23 +180,25 @@ source_url_in_top5: 12
 status_counts: ok=12, clarify=7, refused=1
 ```
 
-Hybrid smoke:
+Hybrid smoke после расширения project markers и routing:
 
 ```text
 20 cases
-ok: 8
-source_url_in_top5: 12
-status_counts: ok=12, clarify=7, refused=1
-failed_ids: NTK-SMOKE-004, 007, 008, 009, 010, 011, 012, 013, 016, 017, 018, 020
+ok: 20
+doc_type_hits: 19
+status_hits: 1
+source_url_in_top5: 19
+status_counts: ok=19, refused=1
+failed_ids: []
 ```
 
-Вывод: индекс собран, hybrid smoke технически проходит, но качество пока недостаточно для переключения дефолта. Результат не лучше BM25-only smoke: нужно разбирать failed_ids и чинить retrieval/routing.
+Вывод: индекс собран, hybrid smoke технически проходит и покрывает все 20 контрольных кейсов. Это достаточное основание для следующей ручной проверки ответов/источников перед переключением дефолтного корпуса.
 
 ## Что не сделано
 
 ```text
 default bot corpus switch — не выполнен
-failed smoke cases analysis — следующий шаг
+manual answer/source review — следующий шаг
 incremental update для Yandex-папки — следующий этап после подтверждения качества
 ```
 
@@ -211,4 +213,4 @@ incremental update для Yandex-папки — следующий этап по
   --summary data\asu_june_bot_ntk\smoke_eval_hybrid_summary.json
 ```
 
-Не переключать дефолтный корпус до ручного просмотра `data/asu_june_bot_ntk/smoke_eval_hybrid.jsonl` и улучшения smoke-результата.
+Не переключать дефолтный корпус до ручного просмотра `data/asu_june_bot_ntk/smoke_eval_hybrid_after_markers_v3.jsonl`.

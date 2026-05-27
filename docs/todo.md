@@ -50,13 +50,13 @@ NTK Yandex corpus после chunk-quality фиксов пересобран:
 - chunks_v2.jsonl: 31270 chunks;
 - numpy_index_v2/manifest.json создан;
 - BM25 smoke: 8/20 ok;
-- hybrid smoke после освобождения Ollama: 8/20 ok.
+- hybrid smoke после расширения project markers/routing: 20/20 ok.
 ```
 
-Следующий шаг: разобрать failed_ids из hybrid smoke и улучшить retrieval/routing:
+Следующий шаг: вручную просмотреть ответы/источники последнего hybrid smoke:
 
 ```powershell
-Get-Content .\data\asu_june_bot_ntk\smoke_eval_hybrid_summary.json -Encoding UTF8
+Get-Content .\data\asu_june_bot_ntk\smoke_eval_hybrid_after_markers_v3_summary.json -Encoding UTF8
 ```
 
 Дефолт бота переключать на `data/asu_june_bot_ntk` только если hybrid smoke лучше текущего корпуса.

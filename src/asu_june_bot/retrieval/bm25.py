@@ -129,6 +129,7 @@ class BM25SearchAdapter:
         document_type = str(doc.metadata.get("document_type") or "")
         text_lower = doc.text.lower()
         boosts: list[tuple[str, float]] = []
+        has_soi_ad_route = any(marker in lowered for marker in ("сои ad", "active directory", "ldaps", "app_ccpm", "группы ad"))
 
         if "паспорт" in lowered and "ис" in lowered:
             boosts.append(("intent:passport", 2.0 if document_type == "Паспорт ИС" else 0.72))
@@ -153,6 +154,40 @@ class BM25SearchAdapter:
                 boosts.append(("intent:integrations", 1.25))
             elif document_type == "Wiki":
                 boosts.append(("intent:integrations_wiki_penalty", 0.72))
+
+        if has_soi_ad_route:
+            if document_type == "СоИ AD":
+                boosts.append(("intent:soi_ad", 3.2))
+            elif document_type in {"Паспорт ИС", "ЦТА", "ПР"}:
+                boosts.append(("intent:soi_ad_penalty_generic_docs", 0.68))
+
+        if any(marker in lowered for marker in ("bearer", "bearer token", "mdr", "мдр", "сои нси", "сои справочники")):
+            if document_type == "СоИ Справочники":
+                boosts.append(("intent:soi_nsi_mdr", 2.35))
+            elif document_type in {"ЦТА", "Паспорт ИС", "ФТТ"}:
+                boosts.append(("intent:soi_nsi_mdr_penalty_generic_docs", 0.72))
+
+        if not has_soi_ad_route and any(marker in lowered for marker in ("пр ", "проектное решение", "статусы замечаний", "инспекционной проверки", "строительного контроля", "автоматически формируемые документы")):
+            if document_type == "ПР":
+                boosts.append(("intent:pr_construction_control", 2.0))
+            elif document_type in {"Паспорт ИС", "ЦТА"}:
+                boosts.append(("intent:pr_construction_control_penalty_generic_docs", 0.72))
+
+        if any(marker in lowered for marker in ("2520", "600 одновременно", "производительность", "экспорт данных", "pdf", "csv")):
+            if document_type == "ФТТ":
+                boosts.append(("intent:ftt_performance_or_export", 1.85))
+
+        if any(marker in lowered for marker in ("rto", "rpo", "postgresql", "kubernetes", "minio", "grafana", "loki", "siem")):
+            if document_type == "ЦТА":
+                boosts.append(("intent:cta_infrastructure", 1.85))
+
+        if any(marker in lowered for marker in ("регламент ведения", "регламенты ведения", "реестр нси", "свок рд")):
+            if document_type == "Реестр НСИ":
+                boosts.append(("intent:nsi_register", 2.5))
+            elif document_type in {"Справочник НСИ", "Методика/Регламент НСИ"}:
+                boosts.append(("intent:nsi_register_supporting", 1.45))
+            elif document_type in {"ФТТ", "ПР", "ЦТА"}:
+                boosts.append(("intent:nsi_register_penalty_project_docs", 0.55))
 
         if "глоссарий" not in lowered and (
             "контекст: глоссарий" in text_lower

@@ -182,7 +182,7 @@ extraction complete
 chunks built
 embeddings/index built
 BM25-only smoke: 8/20
-hybrid smoke: completed, 8/20
+hybrid smoke after project markers/routing: completed, 20/20
 default corpus switch: not done
 ```
 
@@ -428,8 +428,8 @@ QH-5 закрыт как `PASSED`: Telegram smoke закрыт локально,
 Сейчас:
 
 ```text
-1. Для NTK Yandex corpus разобрать failed_ids из smoke_eval_hybrid.jsonl.
-2. Не переключать дефолтный корпус бота до улучшения smoke и ручного просмотра источников.
+1. Для NTK Yandex corpus провести ручной просмотр smoke_eval_hybrid_after_markers_v3.jsonl.
+2. Не переключать дефолтный корпус бота до ручного подтверждения качества источников.
 3. После подтверждения качества проектировать incremental update для Yandex-папки.
 ```
 
