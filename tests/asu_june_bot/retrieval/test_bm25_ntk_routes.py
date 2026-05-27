@@ -56,3 +56,30 @@ def test_bm25_includes_regulation_doc_for_nsi_regulations_query() -> None:
 
     top_doc_types = [str(result.metadata.get("document_type") or "") for result in results[:2]]
     assert "Методика/Регламент НСИ" in top_doc_types
+
+
+def test_bm25_prefers_cta_recovery_chunk_over_logging_chunk() -> None:
+    rows = [
+        {
+            "text": "ЦТА. Grafana Loki и SIEM. Логирование, мониторинг, порты интеграции, сетевые настройки.",
+            "metadata": {"document_type": "ЦТА", "relative_path": "docs/cta_logging.docx"},
+        },
+        {
+            "text": "ЦТА. Максимальное время восстановления после сбоя (RTO) - 4 часа. RPO - 4 часа. Резервное копирование и восстановление данных.",
+            "metadata": {"document_type": "ЦТА", "relative_path": "docs/cta_recovery.docx"},
+        },
+        {
+            "text": "ФТТ. Требования по производительности и экспорту.",
+            "metadata": {"document_type": "ФТТ", "relative_path": "docs/ftt.docx"},
+        },
+    ]
+
+    results = BM25SearchAdapter(rows).search(
+        "Что указано в ЦТА про RTO и RPO?",
+        top_k=3,
+    )
+
+    assert results
+    assert "rto" in results[0].text.lower()
+    assert "rpo" in results[0].text.lower()
+    assert "резервное копирование" in results[0].text.lower()

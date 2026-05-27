@@ -56,6 +56,31 @@ class BM25SearchAdapter:
     def _is_nsi_regulation_chunk(text_lower: str) -> bool:
         return any(marker in text_lower for marker in ("регламент ведения", "методика ведения", "мвд", "ведение объекта нси"))
 
+    @staticmethod
+    def _is_cta_recovery_chunk(text_lower: str) -> bool:
+        return any(
+            marker in text_lower
+            for marker in (
+                "время восстановления",
+                "максимальное время восстановления",
+                "rto",
+                "rpo",
+                "точка восстановления",
+                "окно потери данных",
+                "резервное копирование",
+                "backup",
+                "restore",
+                "восстановление данных",
+                "аварийный режим",
+            )
+        )
+
+    @staticmethod
+    def _is_logging_or_port_chunk(text_lower: str) -> bool:
+        has_logging_noise = any(marker in text_lower for marker in ("grafana loki", "siem", "логирован", "мониторинг", "otel", "otlp"))
+        has_port_noise = "порт " in text_lower or "tcp/" in text_lower or "udp/" in text_lower
+        return has_logging_noise or has_port_noise
+
     def __init__(self, rows: list[dict[str, Any]], source_policy: SourcePolicy | None = None, k1: float = 1.5, b: float = 0.75):
         self.source_policy = source_policy or SourcePolicy()
         self.k1 = k1
@@ -192,7 +217,21 @@ class BM25SearchAdapter:
             if document_type == "ФТТ":
                 boosts.append(("intent:ftt_performance_or_export", 1.85))
 
-        if any(marker in lowered for marker in ("rto", "rpo", "postgresql", "kubernetes", "minio", "grafana", "loki", "siem")):
+        has_cta_recovery_route = any(
+            marker in lowered
+            for marker in ("rto", "rpo", "время восстановления", "точка восстановления", "резервное копирование", "backup", "restore")
+        )
+        has_cta_infrastructure_route = any(marker in lowered for marker in ("postgresql", "kubernetes", "minio", "grafana", "loki", "siem"))
+        if has_cta_recovery_route:
+            if document_type == "ЦТА":
+                boosts.append(("intent:cta_recovery_rto_rpo", 2.4))
+                if self._is_cta_recovery_chunk(text_lower):
+                    boosts.append(("intent:cta_recovery_chunk", 2.2))
+                elif self._is_logging_or_port_chunk(text_lower):
+                    boosts.append(("intent:cta_recovery_penalty_logging_or_port", 0.28))
+            elif document_type in {"ФТТ", "Паспорт ИС", "СоИ AD", "СоИ Справочники", "ПР"}:
+                boosts.append(("intent:cta_recovery_penalty_non_cta", 0.62))
+        elif has_cta_infrastructure_route:
             if document_type == "ЦТА":
                 boosts.append(("intent:cta_infrastructure", 1.85))
 

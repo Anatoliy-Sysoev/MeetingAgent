@@ -88,6 +88,31 @@ def _is_nsi_regulation_chunk(text: str) -> bool:
     return any(marker in text for marker in ("регламент ведения", "методика ведения", "мвд", "ведение объекта нси"))
 
 
+def _is_cta_recovery_chunk(text: str) -> bool:
+    return any(
+        marker in text
+        for marker in (
+            "время восстановления",
+            "максимальное время восстановления",
+            "rto",
+            "rpo",
+            "точка восстановления",
+            "окно потери данных",
+            "резервное копирование",
+            "backup",
+            "restore",
+            "восстановление данных",
+            "аварийный режим",
+        )
+    )
+
+
+def _is_logging_or_port_chunk(text: str) -> bool:
+    has_logging_noise = any(marker in text for marker in ("grafana loki", "siem", "логирован", "мониторинг", "otel", "otlp"))
+    has_port_noise = "порт " in text or "tcp/" in text or "udp/" in text
+    return has_logging_noise or has_port_noise
+
+
 def _has_exact_section(result: SearchResult, sections: list[str]) -> bool:
     if not sections:
         return False
@@ -198,7 +223,25 @@ class PostReranker:
                     multiplier *= 1.75
                     labels.append("boost:ftt_performance_or_export_route")
 
-            if any(marker in query_lower for marker in ("rto", "rpo", "postgresql", "kubernetes", "minio", "grafana", "loki", "siem")):
+            has_cta_recovery_route = any(
+                marker in query_lower
+                for marker in ("rto", "rpo", "время восстановления", "точка восстановления", "резервное копирование", "backup", "restore")
+            )
+            has_cta_infrastructure_route = any(marker in query_lower for marker in ("postgresql", "kubernetes", "minio", "grafana", "loki", "siem"))
+            if has_cta_recovery_route:
+                if document_type == "ЦТА":
+                    multiplier *= 2.2
+                    labels.append("boost:cta_recovery_rto_rpo_route")
+                    if _is_cta_recovery_chunk(text):
+                        multiplier *= 1.95
+                        labels.append("boost:cta_recovery_chunk")
+                    elif _is_logging_or_port_chunk(text):
+                        multiplier *= 0.26
+                        labels.append("penalty:cta_recovery_logging_or_port_chunk")
+                elif document_type in {"ФТТ", "Паспорт ИС", "СоИ AD", "СоИ Справочники", "ПР"}:
+                    multiplier *= 0.62
+                    labels.append("penalty:cta_recovery_non_cta_doc")
+            elif has_cta_infrastructure_route:
                 if document_type == "ЦТА":
                     multiplier *= 1.75
                     labels.append("boost:cta_infrastructure_route")
