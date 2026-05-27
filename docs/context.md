@@ -71,10 +71,10 @@ Smoke после пересборки:
 
 ```text
 BM25: 8/20 ok, source_url_in_top5=12/20
-hybrid: первые 2 кейса ok=True, затем Ollama embedding timeout 120s
+hybrid: 8/20 ok, source_url_in_top5=12/20
 ```
 
-Решение: дефолт бота на `data/asu_june_bot_ntk` пока не переключать. Сначала нужно стабилизировать Ollama и повторить hybrid smoke.
+Решение: дефолт бота на `data/asu_june_bot_ntk` пока не переключать. Сначала нужно разобрать failed_ids и улучшить retrieval/routing.
 
 ## Retrieval quality evolution
 
@@ -300,7 +300,7 @@ status_counts: ok=12, clarify=7, refused=1
 
 ```text
 дефолт бота на NTK corpus пока не переключён
-повторить hybrid smoke после стабилизации Ollama
+разобрать failed_ids hybrid smoke и улучшить retrieval/routing
 incremental update проектировать только после подтверждения качества
 ```
 

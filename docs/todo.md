@@ -50,18 +50,13 @@ NTK Yandex corpus после chunk-quality фиксов пересобран:
 - chunks_v2.jsonl: 31270 chunks;
 - numpy_index_v2/manifest.json создан;
 - BM25 smoke: 8/20 ok;
-- hybrid smoke остановился на Ollama embedding timeout после 2 ok cases.
+- hybrid smoke после освобождения Ollama: 8/20 ok.
 ```
 
-Следующий шаг: стабилизировать или перезапустить Ollama и повторить hybrid smoke:
+Следующий шаг: разобрать failed_ids из hybrid smoke и улучшить retrieval/routing:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\asu_june_bot_ntk_smoke_eval.py `
-  --mode hybrid `
-  --chunks-path data\asu_june_bot_ntk\chunks_v2.jsonl `
-  --index-dir data\asu_june_bot_ntk\numpy_index_v2 `
-  --output data\asu_june_bot_ntk\smoke_eval_hybrid.jsonl `
-  --summary data\asu_june_bot_ntk\smoke_eval_hybrid_summary.json
+Get-Content .\data\asu_june_bot_ntk\smoke_eval_hybrid_summary.json -Encoding UTF8
 ```
 
 Дефолт бота переключать на `data/asu_june_bot_ntk` только если hybrid smoke лучше текущего корпуса.

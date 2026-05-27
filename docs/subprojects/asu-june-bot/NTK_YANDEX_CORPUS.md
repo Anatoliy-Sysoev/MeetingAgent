@@ -183,22 +183,24 @@ status_counts: ok=12, clarify=7, refused=1
 Hybrid smoke:
 
 ```text
-first 2 cases: ok=True
-case 3: stopped by Ollama embedding timeout, read timeout 120s
-output file was not produced
+20 cases
+ok: 8
+source_url_in_top5: 12
+status_counts: ok=12, clarify=7, refused=1
+failed_ids: NTK-SMOKE-004, 007, 008, 009, 010, 011, 012, 013, 016, 017, 018, 020
 ```
 
-Вывод: индекс собран, но качество пока не подтверждено для переключения дефолта. BM25-only результат недостаточен, а hybrid smoke нужно повторить после перезапуска или стабилизации Ollama.
+Вывод: индекс собран, hybrid smoke технически проходит, но качество пока недостаточно для переключения дефолта. Результат не лучше BM25-only smoke: нужно разбирать failed_ids и чинить retrieval/routing.
 
 ## Что не сделано
 
 ```text
-hybrid smoke — повторить после стабилизации Ollama
 default bot corpus switch — не выполнен
+failed smoke cases analysis — следующий шаг
 incremental update для Yandex-папки — следующий этап после подтверждения качества
 ```
 
-## Следующая проверка
+## Следующая проверка качества
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_ntk_smoke_eval.py `
@@ -209,4 +211,4 @@ incremental update для Yandex-папки — следующий этап по
   --summary data\asu_june_bot_ntk\smoke_eval_hybrid_summary.json
 ```
 
-Если hybrid smoke не проходит из-за timeout Ollama, сначала перезапустить Ollama и проверить `/api/embeddings` на коротком запросе. Не переключать дефолтный корпус до успешного smoke.
+Не переключать дефолтный корпус до ручного просмотра `data/asu_june_bot_ntk/smoke_eval_hybrid.jsonl` и улучшения smoke-результата.

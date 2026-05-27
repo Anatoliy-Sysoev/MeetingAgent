@@ -182,7 +182,7 @@ extraction complete
 chunks built
 embeddings/index built
 BM25-only smoke: 8/20
-hybrid smoke: blocked by Ollama embedding timeout after 2 ok cases
+hybrid smoke: completed, 8/20
 default corpus switch: not done
 ```
 
@@ -428,8 +428,8 @@ QH-5 закрыт как `PASSED`: Telegram smoke закрыт локально,
 Сейчас:
 
 ```text
-1. Для NTK Yandex corpus перезапустить/стабилизировать Ollama и повторить hybrid smoke.
-2. Не переключать дефолтный корпус бота до успешного smoke и ручного просмотра источников.
+1. Для NTK Yandex corpus разобрать failed_ids из smoke_eval_hybrid.jsonl.
+2. Не переключать дефолтный корпус бота до улучшения smoke и ручного просмотра источников.
 3. После подтверждения качества проектировать incremental update для Yandex-папки.
 ```
 
