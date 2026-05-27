@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from asu_june_bot.core.config import load_config, resolve_work_path
+from asu_june_bot.core.corpus import get_corpus_config
 from asu_june_bot.guardrails.project_guard import GuardDecision, ProjectGuard
 from asu_june_bot.retrieval.chunks import read_jsonl
 from asu_june_bot.retrieval.context_builder import ContextBuilder
@@ -14,9 +15,6 @@ from asu_june_bot.retrieval.query_intent import classify_query_intent
 from asu_june_bot.retrieval.vector import OllamaUnavailableError
 
 from .models import SearchDiagnostics, SearchRequest, SearchResponse, SearchStatus, empty_context
-
-
-CORPUS_NAME = "asu_june_bot_v2"
 
 
 def make_v2_cfg(cfg: dict[str, Any], chunks_path: str, index_dir: str) -> dict[str, Any]:
@@ -87,7 +85,7 @@ class SearchService:
             status = SearchStatus.CLARIFY.value if guard_result.decision == GuardDecision.CLARIFY else SearchStatus.REFUSED.value
             payload = {
                 "query": request.query,
-                "corpus": CORPUS_NAME,
+                "corpus": self._corpus_name(cfg=None),
                 "mode": request.mode,
                 "status": status,
                 "answer": guard_result.message,
@@ -100,8 +98,11 @@ class SearchService:
             return self._with_diagnostics(payload, diagnostics, request.include_diagnostics)
 
         cfg = self._load_v2_config(request)
-        chunks_path = resolve_work_path(cfg, request.chunks_path)
-        index_dir = resolve_work_path(cfg, request.index_dir)
+        corpus = get_corpus_config(cfg)
+        chunks_path_raw = request.chunks_path or corpus.chunks_path
+        index_dir_raw = request.index_dir or corpus.index_dir
+        chunks_path = resolve_work_path(cfg, chunks_path_raw)
+        index_dir = resolve_work_path(cfg, index_dir_raw)
 
         t0 = time.perf_counter()
         rows = read_jsonl(chunks_path)
@@ -129,6 +130,8 @@ class SearchService:
             diagnostics.add_stage("retrieval", self._elapsed_ms(t0), {"raw_results": len(raw_results), "mode": request.mode})
         except OllamaUnavailableError as exc:
             payload = unavailable_payload(request.query, request.mode, exc, query_intent_payload, guard_payload)
+            payload["corpus"] = corpus.name
+            payload["corpus_key"] = corpus.key
             return self._with_diagnostics(payload, diagnostics, request.include_diagnostics)
 
         t0 = time.perf_counter()
@@ -142,7 +145,8 @@ class SearchService:
         warnings = list(getattr(retriever, "last_warnings", []) or [])
         payload = {
             "query": request.query,
-            "corpus": CORPUS_NAME,
+            "corpus": corpus.name,
+            "corpus_key": corpus.key,
             "mode": request.mode,
             "status": SearchStatus.OK.value,
             "top_k": request.top_k,
@@ -159,7 +163,12 @@ class SearchService:
 
     def _load_v2_config(self, request: SearchRequest) -> dict[str, Any]:
         cfg = self.config or load_config()
-        return make_v2_cfg(cfg, request.chunks_path, request.index_dir)
+        corpus = get_corpus_config(cfg)
+        return make_v2_cfg(cfg, request.chunks_path or corpus.chunks_path, request.index_dir or corpus.index_dir)
+
+    def _corpus_name(self, cfg: dict[str, Any] | None) -> str:
+        resolved_cfg = cfg or self.config or load_config()
+        return get_corpus_config(resolved_cfg).name
 
     @staticmethod
     def _elapsed_ms(start: float) -> float:

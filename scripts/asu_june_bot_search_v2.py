@@ -21,10 +21,6 @@ from asu_june_bot.search.models import SearchRequest  # noqa: E402
 from asu_june_bot.search.service import SearchService  # noqa: E402
 
 
-DEFAULT_CHUNKS_PATH = "data/asu_june_bot/chunks_v2.jsonl"
-DEFAULT_INDEX_DIR = "data/asu_june_bot/numpy_index_v2"
-
-
 def get_path(item: dict[str, Any]) -> str | None:
     metadata = item.get("metadata") or {}
     return item.get("relative_path") or item.get("document") or metadata.get("relative_path")
@@ -108,8 +104,8 @@ def main() -> None:
     parser.add_argument("query", nargs="+", help="Поисковый запрос")
     parser.add_argument("--top-k", type=int, default=10, help="Количество результатов")
     parser.add_argument("--mode", choices=["hybrid", "vector", "bm25"], default="hybrid", help="Режим поиска")
-    parser.add_argument("--chunks-path", default=DEFAULT_CHUNKS_PATH)
-    parser.add_argument("--index-dir", default=DEFAULT_INDEX_DIR)
+    parser.add_argument("--chunks-path", default=None)
+    parser.add_argument("--index-dir", default=None)
     parser.add_argument(
         "--include-source-type",
         action="append",

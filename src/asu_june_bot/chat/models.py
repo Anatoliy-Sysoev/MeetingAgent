@@ -24,8 +24,8 @@ class ChatRequest:
     query: str
     mode: str = "hybrid"
     top_k: int = 8
-    chunks_path: str = "data/asu_june_bot/chunks_v2.jsonl"
-    index_dir: str = "data/asu_june_bot/numpy_index_v2"
+    chunks_path: str | None = None
+    index_dir: str | None = None
     include_source_types: list[str] | None = None
     model: str | None = None
     temperature: float = 0.0

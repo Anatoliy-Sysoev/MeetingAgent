@@ -7,12 +7,12 @@ from typing import Any
 import requests
 
 from asu_june_bot.core.config import load_config, resolve_work_path
+from asu_june_bot.core.corpus import get_corpus_config
 
-
-DEFAULT_CHUNKS_PATH = "data/asu_june_bot/chunks_v2.jsonl"
-DEFAULT_CACHE_PATH = "data/asu_june_bot/embeddings_cache_v2.jsonl"
-DEFAULT_INDEX_DIR = "data/asu_june_bot/numpy_index_v2"
-DEFAULT_REPORT_PATH = "data/asu_june_bot/index_v2_report.json"
+DEFAULT_CHUNKS_PATH = None
+DEFAULT_CACHE_PATH = None
+DEFAULT_INDEX_DIR = None
+DEFAULT_REPORT_PATH = None
 
 
 def count_jsonl(path: Path) -> int:
@@ -67,20 +67,21 @@ class HealthService:
 
     def check(
         self,
-        chunks_path: str = DEFAULT_CHUNKS_PATH,
-        cache_path: str = DEFAULT_CACHE_PATH,
-        index_dir: str = DEFAULT_INDEX_DIR,
-        report_path: str = DEFAULT_REPORT_PATH,
+        chunks_path: str | None = DEFAULT_CHUNKS_PATH,
+        cache_path: str | None = DEFAULT_CACHE_PATH,
+        index_dir: str | None = DEFAULT_INDEX_DIR,
+        report_path: str | None = DEFAULT_REPORT_PATH,
         timeout_sec: int = 5,
     ) -> dict[str, Any]:
         cfg = self.config or load_config()
-        chunks_file = resolve_work_path(cfg, chunks_path)
-        cache_file = resolve_work_path(cfg, cache_path)
-        index_path = resolve_work_path(cfg, index_dir)
+        corpus = get_corpus_config(cfg)
+        chunks_file = resolve_work_path(cfg, chunks_path or corpus.chunks_path)
+        cache_file = resolve_work_path(cfg, cache_path or corpus.cache_path)
+        index_path = resolve_work_path(cfg, index_dir or corpus.index_dir)
         manifest_path = index_path / "manifest.json"
         embeddings_path = index_path / "embeddings.npy"
         metadata_path = index_path / "metadata.jsonl"
-        report_file = resolve_work_path(cfg, report_path)
+        report_file = resolve_work_path(cfg, report_path or corpus.report_path)
 
         manifest = read_json(manifest_path)
         report = read_json(report_file)
@@ -101,6 +102,8 @@ class HealthService:
         payload = {
             "status": health_status(chunks_ok and index_ok and cache_ok),
             "service": "asu_june_bot",
+            "corpus": corpus.name,
+            "corpus_key": corpus.key,
             "corpus_ready": bool(chunks_ok),
             "vector_ready": bool(vector_ready),
             "bm25_ready": bool(chunks_ok),

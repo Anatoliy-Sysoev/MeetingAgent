@@ -45,6 +45,17 @@ class BM25Document:
 
 
 class BM25SearchAdapter:
+    @staticmethod
+    def _is_ad_role_mapping_chunk(text_lower: str) -> bool:
+        has_group_anchor = "app_ccpm" in text_lower or "справочник групп ad" in text_lower or "группы ad пользователя" in text_lower
+        has_role_anchor = "роль" in text_lower or "роли строительного контроля" in text_lower or "строительного контроля" in text_lower
+        has_groups_attr = "groups" in text_lower or "атрибут groups" in text_lower
+        return has_group_anchor and (has_role_anchor or has_groups_attr)
+
+    @staticmethod
+    def _is_nsi_regulation_chunk(text_lower: str) -> bool:
+        return any(marker in text_lower for marker in ("регламент ведения", "методика ведения", "мвд", "ведение объекта нси"))
+
     def __init__(self, rows: list[dict[str, Any]], source_policy: SourcePolicy | None = None, k1: float = 1.5, b: float = 0.75):
         self.source_policy = source_policy or SourcePolicy()
         self.k1 = k1
@@ -158,6 +169,10 @@ class BM25SearchAdapter:
         if has_soi_ad_route:
             if document_type == "СоИ AD":
                 boosts.append(("intent:soi_ad", 3.2))
+                if self._is_ad_role_mapping_chunk(text_lower):
+                    boosts.append(("intent:soi_ad_role_mapping", 1.85))
+            elif self._is_ad_role_mapping_chunk(text_lower):
+                boosts.append(("intent:soi_ad_role_mapping_supporting", 2.1))
             elif document_type in {"Паспорт ИС", "ЦТА", "ПР"}:
                 boosts.append(("intent:soi_ad_penalty_generic_docs", 0.68))
 
@@ -181,7 +196,20 @@ class BM25SearchAdapter:
             if document_type == "ЦТА":
                 boosts.append(("intent:cta_infrastructure", 1.85))
 
-        if any(marker in lowered for marker in ("регламент ведения", "регламенты ведения", "реестр нси", "свок рд")):
+        has_nsi_regulation_route = any(marker in lowered for marker in ("регламент ведения", "регламенты ведения", "мвд"))
+        has_nsi_register_route = any(marker in lowered for marker in ("реестр нси", "свок рд"))
+        if has_nsi_regulation_route:
+            if document_type == "Методика/Регламент НСИ":
+                boosts.append(("intent:nsi_regulation_primary", 2.75))
+                if self._is_nsi_regulation_chunk(text_lower):
+                    boosts.append(("intent:nsi_regulation_chunk", 1.45))
+            elif document_type == "Реестр НСИ":
+                boosts.append(("intent:nsi_regulation_register_support", 1.8))
+            elif document_type in {"Справочник НСИ", "СоИ Справочники"}:
+                boosts.append(("intent:nsi_regulation_supporting", 1.2))
+            elif document_type in {"ФТТ", "ПР", "ЦТА"}:
+                boosts.append(("intent:nsi_regulation_penalty_project_docs", 0.55))
+        elif has_nsi_register_route:
             if document_type == "Реестр НСИ":
                 boosts.append(("intent:nsi_register", 2.5))
             elif document_type in {"Справочник НСИ", "Методика/Регламент НСИ"}:

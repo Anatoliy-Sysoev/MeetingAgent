@@ -57,8 +57,8 @@ class SearchRequest:
     query: str
     mode: str = SearchMode.HYBRID.value
     top_k: int = 10
-    chunks_path: str = "data/asu_june_bot/chunks_v2.jsonl"
-    index_dir: str = "data/asu_june_bot/numpy_index_v2"
+    chunks_path: str | None = None
+    index_dir: str | None = None
     include_source_types: list[str] | None = None
     no_guard: bool = False
     include_diagnostics: bool = True
