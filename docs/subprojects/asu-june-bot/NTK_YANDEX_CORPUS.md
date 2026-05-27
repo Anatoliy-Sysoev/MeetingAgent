@@ -1,6 +1,6 @@
 # NTK Yandex Corpus
 
-Обновлено: 2026-05-25.
+Обновлено: 2026-05-27.
 
 ## Назначение
 
@@ -103,7 +103,7 @@ docs/quality/ntk_yandex_smoke_questions.jsonl
   --output data\asu_june_bot_ntk\smoke_eval_hybrid.jsonl
 ```
 
-## Текущий результат 2026-05-25
+## Текущий результат 2026-05-27
 
 Source links:
 
@@ -121,17 +121,54 @@ candidate_sources_total: 174
 sources_extracted_this_run: 171
 blocks_extracted_this_run: 31018
 errors_this_run: 0
+table_row_blocks_this_run: 19400
 ```
 
 Chunks:
 
 ```text
-chunks_total: 31136
-chunks_with_source_url: 29196
-project_doc: 25108
-analytical_note: 3493
-instruction: 1924
+chunks_total: 31270
+chunks file: data/asu_june_bot_ntk/chunks_v2.jsonl
+source_url_chunk_pct: 93.8
+project_doc: 25170
+analytical_note: 3551
+instruction: 1938
 meeting_artifact: 611
+```
+
+Chunk quality after Excel/table cleanup:
+
+```text
+max_chars: 14358
+p95_chars: 987
+p99_chars: 2433
+gt6000: 57
+short_noise_samples: 0 found by review script
+```
+
+Main document types:
+
+```text
+Справочник НСИ: 9551
+ПР: 6072
+СоИ Справочники: 3553
+ФТТ: 2146
+Руководство: 1938
+ЦТА: 1859
+ПМИ: 1473
+Методика/Регламент НСИ: 1438
+unknown: 1235
+```
+
+Vector index:
+
+```text
+index: data/asu_june_bot_ntk/numpy_index_v2
+manifest: exists
+count: 31270
+embedding_model: bge-m3
+embedding_dim: 1024
+created_at: 2026-05-27T01:57:30Z
 ```
 
 BM25 smoke:
@@ -143,12 +180,33 @@ source_url_in_top5: 12
 status_counts: ok=12, clarify=7, refused=1
 ```
 
-Вывод: BM25-only качество пока недостаточно для переключения дефолта. Переключать дефолт бота на `data/asu_june_bot_ntk` можно только после успешного `hybrid` smoke на готовом vector-index.
+Hybrid smoke:
+
+```text
+first 2 cases: ok=True
+case 3: stopped by Ollama embedding timeout, read timeout 120s
+output file was not produced
+```
+
+Вывод: индекс собран, но качество пока не подтверждено для переключения дефолта. BM25-only результат недостаточен, а hybrid smoke нужно повторить после перезапуска или стабилизации Ollama.
 
 ## Что не сделано
 
 ```text
-hybrid smoke — ждёт завершения embeddings/index
+hybrid smoke — повторить после стабилизации Ollama
 default bot corpus switch — не выполнен
 incremental update для Yandex-папки — следующий этап после подтверждения качества
 ```
+
+## Следующая проверка
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_ntk_smoke_eval.py `
+  --mode hybrid `
+  --chunks-path data\asu_june_bot_ntk\chunks_v2.jsonl `
+  --index-dir data\asu_june_bot_ntk\numpy_index_v2 `
+  --output data\asu_june_bot_ntk\smoke_eval_hybrid.jsonl `
+  --summary data\asu_june_bot_ntk\smoke_eval_hybrid_summary.json
+```
+
+Если hybrid smoke не проходит из-за timeout Ollama, сначала перезапустить Ollama и проверить `/api/embeddings` на коротком запросе. Не переключать дефолтный корпус до успешного smoke.

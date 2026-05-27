@@ -1,6 +1,6 @@
 # Контекст проекта
 
-Обновлено: 2026-05-26.
+Обновлено: 2026-05-27.
 
 ## NTK Yandex corpus chunk quality
 
@@ -54,7 +54,27 @@ src/asu_june_bot/retrieval/metadata.py:
   document_type=Справочник НСИ
 ```
 
-Полная польза появится после пересборки extractor -> chunks -> embeddings/index. Текущая long-running embeddings-сборка идёт по старому `chunks_v2.jsonl`; она может остаться как baseline старого чанкинга или быть остановлена отдельным решением.
+Полная пересборка extractor -> chunks -> embeddings/index выполнена 2026-05-27.
+
+Итог нового runtime-корпуса:
+
+```text
+chunks_v2.jsonl: 31270 chunks
+numpy_index_v2/manifest.json: exists
+embedding_model: bge-m3
+embedding_dim: 1024
+index count: 31270
+created_at: 2026-05-27T01:57:30Z
+```
+
+Smoke после пересборки:
+
+```text
+BM25: 8/20 ok, source_url_in_top5=12/20
+hybrid: первые 2 кейса ok=True, затем Ollama embedding timeout 120s
+```
+
+Решение: дефолт бота на `data/asu_june_bot_ntk` пока не переключать. Сначала нужно стабилизировать Ollama и повторить hybrid smoke.
 
 ## Retrieval quality evolution
 
@@ -262,8 +282,9 @@ source_url как кликабельная ссылка в Web UI
 ```text
 source_links.jsonl: 1166 local files, 325 matched source_url
 extracted_v2: 171 documents, 31018 blocks, 0 errors
-chunks_v2.jsonl: 31136 chunks
-chunks with source_url: 29196
+chunks_v2.jsonl: 31270 chunks
+chunks with source_url: 93.8%
+numpy_index_v2: 31270 indexed chunks
 ```
 
 BM25-only smoke:
@@ -279,11 +300,11 @@ status_counts: ok=12, clarify=7, refused=1
 
 ```text
 дефолт бота на NTK corpus пока не переключён
-ждём окончания embeddings/vector index
-после готовности data/asu_june_bot_ntk/numpy_index_v2 выполнить hybrid smoke
+повторить hybrid smoke после стабилизации Ollama
+incremental update проектировать только после подтверждения качества
 ```
 
-Фоновая сборка индекса запущена:
+Индекс собран:
 
 ```text
 script: scripts/asu_june_bot_build_index_v2.py
@@ -291,6 +312,7 @@ chunks: data/asu_june_bot_ntk/chunks_v2.jsonl
 cache: data/asu_june_bot_ntk/embeddings_cache_v2.jsonl
 index: data/asu_june_bot_ntk/numpy_index_v2
 report: data/asu_june_bot_ntk/index_v2_report.json
+manifest: data/asu_june_bot_ntk/numpy_index_v2/manifest.json
 ```
 
 Фоновый watchdog запущен:

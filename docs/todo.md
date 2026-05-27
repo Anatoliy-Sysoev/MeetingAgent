@@ -1,6 +1,6 @@
 # TODO
 
-Обновлено: 2026-05-26.
+Обновлено: 2026-05-27.
 
 ## Retrieval quality roadmap
 
@@ -45,37 +45,23 @@ hallucination bucket
 ### Priority 0
 
 ```text
-Принять решение по текущей NTK Yandex embeddings/index build:
-- дать старой сборке закончиться как baseline старого чанкинга;
-- или остановить и пересобрать после chunk-quality фиксов.
+NTK Yandex corpus после chunk-quality фиксов пересобран:
+- extracted_v2 готов;
+- chunks_v2.jsonl: 31270 chunks;
+- numpy_index_v2/manifest.json создан;
+- BM25 smoke: 8/20 ok;
+- hybrid smoke остановился на Ollama embedding timeout после 2 ok cases.
 ```
 
-Проверка прогресса:
-
-```powershell
-(Get-Content .\data\asu_june_bot_ntk\embeddings_cache_v2.jsonl -Encoding UTF8).Count
-```
-
-Проверка watchdog:
-
-```powershell
-Get-Content .\logs\ntk_yandex_index_watchdog.log -Tail 20 -Encoding UTF8
-```
-
-После появления:
-
-```text
-data/asu_june_bot_ntk/numpy_index_v2/manifest.json
-```
-
-запустить hybrid smoke:
+Следующий шаг: стабилизировать или перезапустить Ollama и повторить hybrid smoke:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_ntk_smoke_eval.py `
   --mode hybrid `
   --chunks-path data\asu_june_bot_ntk\chunks_v2.jsonl `
   --index-dir data\asu_june_bot_ntk\numpy_index_v2 `
-  --output data\asu_june_bot_ntk\smoke_eval_hybrid.jsonl
+  --output data\asu_june_bot_ntk\smoke_eval_hybrid.jsonl `
+  --summary data\asu_june_bot_ntk\smoke_eval_hybrid_summary.json
 ```
 
 Дефолт бота переключать на `data/asu_june_bot_ntk` только если hybrid smoke лучше текущего корпуса.

@@ -1,6 +1,6 @@
 # Контекст Project Knowledge Bot
 
-Обновлено: 2026-05-19.
+Обновлено: 2026-05-27.
 
 ## 1. Назначение
 
@@ -180,8 +180,9 @@ data/asu_june_bot_ntk/
 source links built
 extraction complete
 chunks built
-embeddings/index build running in background
+embeddings/index built
 BM25-only smoke: 8/20
+hybrid smoke: blocked by Ollama embedding timeout after 2 ok cases
 default corpus switch: not done
 ```
 
@@ -427,9 +428,9 @@ QH-5 закрыт как `PASSED`: Telegram smoke закрыт локально,
 Сейчас:
 
 ```text
-1. Начать Docker packaging или QH-6 Feedback Dataset Loop.
-2. Прогнать полный realistic 100 eval и manual review.
-3. Поддерживать Telegram token только локально, без Git/docs.
+1. Для NTK Yandex corpus перезапустить/стабилизировать Ollama и повторить hybrid smoke.
+2. Не переключать дефолтный корпус бота до успешного smoke и ручного просмотра источников.
+3. После подтверждения качества проектировать incremental update для Yandex-папки.
 ```
 
 После QH-5 passed:

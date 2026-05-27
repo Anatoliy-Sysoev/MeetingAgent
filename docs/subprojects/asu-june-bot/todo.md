@@ -1,6 +1,6 @@
 # TODO Project Knowledge Bot
 
-Обновлено: 2026-05-19.
+Обновлено: 2026-05-27.
 
 ## Текущий статус
 
@@ -74,18 +74,31 @@ Docker packaging или QH-6 Feedback Dataset Loop
 
 ## NTK Yandex Corpus
 
-Текущий практический шаг на ветке `codex/ntk-yandex-corpus`:
+Текущий практический статус на ветке `codex/ntk-yandex-corpus`:
 
 ```text
-дождаться завершения data/asu_june_bot_ntk embeddings/index build
-запустить hybrid smoke по docs/quality/ntk_yandex_smoke_questions.jsonl
+data/asu_june_bot_ntk embeddings/index build завершен
+manifest.json создан
+BM25 smoke после пересборки: 8/20 ok
+hybrid smoke начался, первые 2 кейса ok=True, затем остановился по Ollama embedding timeout 120s
 не переключать дефолт бота до подтверждения качества
 ```
 
-Команда проверки прогресса:
+Команда проверки индекса:
 
 ```powershell
-(Get-Content .\data\asu_june_bot_ntk\embeddings_cache_v2.jsonl -Encoding UTF8).Count
+Test-Path .\data\asu_june_bot_ntk\numpy_index_v2\manifest.json
+```
+
+Следующий шаг: перезапустить или стабилизировать Ollama и повторить hybrid smoke:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_ntk_smoke_eval.py `
+  --mode hybrid `
+  --chunks-path data\asu_june_bot_ntk\chunks_v2.jsonl `
+  --index-dir data\asu_june_bot_ntk\numpy_index_v2 `
+  --output data\asu_june_bot_ntk\smoke_eval_hybrid.jsonl `
+  --summary data\asu_june_bot_ntk\smoke_eval_hybrid_summary.json
 ```
 
 Инструкция:
