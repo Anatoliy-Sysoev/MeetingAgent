@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -69,6 +70,10 @@ def run_case(case: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
     started = time.perf_counter()
     started_at = utc_now()
 
+    child_env = os.environ.copy()
+    child_env.setdefault("PYTHONUTF8", "1")
+    child_env.setdefault("PYTHONIOENCODING", "utf-8")
+
     proc = subprocess.run(
         cmd,
         cwd=str(WORK_ROOT),
@@ -77,6 +82,7 @@ def run_case(case: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
         encoding="utf-8",
         errors="replace",
         timeout=None,
+        env=child_env,
     )
 
     finished = time.perf_counter()
