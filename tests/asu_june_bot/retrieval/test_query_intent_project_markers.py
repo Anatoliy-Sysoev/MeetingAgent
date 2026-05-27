@@ -35,3 +35,10 @@ def test_food_query_is_out_of_scope_candidate() -> None:
     assert result.is_project_related is False
     assert result.intent == QueryIntent.OUT_OF_SCOPE_CANDIDATE
     assert any("карбонар" in marker for marker in result.matched_out_of_scope_markers)
+
+
+def test_cta_recovery_query_gets_dedicated_intent() -> None:
+    result = classify_query_intent("Что указано в ЦТА про RTO и RPO?")
+
+    assert result.is_project_related is True
+    assert result.intent == QueryIntent.CTA_RECOVERY_RTO_RPO

@@ -59,16 +59,25 @@ def top_doc_types(results: list[dict[str, Any]], limit: int = 5) -> list[str]:
     return out
 
 
+def terms_hit_in_top(results: list[dict[str, Any]], terms: list[str], limit: int = 5) -> bool:
+    if not terms:
+        return True
+    haystack = " ".join(str(item.get("text_preview") or "") for item in results[:limit]).lower()
+    return all(str(term).lower() in haystack for term in terms)
+
+
 def evaluate_case(case: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
     results = list(payload.get("results") or [])
     expected_doc_type = case.get("expected_doc_type")
     expected_status = case.get("expected_status")
+    expected_terms_in_top5 = [str(item) for item in (case.get("expected_terms_in_top5") or [])]
     status = str(payload.get("status") or "")
     top_types = top_doc_types(results)
     doc_type_hit = bool(expected_doc_type and expected_doc_type in top_types)
     status_hit = bool(expected_status and status == expected_status)
+    terms_hit = terms_hit_in_top(results, expected_terms_in_top5)
     has_source_url = any(item.get("source_url") or (item.get("metadata") or {}).get("source_url") for item in results[:5])
-    ok = status_hit if expected_status else doc_type_hit
+    ok = status_hit if expected_status else (doc_type_hit and terms_hit)
     return {
         "id": case.get("id"),
         "query": case.get("query"),
@@ -76,10 +85,12 @@ def evaluate_case(case: dict[str, Any], payload: dict[str, Any]) -> dict[str, An
         "category": case.get("category"),
         "expected_doc_type": expected_doc_type,
         "expected_status": expected_status,
+        "expected_terms_in_top5": expected_terms_in_top5,
         "status": status,
         "ok": ok,
         "doc_type_hit": doc_type_hit,
         "status_hit": status_hit,
+        "terms_hit_in_top5": terms_hit,
         "top_doc_types": top_types,
         "top_sources": [
             {

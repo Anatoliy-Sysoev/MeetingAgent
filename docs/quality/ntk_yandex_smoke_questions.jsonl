@@ -4,7 +4,7 @@
 {"id":"NTK-SMOKE-004","scope":"project","category":"ftt","query":"Какие ограничения по производительности указаны для 2520 пользователей и 600 одновременно работающих пользователей?","expected_doc_type":"ФТТ"}
 {"id":"NTK-SMOKE-005","scope":"project","category":"cta","query":"Что указано в ЦТА по PostgreSQL, MinIO и Kubernetes?","expected_doc_type":"ЦТА"}
 {"id":"NTK-SMOKE-006","scope":"project","category":"cta","query":"Что указано в ЦТА по логированию через Grafana Loki и интеграции с SIEM?","expected_doc_type":"ЦТА"}
-{"id":"NTK-SMOKE-007","scope":"project","category":"cta","query":"Какие требования к RTO и RPO описаны в архитектуре системы?","expected_doc_type":"ЦТА"}
+{"id":"NTK-SMOKE-007","scope":"project","category":"cta","query":"Какие требования к RTO и RPO описаны в архитектуре системы?","expected_doc_type":"ЦТА","expected_terms_in_top5":["rto","rpo","время восстановления"]}
 {"id":"NTK-SMOKE-008","scope":"project","category":"pr","query":"Как в ПР реализована работа со статусами замечаний строительного контроля?","expected_doc_type":"ПР"}
 {"id":"NTK-SMOKE-009","scope":"project","category":"pr","query":"Какие документы формируются автоматически после проведения инспекционной проверки?","expected_doc_type":"ПР"}
 {"id":"NTK-SMOKE-010","scope":"project","category":"pr","query":"Какие роли предусмотрены для модуля строительного контроля?","expected_doc_type":"ПР"}

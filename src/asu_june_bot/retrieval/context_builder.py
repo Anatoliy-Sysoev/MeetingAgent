@@ -232,6 +232,15 @@ class ContextBuilder:
                 return "supporting"
             return "excluded" if is_vector_only(result) else "supporting"
 
+        if intent.intent == QueryIntent.CTA_RECOVERY_RTO_RPO:
+            if dt == "ЦТА" and any(marker in txt for marker in ["rto", "rpo", "время восстановления", "резервное копирование", "аварийный режим", "восстановление данных"]):
+                return "primary"
+            if dt == "ЦТА":
+                return "supporting"
+            if dt in {"ФТТ", "Паспорт ИС"}:
+                return "supporting"
+            return "excluded" if is_vector_only(result) else "supporting"
+
         if intent.intent == QueryIntent.REQUIREMENT_LOOKUP:
             # Если пользователь указал конкретный пункт, primary должен содержать только точное попадание
             # в этот пункт. Смежные ФТТ/ПР/ПМИ/встречи нужны как supporting context, но не как primary.

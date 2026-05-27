@@ -186,6 +186,34 @@ hybrid smoke after project markers/routing: completed, 20/20
 default corpus switch: not done
 ```
 
+После chat-level проверки `NTK-SMOKE-007` зафиксировано:
+
+```text
+предыдущее `20/20` было false positive для RTO/RPO;
+smoke проверял только doc_type=ЦТА и не проверял recovery anchors;
+LLM не галлюцинировал: при слабом retrieval он честно отвечал, что источников недостаточно.
+```
+
+Исправление:
+
+```text
+добавлен отдельный intent `cta_recovery_rto_rpo`;
+RTO/RPO вынесены в отдельный query-expansion bucket;
+BM25/PostReranker получили boost recovery chunks и penalty logging/port-only chunks;
+`scripts/asu_june_bot_ntk_smoke_eval.py` теперь умеет проверять `expected_terms_in_top5`.
+```
+
+Проверка после фикса:
+
+```text
+hybrid smoke: 19/20 ok
+NTK-SMOKE-007: ok=true, terms_hit_in_top5=true
+chat-level `asu_june_bot_chat.py "Что указано в ЦТА про RTO и RPO?"`:
+  retrieval поднимает recovery chunks из ЦТА;
+  answer опирается на RTO=4 часа и RPO=4 часа;
+  remaining smoke fail: NTK-SMOKE-017 only
+```
+
 Главная инструкция:
 
 ```text

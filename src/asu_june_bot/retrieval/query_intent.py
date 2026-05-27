@@ -10,6 +10,7 @@ class QueryIntent(StrEnum):
     DOCUMENT_OVERVIEW = "document_overview"
     INTEGRATION_OVERVIEW = "integration_overview"
     REQUIREMENT_LOOKUP = "requirement_lookup"
+    CTA_RECOVERY_RTO_RPO = "cta_recovery_rto_rpo"
     GENERAL_PROJECT_QUESTION = "general_project_question"
     OUT_OF_SCOPE_CANDIDATE = "out_of_scope_candidate"
 
@@ -44,7 +45,15 @@ PROJECT_DOMAIN_MARKERS = {
     "время отклика",
     "rto",
     "rpo",
+    "время восстановления",
+    "максимальное время восстановления",
+    "точка восстановления",
+    "окно потери данных",
     "резервное копирование",
+    "восстановление данных",
+    "восстановление после сбоя",
+    "backup",
+    "restore",
     "отказоустойчивость",
     "kubernetes",
     "minio",
@@ -182,6 +191,30 @@ INTEGRATION_MARKERS = {
     "oidc",
     "app_ccpm",
     "порт 636",
+}
+
+CTA_RECOVERY_MARKERS = {
+    "rto",
+    "rpo",
+    "время восстановления",
+    "максимальное время восстановления",
+    "точка восстановления",
+    "окно потери данных",
+    "резервное копирование",
+    "восстановление данных",
+    "восстановление после сбоя",
+    "backup",
+    "restore",
+}
+
+CTA_ROUTE_MARKERS = {
+    "цта",
+    "целевая техническая архитектура",
+    "архитектура системы",
+    "архитектура",
+    "отказоустойчивость",
+    "аварийный режим",
+    "доступность",
 }
 
 OUT_OF_SCOPE_MARKERS = {
@@ -334,6 +367,8 @@ def classify_query_intent(query: str) -> QueryIntentResult:
     document_matches = _contains_any(lowered, DOCUMENT_MARKERS)
     overview_matches = _contains_any(lowered, OVERVIEW_MARKERS)
     integration_matches = _contains_any(lowered, INTEGRATION_MARKERS)
+    cta_recovery_matches = _contains_any(lowered, CTA_RECOVERY_MARKERS)
+    cta_route_matches = _contains_any(lowered, CTA_ROUTE_MARKERS)
     out_matches = _contains_any(lowered, OUT_OF_SCOPE_MARKERS)
     mentioned_sections = _extract_sections(query)
 
@@ -346,6 +381,10 @@ def classify_query_intent(query: str) -> QueryIntentResult:
         labels.append("has_overview_marker")
     if integration_matches:
         labels.append("has_integration_marker")
+    if cta_recovery_matches:
+        labels.append("has_cta_recovery_marker")
+    if cta_route_matches:
+        labels.append("has_cta_route_marker")
     if mentioned_sections:
         labels.append("has_section_marker")
     if out_matches:
@@ -360,6 +399,18 @@ def classify_query_intent(query: str) -> QueryIntentResult:
             confidence=0.96,
             is_project_related=False,
             labels=labels + ["strong_out_of_scope_without_project_signal"],
+            matched_project_markers=project_matches,
+            matched_out_of_scope_markers=out_matches,
+            mentioned_sections=mentioned_sections,
+        )
+
+    has_cta_recovery_route = bool(cta_recovery_matches) and bool(cta_route_matches or project_matches)
+    if has_cta_recovery_route and not FTT_RE.search(query or ""):
+        return QueryIntentResult(
+            intent=QueryIntent.CTA_RECOVERY_RTO_RPO,
+            confidence=0.91,
+            is_project_related=True,
+            labels=labels + ["cta_recovery_rto_rpo_route"],
             matched_project_markers=project_matches,
             matched_out_of_scope_markers=out_matches,
             mentioned_sections=mentioned_sections,

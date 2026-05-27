@@ -94,13 +94,10 @@ ASU_JUNE_BOT_ACTIVE_CORPUS=default|ntk
 
 ```text
 NTK-SMOKE-007:
-- добавить отдельный intent/bucket cta_recovery_rto_rpo;
-- query expansion должен добавлять RTO/RPO/время восстановления/точка восстановления/резервное копирование/backup/restore;
-- не добавлять для этого запроса PostgreSQL/MinIO/Kubernetes/Grafana Loki/SIEM как primary expansion;
-- rerank boost для chunks с RTO/RPO/восстановление/резервное копирование;
-- rerank penalty для логирования/SIEM/Grafana/HTTPS/port-only chunks без RTO/RPO;
-- smoke должен проверять expected_terms_in_top5, а не только expected_doc_type=ЦТА;
-- повторить chat.py проверку и убедиться, что ответ подтверждается источниками.
+- retrieval/routing false positive закрыт;
+- отдельный intent `cta_recovery_rto_rpo` добавлен;
+- chat-level `asu_june_bot_chat.py` по запросу "Что указано в ЦТА про RTO и RPO?" теперь поднимает recovery chunks с RTO=4 часа и RPO=4 часа;
+- в smoke добавлен `expected_terms_in_top5`, чтобы этот кейс больше не проходил только по doc_type=ЦТА
 
 NTK-SMOKE-012:
 - внесен targeted retrieval-fix;
@@ -108,7 +105,9 @@ NTK-SMOKE-012:
 
 NTK-SMOKE-017:
 - внесен targeted retrieval-fix;
-- повторно проверить вручную, достаточно ли нового top-1..top-5 из Методика/Регламент НСИ
+- smoke теперь валится только на этом кейсе;
+- причина уже не в retrieval, а в устаревшем expectation: top-1..top-5 идут в `Методика/Регламент НСИ`, а smoke всё ещё ожидает `Реестр НСИ`;
+- следующий шаг: ручной review и решение, менять ли `expected_doc_type`/ожидание кейса на регламентный документ
 ```
 
 Incremental update для Yandex-папки делать после подтверждения качества нового корпуса.

@@ -148,6 +148,31 @@ NTK-SMOKE-017:
   нужен повторный ручной review кейса.
 ```
 
+Дополнительная проверка `NTK-SMOKE-007` после chat-level ревью:
+
+```text
+предыдущий smoke 20/20 оказался слишком мягким для RTO/RPO;
+он проверял doc_type=ЦТА, но не требовал recovery anchors в top-5;
+в main это было зафиксировано как false positive retrieval/routing, а не ошибка LLM.
+```
+
+Исправление 2026-05-27:
+
+```text
+добавлен отдельный intent `cta_recovery_rto_rpo`;
+RTO/RPO вынесены из общего `cta_infrastructure` в отдельный query expansion bucket;
+для RTO/RPO-запросов добавлен boost recovery chunks и penalty logging/port-only chunks;
+smoke-кейс `NTK-SMOKE-007` получил `expected_terms_in_top5 = [rto, rpo, время восстановления]`.
+```
+
+Новый результат:
+
+```text
+`scripts/asu_june_bot_ntk_smoke_eval.py --mode hybrid` -> 19/20 ok;
+`NTK-SMOKE-007` теперь проходит по усиленному контракту;
+единственный fail в текущем smoke — `NTK-SMOKE-017`, потому что retrieval уже корректно уходит в `Методика/Регламент НСИ`, а smoke по-прежнему ожидает старый `Реестр НСИ`.
+```
+
 ## Retrieval quality evolution
 
 После realistic-100 и realistic-500 ручной разметки retrieval quality переведён на bucket-driven pipeline.

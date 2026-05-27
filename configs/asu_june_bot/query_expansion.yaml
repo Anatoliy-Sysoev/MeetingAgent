@@ -55,8 +55,6 @@ ftt_performance_export:
 
 cta_infrastructure:
   triggers:
-    - rto
-    - rpo
     - postgresql
     - kubernetes
     - minio
@@ -71,8 +69,30 @@ cta_infrastructure:
     - Kubernetes
     - Grafana Loki
     - SIEM
+
+cta_recovery_rto_rpo:
+  triggers:
+    - rto
+    - rpo
+    - время восстановления
+    - точка восстановления
+    - резервное копирование
+    - backup
+    - restore
+  expansions:
+    - ЦТА
+    - целевая техническая архитектура
     - RTO
     - RPO
+    - время восстановления после сбоя
+    - максимальное время восстановления
+    - точка восстановления
+    - максимальное окно потери данных
+    - резервное копирование
+    - backup
+    - restore
+    - восстановление данных
+    - аварийный режим
 
 pr_construction_control:
   triggers:

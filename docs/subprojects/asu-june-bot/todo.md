@@ -104,13 +104,22 @@ docs/quality/ntk_smoke_manual_review_2026-05-27.jsonl
 Следующий шаг: включить NTK corpus через feature flag и не переключать global default до закрытия двух follow-up кейсов:
 
 ```text
+NTK-SMOKE-007:
+- false positive закрыт
+- отдельный intent `cta_recovery_rto_rpo` реализован
+- smoke усилен через `expected_terms_in_top5`
+- chat-level проверка `asu_june_bot_chat.py` теперь поднимает recovery chunks ЦТА и отвечает по RTO/RPO
+
 NTK-SMOKE-012:
 - targeted retrieval-fix внесен
 - повторно вручную проверить кейс после появления chunk "Роли / группы AD" в top-2
 
 NTK-SMOKE-017:
 - targeted retrieval-fix внесен
-- повторно вручную проверить кейс после ухода top-1..top-5 в Методика/Регламент НСИ
+- теперь это единственный fail текущего NTK smoke
+- причина уже в устаревшем ожидании smoke, а не в retrieval:
+  top-1..top-5 идут в `Методика/Регламент НСИ`, при том что кейс ожидает `Реестр НСИ`
+- нужен ручной review и решение по новому expected_doc_type/формулировке кейса
 ```
 
 Инструкция:

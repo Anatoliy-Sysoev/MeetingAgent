@@ -463,3 +463,19 @@ Backlog-направления остаются точечными: `source_type
 - это позволяет включать NTK corpus постепенно и обратимо, не объявляя его безусловным default.
 
 Следствие: до закрытия follow-up кейсов `NTK-SMOKE-012` и `NTK-SMOKE-017` рабочий режим — `feature flag enablement`, а не глобальное переключение всего бота.
+
+## 2026-05-27 - RTO/RPO В ЦТА Это Отдельный Retrieval Intent, А Не Общий CTA Bucket
+
+Решение: запросы про `RTO/RPO` и recovery/backup в ЦТА выделены в отдельный intent `cta_recovery_rto_rpo`, а не обрабатываются общим `cta_infrastructure`.
+
+Почему:
+
+- chat-level проверка показала, что прежний `NTK-SMOKE-007` был false positive: smoke засчитывал `ЦТА`, даже если top-k был архитектурно общий и не содержал recovery anchors;
+- LLM в этой ситуации работала корректно и не галлюцинировала: при слабом retrieval честно отвечала, что источников недостаточно;
+- общий bucket `cta_infrastructure` смешивал `RTO/RPO` с `Grafana Loki`, `SIEM`, `Kubernetes`, портами и logging chunks.
+
+Следствие:
+
+- `configs/asu_june_bot/query_expansion.yaml` получил отдельный bucket `cta_recovery_rto_rpo`;
+- BM25/PostReranker получили boost для recovery chunks и penalty для logging/port-only chunks;
+- `scripts/asu_june_bot_ntk_smoke_eval.py` теперь поддерживает `expected_terms_in_top5`, чтобы кейс не проходил только по doc_type.

@@ -216,6 +216,22 @@ status_counts: ok=19, refused=1
 failed_ids: []
 ```
 
+После chat-level проверки `NTK-SMOKE-007` smoke был усилен:
+
+```text
+для кейса RTO/RPO добавлен `expected_terms_in_top5 = [rto, rpo, время восстановления]`;
+это убирает ложное `ok` только по doc_type=ЦТА без recovery anchors.
+```
+
+Новый retrieval smoke после фикса `cta_recovery_rto_rpo`:
+
+```text
+20 cases
+ok: 19
+failed_ids: [NTK-SMOKE-017]
+NTK-SMOKE-007: ok=true, terms_hit_in_top5=true
+```
+
 Manual source-supported review:
 
 ```text
@@ -247,7 +263,8 @@ targeted retrieval-fix внесен;
 NTK-SMOKE-017:
 targeted retrieval-fix внесен;
 запросы про регламенты ведения теперь поднимают Методика/Регламент НСИ в top-1..top-5;
-нужен повторный ручной review
+текущий smoke по-прежнему ожидает `Реестр НСИ`, поэтому кейс стал единственным fail;
+нужен повторный ручной review и решение, обновлять ли expectation кейса
 ```
 
 ## Что не сделано
