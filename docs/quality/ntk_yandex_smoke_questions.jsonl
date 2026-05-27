@@ -14,7 +14,7 @@
 {"id":"NTK-SMOKE-014","scope":"project","category":"soi_nsi","query":"Какие поля справочников MDR описаны для полного среза и дельта-изменений?","expected_doc_type":"СоИ Справочники"}
 {"id":"NTK-SMOKE-015","scope":"project","category":"pmi","query":"Как в ПМИ описаны сценарии проверки аналитических дашбордов?","expected_doc_type":"ПМИ"}
 {"id":"NTK-SMOKE-016","scope":"project","category":"passport","query":"Что входит в Паспорт ИС и какие связанные документы в нём указаны?","expected_doc_type":"Паспорт ИС"}
-{"id":"NTK-SMOKE-017","scope":"project","category":"nsi_register","query":"Какие регламенты ведения объектов НСИ есть в корпусе?","expected_doc_type":"Реестр НСИ"}
+{"id":"NTK-SMOKE-017","scope":"project","category":"nsi_regulation","query":"Какие регламенты ведения объектов НСИ есть в корпусе?","expected_doc_type":"Методика/Регламент НСИ","expected_terms_in_top5":["регламент","нси"]}
 {"id":"NTK-SMOKE-018","scope":"project","category":"export","query":"Какие ограничения есть на экспорт данных в PDF, Excel и CSV?","expected_doc_type":"ФТТ"}
 {"id":"NTK-SMOKE-019","scope":"boundary","category":"security_project","query":"Как организована передача событий безопасности в SIEM?","expected_doc_type":"ЦТА"}
 {"id":"NTK-SMOKE-020","scope":"out_of_scope","category":"non_project","query":"Как приготовить карбонару?","expected_status":"refused"}
