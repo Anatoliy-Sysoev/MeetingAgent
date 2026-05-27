@@ -102,29 +102,11 @@ NTK-SMOKE-012:
 - повторно проверить вручную, достаточно ли top-2 с chunk "Роли / группы AD" и app_ccpm_ul_cc_01/02/03.
 
 NTK-SMOKE-017:
-- ручной review выполнен;
-- expectation обновлен: для вопроса про регламенты ведения объектов НСИ правильный expected_doc_type=`Методика/Регламент НСИ`, а не `Реестр НСИ`;
-- причина: запрос спрашивает именно про регламентные/методические документы, а не про сам реестр объектов;
-- в `docs/quality/ntk_yandex_smoke_questions.jsonl` добавлено expected_terms_in_top5=[регламент, нси].
-```
-
-Следующий шаг перед расширенным использованием NTK corpus:
-
-```powershell
-$env:ASU_JUNE_BOT_ACTIVE_CORPUS = "ntk"
-.\.venv\Scripts\python.exe scripts\asu_june_bot_ntk_smoke_eval.py `
-  --mode hybrid `
-  --chunks-path data\asu_june_bot_ntk\chunks_v2.jsonl `
-  --index-dir data\asu_june_bot_ntk\numpy_index_v2 `
-  --output data\asu_june_bot_ntk\smoke_eval_hybrid.jsonl `
-  --summary data\asu_june_bot_ntk\smoke_eval_hybrid_summary.json
-```
-
-Ожидаемый результат после обновления expectation:
-
-```text
-20/20 ok,
-если NTK-SMOKE-017 остаётся в top-1..top-5 по Методика/Регламент НСИ и содержит anchors `регламент` + `нси`.
+- expectation обновлен на `Методика/Регламент НСИ`;
+- retrieval/chat-level проверка подтверждает, что это корректный тип документа для вопроса про регламенты ведения;
+- отдельный residual risk: primary source пока выбирается через weak fallback на короткий registry/note chunk, хотя supporting sources содержат полноценные регламентные документы;
+- smoke после обновления expectation снова дает `20/20 ok`;
+- следующий шаг по качеству: поднять полноценный регламентный doc chunk в primary без weak fallback
 ```
 
 Incremental update для Yandex-папки делать после подтверждения качества нового корпуса.

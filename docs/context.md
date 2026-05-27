@@ -143,19 +143,44 @@ NTK-SMOKE-012:
   нужен повторный ручной review кейса.
 
 NTK-SMOKE-017:
-  ручной review выполнен;
-  для запроса "Какие регламенты ведения объектов НСИ есть в корпусе?" правильнее ожидать `Методика/Регламент НСИ`, а не `Реестр НСИ`;
-  причина: вопрос спрашивает про регламентные документы/методики ведения, а не про сам реестр объектов;
-  expectation в `docs/quality/ntk_yandex_smoke_questions.jsonl` обновлен на expected_doc_type=`Методика/Регламент НСИ` и expected_terms_in_top5=[регламент, нси].
+  точечный retrieval-fix внесен;
+  chat-level и retrieval-level проверка подтверждают, что запрос про регламенты ведения теперь должен ожидать `Методика/Регламент НСИ`, а не `Реестр НСИ`;
+  expectation smoke обновлен на `category=nsi_regulation`, expected_doc_type=`Методика/Регламент НСИ` и expected_terms_in_top5=[регламент ведения, нси];
+  остался отдельный quality-follow-up: primary source сейчас выбирается через weak fallback на краткий registry/note chunk, хотя supporting sources уже содержат полноценные регламентные документы.
 ```
 
 Текущий статус после обновления expectation:
 
 ```text
-последний зафиксированный smoke до обновления expectation: 19/20 ok;
-единственный fail был NTK-SMOKE-017 из-за устаревшего expected_doc_type=`Реестр НСИ`;
-expectation обновлен, но полный hybrid rerun после этого изменения нужно выполнить локально;
-ожидаемый результат после rerun: NTK-SMOKE-017 должен пройти, если top-1..top-5 остаются в `Методика/Регламент НСИ` и содержат anchors `регламент` + `нси`.
+предыдущий smoke 20/20 оказался слишком мягким для RTO/RPO;
+он проверял doc_type=ЦТА, но не требовал recovery anchors в top-5;
+в main это было зафиксировано как false positive retrieval/routing, а не ошибка LLM.
+```
+
+Исправление 2026-05-27:
+
+```text
+добавлен отдельный intent `cta_recovery_rto_rpo`;
+RTO/RPO вынесены из общего `cta_infrastructure` в отдельный query expansion bucket;
+для RTO/RPO-запросов добавлен boost recovery chunks и penalty logging/port-only chunks;
+smoke-кейс `NTK-SMOKE-007` получил `expected_terms_in_top5 = [rto, rpo, время восстановления]`.
+```
+
+Новый результат:
+
+```text
+`scripts/asu_june_bot_ntk_smoke_eval.py --mode hybrid` после обновления expectation `NTK-SMOKE-017` -> 20/20 ok;
+`NTK-SMOKE-007` проходит по усиленному контракту;
+`NTK-SMOKE-017` закрыт как устаревший expectation smoke, а не retrieval-баг.
+```
+
+Оставшийся нюанс по `NTK-SMOKE-017`:
+
+```text
+answer и top-5 уже корректно маршрутизируются в `Методика/Регламент НСИ`,
+но в chat-level diagnostics остается `weak_primary_fallback`:
+primary поднимается из короткого registry/note chunk,
+а полноценные регламентные документы пока лежат в supporting.
 ```
 
 ## Retrieval quality evolution

@@ -211,7 +211,16 @@ NTK-SMOKE-007: ok=true, terms_hit_in_top5=true
 chat-level `asu_june_bot_chat.py "Что указано в ЦТА про RTO и RPO?"`:
   retrieval поднимает recovery chunks из ЦТА;
   answer опирается на RTO=4 часа и RPO=4 часа;
-  remaining smoke fail: NTK-SMOKE-017 only
+  NTK-SMOKE-017 после ручной проверки признан устаревшим expectation smoke, а не retrieval-багом
+```
+
+По `NTK-SMOKE-017` подтверждено:
+
+```text
+корректный expected_doc_type для вопроса про регламенты ведения объектов НСИ — `Методика/Регламент НСИ`;
+retrieval и chat-level ответ уже идут в этот тип документов;
+expectation smoke обновлен, и hybrid smoke снова дает `20/20 ok`;
+остаточный технический риск — `weak_primary_fallback`: primary поднимается из короткого registry/note chunk, хотя в supporting уже есть полноценные регламентные документы.
 ```
 
 Главная инструкция:

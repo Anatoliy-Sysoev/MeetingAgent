@@ -227,9 +227,10 @@ failed_ids: []
 
 ```text
 20 cases
-ok: 19
-failed_ids: [NTK-SMOKE-017]
+ok: 20
+failed_ids: []
 NTK-SMOKE-007: ok=true, terms_hit_in_top5=true
+NTK-SMOKE-017: ok=true после обновления expectation на `Методика/Регламент НСИ`
 ```
 
 Manual source-supported review:
@@ -263,8 +264,10 @@ targeted retrieval-fix внесен;
 NTK-SMOKE-017:
 targeted retrieval-fix внесен;
 запросы про регламенты ведения теперь поднимают Методика/Регламент НСИ в top-1..top-5;
-текущий smoke по-прежнему ожидает `Реестр НСИ`, поэтому кейс стал единственным fail;
-нужен повторный ручной review и решение, обновлять ли expectation кейса
+chat-level проверка подтверждает, что это корректный тип документа для вопроса;
+expectation smoke обновлен на `Методика/Регламент НСИ`;
+hybrid smoke после обновления expectation снова дает `20/20 ok`;
+остаточный quality-follow-up: primary source всё ещё выбирается через weak fallback на краткий registry/note chunk, хотя supporting уже содержит полноценные регламентные документы
 ```
 
 ## Что не сделано
@@ -286,4 +289,4 @@ incremental update для Yandex-папки — следующий этап по
   --summary data\asu_june_bot_ntk\smoke_eval_hybrid_summary.json
 ```
 
-Не переключать корпус в безусловный global default до закрытия `NTK-SMOKE-012` и `NTK-SMOKE-017`.
+Не переключать корпус в безусловный global default до закрытия `NTK-SMOKE-012` и до снятия quality-follow-up по weak primary fallback для регламентов НСИ.
