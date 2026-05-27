@@ -47,6 +47,30 @@ def test_read_jsonl_keeps_only_meeting_chunks(tmp_path: Path) -> None:
     assert [row["chunk_id"] for row in rows] == ["m1-c1"]
 
 
+def test_read_jsonl_keeps_structured_meeting_artifacts(tmp_path: Path) -> None:
+    module = load_module()
+    chunks_path = tmp_path / "meeting_chunks.jsonl"
+    write_jsonl(
+        chunks_path,
+        [
+            {
+                "chunk_id": "m1-decision-1",
+                "source_type": "meeting_decision",
+                "text": "Решение: разделить поддержку по линиям.",
+            },
+            {
+                "chunk_id": "runtime-1",
+                "source_type": "runtime_export",
+                "text": "Не встреча.",
+            },
+        ],
+    )
+
+    rows = module.read_jsonl(chunks_path)
+
+    assert [row["chunk_id"] for row in rows] == ["m1-decision-1"]
+
+
 def test_search_meeting_chunks_finds_decision_and_keeps_timestamps() -> None:
     module = load_module()
     rows = [
@@ -106,3 +130,30 @@ def test_search_meeting_chunks_filters_by_meeting_id() -> None:
     results = module.search_meeting_chunks(rows, "задачи Сергей", top_k=5, meeting_id="meeting-b")
 
     assert [result["chunk_id"] for result in results] == ["m2-c1"]
+
+
+def test_search_prioritizes_structured_decisions() -> None:
+    module = load_module()
+    rows = [
+        {
+            "chunk_id": "m1-chunk",
+            "source_type": "meeting_chunk",
+            "meeting_id": "meeting-a",
+            "text": "Обсуждали решение по линиям поддержки.",
+            "semantic_type": "discussion",
+        },
+        {
+            "chunk_id": "m1-decision",
+            "source_type": "meeting_decision",
+            "artifact_id": "DEC-001",
+            "meeting_id": "meeting-a",
+            "text": "Решение: разделить поддержку по линиям.",
+            "semantic_type": "decision",
+        },
+    ]
+
+    results = module.search_meeting_chunks(rows, "какие решения по поддержке", top_k=2)
+
+    assert results[0]["chunk_id"] == "m1-decision"
+    assert results[0]["source_type"] == "meeting_decision"
+    assert results[0]["artifact_id"] == "DEC-001"
