@@ -2,6 +2,51 @@
 
 Обновлено: 2026-05-27.
 
+## NTK Obsidian vault rebuild
+
+27.05.2026 добавлен воспроизводимый генератор полной пересборки Obsidian vault по корпусу NTK Yandex:
+
+```text
+scripts/ntk_obsidian_rebuild.py
+```
+
+Команда фактической пересборки:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\ntk_obsidian_rebuild.py --clear-vault
+```
+
+Целевая папка:
+
+```text
+C:\Users\Сотрудник\Desktop\Yandex.Disk\Документы НТК Сдача\_Obsidian
+```
+
+Что делает генератор:
+
+- безопасно очищает только папку `_Obsidian` внутри `Документы НТК Сдача`;
+- читает `data/asu_june_bot_ntk/chunks_v2.jsonl` и `data/asu_june_bot_ntk/source_links.jsonl`;
+- создает чистый vault с `.obsidian`, где `sync=false` и `publish=false`;
+- создает `document_registry.csv`, `chunk_quality_report.md`, `relationships_draft.csv`;
+- создает главную страницу `00_Главная/Карта проекта ЦП УПКС.md`;
+- создает карточки документов, модулей, интеграций, сценариев, этапов, типов документов и кандидатов требований;
+- создает шаблоны Obsidian для документов, требований, замечаний и ADR.
+
+Итог последней пересборки:
+
+```text
+documents: 331
+chunked_documents: 171
+chunks_total: 31270
+relationships: 2183
+markdown_files: 670
+wikilinks: 2813
+broken_wikilinks: 0
+ambiguous_wikilinks: 0
+```
+
+Ключевое ограничение: `relationships_draft.csv` является черновым графом. Связи `mentions_requirement_candidate` и `related_to_module` нужно проверять вручную, потому что часть `requirement_id` может быть номерами разделов, версиями или нормативными кодами.
+
 ## NTK Yandex corpus chunk quality
 
 Ветка `codex/ntk-yandex-corpus` была влита в `main`. Корпус собирается по очищенной папке:

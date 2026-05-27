@@ -99,6 +99,32 @@ paths -> data/asu_june_bot_ntk/*
 
 Watchdog ничего не удаляет. Он проверяет, есть ли живой процесс `asu_june_bot_build_index_v2.py` для `data\asu_june_bot_ntk`; если процесса нет, а `numpy_index_v2\manifest.json` ещё не создан, запускает resumable build заново.
 
+### 6. Пересобрать Obsidian vault
+
+После готовности `source_links.jsonl` и `chunks_v2.jsonl` можно полностью пересобрать Obsidian-базу знаний:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\ntk_obsidian_rebuild.py --clear-vault
+```
+
+Скрипт очищает только:
+
+```text
+C:\Users\Сотрудник\Desktop\Yandex.Disk\Документы НТК Сдача\_Obsidian
+```
+
+Результат:
+
+```text
+_Obsidian/00_Главная/Карта проекта ЦП УПКС.md
+_Obsidian/01_Реестры/document_registry.csv
+_Obsidian/01_Реестры/chunk_quality_report.md
+_Obsidian/01_Реестры/relationships_draft.csv
+_Obsidian/99_Шаблоны/*
+```
+
+Важно: `relationships_draft.csv` является черновым графом; связи по кандидатам требований требуют ручной проверки.
+
 ## Smoke-проверка
 
 Вопросы:

@@ -42,6 +42,32 @@ hallucination bucket
 
 ## Следующий этап
 
+### Obsidian vault по NTK Yandex
+
+Готово:
+
+```text
+scripts/ntk_obsidian_rebuild.py
+_Obsidian пересобран полностью
+document_registry.csv создан
+chunk_quality_report.md создан
+relationships_draft.csv создан
+00_Главная/Карта проекта ЦП УПКС.md создана
+шаблоны документа/требования/замечания/ADR созданы
+Obsidian sync/publish отключены
+broken wikilinks = 0
+```
+
+Следующие шаги:
+
+```text
+1. Открыть vault в Obsidian и проверить главную страницу.
+2. Ручно пройти ключевые связи по ФТТ, ЦТА, ПР, СоИ, ПМИ и ПСИ.
+3. Отфильтровать requirement candidates: убрать версии/номера разделов, оставить реальные требования.
+4. Заполнить вручную первые ADR и замечания по самым важным открытым вопросам.
+5. При изменении Yandex-папки пересобирать chunks/source_links и снова запускать ntk_obsidian_rebuild.py.
+```
+
 ### Priority 0
 
 ```text
