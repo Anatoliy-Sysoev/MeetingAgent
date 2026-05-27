@@ -150,6 +150,53 @@ class PostReranker:
                     multiplier *= 0.72
                     labels.append("penalty:integration_pr_vector_only")
 
+            query_lower = query.lower()
+            has_soi_ad_route = any(marker in query_lower for marker in ("сои ad", "active directory", "ldaps", "app_ccpm", "группы ad"))
+            if has_soi_ad_route:
+                if document_type == "СоИ AD":
+                    multiplier *= 3.0
+                    labels.append("boost:soi_ad_route")
+                elif document_type in {"Паспорт ИС", "ЦТА", "ПР"}:
+                    multiplier *= 0.68
+                    labels.append("penalty:soi_ad_generic_doc")
+
+            if any(marker in query_lower for marker in ("bearer", "bearer token", "mdr", "мдр", "сои нси", "сои справочники")):
+                if document_type == "СоИ Справочники":
+                    multiplier *= 2.1
+                    labels.append("boost:soi_nsi_mdr_route")
+                elif document_type in {"ЦТА", "Паспорт ИС", "ФТТ"}:
+                    multiplier *= 0.72
+                    labels.append("penalty:soi_nsi_mdr_generic_doc")
+
+            if not has_soi_ad_route and any(marker in query_lower for marker in ("пр ", "проектное решение", "статусы замечаний", "инспекционной проверки", "строительного контроля", "автоматически формируемые документы")):
+                if document_type == "ПР":
+                    multiplier *= 1.9
+                    labels.append("boost:pr_construction_control_route")
+                elif document_type in {"Паспорт ИС", "ЦТА"}:
+                    multiplier *= 0.72
+                    labels.append("penalty:pr_construction_generic_doc")
+
+            if any(marker in query_lower for marker in ("2520", "600 одновременно", "производительность", "экспорт данных", "pdf", "csv")):
+                if document_type == "ФТТ":
+                    multiplier *= 1.75
+                    labels.append("boost:ftt_performance_or_export_route")
+
+            if any(marker in query_lower for marker in ("rto", "rpo", "postgresql", "kubernetes", "minio", "grafana", "loki", "siem")):
+                if document_type == "ЦТА":
+                    multiplier *= 1.75
+                    labels.append("boost:cta_infrastructure_route")
+
+            if any(marker in query_lower for marker in ("регламент ведения", "регламенты ведения", "реестр нси", "свок рд")):
+                if document_type == "Реестр НСИ":
+                    multiplier *= 2.4
+                    labels.append("boost:nsi_register_route")
+                elif document_type in {"Справочник НСИ", "Методика/Регламент НСИ"}:
+                    multiplier *= 1.35
+                    labels.append("boost:nsi_register_supporting")
+                elif document_type in {"ФТТ", "ПР", "ЦТА"}:
+                    multiplier *= 0.55
+                    labels.append("penalty:nsi_register_project_docs")
+
             if intent.intent == QueryIntent.REQUIREMENT_LOOKUP:
                 if document_type == "ФТТ":
                     multiplier *= 1.6

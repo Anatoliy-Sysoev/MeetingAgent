@@ -25,6 +25,31 @@ def _normalize_scores(results: list[SearchResult], attr: str) -> dict[str, float
     return {_chunk_key(result): (float(getattr(result, attr) or 0.0) - min_v) / (max_v - min_v) for result in results}
 
 
+def _prefers_lexical_signal(query: str) -> bool:
+    lowered = query.lower()
+    exact_markers = (
+        "app_ccpm",
+        "bearer",
+        "bearer token",
+        "2520",
+        "600 одновременно",
+        "rto",
+        "rpo",
+        "4.1",
+        "4.2",
+        "4.2.5",
+        "9.6",
+        "10.8",
+        "ldaps",
+        "порт 636",
+        "регламент ведения",
+        "реестр нси",
+        "pdf",
+        "csv",
+    )
+    return any(marker in lowered for marker in exact_markers)
+
+
 class HybridRetriever:
     def __init__(
         self,
@@ -94,6 +119,11 @@ class HybridRetriever:
 
         vector_norm = _normalize_scores(vector_results, "score")
         bm25_norm = _normalize_scores(bm25_results, "score")
+        vector_weight = self.vector_weight
+        bm25_weight = self.bm25_weight
+        if _prefers_lexical_signal(query):
+            vector_weight = 0.42
+            bm25_weight = 0.58
 
         merged: dict[str, SearchResult] = {}
         for result in vector_results + bm25_results:
@@ -101,13 +131,15 @@ class HybridRetriever:
             existing = merged.get(key)
             vector_component = vector_norm.get(key, 0.0)
             bm25_component = bm25_norm.get(key, 0.0)
-            score = self.vector_weight * vector_component + self.bm25_weight * bm25_component
+            score = vector_weight * vector_component + bm25_weight * bm25_component
 
             diagnostics = dict(result.diagnostics)
             diagnostics.update(
                 {
                     "vector_component": vector_component,
                     "bm25_component": bm25_component,
+                    "vector_weight": vector_weight,
+                    "bm25_weight": bm25_weight,
                     "expanded_terms": expansions,
                     "expanded_query": expanded_query if expansions else None,
                 }
