@@ -53,7 +53,7 @@ NTK Yandex corpus после chunk-quality фиксов пересобран:
 - hybrid smoke после расширения project markers/routing: 20/20 ok.
 ```
 
-Ручная проверка hybrid smoke уже выполнена:
+Ручная проверка hybrid smoke была выполнена на retrieval-level grounding:
 
 ```text
 strict source-supported pass: 18/20
@@ -61,7 +61,27 @@ partial: 2/20
 fail: 0/20
 ```
 
-Следующий шаг: включить NTK corpus только через feature flag, не как безусловный default.
+Важное уточнение после chat-level проверки через LLM:
+
+```text
+NTK-SMOKE-007 / RTO-RPO — false positive на уровне smoke/retrieval.
+
+Команда:
+.\.venv\Scripts\python.exe scripts\asu_june_bot_chat.py "Что указано в ЦТА про RTO и RPO?"
+
+Фактический результат:
+LLM корректно ответил, что в переданных источниках данных недостаточно.
+В контекст попали фрагменты ЦТА про Grafana Loki / SIEM / HTTPS / порт 443,
+но не фрагменты про RTO, RPO, восстановление или резервное копирование.
+
+Вывод:
+- LLM не галлюцинирует и корректно отказывается отвечать без источников;
+- проблема находится в retrieval/routing;
+- текущий smoke 20/20 был слишком мягким, потому что засчитывал doc_type=ЦТА,
+  но не проверял наличие RTO/RPO anchors в найденных источниках.
+```
+
+Следующий шаг: NTK corpus использовать только через feature flag для ручного тестирования. Не считать корпус готовым к global default до фикса `NTK-SMOKE-007` и повторной chat-level проверки.
 
 Feature flag уже добавлен:
 
@@ -70,9 +90,18 @@ configs/asu_june_bot/corpus.yaml
 ASU_JUNE_BOT_ACTIVE_CORPUS=default|ntk
 ```
 
-Перед глобальным переключением нужно закрыть два follow-up кейса:
+Перед глобальным переключением нужно закрыть follow-up кейсы:
 
 ```text
+NTK-SMOKE-007:
+- добавить отдельный intent/bucket cta_recovery_rto_rpo;
+- query expansion должен добавлять RTO/RPO/время восстановления/точка восстановления/резервное копирование/backup/restore;
+- не добавлять для этого запроса PostgreSQL/MinIO/Kubernetes/Grafana Loki/SIEM как primary expansion;
+- rerank boost для chunks с RTO/RPO/восстановление/резервное копирование;
+- rerank penalty для логирования/SIEM/Grafana/HTTPS/port-only chunks без RTO/RPO;
+- smoke должен проверять expected_terms_in_top5, а не только expected_doc_type=ЦТА;
+- повторить chat.py проверку и убедиться, что ответ подтверждается источниками.
+
 NTK-SMOKE-012:
 - внесен targeted retrieval-fix;
 - повторно проверить вручную, достаточно ли top-2 с chunk "Роли / группы AD" и app_ccpm_ul_cc_01/02/03
@@ -218,133 +247,4 @@ docs/product/PROJECT_STAGES_AND_FTT.md
 - meeting_id как YYYY-MM-DD__slug;
 - копирование raw/source файла;
 - meeting.json по configs/schemas/meeting.schema.json;
-- processing_status = new;
-- идемпотентность и понятная ошибка при конфликте slug.
-```
-
-Статус: реализовано 2026-05-26. Следующие улучшения: пакетный watcher и очередь jobs.
-
-### Priority 0.1
-
-```text
-Реализовать scripts/21_extract_audio.py:
-- ffmpeg -> source/audio_16k_mono.wav;
-- mono 16000 Hz;
-- status/report без пересоздания успешного результата без --force;
-- ошибки писать в meeting.json.last_error или pipeline report.
-```
-
-Статус: реализовано 2026-05-26. Успешный шаг оставляет processing_status=new, потому что audio_extracted пока не является статусом meeting.schema.json.
-
-### Priority 1
-
-```text
-Свести существующий scripts/06_transcribe_meeting.py с целевым шагом 22_transcribe_meeting:
-- проверить segment schema;
-- добавить txt/srt/vtt/json exports при необходимости;
-- не ломать текущий transcript/segments.jsonl и transcript/transcript.md.
-```
-
-### Priority 2
-
-```text
-Сделать diarization-lite:
-- speaker_transcript.jsonl;
-- speaker = SPEAKER_UNKNOWN без pyannote;
-- будущий scripts/23_diarize_meeting.py остается optional.
-```
-
-Статус: реализовано 2026-05-26 через `scripts/24_merge_transcript_speakers.py`.
-
-### Priority 3
-
-```text
-Реализовать meeting-aware chunking и indexing:
-- scripts/26_chunk_meeting.py;
-- scripts/28_index_meeting_chunks.py;
-- source_type meeting_chunk/meeting_decision/meeting_action_item;
-- timestamps и meeting_id в metadata;
-- source-quality gate для meeting chunks.
-```
-
-Статус: реализовано 2026-05-26 через `scripts/26_chunk_meeting.py` и `scripts/28_index_meeting_chunks.py`.
-
-### Priority 4
-
-```text
-Реализовать semantic enrichment и meeting indexing:
-- scripts/27_enrich_meeting_chunks.py;
-- scripts/28_index_meeting_chunks.py;
-- topic/semantic_type/entities;
-- decisions/action_items/risks/open_questions candidates;
-- source_type meeting_chunk в retrieval metadata;
-- smoke search по одной встрече.
-```
-
-Статус: реализовано 2026-05-26:
-
-```text
-scripts/27_enrich_meeting_chunks.py готов как heuristic MVP enrichment;
-scripts/28_index_meeting_chunks.py готов как export в data/meeting_chunks.jsonl;
-meeting_chunk добавлен в default source policy/index source types;
-scripts/31_meeting_search.py готов для smoke search по встречам;
-на реальной встрече 2026-05-26__support-scheme собран data/meeting_numpy_index: 3 chunks, bge-m3, dim=1024.
-```
-
-Осталось:
-
-```text
-заменить heuristic enrichment на LLM map/reduce для production artifacts.
-```
-
-Статус update 2026-05-26:
-
-```text
-meeting search CLI реализован через scripts/31_meeting_search.py;
-smoke lexical search работает без Ollama и отдельного numpy index;
-отдельный smoke numpy index по data/meeting_chunks.jsonl собран на встрече 2026-05-26__support-scheme;
-runtime artifacts лежат в meetings/2026-05-26__support-scheme/ и data/meeting_* и не коммитятся.
-```
-
-Следующий шаг:
-
-```text
-LLM map/reduce extraction реализован в scripts/29_analyze_meeting.py;
-structured artifacts с source timestamps созданы на smoke-встрече 2026-05-26__support-scheme;
-подключить meeting search к будущему API/боту.
-```
-
-### Priority 5
-
-```text
-Подключить structured meeting artifacts к индексации и поиску:
-- экспортировать decisions/tasks/risks/open_questions как отдельные source_type;
-- добавить meeting_decision/meeting_action_item/meeting_risk/meeting_open_question buckets;
-- проверить 31_meeting_search.py и будущий bot/API на вопросах "какие решения", "какие задачи", "какие риски";
-- сохранить таймкоды в ответах.
-```
-
-Статус на 2026-05-27:
-
-```text
-Базовый meeting pipeline от готовой транскрибации до structured artifacts реализован и прогнан на 2026-05-26__support-scheme.
-В Git зафиксированы код, тесты и документация; runtime artifacts остаются ignored.
-Главная техническая проблема сейчас — стабильность локального LLM REDUCE на CPU: qwen2.5:7b-instruct может уходить в timeout, qwen3:8b слишком медленный, а ответы иногда требуют JSON fallback.
-```
-
-Ближайшие действия:
-
-```text
-1. Реализовать scripts/32_index_meeting_artifacts.py:
-   - decisions.json -> source_type=meeting_decision;
-   - tasks.json -> source_type=meeting_action_item;
-   - risks.json -> source_type=meeting_risk;
-   - open_questions.json -> source_type=meeting_open_question.
-2. Расширить 31_meeting_search.py или retrieval buckets, чтобы запросы "какие задачи/решения/риски" били по structured artifacts, а не только по raw chunks.
-3. Стабилизировать LLM:
-   - уменьшить размер REDUCE prompt;
-   - добавить chunk-level dedupe до REDUCE;
-   - протестировать qwen3:4b и mistral:7b-instruct-q4_0;
-   - оставить --strict-llm только для отладки, а fallback как production-safe режим.
-4. После этого подключить meeting-search слой к API/боту.
 ```
