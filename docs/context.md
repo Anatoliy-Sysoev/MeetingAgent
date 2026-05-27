@@ -74,7 +74,33 @@ BM25: 8/20 ok, source_url_in_top5=12/20
 hybrid after project markers/routing: 20/20 ok, source_url_in_top5=19/20
 ```
 
-Решение: дефолт бота на `data/asu_june_bot_ntk` пока не переключать автоматически. Следующий шаг — ручной просмотр ответов и источников по smoke, затем решение о переключении корпуса.
+Ручная source-supported проверка retrieval grounding:
+
+```text
+manual review: 18/20 strict pass
+partial: 2/20
+fail: 0/20
+```
+
+Артефакты review зафиксированы в Git:
+
+```text
+docs/quality/ntk_smoke_manual_review_2026-05-27_summary.md
+docs/quality/ntk_smoke_manual_review_2026-05-27.csv
+docs/quality/ntk_smoke_manual_review_2026-05-27.jsonl
+```
+
+Решение: NTK corpus можно включать только через feature flag. Безусловным глобальным default корпус пока не становится.
+
+Follow-up кейсы:
+
+```text
+NTK-SMOKE-012:
+  нужно подтянуть в top-N таблицу соответствия app_ccpm-групп AD и ролей строительного контроля
+
+NTK-SMOKE-017:
+  кроме Реестра НСИ нужно явнее маршрутизировать запросы про регламенты ведения в МВД/регламентные документы
+```
 
 ## Retrieval quality evolution
 

@@ -192,14 +192,42 @@ status_counts: ok=19, refused=1
 failed_ids: []
 ```
 
-Вывод: индекс собран, hybrid smoke технически проходит и покрывает все 20 контрольных кейсов. Это достаточное основание для следующей ручной проверки ответов/источников перед переключением дефолтного корпуса.
+Manual source-supported review:
+
+```text
+total: 20
+strict pass: 18/20
+partial: 2/20
+fail: 0/20
+threshold >=18/20: met
+```
+
+Артефакты ручной проверки:
+
+```text
+docs/quality/ntk_smoke_manual_review_2026-05-27_summary.md
+docs/quality/ntk_smoke_manual_review_2026-05-27.csv
+docs/quality/ntk_smoke_manual_review_2026-05-27.jsonl
+```
+
+Вывод: индекс собран, hybrid smoke технически проходит и ручная source-supported проверка подтверждает корпус на пороге `18/20 strict pass`. Этого достаточно, чтобы включать NTK corpus через feature flag. Безусловным глобальным default корпус пока не становится.
+
+Оставшиеся follow-up кейсы:
+
+```text
+NTK-SMOKE-012:
+нужно подтянуть в top-N таблицу соответствия app_ccpm-групп AD и ролей строительного контроля
+
+NTK-SMOKE-017:
+нужно сильнее маршрутизировать запросы про регламенты ведения объектов НСИ в МВД/регламентные документы, а не только в Реестр НСИ
+```
 
 ## Что не сделано
 
 ```text
-default bot corpus switch — не выполнен
-manual answer/source review — следующий шаг
-incremental update для Yandex-папки — следующий этап после подтверждения качества
+global default switch — не выполнен
+feature-flag enablement — можно делать
+incremental update для Yandex-папки — следующий этап после закрепления feature flag и follow-up фиксов
 ```
 
 ## Следующая проверка качества
@@ -213,4 +241,4 @@ incremental update для Yandex-папки — следующий этап по
   --summary data\asu_june_bot_ntk\smoke_eval_hybrid_summary.json
 ```
 
-Не переключать дефолтный корпус до ручного просмотра `data/asu_june_bot_ntk/smoke_eval_hybrid_after_markers_v3.jsonl`.
+Не переключать корпус в безусловный global default до закрытия `NTK-SMOKE-012` и `NTK-SMOKE-017`.

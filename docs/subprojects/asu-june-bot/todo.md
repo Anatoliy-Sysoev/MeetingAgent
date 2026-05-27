@@ -81,19 +81,27 @@ data/asu_june_bot_ntk embeddings/index build завершен
 manifest.json создан
 BM25 smoke после пересборки: 8/20 ok
 hybrid smoke после расширения project markers/routing: 20/20 ok
-не переключать дефолт бота до подтверждения качества
+manual source-supported review: 18/20 strict pass, 2 partial, 0 fail
+можно включать через feature flag
+не делать безусловный global default
 ```
 
-Команда проверки индекса:
+Артефакты review:
 
-```powershell
-Test-Path .\data\asu_june_bot_ntk\numpy_index_v2\manifest.json
+```text
+docs/quality/ntk_smoke_manual_review_2026-05-27_summary.md
+docs/quality/ntk_smoke_manual_review_2026-05-27.csv
+docs/quality/ntk_smoke_manual_review_2026-05-27.jsonl
 ```
 
-Следующий шаг: вручную просмотреть ответы/источники последнего hybrid smoke:
+Следующий шаг: включить NTK corpus через feature flag и не переключать global default до закрытия двух follow-up кейсов:
 
-```powershell
-Get-Content .\data\asu_june_bot_ntk\smoke_eval_hybrid_after_markers_v3_summary.json -Encoding UTF8
+```text
+NTK-SMOKE-012:
+- подтянуть в top-N таблицу соответствия app_ccpm-групп AD и ролей
+
+NTK-SMOKE-017:
+- усилить routing запросов про регламенты ведения объектов НСИ в МВД/регламентные документы
 ```
 
 Инструкция:

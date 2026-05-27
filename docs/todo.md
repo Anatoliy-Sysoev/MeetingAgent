@@ -53,13 +53,25 @@ NTK Yandex corpus после chunk-quality фиксов пересобран:
 - hybrid smoke после расширения project markers/routing: 20/20 ok.
 ```
 
-Следующий шаг: вручную просмотреть ответы/источники последнего hybrid smoke:
+Ручная проверка hybrid smoke уже выполнена:
 
-```powershell
-Get-Content .\data\asu_june_bot_ntk\smoke_eval_hybrid_after_markers_v3_summary.json -Encoding UTF8
+```text
+strict source-supported pass: 18/20
+partial: 2/20
+fail: 0/20
 ```
 
-Дефолт бота переключать на `data/asu_june_bot_ntk` только если hybrid smoke лучше текущего корпуса.
+Следующий шаг: включить NTK corpus только через feature flag, не как безусловный default.
+
+Перед глобальным переключением нужно закрыть два follow-up кейса:
+
+```text
+NTK-SMOKE-012:
+- добиться, чтобы в top-N стабильно попадала таблица соответствия app_ccpm-групп AD и ролей
+
+NTK-SMOKE-017:
+- улучшить routing запросов про регламенты ведения объектов НСИ в МВД/регламентные документы, а не только в Реестр НСИ
+```
 
 Incremental update для Yandex-папки делать после подтверждения качества нового корпуса.
 

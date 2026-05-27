@@ -437,3 +437,17 @@ Backlog-направления остаются точечными: `source_type
 Результат: `scripts/asu_june_bot_ntk_smoke_eval.py --mode hybrid` на 20 контрольных вопросах NTK corpus дал `20/20 ok`, `source_url_in_top5=19/20`, `failed_ids=[]`.
 
 Следствие: дефолтный корпус всё ещё не переключается автоматически. Перед переключением нужен ручной просмотр ответов и источников по `data/asu_june_bot_ntk/smoke_eval_hybrid_after_markers_v3.jsonl`.
+
+## 2026-05-27 - NTK Corpus Включать Через Feature Flag, Не Через Global Default
+
+Решение: после ручной source-supported проверки `smoke_eval_hybrid_after_markers_v3` NTK corpus разрешён к включению только через feature flag. Безусловным глобальным default корпус пока не становится.
+
+Основание:
+
+- технический hybrid smoke даёт `20/20 ok` и `source_url_in_top5=19/20`;
+- ручная проверка retrieval grounding даёт `18/20 strict pass`, `2 partial`, `0 fail`;
+- порог `>=18/20` достигнут, но два кейса ещё требуют follow-up:
+  - `NTK-SMOKE-012`: app_ccpm-группы AD и роли строительного контроля;
+  - `NTK-SMOKE-017`: регламенты ведения объектов НСИ должны сильнее маршрутизироваться в МВД/регламентные документы.
+
+Следствие: можно готовить конфиг/feature flag для NTK corpus и более широкий NTK eval, но переключение общего дефолта откладывается до закрытия этих двух кейсов.

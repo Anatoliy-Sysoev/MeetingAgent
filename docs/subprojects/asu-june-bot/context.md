@@ -428,9 +428,10 @@ QH-5 закрыт как `PASSED`: Telegram smoke закрыт локально,
 Сейчас:
 
 ```text
-1. Для NTK Yandex corpus провести ручной просмотр smoke_eval_hybrid_after_markers_v3.jsonl.
-2. Не переключать дефолтный корпус бота до ручного подтверждения качества источников.
-3. После подтверждения качества проектировать incremental update для Yandex-папки.
+1. Ручной просмотр smoke_eval_hybrid_after_markers_v3 завершен: 18/20 strict pass, 2 partial, 0 fail.
+2. NTK corpus можно включать только через feature flag, но не как безусловный global default.
+3. До глобального переключения нужно закрыть NTK-SMOKE-012 и NTK-SMOKE-017.
+4. После этого проектировать incremental update для Yandex-папки.
 ```
 
 После QH-5 passed:
