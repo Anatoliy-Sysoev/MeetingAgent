@@ -86,6 +86,13 @@ manual source-supported review: 18/20 strict pass, 2 partial, 0 fail
 не делать безусловный global default
 ```
 
+Feature flag уже реализован:
+
+```text
+configs/asu_june_bot/corpus.yaml
+ASU_JUNE_BOT_ACTIVE_CORPUS=default|ntk
+```
+
 Артефакты review:
 
 ```text
@@ -98,10 +105,12 @@ docs/quality/ntk_smoke_manual_review_2026-05-27.jsonl
 
 ```text
 NTK-SMOKE-012:
-- подтянуть в top-N таблицу соответствия app_ccpm-групп AD и ролей
+- targeted retrieval-fix внесен
+- повторно вручную проверить кейс после появления chunk "Роли / группы AD" в top-2
 
 NTK-SMOKE-017:
-- усилить routing запросов про регламенты ведения объектов НСИ в МВД/регламентные документы
+- targeted retrieval-fix внесен
+- повторно вручную проверить кейс после ухода top-1..top-5 в Методика/Регламент НСИ
 ```
 
 Инструкция:

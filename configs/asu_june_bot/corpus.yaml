@@ -1,0 +1,20 @@
+# Active corpus feature flag for Project Knowledge Bot.
+
+active: default
+
+corpora:
+  default:
+    key: default
+    name: asu_june_bot_v2
+    chunks_path: data/asu_june_bot/chunks_v2.jsonl
+    cache_path: data/asu_june_bot/embeddings_cache_v2.jsonl
+    index_dir: data/asu_june_bot/numpy_index_v2
+    report_path: data/asu_june_bot/index_v2_report.json
+
+  ntk:
+    key: ntk
+    name: ntk_yandex_corpus
+    chunks_path: data/asu_june_bot_ntk/chunks_v2.jsonl
+    cache_path: data/asu_june_bot_ntk/embeddings_cache_v2.jsonl
+    index_dir: data/asu_june_bot_ntk/numpy_index_v2
+    report_path: data/asu_june_bot_ntk/index_v2_report.json

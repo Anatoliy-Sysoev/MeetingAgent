@@ -43,7 +43,7 @@ def load_main_config(path: Path = DEFAULT_MAIN_CONFIG_PATH) -> dict[str, Any]:
 
 def load_asu_config(config_dir: Path = DEFAULT_ASU_CONFIG_DIR) -> dict[str, Any]:
     cfg: dict[str, Any] = {}
-    for name in ("retrieval", "source_policy", "query_expansion", "llm", "guardrails"):
+    for name in ("retrieval", "source_policy", "query_expansion", "llm", "guardrails", "corpus"):
         cfg[name] = _read_yaml(config_dir / f"{name}.yaml")
     cfg["config_dir"] = str(config_dir)
     return cfg

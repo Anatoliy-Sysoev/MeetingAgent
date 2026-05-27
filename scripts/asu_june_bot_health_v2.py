@@ -18,12 +18,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from asu_june_bot.core.config import load_config, resolve_work_path  # noqa: E402
-
-
-DEFAULT_CHUNKS_PATH = "data/asu_june_bot/chunks_v2.jsonl"
-DEFAULT_CACHE_PATH = "data/asu_june_bot/embeddings_cache_v2.jsonl"
-DEFAULT_INDEX_DIR = "data/asu_june_bot/numpy_index_v2"
-DEFAULT_REPORT_PATH = "data/asu_june_bot/index_v2_report.json"
+from asu_june_bot.core.corpus import get_corpus_config  # noqa: E402
 
 
 def count_jsonl(path: Path) -> int:
@@ -74,22 +69,23 @@ def status(ok: bool) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Asu June Bot v2 health check")
-    parser.add_argument("--chunks-path", default=DEFAULT_CHUNKS_PATH)
-    parser.add_argument("--cache-path", default=DEFAULT_CACHE_PATH)
-    parser.add_argument("--index-dir", default=DEFAULT_INDEX_DIR)
-    parser.add_argument("--report-path", default=DEFAULT_REPORT_PATH)
+    parser.add_argument("--chunks-path", default=None)
+    parser.add_argument("--cache-path", default=None)
+    parser.add_argument("--index-dir", default=None)
+    parser.add_argument("--report-path", default=None)
     parser.add_argument("--timeout-sec", type=int, default=5)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
     cfg = load_config()
-    chunks_path = resolve_work_path(cfg, args.chunks_path)
-    cache_path = resolve_work_path(cfg, args.cache_path)
-    index_dir = resolve_work_path(cfg, args.index_dir)
+    corpus = get_corpus_config(cfg)
+    chunks_path = resolve_work_path(cfg, args.chunks_path or corpus.chunks_path)
+    cache_path = resolve_work_path(cfg, args.cache_path or corpus.cache_path)
+    index_dir = resolve_work_path(cfg, args.index_dir or corpus.index_dir)
     manifest_path = index_dir / "manifest.json"
     embeddings_path = index_dir / "embeddings.npy"
     metadata_path = index_dir / "metadata.jsonl"
-    report_path = resolve_work_path(cfg, args.report_path)
+    report_path = resolve_work_path(cfg, args.report_path or corpus.report_path)
 
     manifest = read_json(manifest_path)
     report = read_json(report_path)
@@ -109,6 +105,8 @@ def main() -> None:
 
     payload = {
         "status": status(chunks_ok and index_ok and cache_ok),
+        "corpus": corpus.name,
+        "corpus_key": corpus.key,
         "vector_ready": bool(vector_ready),
         "bm25_ready": bool(chunks_ok),
         "paths": {

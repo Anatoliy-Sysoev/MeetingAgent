@@ -63,14 +63,23 @@ fail: 0/20
 
 Следующий шаг: включить NTK corpus только через feature flag, не как безусловный default.
 
+Feature flag уже добавлен:
+
+```text
+configs/asu_june_bot/corpus.yaml
+ASU_JUNE_BOT_ACTIVE_CORPUS=default|ntk
+```
+
 Перед глобальным переключением нужно закрыть два follow-up кейса:
 
 ```text
 NTK-SMOKE-012:
-- добиться, чтобы в top-N стабильно попадала таблица соответствия app_ccpm-групп AD и ролей
+- внесен targeted retrieval-fix;
+- повторно проверить вручную, достаточно ли top-2 с chunk "Роли / группы AD" и app_ccpm_ul_cc_01/02/03
 
 NTK-SMOKE-017:
-- улучшить routing запросов про регламенты ведения объектов НСИ в МВД/регламентные документы, а не только в Реестр НСИ
+- внесен targeted retrieval-fix;
+- повторно проверить вручную, достаточно ли нового top-1..top-5 из Методика/Регламент НСИ
 ```
 
 Incremental update для Yandex-папки делать после подтверждения качества нового корпуса.

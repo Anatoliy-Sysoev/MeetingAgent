@@ -429,9 +429,12 @@ QH-5 закрыт как `PASSED`: Telegram smoke закрыт локально,
 
 ```text
 1. Ручной просмотр smoke_eval_hybrid_after_markers_v3 завершен: 18/20 strict pass, 2 partial, 0 fail.
-2. NTK corpus можно включать только через feature flag, но не как безусловный global default.
-3. До глобального переключения нужно закрыть NTK-SMOKE-012 и NTK-SMOKE-017.
-4. После этого проектировать incremental update для Yandex-папки.
+2. Feature flag корпуса реализован через configs/asu_june_bot/corpus.yaml и ASU_JUNE_BOT_ACTIVE_CORPUS=default|ntk.
+3. Health-check с ASU_JUNE_BOT_ACTIVE_CORPUS=ntk подтверждает переключение на data/asu_june_bot_ntk.
+4. Для NTK-SMOKE-012 внесен targeted retrieval-fix: в top-2 появляется chunk с таблицей "Роли / группы AD" и app_ccpm_ul_cc_01/02/03.
+5. Для NTK-SMOKE-017 внесен targeted retrieval-fix: top-1..top-5 уходят в Методика/Регламент НСИ вместо одного Реестра НСИ.
+6. До глобального переключения нужен повторный ручной review именно кейсов 012 и 017.
+7. После этого проектировать incremental update для Yandex-папки.
 ```
 
 После QH-5 passed:

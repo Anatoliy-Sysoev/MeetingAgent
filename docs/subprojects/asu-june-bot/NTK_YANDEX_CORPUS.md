@@ -24,6 +24,30 @@ data/asu_june_bot_ntk/
 data/asu_june_bot/
 ```
 
+## Feature Flag
+
+Переключение корпуса теперь делается не правкой кода, а feature flag:
+
+```text
+configs/asu_june_bot/corpus.yaml
+ASU_JUNE_BOT_ACTIVE_CORPUS=default|ntk
+```
+
+Пример для PowerShell:
+
+```powershell
+$env:ASU_JUNE_BOT_ACTIVE_CORPUS = "ntk"
+.\.venv\Scripts\python.exe scripts\asu_june_bot_health_v2.py --json
+```
+
+Ожидаемо health должен вернуть:
+
+```text
+corpus=ntk_yandex_corpus
+corpus_key=ntk
+paths -> data/asu_june_bot_ntk/*
+```
+
 ## Команды сборки
 
 ### 1. Построить source links
@@ -216,10 +240,14 @@ docs/quality/ntk_smoke_manual_review_2026-05-27.jsonl
 
 ```text
 NTK-SMOKE-012:
-нужно подтянуть в top-N таблицу соответствия app_ccpm-групп AD и ролей строительного контроля
+targeted retrieval-fix внесен;
+теперь в top-2 появляется chunk с таблицей "Роли / группы AD" и app_ccpm_ul_cc_01/02/03;
+нужен повторный ручной review
 
 NTK-SMOKE-017:
-нужно сильнее маршрутизировать запросы про регламенты ведения объектов НСИ в МВД/регламентные документы, а не только в Реестр НСИ
+targeted retrieval-fix внесен;
+запросы про регламенты ведения теперь поднимают Методика/Регламент НСИ в top-1..top-5;
+нужен повторный ручной review
 ```
 
 ## Что не сделано

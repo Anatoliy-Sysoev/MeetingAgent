@@ -92,14 +92,32 @@ docs/quality/ntk_smoke_manual_review_2026-05-27.jsonl
 
 Решение: NTK corpus можно включать только через feature flag. Безусловным глобальным default корпус пока не становится.
 
+Реализован feature flag корпуса:
+
+```text
+configs/asu_june_bot/corpus.yaml
+ASU_JUNE_BOT_ACTIVE_CORPUS=default|ntk
+```
+
+Проверка:
+
+```text
+scripts/asu_june_bot_health_v2.py --json с ASU_JUNE_BOT_ACTIVE_CORPUS=ntk
+возвращает corpus=ntk_yandex_corpus и пути data/asu_june_bot_ntk/*
+```
+
 Follow-up кейсы:
 
 ```text
 NTK-SMOKE-012:
-  нужно подтянуть в top-N таблицу соответствия app_ccpm-групп AD и ролей строительного контроля
+  точечный retrieval-fix внесен;
+  теперь в top-2 появляется chunk с таблицей "Роли / группы AD" и app_ccpm_ul_cc_01/02/03;
+  нужен повторный ручной review кейса, чтобы решить, считать ли его полностью закрытым
 
 NTK-SMOKE-017:
-  кроме Реестра НСИ нужно явнее маршрутизировать запросы про регламенты ведения в МВД/регламентные документы
+  точечный retrieval-fix внесен;
+  запросы про регламенты ведения теперь поднимают Методика/Регламент НСИ в top-1..top-5;
+  нужен повторный ручной review кейса
 ```
 
 ## Retrieval quality evolution
