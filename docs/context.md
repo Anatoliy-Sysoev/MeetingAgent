@@ -588,3 +588,41 @@ status: summarized
 .\.venv\Scripts\python.exe -m pytest tests\unit\test_meeting_analyze.py tests\unit\test_meeting_search.py tests\unit\test_meeting_enrich_index.py -q
 7 passed
 ```
+
+## 2026-05-27 — Итоговый статус MeetingAgent pipeline
+
+Что сделано:
+
+```text
+ingest/audio source: карточка встречи создается и хранит source media;
+ASR import: готовые GigaAM segments можно использовать как transcript/segments.jsonl;
+speaker transcript: создается diarization-lite с SPEAKER_UNKNOWN;
+meeting chunking: transcript режется на chunks с таймкодами;
+semantic enrichment: heuristic MVP добавляет topic/semantic_type/entities/candidates;
+meeting index export: data/meeting_chunks.jsonl формируется из enriched chunks;
+smoke meeting search: scripts/31_meeting_search.py ищет по meeting chunks и возвращает таймкоды;
+smoke numpy index: data/meeting_numpy_index собран по meeting_chunks.jsonl;
+LLM map-reduce analysis: scripts/29_analyze_meeting.py создает summary/protocol/decisions/tasks/risks/open_questions;
+source_refs: итоговые structured artifacts содержат path/start/end/quote.
+```
+
+Что осталось:
+
+```text
+экспортировать structured artifacts как отдельные source_type: meeting_decision, meeting_action_item, meeting_risk, meeting_open_question;
+добавить buckets для вопросов по решениям, задачам, рискам и открытым вопросам;
+подключить meeting search к API/боту;
+улучшить качество extraction: убрать мусорные задачи, усилить dedupe, отделить реальные решения от предложений;
+добавить speaker mapping и позднее diarization через pyannote;
+сделать DOCX/Markdown protocol export после стабилизации JSON-артефактов.
+```
+
+Текущая проблема:
+
+```text
+локальный REDUCE на qwen2.5:7b-instruct может не укладываться в timeout;
+qwen3:8b на CPU слишком медленный для надежного полного map-reduce;
+иногда LLM возвращает битый JSON или лишний текст, поэтому включен fallback;
+fallback сохраняет работоспособность pipeline, но качество итогов пока требует ручного review;
+runtime artifacts в meetings/ и data/meeting_* ignored и не являются переносимым Git-источником истины.
+```

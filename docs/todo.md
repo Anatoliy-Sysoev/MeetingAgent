@@ -307,3 +307,28 @@ structured artifacts с source timestamps созданы на smoke-встреч
 - проверить 31_meeting_search.py и будущий bot/API на вопросах "какие решения", "какие задачи", "какие риски";
 - сохранить таймкоды в ответах.
 ```
+
+Статус на 2026-05-27:
+
+```text
+Базовый meeting pipeline от готовой транскрибации до structured artifacts реализован и прогнан на 2026-05-26__support-scheme.
+В Git зафиксированы код, тесты и документация; runtime artifacts остаются ignored.
+Главная техническая проблема сейчас — стабильность локального LLM REDUCE на CPU: qwen2.5:7b-instruct может уходить в timeout, qwen3:8b слишком медленный, а ответы иногда требуют JSON fallback.
+```
+
+Ближайшие действия:
+
+```text
+1. Реализовать scripts/32_index_meeting_artifacts.py:
+   - decisions.json -> source_type=meeting_decision;
+   - tasks.json -> source_type=meeting_action_item;
+   - risks.json -> source_type=meeting_risk;
+   - open_questions.json -> source_type=meeting_open_question.
+2. Расширить 31_meeting_search.py или retrieval buckets, чтобы запросы "какие задачи/решения/риски" били по structured artifacts, а не только по raw chunks.
+3. Стабилизировать LLM:
+   - уменьшить размер REDUCE prompt;
+   - добавить chunk-level dedupe до REDUCE;
+   - протестировать qwen3:4b и mistral:7b-instruct-q4_0;
+   - оставить --strict-llm только для отладки, а fallback как production-safe режим.
+4. После этого подключить meeting-search слой к API/боту.
+```
