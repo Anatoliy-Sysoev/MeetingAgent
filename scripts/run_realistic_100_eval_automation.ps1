@@ -1,9 +1,12 @@
 [CmdletBinding()]
 param(
+    [string]$DatasetPath = "docs\quality\realistic_100_queries.jsonl",
     [string]$ReportPath = "data\realistic_100_eval_report.jsonl",
     [string]$ReviewPath = "data\realistic_100_eval_review.jsonl",
     [string]$SummaryPath = "data\realistic_100_eval_review_summary.json",
-    [string]$ChatScript = "scripts\09_chat_quality.py"
+    [string]$ChatScript = "scripts\09_chat_quality.py",
+    [string]$Mode = "hybrid",
+    [string]$ActiveCorpus = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,6 +19,7 @@ $runner = Join-Path $repoRoot "scripts\14_run_realistic_100_eval.py"
 $reviewer = Join-Path $repoRoot "scripts\15_prepare_realistic_eval_review.py"
 $statePath = Join-Path $repoRoot "data\realistic_100_eval_automation_state.json"
 $chatScriptPath = Join-Path $repoRoot $ChatScript
+$datasetFullPath = Join-Path $repoRoot $DatasetPath
 
 if (-not (Test-Path -LiteralPath $pythonExe)) {
     throw "Python venv not found: $pythonExe"
@@ -28,6 +32,9 @@ if (-not (Test-Path -LiteralPath $reviewer)) {
 }
 if (-not (Test-Path -LiteralPath $chatScriptPath)) {
     throw "Chat script not found: $chatScriptPath"
+}
+if (-not (Test-Path -LiteralPath $datasetFullPath)) {
+    throw "Dataset not found: $datasetFullPath"
 }
 
 $active = Get-CimInstance Win32_Process -Filter "name = 'python.exe'" |
@@ -49,23 +56,32 @@ $state = [ordered]@{
     status = "running"
     controller_pid = $PID
     started_at = (Get-Date).ToString("o")
+    dataset = $DatasetPath
     report = $ReportPath
     review = $ReviewPath
     summary = $SummaryPath
     chat_script = $ChatScript
+    mode = $Mode
+    active_corpus = $ActiveCorpus
     stdout_log = $outLog
     stderr_log = $errLog
 }
 $state | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $statePath -Encoding UTF8
 
 Write-Host "Starting realistic 100 eval"
+Write-Host "Dataset: $DatasetPath"
 Write-Host "Report: $ReportPath"
 Write-Host "Chat script: $ChatScript"
 Write-Host "Logs: $outLog / $errLog"
 
+if ($ActiveCorpus) {
+    $env:ASU_JUNE_BOT_ACTIVE_CORPUS = $ActiveCorpus
+    Write-Host "ASU_JUNE_BOT_ACTIVE_CORPUS=$ActiveCorpus"
+}
+
 $proc = Start-Process `
     -FilePath $pythonExe `
-    -ArgumentList @($runner, "--output", $ReportPath, "--chat-script", $ChatScript) `
+    -ArgumentList @($runner, "--dataset", $DatasetPath, "--output", $ReportPath, "--chat-script", $ChatScript, "--mode", $Mode) `
     -WorkingDirectory $repoRoot `
     -RedirectStandardOutput $outLog `
     -RedirectStandardError $errLog `
@@ -94,10 +110,13 @@ $state = [ordered]@{
     finished_at = (Get-Date).ToString("o")
     exit_code = $exitCode
     rows = $rows
+    dataset = $DatasetPath
     report = $ReportPath
     review = $ReviewPath
     summary = $SummaryPath
     chat_script = $ChatScript
+    mode = $Mode
+    active_corpus = $ActiveCorpus
     stdout_log = $outLog
     stderr_log = $errLog
 }
