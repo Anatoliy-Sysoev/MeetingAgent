@@ -150,6 +150,106 @@ class BM25SearchAdapter:
             )
         )
 
+    @staticmethod
+    def _pr_status_count(text_lower: str) -> int:
+        status_markers = (
+            "к устранению",
+            "на проверке",
+            "на доработке",
+            "просрочено",
+            "не устранено",
+            "устранено",
+            "аннулировано",
+        )
+        return sum(1 for marker in status_markers if marker in text_lower)
+
+    @classmethod
+    def _is_pr_status_values_chunk(cls, text_lower: str) -> bool:
+        status_count = cls._pr_status_count(text_lower)
+        has_values_list = "значения:" in text_lower and "статус" in text_lower and status_count >= 5
+        has_status_scheme = "статусная схема замечаний" in text_lower and status_count >= 2
+        return has_values_list or has_status_scheme
+
+    @classmethod
+    def _is_pr_status_transition_chunk(cls, text_lower: str) -> bool:
+        if cls._pr_status_count(text_lower) < 2:
+            return False
+        return any(
+            marker in text_lower
+            for marker in (
+                "меняет статус замечания",
+                "изменяет статус замечания",
+                "статус замечания",
+                "карточке замечания нажимает",
+            )
+        )
+
+    @staticmethod
+    def _is_pr_annulment_chunk(text_lower: str) -> bool:
+        if "аннулир" not in text_lower:
+            return False
+        return any(
+            marker in text_lower
+            for marker in (
+                "признано необоснованным",
+                "необоснованности замечания",
+                "процесс по замечанию завершается",
+                "может его аннулировать",
+                "кнопку «аннулировать»",
+                "кнопку \"аннулировать\"",
+            )
+        )
+
+    @staticmethod
+    def _is_pr_role_composition_chunk(text_lower: str) -> bool:
+        return any(
+            marker in text_lower
+            for marker in (
+                "состав ролей, использующих функциональность данного модуля",
+                "привилегированные:",
+                "непривилегированные:",
+            )
+        )
+
+    @staticmethod
+    def _is_pr_role_access_chunk(text_lower: str) -> bool:
+        role_markers = (
+            "куратор проекта нул",
+            "инженер ск",
+            "представитель лос",
+            "специалист технической поддержки",
+            "специалист информационной безопасности",
+            "аудитор нул",
+        )
+        has_role = any(marker in text_lower for marker in role_markers)
+        has_access_word = "право доступа" in text_lower or "права доступа" in text_lower or "ограничения" in text_lower
+        has_matrix_values = "тип объекта: ск:" in text_lower and any(marker in text_lower for marker in ("просмотр", "изменение", "создание", "удаление", "нет"))
+        return (
+            "права доступа по ролям" in text_lower
+            or "объектам интерфейса пользователя" in text_lower
+            or "регламентным заданиям" in text_lower
+            or (has_role and (has_access_word or has_matrix_values))
+        )
+
+    @staticmethod
+    def _is_pr_generic_process_chunk(text_lower: str) -> bool:
+        return any(
+            marker in text_lower
+            for marker in (
+                "управление замечаниями: операционный контроль",
+                "управление замечаниями: эскалация",
+                "закрытие замечания/ предписания",
+                "автоматическая генерация инспекционных документов",
+                "акт об устранении: формируется автоматически",
+                "роль исполнителя:",
+            )
+        )
+
+    @staticmethod
+    def _is_pr_construction_control_document(metadata: dict[str, Any]) -> bool:
+        path_lower = str(metadata.get("relative_path") or metadata.get("source_path") or "").lower()
+        return "строительн" in path_lower and "контрол" in path_lower
+
     def __init__(self, rows: list[dict[str, Any]], source_policy: SourcePolicy | None = None, k1: float = 1.5, b: float = 0.75):
         self.source_policy = source_policy or SourcePolicy()
         self.k1 = k1
@@ -231,6 +331,7 @@ class BM25SearchAdapter:
 
     def _intent_boost(self, query: str, doc: BM25Document) -> tuple[float, list[str]]:
         lowered = query.lower()
+        original_lowered = query.split("\n", 1)[0].lower()
         document_type = str(doc.metadata.get("document_type") or "")
         text_lower = doc.text.lower()
         boosts: list[tuple[str, float]] = []
@@ -276,9 +377,44 @@ class BM25SearchAdapter:
             elif document_type in {"ЦТА", "Паспорт ИС", "ФТТ"}:
                 boosts.append(("intent:soi_nsi_mdr_penalty_generic_docs", 0.72))
 
+        has_pr_status_route = any(marker in original_lowered for marker in ("статусы замечаний", "статусная схема", "какие статусы"))
+        has_pr_annulment_route = "аннулир" in original_lowered
+        has_pr_roles_route = any(marker in original_lowered for marker in ("роли предусмотрены", "какие роли", "матрица ролей", "роли и полномочия"))
+        has_pr_rights_route = any(marker in original_lowered for marker in ("права доступа", "ограничения прав", "ограничение прав", "матрица ролей"))
+        has_pr_construction_control_module_route = any(marker in original_lowered for marker in ("строительного контроля", "строительный контроль", "модуль строительного контроля"))
         if not has_soi_ad_route and any(marker in lowered for marker in ("пр ", "проектное решение", "статусы замечаний", "инспекционной проверки", "строительного контроля", "автоматически формируемые документы")):
             if document_type == "ПР":
                 boosts.append(("intent:pr_construction_control", 2.0))
+                if has_pr_construction_control_module_route and not self._is_pr_construction_control_document(doc.metadata):
+                    boosts.append(("penalty:pr_other_module_for_construction_control", 0.28))
+                if has_pr_status_route:
+                    if self._is_pr_status_values_chunk(text_lower):
+                        boosts.append(("intent:pr_notice_status_values", 5.2))
+                    elif self._is_pr_status_transition_chunk(text_lower):
+                        boosts.append(("intent:pr_notice_status_transition", 2.2))
+                    elif self._is_pr_generic_process_chunk(text_lower):
+                        boosts.append(("penalty:pr_notice_status_generic_process", 0.42))
+                if has_pr_annulment_route:
+                    if self._is_pr_annulment_chunk(text_lower):
+                        boosts.append(("intent:pr_notice_annulment_process", 5.4))
+                    elif self._is_pr_status_values_chunk(text_lower):
+                        boosts.append(("intent:pr_notice_annulment_status_support", 1.7))
+                    elif self._is_pr_generic_process_chunk(text_lower):
+                        boosts.append(("penalty:pr_notice_annulment_generic_process", 0.36))
+                if has_pr_roles_route:
+                    if self._is_pr_role_composition_chunk(text_lower):
+                        boosts.append(("intent:pr_roles_composition", 5.0))
+                    elif self._is_pr_role_access_chunk(text_lower):
+                        boosts.append(("intent:pr_roles_access_support", 2.2))
+                    elif self._is_pr_generic_process_chunk(text_lower):
+                        boosts.append(("penalty:pr_roles_generic_process", 0.34))
+                if has_pr_rights_route:
+                    if self._is_pr_role_access_chunk(text_lower):
+                        boosts.append(("intent:pr_rights_access_matrix", 5.4))
+                    elif self._is_pr_role_composition_chunk(text_lower):
+                        boosts.append(("intent:pr_rights_role_composition_support", 2.4))
+                    elif self._is_pr_generic_process_chunk(text_lower):
+                        boosts.append(("penalty:pr_rights_generic_process", 0.32))
             elif document_type in {"Паспорт ИС", "ЦТА"}:
                 boosts.append(("intent:pr_construction_control_penalty_generic_docs", 0.72))
 

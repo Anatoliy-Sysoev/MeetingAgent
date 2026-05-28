@@ -53,8 +53,34 @@ def _prefers_lexical_signal(query: str) -> bool:
         "хранение данных",
         "pdf",
         "csv",
+        "статусы замечаний",
+        "статусная схема",
+        "аннулир",
+        "матрица ролей",
+        "роли и полномочия",
+        "права доступа",
+        "ограничения прав",
+        "ограничение прав",
     )
     return any(marker in lowered for marker in exact_markers)
+
+
+def _prefers_strong_lexical_signal(query: str) -> bool:
+    lowered = query.lower()
+    exact_pr_markers = (
+        "статусы замечаний",
+        "статусная схема",
+        "какие статусы",
+        "аннулир",
+        "матрица ролей",
+        "роли и полномочия",
+        "роли предусмотрены",
+        "какие роли",
+        "права доступа",
+        "ограничения прав",
+        "ограничение прав",
+    )
+    return any(marker in lowered for marker in exact_pr_markers)
 
 
 class HybridRetriever:
@@ -128,7 +154,10 @@ class HybridRetriever:
         bm25_norm = _normalize_scores(bm25_results, "score")
         vector_weight = self.vector_weight
         bm25_weight = self.bm25_weight
-        if _prefers_lexical_signal(query):
+        if _prefers_strong_lexical_signal(query):
+            vector_weight = 0.25
+            bm25_weight = 0.75
+        elif _prefers_lexical_signal(query):
             vector_weight = 0.42
             bm25_weight = 0.58
 

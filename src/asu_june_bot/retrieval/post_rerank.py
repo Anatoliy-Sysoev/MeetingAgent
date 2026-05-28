@@ -182,6 +182,106 @@ def _is_cta_kubernetes_chunk(text: str) -> bool:
     )
 
 
+def _pr_status_count(text: str) -> int:
+    status_markers = (
+        "к устранению",
+        "на проверке",
+        "на доработке",
+        "просрочено",
+        "не устранено",
+        "устранено",
+        "аннулировано",
+    )
+    return sum(1 for marker in status_markers if marker in text)
+
+
+def _is_pr_status_values_chunk(text: str) -> bool:
+    status_count = _pr_status_count(text)
+    has_values_list = "значения:" in text and "статус" in text and status_count >= 5
+    has_status_scheme = "статусная схема замечаний" in text and status_count >= 2
+    return has_values_list or has_status_scheme
+
+
+def _is_pr_status_transition_chunk(text: str) -> bool:
+    if _pr_status_count(text) < 2:
+        return False
+    return any(
+        marker in text
+        for marker in (
+            "меняет статус замечания",
+            "изменяет статус замечания",
+            "статус замечания",
+            "карточке замечания нажимает",
+        )
+    )
+
+
+def _is_pr_annulment_chunk(text: str) -> bool:
+    if "аннулир" not in text:
+        return False
+    return any(
+        marker in text
+        for marker in (
+            "признано необоснованным",
+            "необоснованности замечания",
+            "процесс по замечанию завершается",
+            "может его аннулировать",
+            "кнопку «аннулировать»",
+            "кнопку \"аннулировать\"",
+        )
+    )
+
+
+def _is_pr_role_composition_chunk(text: str) -> bool:
+    return any(
+        marker in text
+        for marker in (
+            "состав ролей, использующих функциональность данного модуля",
+            "привилегированные:",
+            "непривилегированные:",
+        )
+    )
+
+
+def _is_pr_role_access_chunk(text: str) -> bool:
+    role_markers = (
+        "куратор проекта нул",
+        "инженер ск",
+        "представитель лос",
+        "специалист технической поддержки",
+        "специалист информационной безопасности",
+        "аудитор нул",
+    )
+    has_role = any(marker in text for marker in role_markers)
+    has_access_word = "право доступа" in text or "права доступа" in text or "ограничения" in text
+    has_matrix_values = "тип объекта: ск:" in text and any(marker in text for marker in ("просмотр", "изменение", "создание", "удаление", "нет"))
+    return (
+        "права доступа по ролям" in text
+        or "объектам интерфейса пользователя" in text
+        or "регламентным заданиям" in text
+        or (has_role and (has_access_word or has_matrix_values))
+    )
+
+
+def _is_pr_generic_process_chunk(text: str) -> bool:
+    return any(
+        marker in text
+        for marker in (
+            "управление замечаниями: операционный контроль",
+            "управление замечаниями: эскалация",
+            "закрытие замечания/ предписания",
+            "автоматическая генерация инспекционных документов",
+            "акт об устранении: формируется автоматически",
+            "роль исполнителя:",
+        )
+    )
+
+
+def _is_pr_construction_control_document(result: SearchResult) -> bool:
+    path = _path(result).lower()
+    return "строительн" in path and "контрол" in path
+
+
 def _has_exact_section(result: SearchResult, sections: list[str]) -> bool:
     if not sections:
         return False
@@ -283,6 +383,54 @@ class PostReranker:
                 if document_type == "ПР":
                     multiplier *= 1.9
                     labels.append("boost:pr_construction_control_route")
+                    has_pr_status_route = any(marker in query_lower for marker in ("статусы замечаний", "статусная схема", "какие статусы"))
+                    has_pr_annulment_route = "аннулир" in query_lower
+                    has_pr_roles_route = any(marker in query_lower for marker in ("роли предусмотрены", "какие роли", "матрица ролей", "роли и полномочия"))
+                    has_pr_rights_route = any(marker in query_lower for marker in ("права доступа", "ограничения прав", "ограничение прав", "матрица ролей"))
+                    has_pr_construction_control_module_route = any(marker in query_lower for marker in ("строительного контроля", "строительный контроль", "модуль строительного контроля"))
+                    if has_pr_construction_control_module_route and not _is_pr_construction_control_document(result):
+                        multiplier *= 0.28
+                        labels.append("penalty:pr_other_module_for_construction_control")
+                    if has_pr_status_route:
+                        if _is_pr_status_values_chunk(text):
+                            multiplier *= 4.8
+                            labels.append("boost:pr_notice_status_values")
+                        elif _is_pr_status_transition_chunk(text):
+                            multiplier *= 2.0
+                            labels.append("boost:pr_notice_status_transition")
+                        elif _is_pr_generic_process_chunk(text):
+                            multiplier *= 0.42
+                            labels.append("penalty:pr_notice_status_generic_process")
+                    if has_pr_annulment_route:
+                        if _is_pr_annulment_chunk(text):
+                            multiplier *= 5.0
+                            labels.append("boost:pr_notice_annulment_process")
+                        elif _is_pr_status_values_chunk(text):
+                            multiplier *= 1.6
+                            labels.append("boost:pr_notice_annulment_status_support")
+                        elif _is_pr_generic_process_chunk(text):
+                            multiplier *= 0.36
+                            labels.append("penalty:pr_notice_annulment_generic_process")
+                    if has_pr_roles_route:
+                        if _is_pr_role_composition_chunk(text):
+                            multiplier *= 4.6
+                            labels.append("boost:pr_roles_composition")
+                        elif _is_pr_role_access_chunk(text):
+                            multiplier *= 2.1
+                            labels.append("boost:pr_roles_access_support")
+                        elif _is_pr_generic_process_chunk(text):
+                            multiplier *= 0.34
+                            labels.append("penalty:pr_roles_generic_process")
+                    if has_pr_rights_route:
+                        if _is_pr_role_access_chunk(text):
+                            multiplier *= 5.0
+                            labels.append("boost:pr_rights_access_matrix")
+                        elif _is_pr_role_composition_chunk(text):
+                            multiplier *= 2.2
+                            labels.append("boost:pr_rights_role_composition_support")
+                        elif _is_pr_generic_process_chunk(text):
+                            multiplier *= 0.32
+                            labels.append("penalty:pr_rights_generic_process")
                 elif document_type in {"Паспорт ИС", "ЦТА"}:
                     multiplier *= 0.72
                     labels.append("penalty:pr_construction_generic_doc")

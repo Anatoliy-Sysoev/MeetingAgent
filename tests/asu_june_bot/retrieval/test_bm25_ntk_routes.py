@@ -9,6 +9,16 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from asu_june_bot.retrieval.bm25 import BM25SearchAdapter  # noqa: E402
+from asu_june_bot.retrieval.hybrid import HybridRetriever  # noqa: E402
+from asu_june_bot.retrieval.query_expansion import QueryExpander  # noqa: E402
+
+
+def _bm25_with_expansion(rows: list[dict], expansion_config: dict) -> HybridRetriever:
+    return HybridRetriever(
+        vector_search=None,
+        bm25_search=BM25SearchAdapter(rows),
+        query_expander=QueryExpander(expansion_config),
+    )
 
 
 def test_bm25_prefers_ad_role_mapping_chunk_for_app_ccpm_query() -> None:
@@ -157,3 +167,107 @@ def test_bm25_prefers_cta_kubernetes_service_chunk_over_non_cta_deploy_doc() -> 
     assert results
     assert results[0].metadata.get("document_type") == "ЦТА"
     assert "kubernetes" in results[0].text.lower()
+
+
+def test_bm25_prefers_pr_status_values_for_notice_status_query() -> None:
+    rows = [
+        {
+            "text": "ПР. Управление замечаниями: операционный контроль. Создание, классификация, назначение, контроль сроков.",
+            "metadata": {"document_type": "ПР", "relative_path": "docs/pr_smr.docx"},
+        },
+        {
+            "text": "ПР. Параметр отчета: Статус. Источник данных: Карточка замечания, системный статус. Значения: «К устранению», «На проверке», «На доработке», «Просрочено», «Не устранено», «Устранено», «Аннулировано».",
+            "metadata": {"document_type": "ПР", "relative_path": "docs/pr_smr.docx"},
+        },
+    ]
+    retriever = _bm25_with_expansion(
+        rows,
+        {
+            "pr_notice_statuses": {
+                "triggers": ["статусы замечаний"],
+                "expansions": ["статусная схема замечаний", "системный статус", "К устранению", "На проверке", "Аннулировано"],
+            }
+        },
+    )
+
+    results = retriever.search(
+        "Какие статусы замечаний строительного контроля описаны в ПР?",
+        top_k=2,
+        mode="bm25",
+    )
+
+    assert results
+    assert "значения:" in results[0].text.lower()
+    assert "аннулировано" in results[0].text.lower()
+
+
+def test_bm25_prefers_pr_annulment_process_for_annulment_query() -> None:
+    rows = [
+        {
+            "text": "ПР. Закрытие замечания/ предписания. Подтверждение устранения. Статус «Устранено». Акт об устранении.",
+            "metadata": {"document_type": "ПР", "relative_path": "docs/pr_smr.docx"},
+        },
+        {
+            "text": "ПР. В карточке замечания нажимает «Аннулировать», если замечание признано необоснованным. Если «Аннулировать»: меняет статус на «Аннулировано», процесс по замечанию завершается.",
+            "metadata": {"document_type": "ПР", "relative_path": "docs/pr_smr.docx"},
+        },
+    ]
+    retriever = _bm25_with_expansion(
+        rows,
+        {
+            "pr_notice_annulment": {
+                "triggers": ["аннулирование"],
+                "expansions": ["Аннулировать", "Аннулировано", "признано необоснованным", "процесс по замечанию завершается"],
+            }
+        },
+    )
+
+    results = retriever.search(
+        "Что в ПР сказано про аннулирование замечаний строительного контроля?",
+        top_k=2,
+        mode="bm25",
+    )
+
+    assert results
+    assert "аннулировать" in results[0].text.lower()
+    assert "необоснованным" in results[0].text.lower()
+
+
+def test_bm25_prefers_pr_roles_and_rights_chunks() -> None:
+    rows = [
+        {
+            "text": "ПР. Закрытие замечания/ предписания. Подтверждение устранения. Роль исполнителя: пользователь.",
+            "metadata": {"document_type": "ПР", "relative_path": "docs/pr_smr.docx"},
+        },
+        {
+            "text": "ПР. Состав ролей, использующих функциональность данного модуля. Привилегированные: Куратор, Специалист технической поддержки. Непривилегированные: Инженер СК, Представитель ЛОС, Представитель подрядной организации.",
+            "metadata": {"document_type": "ПР", "relative_path": "docs/pr_smr.docx"},
+        },
+        {
+            "text": "ПР. Права доступа по ролям к объектам интерфейса пользователя, отчетам, регламентным заданиям, приведены в Приложение 1.",
+            "metadata": {"document_type": "ПР", "relative_path": "docs/pr_smr.docx"},
+        },
+    ]
+    retriever = _bm25_with_expansion(
+        rows,
+        {
+            "pr_roles_rights": {
+                "triggers": ["какие роли", "права доступа"],
+                "expansions": ["состав ролей", "Привилегированные", "Непривилегированные", "Инженер СК", "Права доступа по ролям"],
+            }
+        },
+    )
+
+    role_results = retriever.search(
+        "Какие роли предусмотрены в ПР для модуля строительного контроля?",
+        top_k=3,
+        mode="bm25",
+    )
+    rights_results = retriever.search(
+        "Какие ограничения прав доступа для ролей строительного контроля описаны в ПР?",
+        top_k=3,
+        mode="bm25",
+    )
+
+    assert "непривилегированные" in role_results[0].text.lower()
+    assert "права доступа по ролям" in rights_results[0].text.lower()
