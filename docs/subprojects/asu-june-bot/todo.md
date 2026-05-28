@@ -1,6 +1,6 @@
 # TODO Project Knowledge Bot
 
-Обновлено: 2026-05-27.
+Обновлено: 2026-05-28.
 
 ## Текущий статус
 
@@ -69,8 +69,43 @@ docs/subprojects/asu-june-bot/TECHNICAL_DIAGRAMS.md
 ## Следующий практический шаг
 
 ```text
-Docker packaging или QH-6 Feedback Dataset Loop
+NTK realistic-100 P0/P1 quality fixes, затем Docker packaging или QH-6 Feedback Dataset Loop
 ```
+
+## NTK realistic-100 new manual review
+
+Ручная разметка зафиксирована:
+
+```text
+docs/quality/ntk_realistic_100_new_eval_review_manual_summary.md
+docs/quality/ntk_realistic_100_new_eval_review_action_plan.md
+```
+
+Приоритет исправлений:
+
+```text
+P0:
+project_scope_clarify_or_sensitive_guard
+  NTK100-NEW-071, 073, 077, 079, 080, 085, 086, 090
+
+P1:
+CTA missing_source
+  NTK100-NEW-025, 026, 027, 028
+PR missing_source
+  NTK100-NEW-014, 016, 019, 020
+NSI regulation/reference
+  NTK100-NEW-053, 054, 055, 056, 057, 059
+Passport
+  NTK100-NEW-063, 064, 065
+AD/app_ccpm
+  NTK100-NEW-036, 039, 040
+
+P2:
+out_of_scope clarify instead of refused
+  NTK100-NEW-093, 094, 095, 096
+```
+
+Каждый bucket исправлять отдельным маленьким коммитом с targeted eval.
 
 ## NTK Yandex Corpus
 

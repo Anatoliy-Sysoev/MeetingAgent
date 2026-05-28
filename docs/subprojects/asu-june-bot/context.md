@@ -1,6 +1,6 @@
 # Контекст Project Knowledge Bot
 
-Обновлено: 2026-05-27.
+Обновлено: 2026-05-28.
 
 ## 1. Назначение
 
@@ -69,6 +69,35 @@ include_source_types ограничен безопасным allowlist чере�
 unhandled API errors санитизированы: наружу отдается request_id без repr(exc)
 SearchStatus.ERROR в ChatService мапится в status=search_error, а не llm_error
 ```
+
+## 2.1. NTK realistic-100 new manual review
+
+28.05.2026 завершён ручной review нового NTK realistic-100 набора:
+
+```text
+docs/quality/ntk_realistic_100_new_eval_review_filled.jsonl
+docs/quality/ntk_realistic_100_new_eval_review_filled_overview.csv
+docs/quality/ntk_realistic_100_new_eval_review_manual_summary.json
+docs/quality/ntk_realistic_100_new_eval_review_manual_summary.md
+docs/quality/ntk_realistic_100_new_eval_review_action_plan.md
+```
+
+Runner стабилен: `review_ready`, 100/100 строк, активных PID нет.
+
+Review verdicts:
+
+```text
+ok: 34
+missing_source: 27
+low_score: 23
+bad_refusal: 8
+needs_clarification: 4
+garbage_source: 2
+out_of_scope: 2
+hallucination: 0
+```
+
+Главный вывод: качество нужно улучшать bucket-first. P0 — project-scope clarify/sensitive guard; P1 — CTA, PR, NSI regulation/reference, Passport, AD/app_ccpm retrieval.
 
 ## 3. Текущий pipeline
 

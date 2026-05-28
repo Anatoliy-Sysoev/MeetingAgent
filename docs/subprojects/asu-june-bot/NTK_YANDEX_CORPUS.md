@@ -296,6 +296,70 @@ hybrid smoke после обновления expectation снова дает `20
 остаточный quality-follow-up: primary source всё ещё выбирается через weak fallback на краткий registry/note chunk, хотя supporting уже содержит полноценные регламентные документы
 ```
 
+## Realistic-100 manual review 2026-05-28
+
+Пакет ручной проверки закреплен в репозитории:
+
+```text
+docs/quality/ntk_realistic_100_new_eval_review_filled.jsonl
+docs/quality/ntk_realistic_100_new_eval_review_filled_overview.csv
+docs/quality/ntk_realistic_100_new_eval_review_manual_summary.json
+docs/quality/ntk_realistic_100_new_eval_review_manual_summary.md
+docs/quality/ntk_realistic_100_new_eval_review_action_plan.md
+```
+
+Прогон завершен штатно:
+
+```text
+review_ready
+100/100 rows
+active PID: none
+statuses: answered=35, no_answer=46, validation_failed=1, clarify=12, refused=6
+```
+
+Результат ручной разметки:
+
+```text
+total: 100
+ok: 34
+missing_source: 27
+low_score: 23
+bad_refusal: 8
+needs_clarification: 4
+garbage_source: 2
+out_of_scope: 2
+hallucination: 0
+```
+
+Вывод: стабильность eval-runner подтверждена, но quality gate не пройден по retrieval/routing/guard. Главная зона потерь - `missing_source + low_score = 50/100`; project-scope вопросы все еще уходят в `clarify`; out-of-scope guard не всегда переводит фикус/медицину/shopping/Chrome в `refused`.
+
+Приоритет исправлений:
+
+```text
+P0 project_scope_clarify_or_sensitive_guard:
+NTK100-NEW-071, 073, 077, 079, 080, 085, 086, 090
+
+P1 CTA missing_source:
+NTK100-NEW-025, 026, 027, 028
+
+P1 PR missing_source:
+NTK100-NEW-014, 016, 019, 020
+
+P1 NSI regulation/reference:
+NTK100-NEW-053, 054, 055, 056, 057, 059
+
+P1 Passport:
+NTK100-NEW-063, 064, 065
+
+P1 AD/app_ccpm:
+NTK100-NEW-036, 039, 040
+
+P2 out_of_scope clarify instead of refused:
+NTK100-NEW-093, 094, 095, 096
+```
+
+Следующий шаг: исправлять bucket-first, отдельным маленьким коммитом на каждый bucket, с targeted eval перед повторным full `NTK realistic-100`.
+
 ## Что не сделано
 
 ```text

@@ -1,6 +1,6 @@
 # Контекст проекта
 
-Обновлено: 2026-05-27.
+Обновлено: 2026-05-28.
 
 ## NTK realistic-100 new eval
 
@@ -62,6 +62,64 @@ UnicodeEncodeError: cp1251 cannot encode combining marks / special symbols
 ```
 
 Это не retrieval/LLM failure. Исправлено в runner: дочерний chat-процесс запускается с `PYTHONUTF8=1` и `PYTHONIOENCODING=utf-8`. Испорченные runtime reports перенесены в `*.bad_cp1251_<timestamp>`, прогон перезапущен с чистыми output paths.
+
+2026-05-28 перезапущенный прогон завершился штатно:
+
+```text
+status: review_ready
+rows: 100/100
+active PID: отсутствует
+runtime statuses:
+  answered: 35
+  no_answer: 46
+  validation_failed: 1
+  clarify: 12
+  refused: 6
+```
+
+Ручная разметка перенесена в tracked quality artifacts:
+
+```text
+docs/quality/ntk_realistic_100_new_eval_review_filled.jsonl
+docs/quality/ntk_realistic_100_new_eval_review_filled_overview.csv
+docs/quality/ntk_realistic_100_new_eval_review_manual_summary.json
+docs/quality/ntk_realistic_100_new_eval_review_manual_summary.md
+```
+
+Итог review verdicts:
+
+```text
+total: 100
+ok: 34
+missing_source: 27
+low_score: 23
+bad_refusal: 8
+needs_clarification: 4
+garbage_source: 2
+out_of_scope: 2
+hallucination: 0
+```
+
+Главный вывод review: runner стабилен, но retrieval/routing/guard качество пока недостаточно. `missing_source + low_score = 50/100`; project-scope вопросы всё ещё уходят в `clarify`; out-of-scope guard местами возвращает `clarify` вместо `refused`.
+
+Приоритетные buckets:
+
+```text
+P0 project_scope_clarify_or_sensitive_guard:
+  NTK100-NEW-071, 073, 077, 079, 080, 085, 086, 090
+P1 CTA missing_source:
+  NTK100-NEW-025, 026, 027, 028
+P1 PR missing_source:
+  NTK100-NEW-014, 016, 019, 020
+P1 NSI regulation/reference:
+  NTK100-NEW-053, 054, 055, 056, 057, 059
+P1 Passport:
+  NTK100-NEW-063, 064, 065
+P1 AD/app_ccpm:
+  NTK100-NEW-036, 039, 040
+P2 out_of_scope clarify instead of refused:
+  NTK100-NEW-093, 094, 095, 096
+```
 
 ## NTK Obsidian vault rebuild
 

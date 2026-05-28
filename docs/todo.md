@@ -1,61 +1,64 @@
 # TODO
 
-Обновлено: 2026-05-27.
+Обновлено: 2026-05-28.
 
-## Сейчас: NTK realistic-100 new eval
+## Сейчас: NTK realistic-100 new eval review
 
-Запущен фоновый прогон нового набора:
+Прогон и ручная разметка завершены.
 
 ```text
 docs/quality/ntk_realistic_100_new_queries.jsonl
+docs/quality/ntk_realistic_100_new_eval_review_filled.jsonl
+docs/quality/ntk_realistic_100_new_eval_review_filled_overview.csv
+docs/quality/ntk_realistic_100_new_eval_review_manual_summary.json
+docs/quality/ntk_realistic_100_new_eval_review_manual_summary.md
 ```
 
-Параметры запуска:
+Review summary:
 
 ```text
-active_corpus: ntk
-chat_script: scripts/asu_june_bot_chat.py
-mode: hybrid
-model: qwen2.5:7b-instruct
-cases: 100
+ok: 34
+missing_source: 27
+low_score: 23
+bad_refusal: 8
+needs_clarification: 4
+garbage_source: 2
+out_of_scope: 2
+hallucination: 0
 ```
 
-Runtime outputs:
+Следующие правки делать bucket-first, не смешивая всё в один коммит:
 
 ```text
-data/ntk_realistic_100_new_eval_report.jsonl
-data/ntk_realistic_100_new_eval_review.jsonl
-data/ntk_realistic_100_new_eval_review_summary.json
+P0 guard/routing:
+  project_scope_clarify_or_sensitive_guard:
+    NTK100-NEW-071, 073, 077, 079, 080, 085, 086, 090
+
+P1 retrieval:
+  CTA missing_source:
+    NTK100-NEW-025, 026, 027, 028
+  PR missing_source:
+    NTK100-NEW-014, 016, 019, 020
+  NSI regulation/reference:
+    NTK100-NEW-053, 054, 055, 056, 057, 059
+  Passport:
+    NTK100-NEW-063, 064, 065
+  AD/app_ccpm:
+    NTK100-NEW-036, 039, 040
+
+P2 guard polish:
+  out_of_scope clarify instead of refused:
+    NTK100-NEW-093, 094, 095, 096
 ```
 
-Технический рестарт 2026-05-28:
+Definition of done для каждого bucket:
 
 ```text
-первый прогон остановлен на 34/100;
-причина: UnicodeEncodeError при печати JSON в cp1251 stdout;
-исправлено: runner передает дочернему chat-процессу PYTHONUTF8=1 и PYTHONIOENCODING=utf-8;
-прогон перезапущен с чистыми output paths.
-```
-
-Мониторинг:
-
-```text
-automation_id: ntk-realistic-100-hourly-monitor
-frequency: hourly
-```
-
-Следующий шаг после завершения:
-
-```text
-1. Проверить status=review_ready.
-2. Заполнить review_verdict и review_comment в data/ntk_realistic_100_new_eval_review.jsonl.
-3. Разобрать отдельными buckets:
-   - AD / app_ccpm / roles;
-   - NSI regulations / weak_primary_fallback;
-   - out_of_scope;
-   - harmful_security;
-   - no_answer / missing_source.
-4. Зафиксировать review summary в docs/quality перед следующими retrieval-правками.
+1. Воспроизвести bucket на текущем main.
+2. Внести точечный routing/guard/retrieval fix.
+3. Запустить targeted bucket eval.
+4. Запустить полный NTK realistic-100 после серии P0/P1 правок.
+5. Обновить docs/quality summary и docs/todo.md.
 ```
 
 ## Retrieval quality roadmap
