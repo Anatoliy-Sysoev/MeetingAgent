@@ -83,3 +83,77 @@ def test_bm25_prefers_cta_recovery_chunk_over_logging_chunk() -> None:
     assert "rto" in results[0].text.lower()
     assert "rpo" in results[0].text.lower()
     assert "резервное копирование" in results[0].text.lower()
+
+
+def test_bm25_prefers_cta_postgresql_chunk_over_logging_noise() -> None:
+    rows = [
+        {
+            "text": "ЦТА. SIEM. Сервер Системы (логирование). Grafana Loki. Логи системы. Протокол HTTPS порт 443.",
+            "metadata": {"document_type": "ЦТА", "relative_path": "docs/cta_logging.docx"},
+        },
+        {
+            "text": "ЦТА. PostgreSQL - система управления базами данных, используется для хранения данных об объектах ПО АСУ-С.",
+            "metadata": {"document_type": "ЦТА", "relative_path": "docs/cta_services.docx"},
+        },
+        {
+            "text": "ЦТА. Patroni создает высокодоступный PostgreSQL кластер с поддержкой failover.",
+            "metadata": {"document_type": "ЦТА", "relative_path": "docs/cta_postgresql.docx"},
+        },
+    ]
+
+    results = BM25SearchAdapter(rows).search(
+        "Что в ЦТА указано про PostgreSQL и его роль в архитектуре?",
+        top_k=3,
+    )
+
+    assert results
+    assert "postgresql" in results[0].text.lower()
+    assert "grafana loki" not in results[0].text.lower()
+
+
+def test_bm25_prefers_cta_minio_file_storage_over_log_storage() -> None:
+    rows = [
+        {
+            "text": "ЦТА. Сервер Системы (логирование). Grafana Loki получает доступ к S3 Minio для сохранения логов.",
+            "metadata": {"document_type": "ЦТА", "relative_path": "docs/cta_logging_s3.docx"},
+        },
+        {
+            "text": "ЦТА. Minio S3 хранилище - высокопроизводительное объектное хранилище, используется для хранения файлов.",
+            "metadata": {"document_type": "ЦТА", "relative_path": "docs/cta_minio.docx"},
+        },
+    ]
+
+    results = BM25SearchAdapter(rows).search(
+        "Что в ЦТА указано про MinIO S3 и хранение файлов?",
+        top_k=2,
+    )
+
+    assert results
+    assert "объектное хранилище" in results[0].text.lower()
+    assert "хранения файлов" in results[0].text.lower()
+
+
+def test_bm25_prefers_cta_kubernetes_service_chunk_over_non_cta_deploy_doc() -> None:
+    rows = [
+        {
+            "text": "Руководство администратора. Развертывание сервисов через k8s.",
+            "metadata": {"document_type": "Руководство", "relative_path": "docs/admin_guide.docx"},
+        },
+        {
+            "text": "ЦТА. Kubernetes - платформа для автоматизации развертывания сервисов и управления контейнеризированными приложениями.",
+            "metadata": {"document_type": "ЦТА", "relative_path": "docs/cta_kubernetes.docx"},
+        },
+        {
+            "text": "ЦТА. Сервер Системы (логирование). Grafana Loki и SIEM. Логи системы.",
+            "metadata": {"document_type": "ЦТА", "relative_path": "docs/cta_logging.docx"},
+        },
+    ]
+
+    results = BM25SearchAdapter(rows).search(
+        "Как в ЦТА описан Kubernetes-кластер и развертывание сервисов?",
+        top_k=3,
+    )
+
+    assert results
+    assert results[0].metadata.get("document_type") == "ЦТА"
+    assert "kubernetes" in results[0].text.lower()

@@ -81,6 +81,75 @@ class BM25SearchAdapter:
         has_port_noise = "порт " in text_lower or "tcp/" in text_lower or "udp/" in text_lower
         return has_logging_noise or has_port_noise
 
+    @staticmethod
+    def _is_cta_logging_noise_chunk(text_lower: str) -> bool:
+        has_logging_noise = any(
+            marker in text_lower
+            for marker in (
+                "grafana loki",
+                "siem",
+                "сервер системы (логирование)",
+                "сервер логирования",
+                "логи системы",
+                "кластером логирования",
+                "журналирования",
+            )
+        )
+        has_file_storage_signal = any(marker in text_lower for marker in ("сохранение файлов", "хранение файлов", "объектное хранилище"))
+        return has_logging_noise and not has_file_storage_signal
+
+    @staticmethod
+    def _is_cta_postgresql_chunk(text_lower: str) -> bool:
+        if "postgresql" not in text_lower:
+            return False
+        return any(
+            marker in text_lower
+            for marker in (
+                "система управления базами данных",
+                "субд postgresql",
+                "кластер серверов postgresql",
+                "postgresql кластер",
+                "patroni",
+                "consul",
+                "хранения данных",
+                "доступ к базе данных",
+            )
+        )
+
+    @staticmethod
+    def _is_cta_minio_storage_chunk(text_lower: str) -> bool:
+        if "minio" not in text_lower and "s3" not in text_lower:
+            return False
+        return any(
+            marker in text_lower
+            for marker in (
+                "объектное хранилище",
+                "хранения файлов",
+                "хранение файлов",
+                "сохранение файлов",
+                "s3 хранилищ",
+                "s3-протокол",
+                "бакет",
+            )
+        )
+
+    @staticmethod
+    def _is_cta_kubernetes_chunk(text_lower: str) -> bool:
+        if "kubernetes" not in text_lower and "k8s" not in text_lower:
+            return False
+        return any(
+            marker in text_lower
+            for marker in (
+                "развертыван",
+                "оркестрац",
+                "запуск сервисов",
+                "запуск слоя управления",
+                "контейнер",
+                "k8s-master",
+                "k8s-worker",
+            )
+        )
+
     def __init__(self, rows: list[dict[str, Any]], source_policy: SourcePolicy | None = None, k1: float = 1.5, b: float = 0.75):
         self.source_policy = source_policy or SourcePolicy()
         self.k1 = k1
@@ -221,7 +290,12 @@ class BM25SearchAdapter:
             marker in lowered
             for marker in ("rto", "rpo", "время восстановления", "точка восстановления", "резервное копирование", "backup", "restore")
         )
-        has_cta_infrastructure_route = any(marker in lowered for marker in ("postgresql", "kubernetes", "minio", "grafana", "loki", "siem"))
+        has_explicit_cta_route = "цта" in lowered or "целевая техническая архитектура" in lowered
+        has_cta_postgresql_route = any(marker in lowered for marker in ("postgresql", "субд postgresql", "хранение данных"))
+        has_cta_minio_route = any(marker in lowered for marker in ("minio", "s3", "объектное хранилище", "хранение файлов"))
+        has_cta_kubernetes_route = any(marker in lowered for marker in ("kubernetes", "k8s", "развертывание сервисов", "развертывания сервисов"))
+        has_cta_logging_route = any(marker in lowered for marker in ("grafana", "loki", "siem", "логирован", "мониторинг"))
+        has_cta_infrastructure_route = has_cta_postgresql_route or has_cta_minio_route or has_cta_kubernetes_route or has_cta_logging_route
         if has_cta_recovery_route:
             if document_type == "ЦТА":
                 boosts.append(("intent:cta_recovery_rto_rpo", 2.4))
@@ -234,6 +308,16 @@ class BM25SearchAdapter:
         elif has_cta_infrastructure_route:
             if document_type == "ЦТА":
                 boosts.append(("intent:cta_infrastructure", 1.85))
+                if has_cta_postgresql_route and self._is_cta_postgresql_chunk(text_lower):
+                    boosts.append(("intent:cta_postgresql_chunk", 3.0))
+                if has_cta_minio_route and self._is_cta_minio_storage_chunk(text_lower):
+                    boosts.append(("intent:cta_minio_storage_chunk", 2.8))
+                if has_cta_kubernetes_route and self._is_cta_kubernetes_chunk(text_lower):
+                    boosts.append(("intent:cta_kubernetes_chunk", 3.0))
+                if not has_cta_logging_route and self._is_cta_logging_noise_chunk(text_lower):
+                    boosts.append(("penalty:cta_infrastructure_logging_noise", 0.16))
+            elif has_explicit_cta_route:
+                boosts.append(("intent:cta_infrastructure_penalty_non_cta", 0.25))
 
         has_nsi_regulation_route = any(marker in lowered for marker in ("регламент ведения", "регламенты ведения", "мвд"))
         has_nsi_register_route = any(marker in lowered for marker in ("реестр нси", "свок рд"))

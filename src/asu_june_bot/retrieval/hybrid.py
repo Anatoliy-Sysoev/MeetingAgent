@@ -44,6 +44,13 @@ def _prefers_lexical_signal(query: str) -> bool:
         "порт 636",
         "регламент ведения",
         "реестр нси",
+        "postgresql",
+        "minio",
+        "kubernetes",
+        "k8s",
+        "объектное хранилище",
+        "хранение файлов",
+        "хранение данных",
         "pdf",
         "csv",
     )
