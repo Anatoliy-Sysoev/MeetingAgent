@@ -141,6 +141,24 @@ pytest guard slice: 68 passed
 
 Остаток: P1 retrieval/source quality buckets не закрыты и должны идти следующими отдельными коммитами.
 
+2026-05-28 закрыт P1 bucket `CTA missing_source`:
+
+```text
+docs/quality/ntk_realistic_100_new_p1_cta_missing_source_eval_2026-05-28.md
+```
+
+Изменение: общий `cta_infrastructure` expansion больше не добавляет PostgreSQL/MinIO/Kubernetes/Grafana Loki/SIEM одновременно для точечных запросов. Добавлены отдельные CTA routes для PostgreSQL, MinIO/S3 storage и Kubernetes; BM25/PostRerank теперь бустят целевые CTA chunks и штрафуют SIEM/Grafana Loki/logging noise для non-logging infra-запросов.
+
+Проверка:
+
+```text
+hybrid search-level targeted eval: 4/4
+chat-level targeted eval: 4/4 answered
+pytest retrieval slice: 9 passed
+```
+
+Остаток P1: `PR missing_source`, `NSI regulation/reference`, `Passport`, `AD/app_ccpm`.
+
 ## NTK Obsidian vault rebuild
 
 27.05.2026 добавлен воспроизводимый генератор полной пересборки Obsidian vault по корпусу NTK Yandex:

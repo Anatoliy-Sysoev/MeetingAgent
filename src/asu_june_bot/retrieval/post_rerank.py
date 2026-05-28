@@ -113,6 +113,75 @@ def _is_logging_or_port_chunk(text: str) -> bool:
     return has_logging_noise or has_port_noise
 
 
+def _is_cta_logging_noise_chunk(text: str) -> bool:
+    has_logging_noise = any(
+        marker in text
+        for marker in (
+            "grafana loki",
+            "siem",
+            "сервер системы (логирование)",
+            "сервер логирования",
+            "логи системы",
+            "кластером логирования",
+            "журналирования",
+        )
+    )
+    has_file_storage_signal = any(marker in text for marker in ("сохранение файлов", "хранение файлов", "объектное хранилище"))
+    return has_logging_noise and not has_file_storage_signal
+
+
+def _is_cta_postgresql_chunk(text: str) -> bool:
+    if "postgresql" not in text:
+        return False
+    return any(
+        marker in text
+        for marker in (
+            "система управления базами данных",
+            "субд postgresql",
+            "кластер серверов postgresql",
+            "postgresql кластер",
+            "patroni",
+            "consul",
+            "хранения данных",
+            "доступ к базе данных",
+        )
+    )
+
+
+def _is_cta_minio_storage_chunk(text: str) -> bool:
+    if "minio" not in text and "s3" not in text:
+        return False
+    return any(
+        marker in text
+        for marker in (
+            "объектное хранилище",
+            "хранения файлов",
+            "хранение файлов",
+            "сохранение файлов",
+            "s3 хранилищ",
+            "s3-протокол",
+            "бакет",
+        )
+    )
+
+
+def _is_cta_kubernetes_chunk(text: str) -> bool:
+    if "kubernetes" not in text and "k8s" not in text:
+        return False
+    return any(
+        marker in text
+        for marker in (
+            "развертыван",
+            "оркестрац",
+            "запуск сервисов",
+            "запуск слоя управления",
+            "контейнер",
+            "k8s-master",
+            "k8s-worker",
+        )
+    )
+
+
 def _has_exact_section(result: SearchResult, sections: list[str]) -> bool:
     if not sections:
         return False
@@ -227,7 +296,12 @@ class PostReranker:
                 marker in query_lower
                 for marker in ("rto", "rpo", "время восстановления", "точка восстановления", "резервное копирование", "backup", "restore")
             )
-            has_cta_infrastructure_route = any(marker in query_lower for marker in ("postgresql", "kubernetes", "minio", "grafana", "loki", "siem"))
+            has_explicit_cta_route = "цта" in query_lower or "целевая техническая архитектура" in query_lower
+            has_cta_postgresql_route = any(marker in query_lower for marker in ("postgresql", "субд postgresql", "хранение данных"))
+            has_cta_minio_route = any(marker in query_lower for marker in ("minio", "s3", "объектное хранилище", "хранение файлов"))
+            has_cta_kubernetes_route = any(marker in query_lower for marker in ("kubernetes", "k8s", "развертывание сервисов", "развертывания сервисов"))
+            has_cta_logging_route = any(marker in query_lower for marker in ("grafana", "loki", "siem", "логирован", "мониторинг"))
+            has_cta_infrastructure_route = has_cta_postgresql_route or has_cta_minio_route or has_cta_kubernetes_route or has_cta_logging_route
             if has_cta_recovery_route:
                 if document_type == "ЦТА":
                     multiplier *= 2.2
@@ -245,6 +319,21 @@ class PostReranker:
                 if document_type == "ЦТА":
                     multiplier *= 1.75
                     labels.append("boost:cta_infrastructure_route")
+                    if has_cta_postgresql_route and _is_cta_postgresql_chunk(text):
+                        multiplier *= 2.8
+                        labels.append("boost:cta_postgresql_chunk")
+                    if has_cta_minio_route and _is_cta_minio_storage_chunk(text):
+                        multiplier *= 2.6
+                        labels.append("boost:cta_minio_storage_chunk")
+                    if has_cta_kubernetes_route and _is_cta_kubernetes_chunk(text):
+                        multiplier *= 2.8
+                        labels.append("boost:cta_kubernetes_chunk")
+                    if not has_cta_logging_route and _is_cta_logging_noise_chunk(text):
+                        multiplier *= 0.16
+                        labels.append("penalty:cta_infrastructure_logging_noise")
+                elif has_explicit_cta_route:
+                    multiplier *= 0.25
+                    labels.append("penalty:cta_infrastructure_non_cta_doc")
 
             has_nsi_regulation_route = any(marker in query_lower for marker in ("регламент ведения", "регламенты ведения", "мвд"))
             has_nsi_register_route = any(marker in query_lower for marker in ("реестр нси", "свок рд"))

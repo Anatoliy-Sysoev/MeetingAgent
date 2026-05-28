@@ -69,6 +69,14 @@ pytest guard slice -> 68 passed
 
 ### CTA missing_source
 
+Статус: закрыто 2026-05-28.
+
+Отчет targeted eval:
+
+```text
+docs/quality/ntk_realistic_100_new_p1_cta_missing_source_eval_2026-05-28.md
+```
+
 Кейсы:
 
 ```text
@@ -79,6 +87,14 @@ NTK100-NEW-028
 ```
 
 Цель: запросы по PostgreSQL, MinIO, Kubernetes и инфраструктуре должны поднимать релевантные ЦТА chunks, а не уходить в таблицы логирования.
+
+Проверка:
+
+```text
+hybrid search-level targeted eval -> 4/4
+chat-level targeted eval -> 4/4 answered
+pytest retrieval slice -> 9 passed
+```
 
 ### PR missing_source
 

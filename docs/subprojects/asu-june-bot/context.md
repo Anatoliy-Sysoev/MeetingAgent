@@ -128,6 +128,41 @@ pytest guard slice: 68 passed
 
 Остаток: P1 retrieval/source-quality buckets остаются открытыми.
 
+## 2.3. P1 CTA missing_source fix
+
+28.05.2026 закрыт P1 bucket `CTA missing_source`.
+
+Отчет:
+
+```text
+docs/quality/ntk_realistic_100_new_p1_cta_missing_source_eval_2026-05-28.md
+```
+
+Что изменено:
+
+```text
+configs/asu_june_bot/query_expansion.yaml
+src/asu_june_bot/retrieval/bm25.py
+src/asu_june_bot/retrieval/post_rerank.py
+src/asu_june_bot/retrieval/hybrid.py
+src/asu_june_bot/retrieval/query_intent.py
+tests/asu_june_bot/retrieval/test_bm25_ntk_routes.py
+```
+
+Результат targeted eval:
+
+```text
+hybrid search-level targeted eval: 4/4
+025 -> PostgreSQL+MinIO+object storage anchors
+026 -> PostgreSQL storage role
+027 -> MinIO S3 file/object storage
+028 -> Kubernetes master/control-plane chunks
+chat-level targeted eval: 4/4 answered
+pytest retrieval slice: 9 passed
+```
+
+Остаток P1: PR, NSI, Passport, AD/app_ccpm.
+
 ## 3. Текущий pipeline
 
 ```text

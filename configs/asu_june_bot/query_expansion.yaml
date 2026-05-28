@@ -55,12 +55,9 @@ ftt_performance_export:
 
 cta_infrastructure:
   triggers:
-    - postgresql
-    - kubernetes
-    - minio
-    - grafana
-    - loki
-    - siem
+    - инфраструктурные компоненты
+    - компоненты архитектуры
+    - техническая архитектура системы
   expansions:
     - ЦТА
     - целевая техническая архитектура
@@ -69,6 +66,55 @@ cta_infrastructure:
     - Kubernetes
     - Grafana Loki
     - SIEM
+
+cta_postgresql:
+  triggers:
+    - postgresql
+    - субд postgresql
+    - хранение данных
+  expansions:
+    - ЦТА
+    - целевая техническая архитектура
+    - PostgreSQL
+    - СУБД PostgreSQL
+    - база данных
+    - хранение данных
+    - хранения данных
+    - система управления базами данных
+    - используется для хранения данных
+
+cta_minio_storage:
+  triggers:
+    - minio
+    - s3
+    - объектное хранилище
+    - хранение файлов
+  expansions:
+    - ЦТА
+    - целевая техническая архитектура
+    - MinIO
+    - MinIO S3
+    - S3 хранилище
+    - объектное хранилище
+    - хранение файлов
+    - сохранение файлов
+
+cta_kubernetes:
+  triggers:
+    - kubernetes
+    - kubernetes-кластер
+    - k8s
+    - развертывание сервисов
+    - развертывания сервисов
+  expansions:
+    - ЦТА
+    - целевая техническая архитектура
+    - Kubernetes
+    - k8s
+    - запуск сервисов
+    - запуск слоя управления
+    - оркестрация контейнеров
+    - контейнеризированные приложения
 
 cta_recovery_rto_rpo:
   triggers:

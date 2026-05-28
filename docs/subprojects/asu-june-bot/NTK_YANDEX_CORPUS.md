@@ -370,7 +370,17 @@ guard_v2_eval: 65/65
 pytest guard slice: 68 passed
 ```
 
-Следующий шаг: исправлять P1 bucket-first, отдельным маленьким коммитом на каждый bucket, с targeted eval перед повторным full `NTK realistic-100`.
+P1 CTA закрыт 2026-05-28:
+
+```text
+docs/quality/ntk_realistic_100_new_p1_cta_missing_source_eval_2026-05-28.md
+
+hybrid search-level targeted eval: 4/4
+chat-level targeted eval: 4/4 answered
+pytest retrieval slice: 9 passed
+```
+
+Следующий шаг: исправлять оставшиеся P1 bucket-first, начиная с `PR missing_source`, отдельным маленьким коммитом на каждый bucket, с targeted eval перед повторным full `NTK realistic-100`.
 
 ## Что не сделано
 

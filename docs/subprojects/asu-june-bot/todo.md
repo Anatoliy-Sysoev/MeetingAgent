@@ -69,7 +69,7 @@ docs/subprojects/asu-june-bot/TECHNICAL_DIAGRAMS.md
 ## Следующий практический шаг
 
 ```text
-NTK realistic-100 P1 retrieval/source-quality fixes, затем Docker packaging или QH-6 Feedback Dataset Loop
+NTK realistic-100 P1 PR missing_source, затем NSI/Passport/AD buckets, затем Docker packaging или QH-6 Feedback Dataset Loop
 ```
 
 ## NTK realistic-100 new manual review
@@ -90,9 +90,12 @@ project_scope_clarify_or_sensitive_guard
   NTK100-NEW-090 -> refused без retrieval/LLM
   отчет: docs/quality/ntk_realistic_100_new_p0_project_scope_guard_eval_2026-05-28.md
 
-P1:
+P1 закрыт:
 CTA missing_source
-  NTK100-NEW-025, 026, 027, 028
+  NTK100-NEW-025, 026, 027, 028 -> hybrid search-level 4/4, chat-level 4/4 answered
+  отчет: docs/quality/ntk_realistic_100_new_p1_cta_missing_source_eval_2026-05-28.md
+
+P1:
 PR missing_source
   NTK100-NEW-014, 016, 019, 020
 NSI regulation/reference
