@@ -358,7 +358,19 @@ P2 out_of_scope clarify instead of refused:
 NTK100-NEW-093, 094, 095, 096
 ```
 
-Следующий шаг: исправлять bucket-first, отдельным маленьким коммитом на каждый bucket, с targeted eval перед повторным full `NTK realistic-100`.
+P0 закрыт 2026-05-28:
+
+```text
+docs/quality/ntk_realistic_100_new_p0_project_scope_guard_eval_2026-05-28.md
+
+P0 search-level targeted eval: 8/8
+071, 073, 077, 079, 080, 085, 086 -> status=ok
+090 -> status=refused, retrieval_called=False
+guard_v2_eval: 65/65
+pytest guard slice: 68 passed
+```
+
+Следующий шаг: исправлять P1 bucket-first, отдельным маленьким коммитом на каждый bucket, с targeted eval перед повторным full `NTK realistic-100`.
 
 ## Что не сделано
 

@@ -69,7 +69,7 @@ docs/subprojects/asu-june-bot/TECHNICAL_DIAGRAMS.md
 ## Следующий практический шаг
 
 ```text
-NTK realistic-100 P0/P1 quality fixes, затем Docker packaging или QH-6 Feedback Dataset Loop
+NTK realistic-100 P1 retrieval/source-quality fixes, затем Docker packaging или QH-6 Feedback Dataset Loop
 ```
 
 ## NTK realistic-100 new manual review
@@ -84,9 +84,11 @@ docs/quality/ntk_realistic_100_new_eval_review_action_plan.md
 Приоритет исправлений:
 
 ```text
-P0:
+P0 закрыт:
 project_scope_clarify_or_sensitive_guard
-  NTK100-NEW-071, 073, 077, 079, 080, 085, 086, 090
+  NTK100-NEW-071, 073, 077, 079, 080, 085, 086 -> ok
+  NTK100-NEW-090 -> refused без retrieval/LLM
+  отчет: docs/quality/ntk_realistic_100_new_p0_project_scope_guard_eval_2026-05-28.md
 
 P1:
 CTA missing_source

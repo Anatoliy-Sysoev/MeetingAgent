@@ -55,3 +55,11 @@
 {"id":"project_ntk_export_pdf_excel_csv","query":"Какие ограничения есть на экспорт данных в PDF, Excel и CSV?","expected_status":"ok","expected_scope":"in_project"}
 {"id":"out_food_carbonara","query":"Как приготовить карбонару?","expected_status":"refused","expected_scope":"out_of_project","expected_reason":"out_of_project_query"}
 {"id":"project_ntk_pr_auto_documents","query":"Какие документы формируются автоматически после проведения инспекционной проверки?","expected_status":"ok","expected_scope":"in_project"}
+{"id":"ntk100_new_071_export_formats","query":"Какие форматы экспорта PDF, Excel и CSV предусмотрены в проектных требованиях?","expected_status":"ok","expected_scope":"in_project"}
+{"id":"ntk100_new_073_integration_docs","query":"Какие интеграционные документы описывают формат сообщения, авторизацию и обработку ошибок?","expected_status":"ok","expected_scope":"in_project"}
+{"id":"ntk100_new_077_mtr_procurement_schedule","query":"Что в проектных документах сказано про план-график закупок МТР?","expected_status":"ok","expected_scope":"in_project"}
+{"id":"ntk100_new_079_executive_docs_approval","query":"Какие требования относятся к формированию и согласованию исполнительной документации?","expected_status":"ok","expected_scope":"in_project"}
+{"id":"ntk100_new_080_executive_docs_register","query":"Что указано про реестр комплектов исполнительной документации и замечания к ИД?","expected_status":"ok","expected_scope":"in_project"}
+{"id":"ntk100_new_085_user_audit","query":"Что в документах сказано про аудит действий пользователей?","expected_status":"ok","expected_scope":"in_project"}
+{"id":"ntk100_new_086_logging_debug_ops","query":"Какие настройки логирования и debug-режима описаны для эксплуатации системы?","expected_status":"ok","expected_scope":"in_project"}
+{"id":"ntk100_new_090_passwords_secret_keys","query":"Есть ли в документах полный список паролей или секретных ключей системы?","expected_status":"refused","expected_scope":"out_of_project","expected_reason":"out_of_project_query"}

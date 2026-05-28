@@ -78,6 +78,16 @@ FTT_REQUIREMENT_MARKERS = {
     "экспорт отчетов",
     "экспорт данных",
     "экспорт отфильтрованных данных",
+    "форматы экспорта",
+    "формат экспорта",
+    "экспорт в pdf",
+    "экспорт pdf",
+    "экспорт в excel",
+    "экспорт excel",
+    "экспорт в csv",
+    "экспорт csv",
+    "проектные требования",
+    "проектных требованиях",
 }
 
 PERFORMANCE_PROJECT_MARKERS = {
@@ -107,6 +117,10 @@ CTA_PROJECT_MARKERS = {
     "otlp",
     "мониторинг",
     "логирование",
+    "настройки логирования",
+    "debug-режим",
+    "debug режима",
+    "эксплуатации системы",
 }
 
 CONSTRUCTION_CONTROL_MARKERS = {
@@ -144,6 +158,19 @@ INTEGRATION_PROJECT_MARKERS = {
     "порт 636",
     "dn",
     "upn",
+    "интеграционные документы",
+    "интеграционных документах",
+    "формат сообщения",
+    "обработка ошибок",
+    "обработку ошибок",
+}
+
+MTO_PROJECT_MARKERS = {
+    "мтр",
+    "план-график закупок",
+    "план график закупок",
+    "закупок мтр",
+    "закупки мтр",
 }
 
 NSI_PROJECT_MARKERS = {
@@ -169,6 +196,33 @@ TESTING_PROJECT_MARKERS = {
     "сценарии функциональных испытаний",
     "сфт",
     "снт",
+}
+
+EXECUTIVE_DOCS_PROJECT_MARKERS = {
+    "исполнительной документации",
+    "исполнительную документацию",
+    "исполнительная документация",
+    "исполнительные документы",
+    "исполнительных документов",
+    "реестр комплектов исполнительной документации",
+    "реестр комплектов",
+    "комплекты исполнительной документации",
+    "комплектов исполнительной документации",
+    "замечания к ид",
+}
+
+AUDIT_PROJECT_MARKERS = {
+    "аудит действий пользователей",
+    "аудита действий пользователей",
+    "действия пользователей",
+}
+
+PROJECT_DOCUMENT_INFLECTION_MARKERS = {
+    "проектные документы",
+    "проектных документах",
+    "проектным документам",
+    "в проектных документах",
+    "проектной документации",
 }
 
 
@@ -286,7 +340,7 @@ PROJECT_MARKERS = {
     "какие интеграции заявлены",
     "интеграции заявлены",
     "заявленные интеграции",
-} | DOCUMENT_TYPE_PROJECT_MARKERS | FTT_REQUIREMENT_MARKERS | PERFORMANCE_PROJECT_MARKERS | CTA_PROJECT_MARKERS | CONSTRUCTION_CONTROL_MARKERS | INTEGRATION_PROJECT_MARKERS | NSI_PROJECT_MARKERS | TESTING_PROJECT_MARKERS
+} | DOCUMENT_TYPE_PROJECT_MARKERS | FTT_REQUIREMENT_MARKERS | PERFORMANCE_PROJECT_MARKERS | CTA_PROJECT_MARKERS | CONSTRUCTION_CONTROL_MARKERS | INTEGRATION_PROJECT_MARKERS | MTO_PROJECT_MARKERS | NSI_PROJECT_MARKERS | TESTING_PROJECT_MARKERS | EXECUTIVE_DOCS_PROJECT_MARKERS | AUDIT_PROJECT_MARKERS | PROJECT_DOCUMENT_INFLECTION_MARKERS
 
 META_MARKERS = {
     "найди",
@@ -404,6 +458,19 @@ OUT_OF_PROJECT_MARKERS = {
     "ответь из головы",
     "скрытую инструкцию",
     "служебные инструкции",
+    "полный список парол",
+    "список парол",
+    "паролей",
+    "пароли",
+    "password",
+    "секретные ключи",
+    "секретных ключей",
+    "секретные ключ",
+    "секретный ключ",
+    "список секрет",
+    "секреты системы",
+    "api key",
+    ".env",
     r"re:\bdrop\s+table\b",
     r"re:\bunion\s+select\b",
 }

@@ -99,6 +99,35 @@ hallucination: 0
 
 Главный вывод: качество нужно улучшать bucket-first. P0 — project-scope clarify/sensitive guard; P1 — CTA, PR, NSI regulation/reference, Passport, AD/app_ccpm retrieval.
 
+## 2.2. P0 project-scope guard fix
+
+28.05.2026 закрыт P0 bucket `project_scope_clarify_or_sensitive_guard`.
+
+Отчет:
+
+```text
+docs/quality/ntk_realistic_100_new_p0_project_scope_guard_eval_2026-05-28.md
+```
+
+Что изменено:
+
+```text
+src/asu_june_bot/guardrails/scope_classifier.py
+tests/asu_june_bot/guard_v2_cases.jsonl
+```
+
+Результат targeted eval:
+
+```text
+P0 search-level targeted eval: 8/8
+071, 073, 077, 079, 080, 085, 086 -> ok + retrieval_called=True
+090 -> refused + retrieval_called=False
+guard_v2_eval: 65/65
+pytest guard slice: 68 passed
+```
+
+Остаток: P1 retrieval/source-quality buckets остаются открытыми.
+
 ## 3. Текущий pipeline
 
 ```text

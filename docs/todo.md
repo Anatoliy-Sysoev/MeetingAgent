@@ -2,9 +2,9 @@
 
 Обновлено: 2026-05-28.
 
-## Сейчас: NTK realistic-100 new eval review
+## Сейчас: NTK realistic-100 P1 retrieval fixes
 
-Прогон и ручная разметка завершены.
+Прогон, ручная разметка и P0 guard/routing bucket завершены.
 
 ```text
 docs/quality/ntk_realistic_100_new_queries.jsonl
@@ -12,6 +12,7 @@ docs/quality/ntk_realistic_100_new_eval_review_filled.jsonl
 docs/quality/ntk_realistic_100_new_eval_review_filled_overview.csv
 docs/quality/ntk_realistic_100_new_eval_review_manual_summary.json
 docs/quality/ntk_realistic_100_new_eval_review_manual_summary.md
+docs/quality/ntk_realistic_100_new_p0_project_scope_guard_eval_2026-05-28.md
 ```
 
 Review summary:
@@ -27,13 +28,19 @@ out_of_scope: 2
 hallucination: 0
 ```
 
+P0 закрыт:
+
+```text
+project_scope_clarify_or_sensitive_guard:
+  NTK100-NEW-071, 073, 077, 079, 080, 085, 086 -> status=ok
+  NTK100-NEW-090 -> status=refused, retrieval_called=False
+guard_v2_eval: 65/65
+pytest guard slice: 68 passed
+```
+
 Следующие правки делать bucket-first, не смешивая всё в один коммит:
 
 ```text
-P0 guard/routing:
-  project_scope_clarify_or_sensitive_guard:
-    NTK100-NEW-071, 073, 077, 079, 080, 085, 086, 090
-
 P1 retrieval:
   CTA missing_source:
     NTK100-NEW-025, 026, 027, 028

@@ -29,6 +29,14 @@ hallucination: 0
 
 ### project_scope_clarify_or_sensitive_guard
 
+Статус: закрыто 2026-05-28.
+
+Отчет targeted eval:
+
+```text
+docs/quality/ntk_realistic_100_new_p0_project_scope_guard_eval_2026-05-28.md
+```
+
 Кейсы:
 
 ```text
@@ -53,6 +61,8 @@ NTK100-NEW-090
 
 ```text
 targeted bucket eval -> 8/8 expected behavior
+guard regression -> 65/65 passed
+pytest guard slice -> 68 passed
 ```
 
 ## P1

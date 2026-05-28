@@ -121,6 +121,26 @@ P2 out_of_scope clarify instead of refused:
   NTK100-NEW-093, 094, 095, 096
 ```
 
+2026-05-28 закрыт P0 bucket `project_scope_clarify_or_sensitive_guard`:
+
+```text
+docs/quality/ntk_realistic_100_new_p0_project_scope_guard_eval_2026-05-28.md
+```
+
+Изменение: в `scope_classifier.py` добавлены точечные NTK project markers для экспорта, интеграционных документов, МТР, исполнительной документации, аудита, логирования/debug эксплуатации и sensitive markers для полного списка паролей/секретных ключей. В `guard_v2_cases.jsonl` добавлены 8 regression cases.
+
+Проверка:
+
+```text
+P0 search-level targeted eval: 8/8
+  071, 073, 077, 079, 080, 085, 086 -> status=ok, retrieval_called=True
+  090 -> status=refused, retrieval_called=False
+guard_v2_eval: 65/65 passed
+pytest guard slice: 68 passed
+```
+
+Остаток: P1 retrieval/source quality buckets не закрыты и должны идти следующими отдельными коммитами.
+
 ## NTK Obsidian vault rebuild
 
 27.05.2026 добавлен воспроизводимый генератор полной пересборки Obsidian vault по корпусу NTK Yandex:
