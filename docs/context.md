@@ -157,7 +157,23 @@ chat-level targeted eval: 4/4 answered
 pytest retrieval slice: 9 passed
 ```
 
-Остаток P1: `PR missing_source`, `NSI regulation/reference`, `Passport`, `AD/app_ccpm`.
+2026-05-28 закрыт P1 bucket `PR missing_source`:
+
+```text
+docs/quality/ntk_realistic_100_new_p1_pr_missing_source_eval_2026-05-28.md
+```
+
+Изменение: добавлены отдельные PR routes для статусов замечаний, аннулирования, ролей и прав доступа. Query expansion теперь подбрасывает точные якоря `статусная схема`, `Аннулировать`, `Привилегированные/Непривилегированные`, `Право доступа/Ограничения`; BM25/PostRerank бустят Table 17, Table 10, раздел "Роли и полномочия" и Appendix 1 / Table 32. Для точных PR-якорей hybrid сильнее смещается в lexical-first режим; ПР других модулей штрафуются для запросов про строительный контроль.
+
+Проверка:
+
+```text
+hybrid search-level targeted eval: 4/4
+chat-level targeted eval: 4/4 answered, validation_errors=[]
+pytest retrieval slice: 12 passed
+```
+
+Остаток P1: `NSI regulation/reference`, `Passport`, `AD/app_ccpm`.
 
 ## NTK Obsidian vault rebuild
 

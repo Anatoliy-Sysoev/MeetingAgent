@@ -163,6 +163,40 @@ pytest retrieval slice: 9 passed
 
 Остаток P1: PR, NSI, Passport, AD/app_ccpm.
 
+## 2.4. P1 PR missing_source fix
+
+28.05.2026 закрыт P1 bucket `PR missing_source`.
+
+Отчет:
+
+```text
+docs/quality/ntk_realistic_100_new_p1_pr_missing_source_eval_2026-05-28.md
+```
+
+Что изменено:
+
+```text
+configs/asu_june_bot/query_expansion.yaml
+src/asu_june_bot/retrieval/bm25.py
+src/asu_june_bot/retrieval/post_rerank.py
+src/asu_june_bot/retrieval/hybrid.py
+tests/asu_june_bot/retrieval/test_bm25_ntk_routes.py
+```
+
+Результат targeted eval:
+
+```text
+hybrid search-level targeted eval: 4/4
+014 -> Table 17 row 6 со списком статусов замечаний
+016 -> Table 10 row 12 / closing paragraph с "Аннулировать" при необоснованности замечания
+019 -> "Роли и полномочия" с привилегированными и непривилегированными ролями
+020 -> Appendix 1 / Table 32 с ограничениями и правами доступа по ролям
+chat-level targeted eval: 4/4 answered, validation_errors=[]
+pytest retrieval slice: 12 passed
+```
+
+Остаток P1: NSI, Passport, AD/app_ccpm.
+
 ## 3. Текущий pipeline
 
 ```text

@@ -4,7 +4,7 @@
 
 ## Сейчас: NTK realistic-100 P1 retrieval fixes
 
-Прогон, ручная разметка, P0 guard/routing bucket и P1 CTA bucket завершены.
+Прогон, ручная разметка, P0 guard/routing bucket, P1 CTA bucket и P1 PR bucket завершены.
 
 ```text
 docs/quality/ntk_realistic_100_new_queries.jsonl
@@ -14,6 +14,7 @@ docs/quality/ntk_realistic_100_new_eval_review_manual_summary.json
 docs/quality/ntk_realistic_100_new_eval_review_manual_summary.md
 docs/quality/ntk_realistic_100_new_p0_project_scope_guard_eval_2026-05-28.md
 docs/quality/ntk_realistic_100_new_p1_cta_missing_source_eval_2026-05-28.md
+docs/quality/ntk_realistic_100_new_p1_pr_missing_source_eval_2026-05-28.md
 ```
 
 Review summary:
@@ -48,12 +49,19 @@ CTA missing_source:
   pytest retrieval slice -> 9 passed
 ```
 
+P1 PR закрыт:
+
+```text
+PR missing_source:
+  NTK100-NEW-014, 016, 019, 020 -> hybrid search-level 4/4
+  chat-level targeted eval -> 4/4 answered, validation_errors=[]
+  pytest retrieval slice -> 12 passed
+```
+
 Следующие правки делать bucket-first, не смешивая всё в один коммит:
 
 ```text
 P1 retrieval:
-  PR missing_source:
-    NTK100-NEW-014, 016, 019, 020
   NSI regulation/reference:
     NTK100-NEW-053, 054, 055, 056, 057, 059
   Passport:

@@ -380,7 +380,17 @@ chat-level targeted eval: 4/4 answered
 pytest retrieval slice: 9 passed
 ```
 
-Следующий шаг: исправлять оставшиеся P1 bucket-first, начиная с `PR missing_source`, отдельным маленьким коммитом на каждый bucket, с targeted eval перед повторным full `NTK realistic-100`.
+P1 PR закрыт 2026-05-28:
+
+```text
+docs/quality/ntk_realistic_100_new_p1_pr_missing_source_eval_2026-05-28.md
+
+hybrid search-level targeted eval: 4/4
+chat-level targeted eval: 4/4 answered
+pytest retrieval slice: 12 passed
+```
+
+Следующий шаг: исправлять оставшиеся P1 bucket-first, начиная с `NSI regulation/reference`, отдельным маленьким коммитом на каждый bucket, с targeted eval перед повторным full `NTK realistic-100`.
 
 ## Что не сделано
 

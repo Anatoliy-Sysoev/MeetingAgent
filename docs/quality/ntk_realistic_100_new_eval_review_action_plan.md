@@ -98,6 +98,14 @@ pytest retrieval slice -> 9 passed
 
 ### PR missing_source
 
+Статус: закрыто 2026-05-28.
+
+Отчет targeted eval:
+
+```text
+docs/quality/ntk_realistic_100_new_p1_pr_missing_source_eval_2026-05-28.md
+```
+
 Кейсы:
 
 ```text
@@ -107,7 +115,15 @@ NTK100-NEW-019
 NTK100-NEW-020
 ```
 
-Цель: вопросы по ПР СМР должны поднимать процессные/ролевые chunks ПР, а не слабые или мусорные источники.
+Цель: вопросы по ПР СМР должны поднимать конкретные chunks по статусам замечаний, аннулированию, ролям и правам доступа, а не слабые процессные строки.
+
+Проверка:
+
+```text
+hybrid search-level targeted eval -> 4/4
+chat-level targeted eval -> 4/4 answered
+pytest retrieval slice -> 12 passed
+```
 
 ### NSI regulation/reference
 
