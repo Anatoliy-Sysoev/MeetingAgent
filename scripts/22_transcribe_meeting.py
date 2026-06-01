@@ -330,6 +330,12 @@ def run(args: argparse.Namespace) -> int:
             model=model,
             language=args.language,
             segments=normalization.segments,
+            metadata={
+                "generated_at": now_iso(),
+                "source_file": meeting.get("source_file"),
+                "source_audio": meeting.get("artifacts", {}).get("audio_wav"),
+                "output_formats": sorted(output_formats),
+            },
         )
         transcript_dir = meeting_dir / "transcript"
         written = write_transcript_exports(transcript_dir, document, formats=output_formats)

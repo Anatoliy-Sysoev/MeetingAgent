@@ -59,11 +59,10 @@ class TranscriptDocument:
             "engine": self.engine,
             "model": self.model,
             "language": self.language,
+            "metadata": dict(self.metadata),
             "segments_count": len(self.segments),
             "segments": [segment.to_dict() for segment in self.segments],
         }
-        if self.metadata:
-            data["metadata"] = dict(self.metadata)
         return data
 
 

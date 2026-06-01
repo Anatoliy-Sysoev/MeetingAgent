@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Iterable
 
@@ -16,7 +17,7 @@ def format_hhmmss(seconds: float) -> str:
 
 
 def format_srt_time(seconds: float) -> str:
-    milliseconds_total = max(0, int(round(seconds * 1000)))
+    milliseconds_total = max(0, int(math.floor((seconds * 1000) + 0.5)))
     hours = milliseconds_total // 3_600_000
     minutes = (milliseconds_total % 3_600_000) // 60_000
     secs = (milliseconds_total % 60_000) // 1000
@@ -50,33 +51,44 @@ def build_markdown_transcript(
             ]
         )
     for segment in document.segments:
-        lines.append(f"[{format_hhmmss(segment.start)}] {segment.text}")
+        text = segment.text.strip()
+        if not text:
+            continue
+        lines.append(f"[{format_hhmmss(segment.start)}] {text}")
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
 
 def build_srt_transcript(segments: Iterable[CanonicalSegment]) -> str:
     blocks: list[str] = []
-    for index, segment in enumerate(segments, start=1):
+    cue_index = 1
+    for segment in segments:
+        text = segment.text.strip()
+        if not text:
+            continue
         blocks.append(
             "\n".join(
                 [
-                    str(index),
+                    str(cue_index),
                     f"{format_srt_time(segment.start)} --> {format_srt_time(segment.end)}",
-                    segment.text,
+                    text,
                 ]
             )
         )
+        cue_index += 1
     return "\n\n".join(blocks).rstrip() + ("\n" if blocks else "")
 
 
 def build_vtt_transcript(segments: Iterable[CanonicalSegment]) -> str:
     blocks = ["WEBVTT", ""]
     for segment in segments:
+        text = segment.text.strip()
+        if not text:
+            continue
         blocks.extend(
             [
                 f"{format_vtt_time(segment.start)} --> {format_vtt_time(segment.end)}",
-                segment.text,
+                text,
                 "",
             ]
         )
