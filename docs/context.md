@@ -683,3 +683,36 @@ python -m pytest tests/unit -q
 python scripts/08_process_meeting_pipeline.py --meeting-dir meetings/2026-05-12__transcription-smoke --dry-run --max-windows 1
 python scripts/06_transcribe_meeting.py --meeting-dir meetings/2026-05-12__transcription-smoke --dry-run --force --model small
 ```
+
+## MeetingAgent GigaAM/from-segments backend на 2026-06-01
+
+Сделано:
+
+```text
+src/meeting_agent/transcription/gigaam_backend.py добавлен как продуктовый backend;
+GigaAM теперь запускается через scripts/22_transcribe_meeting.py --engine gigaam;
+рабочая папка backend: transcript/_gigaam/;
+сырой output worker-а сохраняется как transcript/_gigaam/raw_segments.jsonl;
+audio/chunks остаются внутри карточки встречи, не в Downloads;
+canonical outputs остаются transcript/segments.jsonl и transcript/transcript.*;
+from-segments фиксирует input_segments и input_rows в transcription_report.backend_metrics.
+```
+
+Проверено:
+
+```text
+python -m pytest tests/unit -q
+python -m py_compile scripts/22_transcribe_meeting.py src/meeting_agent/transcription/gigaam_backend.py tests/unit/test_transcribe_meeting_22.py
+real from-segments smoke:
+  command: python scripts/22_transcribe_meeting.py --meeting-dir meetings/2026-05-12__transcription-smoke --engine from-segments --segments-path %USERPROFILE%/Downloads/gigaam_support_scheme/segments_gigaam.jsonl --force
+  result: transcribed, 17 segments, all canonical transcript exports rebuilt
+```
+
+Ограничение реального GigaAM smoke:
+
+```text
+попытка запустить --engine gigaam дошла до worker-а, но текущая .venv не содержит GigaAM runtime dependencies;
+pip install зависимостей уперся в onnx==1.19.* на Windows/Python 3.14: wheel отсутствует, source build падает на path length;
+зависимости вынесены в requirements-gigaam.txt, чтобы не ломать основной requirements.txt;
+для end-to-end GigaAM smoke нужен Python/runtime с готовым onnx wheel или отдельная подготовленная GigaAM-среда.
+```

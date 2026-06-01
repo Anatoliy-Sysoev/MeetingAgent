@@ -451,3 +451,31 @@ scripts/06_transcribe_meeting.py оставлен как deprecated compatibilit
 Результат: transcribed, 1 segment, все canonical transcript exports созданы.
 Runtime meeting folder ignored и не коммитится.
 ```
+
+## Transcription Productization - GigaAM / Import
+
+### Готово
+
+```text
+Этап 4: GigaAM встроен как backend 22_transcribe_meeting.py.
+- ASCII cache: %ProgramData%/gigaam_cache;
+- audio/chunks пишутся в transcript/_gigaam/;
+- worker scripts/gigaam_transcribe_chunks.py вызывается из backend-а;
+- raw worker output нормализуется в canonical transcript;
+- raw_segments.jsonl сохраняется в transcript/_gigaam/raw_segments.jsonl.
+
+Этап 5: from-segments import готов.
+- читает внешний JSONL;
+- приводит к canonical schema;
+- пересобирает transcript exports;
+- обновляет meeting.json;
+- пишет transcription_report с engine=from-segments и input_segments/input_rows.
+```
+
+### Осталось
+
+```text
+Сделать реальный GigaAM backend smoke на коротком видео, если нужно проверить установленный GigaAM runtime end-to-end.
+Текущий from-segments smoke уже подтверждает импорт старого GigaAM output.
+Для реального GigaAM smoke нужен совместимый Python/runtime: текущий Windows Python 3.14 не поставил onnx==1.19.* из-за отсутствия wheel и падения source build на path length.
+```
