@@ -479,3 +479,34 @@ Runtime meeting folder ignored и не коммитится.
 Текущий from-segments smoke уже подтверждает импорт старого GigaAM output.
 Для реального GigaAM smoke нужен совместимый Python/runtime: текущий Windows Python 3.14 не поставил onnx==1.19.* из-за отсутствия wheel и падения source build на path length.
 ```
+
+## Transcription Productization - Exports
+
+### Готово
+
+```text
+Этап 6: обязательные экспорты закрыты.
+- segments.jsonl;
+- transcript.json с metadata + segments;
+- transcript.txt;
+- transcript.md с таймкодами;
+- transcript.srt;
+- transcript.vtt.
+
+SRT/VTT:
+- корректно форматируют миллисекунды;
+- не падают на пустом списке segments;
+- пропускают пустой text, если такой segment попадет в exporter вручную.
+```
+
+### Следующий шаг
+
+```text
+Этап 7: транскрипционный quality/report слой.
+Нужно добавить продуктовую проверку transcript quality:
+- доля no_speech/high no_speech_prob;
+- длинные паузы;
+- подозрительно короткие/длинные segments;
+- language/model/backend summary;
+- warnings в человекочитаемом report.md.
+```

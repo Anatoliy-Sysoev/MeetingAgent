@@ -716,3 +716,27 @@ pip install зависимостей уперся в onnx==1.19.* на Windows/P
 зависимости вынесены в requirements-gigaam.txt, чтобы не ломать основной requirements.txt;
 для end-to-end GigaAM smoke нужен Python/runtime с готовым onnx wheel или отдельная подготовленная GigaAM-среда.
 ```
+
+## MeetingAgent transcription exports на 2026-06-01
+
+Сделано:
+
+```text
+Этап 6 закрыт:
+- segments.jsonl остается основным машинным контрактом;
+- transcript.json всегда содержит metadata + segments;
+- transcript.txt пишет простой читаемый текст;
+- transcript.md пишет markdown с таймкодами;
+- transcript.srt пишет subtitles с HH:MM:SS,mmm;
+- transcript.vtt пишет WEBVTT с HH:MM:SS.mmm;
+- SRT/VTT пропускают пустые cues и не падают на пустом списке segments;
+- округление миллисекунд сделано предсказуемым, без banker's rounding Python round().
+```
+
+Проверено:
+
+```text
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_transcription_contract.py tests/unit/test_transcribe_meeting_22.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit -q
+python -m py_compile src/meeting_agent/transcription/exporters.py src/meeting_agent/transcription/schema.py scripts/22_transcribe_meeting.py tests/unit/test_transcription_contract.py
+```
