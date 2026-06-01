@@ -829,3 +829,33 @@ processing_status = transcribing;
 Python ASR process is alive;
 segments.jsonl еще не создан.
 ```
+
+## Runtime smoke ПСИ Справочники на 2026-06-01
+
+Завершено:
+
+```text
+22_transcribe_meeting.py:
+- engine=faster-whisper
+- model=small
+- duration_seconds=3083.883
+- segments=994
+- artifacts: segments.jsonl, transcript.json/md/txt/srt/vtt, transcription_report.json
+
+24_merge_transcript_speakers.py:
+- utterances=994
+- output: transcript/speaker_transcript.jsonl
+- current mode: diarization-lite, speaker=SPEAKER_UNKNOWN
+
+26_chunk_meeting.py:
+- chunks=18
+- output: transcript/chunks.jsonl
+```
+
+Smoke поиска:
+
+```text
+31_meeting_search.py по transcript/chunks.jsonl возвращает релевантные фрагменты по запросам
+"справочник организации удаление" и "методика группа компаний новатэк".
+Ограничение: на raw chunks script печатает ??:??:??, потому что timestamp_start/timestamp_end появляются после index/export шага, а не в transcript/chunks.jsonl.
+```

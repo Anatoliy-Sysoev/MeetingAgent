@@ -572,15 +572,22 @@ docker compose --profile bot up bot
 
 ## Runtime Smoke - ПСИ Справочники
 
-### В процессе
+### Готово
 
 ```text
-Запущена транскрибация meetings/2026-06-01__psi-spravochniki через faster-whisper small int8.
-Видео длительностью 3083.883 sec.
-Проверить после завершения:
-- transcript/segments.jsonl;
-- transcript/transcript.md;
-- transcript/transcription_report.json;
-- meeting.json processing_status=transcribed;
-- затем прогнать 24_merge_transcript_speakers.py и 26_chunk_meeting.py.
+Карточка meetings/2026-06-01__psi-spravochniki успешно прошла:
+- 22_transcribe_meeting.py;
+- 24_merge_transcript_speakers.py;
+- 26_chunk_meeting.py;
+- smoke 31_meeting_search.py по transcript/chunks.jsonl.
+```
+
+### Следующий шаг
+
+```text
+Сделать следующий проход product pipeline для этой же карточки:
+- 27_enrich_meeting_chunks.py;
+- 28_index_meeting_chunks.py;
+- 29_analyze_meeting.py;
+- повторный 31_meeting_search.py уже по data/meeting_chunks.jsonl с timestamp_start/timestamp_end.
 ```
