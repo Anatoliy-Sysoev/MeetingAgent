@@ -33,6 +33,9 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
 
 
 def load_main_config(path: Path = DEFAULT_MAIN_CONFIG_PATH) -> dict[str, Any]:
+    override_path = os.getenv("MEETING_AGENT_CONFIG_PATH", "").strip()
+    if override_path:
+        path = Path(override_path)
     cfg = _read_yaml(path)
     work_root = os.path.expandvars(str(cfg.get("work_root", WORK_ROOT)))
     cfg["work_root_path"] = Path(work_root).resolve()

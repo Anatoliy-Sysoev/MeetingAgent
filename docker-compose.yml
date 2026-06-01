@@ -1,0 +1,49 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: meetingagent:local
+    container_name: meetingagent-api
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MEETING_AGENT_CONFIG_PATH: /app/config.docker.yaml
+      ASU_JUNE_BOT_ACTIVE_CORPUS: ${ASU_JUNE_BOT_ACTIVE_CORPUS:-default}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${MEETINGAGENT_API_PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./meetings:/app/meetings
+      - ./vector_db:/app/vector_db
+      - ./watched_folder:/app/watched_folder
+      - ./config.docker.yaml:/app/config.docker.yaml:ro
+    command: ["python", "scripts/asu_june_bot_api.py", "--host", "0.0.0.0", "--port", "8000"]
+
+  bot:
+    image: meetingagent:local
+    container_name: meetingagent-bot
+    depends_on:
+      - api
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MEETING_AGENT_CONFIG_PATH: /app/config.docker.yaml
+      ASU_JUNE_BOT_CHAT_API_URL: http://api:8000/chat
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./meetings:/app/meetings
+      - ./vector_db:/app/vector_db
+      - ./watched_folder:/app/watched_folder
+      - ./config.docker.yaml:/app/config.docker.yaml:ro
+    command: ["python", "scripts/asu_june_bot_telegram.py"]
+    profiles:
+      - bot
