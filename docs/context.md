@@ -594,3 +594,32 @@ qwen3:8b слишком медленный для надежного полно�
 иногда LLM возвращает битый JSON или лишний текст;
 fallback сохраняет работоспособность pipeline, но качество итогов пока требует ручного review.
 ```
+
+## MeetingAgent transcription contract на 2026-06-01
+
+Сделан Этап 1 продуктовой транскрибации: общий Python-модуль контракта без зависимости от конкретного ASR backend.
+
+Добавлено:
+
+```text
+src/meeting_agent/transcription/schema.py: dataclass-контракт CanonicalSegment, TranscriptDocument, TranscriptionReport;
+src/meeting_agent/transcription/normalize.py: нормализация raw segments из разных backend, segment_id/segment_index, фильтр пустых, проверка start/end, сортировка;
+src/meeting_agent/transcription/exporters.py: экспорт TXT, MD, SRT, VTT, JSON, JSONL;
+src/meeting_agent/transcription/report.py: duration, segments_count, chars_count, empty_dropped, warnings;
+tests/unit/test_transcription_contract.py: unit-тесты canonical contract/export/report.
+```
+
+Проверено:
+
+```text
+python -m pytest tests/unit/test_transcription_contract.py -q
+python -m pytest tests/unit/test_transcription_contract.py tests/unit/test_meeting_ingest_audio.py tests/unit/test_meeting_speaker_chunk.py tests/unit/test_meeting_analyze.py tests/unit/test_meeting_search.py -q
+```
+
+Текущий разрыв:
+
+```text
+официальный scripts/22_transcribe_meeting.py еще не создан;
+scripts/06_transcribe_meeting.py пока остается текущим faster-whisper entrypoint;
+GigaAM пока остается отдельным wrapper, не backend единого транскрипционного CLI.
+```

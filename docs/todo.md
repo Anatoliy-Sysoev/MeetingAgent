@@ -388,3 +388,35 @@ source_policy и asu_june_bot_build_index_v2.py разрешают structured me
 fallback делает pipeline рабочим, но качество decisions/tasks/risks/open_questions требует review;
 runtime artifacts в meetings/ и data/meeting_* ignored, в Git хранится код и воспроизводимая документация.
 ```
+
+## Transcription Productization
+
+### Готово
+
+```text
+Этап 1: общий transcription contract module:
+- CanonicalSegment / TranscriptDocument / TranscriptionReport;
+- normalize_segments для raw backend output;
+- генерация segment_id и segment_index;
+- фильтр пустых и invalid segments;
+- сортировка по времени;
+- exporters TXT/MD/SRT/VTT/JSON/JSONL;
+- transcription report counters/warnings;
+- unit tests.
+```
+
+### Следующий шаг
+
+```text
+Этап 2: реализовать scripts/22_transcribe_meeting.py как официальный entrypoint.
+
+Требования:
+- --engine faster-whisper;
+- --engine gigaam;
+- --engine from-segments --segments-path ...;
+- обновление meeting.json artifacts/status;
+- запись transcript/transcription_report.json;
+- no-overwrite без --force;
+- --dry-run;
+- compatibility wrapper или deprecation path для scripts/06_transcribe_meeting.py.
+```
