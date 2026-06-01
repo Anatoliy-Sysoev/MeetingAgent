@@ -165,7 +165,7 @@ mono
 - без `--force` не перезаписывает готовый transcript;
 - при ошибке переводит встречу в `failed` и записывает причину в `meeting.json.last_error`.
 
-`scripts/06_transcribe_meeting.py` остается legacy compatibility entrypoint для существующего `scripts/08_process_meeting_pipeline.py`.
+`scripts/06_transcribe_meeting.py` остается legacy compatibility entrypoint и перенаправляет старый CLI на `scripts/22_transcribe_meeting.py --engine faster-whisper`.
 
 ### 4. Speaker Transcript
 

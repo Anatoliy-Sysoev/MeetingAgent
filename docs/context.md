@@ -624,7 +624,7 @@ scripts/22_transcribe_meeting.py создан как официальный entr
 поддержаны options: --model, --language, --compute-type, --force, --resume, --dry-run, --output-formats;
 from-segments покрыт unit-тестами без тяжелых ASR-моделей;
 meeting.schema.json расширен transcript_txt/transcript_json/transcript_srt/transcript_vtt/transcription_report;
-scripts/06_transcribe_meeting.py не удален: его импортирует scripts/08_process_meeting_pipeline.py.
+scripts/06_transcribe_meeting.py оставлен как legacy compatibility wrapper.
 ```
 
 Проверено для Этапа 2:
@@ -662,4 +662,24 @@ real smoke:
 ```text
 scripts/22_transcribe_meeting.py больше не импортирует scripts/06_transcribe_meeting.py через importlib ради glossary prompt;
 duration_seconds в transcription_report использует media duration из faster-whisper backend metrics, если она доступна.
+```
+
+## MeetingAgent transcription legacy refactor на 2026-06-01
+
+Сделано:
+
+```text
+scripts/08_process_meeting_pipeline.py отвязан от внутренних функций scripts/06_transcribe_meeting.py;
+08 теперь использует src/meeting_agent/transcription/faster_whisper_backend.py для ASR окон;
+08 использует общий glossary helper и общий markdown transcript exporter;
+scripts/06_transcribe_meeting.py превращен в deprecated compatibility wrapper поверх scripts/22_transcribe_meeting.py --engine faster-whisper;
+scripts/22_transcribe_meeting.py получил main_with_argv для безопасного wrapper-вызова.
+```
+
+Проверено:
+
+```text
+python -m pytest tests/unit -q
+python scripts/08_process_meeting_pipeline.py --meeting-dir meetings/2026-05-12__transcription-smoke --dry-run --max-windows 1
+python scripts/06_transcribe_meeting.py --meeting-dir meetings/2026-05-12__transcription-smoke --dry-run --force --model small
 ```

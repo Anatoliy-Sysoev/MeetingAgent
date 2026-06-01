@@ -423,7 +423,7 @@ scripts/22_transcribe_meeting.py реализован как официальн�
 - обновление meeting.json artifacts/status;
 - отказ от перезаписи готового transcript без --force.
 
-scripts/06_transcribe_meeting.py не удалять: его импортирует scripts/08_process_meeting_pipeline.py.
+scripts/06_transcribe_meeting.py оставлен как deprecated compatibility wrapper.
 ```
 
 ### Следующий шаг
@@ -438,7 +438,8 @@ scripts/06_transcribe_meeting.py не удалять: его импортиру�
 - dry-run умеет опционально загрузить модель через --check-model.
 
 Осталось:
-- обновить 06_transcribe_meeting.py до thin wrapper только после отвязки 08_process_meeting_pipeline.py от его внутренних функций.
+- при необходимости обновить старые docs/diagrams, где `06_transcribe_meeting.py` еще показан как основной ASR stage;
+- сделать полный smoke `08_process_meeting_pipeline.py` на короткой встрече, если нужен end-to-end ASR+MAP/REDUCE тест.
 ```
 
 Реальный smoke faster-whisper закрыт:
