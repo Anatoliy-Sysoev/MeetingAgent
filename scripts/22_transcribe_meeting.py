@@ -3,8 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
-import subprocess
 import sys
 import time
 from datetime import datetime
@@ -40,11 +38,13 @@ if str(SRC_ROOT) not in sys.path:
 
 from meeting_agent.transcription import (  # noqa: E402
     FasterWhisperConfig,
+    GigaAMConfig,
     TranscriptDocument,
     build_transcription_report,
     extract_initial_prompt as extract_glossary_initial_prompt,
     normalize_segments,
     transcribe_faster_whisper as run_faster_whisper_backend,
+    transcribe_gigaam as run_gigaam_backend,
     write_transcript_exports,
 )
 
@@ -98,11 +98,6 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
                 raise TranscribeMeetingError(f"JSONL row must be an object at {path}:{line_number}", stage="read_segments")
             rows.append(row)
     return rows
-
-
-def ensure_tool(name: str) -> None:
-    if not shutil.which(name):
-        raise TranscribeMeetingError(f"{name} was not found in PATH.", stage="preflight")
 
 
 def choose_media(meeting_dir: Path, meeting: dict[str, Any]) -> Path:
@@ -208,88 +203,27 @@ def transcribe_faster_whisper(media_path: Path, args: argparse.Namespace) -> tup
     return result.segments, result.metrics
 
 
-def run_command(command: list[str], stage: str) -> None:
-    result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
-    if result.returncode != 0:
-        message = (result.stderr or result.stdout).strip()
-        raise TranscribeMeetingError(message or f"Command failed: {' '.join(command)}", stage=stage)
+def transcribe_gigaam_with_metrics(media_path: Path, meeting_dir: Path, args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    result = _run_gigaam(media_path, meeting_dir, args)
+    return result.segments, result.metrics
 
 
-def transcribe_gigaam(media_path: Path, meeting_dir: Path, args: argparse.Namespace) -> list[dict[str, Any]]:
-    ensure_tool("ffmpeg")
-    work_dir = meeting_dir / "transcript" / "_gigaam"
-    chunks_dir = work_dir / f"chunks_{int(args.chunk_seconds)}s"
-    wav_path = work_dir / "audio_16k_mono.wav"
-    raw_segments_path = work_dir / "segments_gigaam.jsonl"
-
-    if not args.resume or not raw_segments_path.exists():
-        work_dir.mkdir(parents=True, exist_ok=True)
-        chunks_dir.mkdir(parents=True, exist_ok=True)
-        run_command(
-            [
-                "ffmpeg",
-                "-y",
-                "-i",
-                str(media_path),
-                "-vn",
-                "-ac",
-                "1",
-                "-ar",
-                "16000",
-                "-c:a",
-                "pcm_s16le",
-                str(wav_path),
-            ],
-            "gigaam_audio",
-        )
-        run_command(
-            [
-                "ffmpeg",
-                "-y",
-                "-i",
-                str(wav_path),
-                "-f",
-                "segment",
-                "-segment_time",
-                str(args.chunk_seconds),
-                "-ac",
-                "1",
-                "-ar",
-                "16000",
-                "-c:a",
-                "pcm_s16le",
-                str(chunks_dir / "chunk_%04d.wav"),
-            ],
-            "gigaam_chunks",
-        )
-        run_command(
-            [
-                sys.executable,
-                str(ROOT / "scripts" / "gigaam_transcribe_chunks.py"),
-                "--chunks-dir",
-                str(chunks_dir),
-                "--output-dir",
-                str(work_dir),
-                "--source-file",
-                str(media_path),
-                "--gigaam-root",
-                str(args.gigaam_root),
-                "--cache-root",
-                str(args.gigaam_cache_root),
-                "--model",
-                args.model,
-                "--chunk-seconds",
-                str(args.chunk_seconds),
-            ],
-            "gigaam_asr",
-        )
-
-    rows = read_jsonl(raw_segments_path)
-    for row in rows:
-        row["engine"] = "gigaam"
-        row["language"] = args.language
-        row["source"] = row.get("source") or "MIX"
-    return rows
+def _run_gigaam(media_path: Path, meeting_dir: Path, args: argparse.Namespace):
+    return run_gigaam_backend(
+        media_path=media_path,
+        meeting_dir=meeting_dir,
+        repo_root=ROOT,
+        config=GigaAMConfig(
+            model=args.model,
+            language=args.language,
+            chunk_seconds=args.chunk_seconds,
+            gigaam_root=Path(args.gigaam_root),
+            cache_root=Path(args.gigaam_cache_root),
+            python_exe=sys.executable,
+            source="MIX",
+            resume=args.resume,
+        ),
+    )
 
 
 def update_meeting_artifacts(
@@ -370,20 +304,20 @@ def run(args: argparse.Namespace) -> int:
         write_json_atomic(meeting_path, meeting)
 
         if args.engine == "from-segments":
-            raw_segments = read_jsonl(resolve_path(args.segments_path))
+            external_segments_path = resolve_path(args.segments_path)
+            raw_segments = read_jsonl(external_segments_path)
             model = args.model or None
-            backend_metrics: dict[str, Any] = {}
+            backend_metrics: dict[str, Any] = {
+                "asr_engine": "from-segments",
+                "input_segments": str(external_segments_path),
+                "input_rows": len(raw_segments),
+            }
         elif args.engine == "faster-whisper":
             raw_segments, backend_metrics = transcribe_faster_whisper(media_path, args)  # type: ignore[arg-type]
             model = args.model
         else:
-            raw_segments = transcribe_gigaam(media_path, meeting_dir, args)  # type: ignore[arg-type]
+            raw_segments, backend_metrics = transcribe_gigaam_with_metrics(media_path, meeting_dir, args)  # type: ignore[arg-type]
             model = f"gigaam/{args.model}"
-            backend_metrics = {
-                "asr_engine": "gigaam",
-                "asr_model": model,
-                "chunk_seconds": args.chunk_seconds,
-            }
 
         normalization = normalize_segments(raw_segments, engine=args.engine, language=args.language)
         if not normalization.segments:

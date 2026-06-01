@@ -6,6 +6,7 @@ import json
 import sys
 import wave
 from pathlib import Path
+from types import SimpleNamespace
 
 from jsonschema import Draft202012Validator
 
@@ -122,6 +123,9 @@ def test_transcribe_from_segments_writes_canonical_outputs_and_meeting_artifacts
     report = read_json(meeting_dir / "transcript" / "transcription_report.json")
     assert report["segments_count"] == 2
     assert report["empty_segments_dropped"] == 1
+    assert report["engine"] == "from-segments"
+    assert report["backend_metrics"]["asr_engine"] == "from-segments"
+    assert report["backend_metrics"]["input_rows"] == 3
 
 
 def test_transcribe_refuses_existing_transcript_without_force(tmp_path: Path) -> None:
@@ -219,3 +223,74 @@ def test_faster_whisper_backend_uses_normalized_audio_and_writes_metrics(tmp_pat
     report = read_json(meeting_dir / "transcript" / "transcription_report.json")
     assert report["backend_metrics"]["asr_engine"] == "faster-whisper"
     assert report["backend_metrics"]["asr_model"] == "small"
+
+
+def test_gigaam_backend_writes_card_outputs_from_backend_rows(tmp_path: Path, monkeypatch) -> None:
+    meeting_dir = make_meeting(tmp_path)
+    work_dir = meeting_dir / "transcript" / "_gigaam"
+    raw_segments_path = work_dir / "raw_segments.jsonl"
+
+    def fake_gigaam_backend(**kwargs):
+        work_dir.mkdir(parents=True, exist_ok=True)
+        raw_segments_path.write_text(
+            json.dumps({"start": 0, "end": 2, "text": "GigaAM текст."}, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        return SimpleNamespace(
+            segments=[
+                {
+                    "start": 0,
+                    "end": 2,
+                    "text": "GigaAM текст.",
+                    "source": "MIX",
+                    "engine": "gigaam",
+                    "language": "ru",
+                }
+            ],
+            metrics={
+                "asr_engine": "gigaam",
+                "asr_model": "gigaam/v3_e2e_rnnt",
+                "chunk_seconds": 24,
+                "chunks": 1,
+                "raw_segments": str(raw_segments_path),
+                "cache_root": r"C:\ProgramData\gigaam_cache",
+            },
+            work_dir=work_dir,
+            raw_segments_path=raw_segments_path,
+        )
+
+    monkeypatch.setattr(transcribe22, "run_gigaam_backend", fake_gigaam_backend)
+    args = argparse.Namespace(
+        meeting_dir=str(meeting_dir),
+        engine="gigaam",
+        segments_path=None,
+        model="v3_e2e_rnnt",
+        language="ru",
+        compute_type="int8",
+        device="cpu",
+        beam_size=5,
+        vad_filter=True,
+        check_model=False,
+        force=False,
+        resume=False,
+        dry_run=False,
+        output_formats="txt,md,srt,vtt,json,jsonl",
+        chunk_seconds=24,
+        gigaam_root=str(Path.home() / "GigaAM"),
+        gigaam_cache_root=r"C:\ProgramData\gigaam_cache",
+    )
+
+    code = transcribe22.run(args)
+
+    assert code == 0
+    assert raw_segments_path.exists()
+    rows = [
+        json.loads(line)
+        for line in (meeting_dir / "transcript" / "segments.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert rows[0]["engine"] == "gigaam"
+    assert rows[0]["source"] == "MIX"
+    report = read_json(meeting_dir / "transcript" / "transcription_report.json")
+    assert report["engine"] == "gigaam"
+    assert report["backend_metrics"]["raw_segments"].endswith("raw_segments.jsonl")
+    assert report["backend_metrics"]["cache_root"] == r"C:\ProgramData\gigaam_cache"
