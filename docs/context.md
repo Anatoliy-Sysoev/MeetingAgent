@@ -740,3 +740,29 @@ pip install зависимостей уперся в onnx==1.19.* на Windows/P
 .\.venv\Scripts\python.exe -m pytest tests/unit -q
 python -m py_compile src/meeting_agent/transcription/exporters.py src/meeting_agent/transcription/schema.py scripts/22_transcribe_meeting.py tests/unit/test_transcription_contract.py
 ```
+
+## MeetingAgent transcription report/idempotency на 2026-06-01
+
+Сделано:
+
+```text
+Этап 7 закрыт:
+- transcript/transcription_report.json создается после каждого успешного 22_transcribe_meeting.py;
+- report содержит engine, model, language, duration_seconds, segments_count, empty_segments_dropped, chars_count, started_at, finished_at, elapsed_seconds, warnings;
+- backend_metrics сохраняет технические детали backend-а: input rows, модель, duration, resume flag и другие backend-specific поля.
+
+Этап 8 закрыт:
+- если meeting уже transcribed и нет --force, команда завершается no-op с exit code 0 без перезаписи;
+- failed/transcribing требуют --force или --resume;
+- --resume переиспользует существующий transcript/segments.jsonl и пересобирает downstream transcript artifacts/report;
+- при ошибке meeting.json.last_error заполняется stage/message/type/timestamp;
+- после успешного прогона проверяется, что все artifact paths для выбранных output formats реально существуют.
+```
+
+Проверено:
+
+```text
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_transcribe_meeting_22.py tests/unit/test_transcription_contract.py -q
+.\.venv\Scripts\python.exe -m pytest tests/unit -q
+.\.venv\Scripts\python.exe -m py_compile scripts/22_transcribe_meeting.py tests/unit/test_transcribe_meeting_22.py
+```

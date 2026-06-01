@@ -499,14 +499,45 @@ SRT/VTT:
 - пропускают пустой text, если такой segment попадет в exporter вручную.
 ```
 
+## Transcription Productization - Report and Idempotency
+
+### Готово
+
+```text
+Этап 7: transcription_report.json закрыт.
+- engine/model/language;
+- duration_seconds;
+- segments_count;
+- empty_segments_dropped;
+- chars_count;
+- started_at/finished_at/elapsed_seconds;
+- warnings;
+- backend_metrics.
+
+Этап 8: status/idempotency закрыт.
+- transcribed без --force = no-op exit code 0;
+- failed/transcribing требуют --force или --resume;
+- --resume использует существующий transcript/segments.jsonl;
+- ошибки пишутся в meeting.json.last_error;
+- после успеха все artifact paths валидируются на существование.
+```
+
 ### Следующий шаг
 
 ```text
-Этап 7: транскрипционный quality/report слой.
-Нужно добавить продуктовую проверку transcript quality:
-- доля no_speech/high no_speech_prob;
-- длинные паузы;
-- подозрительно короткие/длинные segments;
-- language/model/backend summary;
-- warnings в человекочитаемом report.md.
+Этап 9: разнести и расширить тесты без тяжелого ASR:
+- tests/unit/test_transcription_normalize.py;
+- tests/unit/test_transcription_exporters.py;
+- tests/unit/test_transcription_import_segments.py;
+- tests/unit/test_transcribe_meeting_cli_contract.py.
+
+Покрыть:
+- импорт GigaAM-like segments;
+- segment_id;
+- пустые segments;
+- SRT/VTT formatting;
+- meeting.json update;
+- no-overwrite без --force;
+- failed/resume;
+- schema validation.
 ```

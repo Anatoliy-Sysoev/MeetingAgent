@@ -63,16 +63,16 @@ def make_meeting(tmp_path: Path) -> Path:
     return meetings_root / "2026-06-01__transcribe-contract"
 
 
-def make_args(meeting_dir: Path, segments_path: Path, *, force: bool = False, dry_run: bool = False):
+def make_args(meeting_dir: Path, segments_path: Path | None, *, force: bool = False, resume: bool = False, dry_run: bool = False):
     return argparse.Namespace(
         meeting_dir=str(meeting_dir),
         engine="from-segments",
-        segments_path=str(segments_path),
+        segments_path=str(segments_path) if segments_path is not None else None,
         model=None,
         language="ru",
         compute_type="int8",
         force=force,
-        resume=False,
+        resume=resume,
         dry_run=dry_run,
         output_formats="txt,md,srt,vtt,json,jsonl",
         chunk_seconds=24,
@@ -136,9 +136,10 @@ def test_transcribe_refuses_existing_transcript_without_force(tmp_path: Path) ->
 
     code = transcribe22.run(make_args(meeting_dir, segments_path))
 
-    assert code == 1
+    assert code == 0
     meeting = read_json(meeting_dir / "meeting.json")
     assert meeting["processing_status"] == "transcribed"
+    assert "last_error" not in meeting
 
 
 def test_transcribe_dry_run_does_not_mutate_meeting(tmp_path: Path) -> None:
@@ -152,6 +153,69 @@ def test_transcribe_dry_run_does_not_mutate_meeting(tmp_path: Path) -> None:
     meeting = read_json(meeting_dir / "meeting.json")
     assert meeting["processing_status"] == "new"
     assert not (meeting_dir / "transcript" / "segments.jsonl").exists()
+
+
+def test_transcribe_resume_reuses_existing_segments_after_failed_status(tmp_path: Path) -> None:
+    meeting_dir = make_meeting(tmp_path)
+    transcript_dir = meeting_dir / "transcript"
+    transcript_dir.mkdir(parents=True, exist_ok=True)
+    segments_path = transcript_dir / "segments.jsonl"
+    segments_path.write_text(
+        json.dumps({"start": 0, "end": 1.5, "text": "Сегмент для resume."}, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    meeting = read_json(meeting_dir / "meeting.json")
+    meeting["processing_status"] = "failed"
+    meeting["artifacts"]["segments"] = "transcript/segments.jsonl"
+    meeting["last_error"] = {"stage": "asr", "message": "previous failure", "timestamp": "2026-06-01T10:00:00+03:00"}
+    (meeting_dir / "meeting.json").write_text(json.dumps(meeting, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    code = transcribe22.run(make_args(meeting_dir, None, resume=True))
+
+    assert code == 0
+    meeting = read_json(meeting_dir / "meeting.json")
+    validate_meeting(meeting)
+    assert meeting["processing_status"] == "transcribed"
+    assert "last_error" not in meeting
+    report = read_json(meeting_dir / "transcript" / "transcription_report.json")
+    assert report["backend_metrics"]["resume"] is True
+    assert report["backend_metrics"]["input_rows"] == 1
+
+
+def test_transcribe_failed_requires_force_or_resume(tmp_path: Path) -> None:
+    meeting_dir = make_meeting(tmp_path)
+    segments_path = tmp_path / "segments.jsonl"
+    segments_path.write_text(json.dumps({"start": 0, "end": 1, "text": "Текст."}, ensure_ascii=False) + "\n", encoding="utf-8")
+    meeting = read_json(meeting_dir / "meeting.json")
+    meeting["processing_status"] = "failed"
+    (meeting_dir / "meeting.json").write_text(json.dumps(meeting, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    code = transcribe22.run(make_args(meeting_dir, segments_path))
+
+    assert code == 1
+    meeting = read_json(meeting_dir / "meeting.json")
+    assert meeting["processing_status"] == "failed"
+
+
+def test_success_validates_written_artifact_paths(tmp_path: Path, monkeypatch) -> None:
+    meeting_dir = make_meeting(tmp_path)
+    segments_path = tmp_path / "segments.jsonl"
+    segments_path.write_text(json.dumps({"start": 0, "end": 1, "text": "Текст."}, ensure_ascii=False) + "\n", encoding="utf-8")
+    real_write_exports = transcribe22.write_transcript_exports
+
+    def fake_write_exports(output_dir, document, *, formats=None):
+        written = real_write_exports(output_dir, document, formats=formats)
+        written["transcript_txt"].unlink()
+        return written
+
+    monkeypatch.setattr(transcribe22, "write_transcript_exports", fake_write_exports)
+
+    code = transcribe22.run(make_args(meeting_dir, segments_path))
+
+    assert code == 1
+    meeting = read_json(meeting_dir / "meeting.json")
+    assert meeting["processing_status"] == "failed"
+    assert meeting["last_error"]["stage"] == "artifact_validation"
 
 
 def test_faster_whisper_backend_uses_normalized_audio_and_writes_metrics(tmp_path: Path, monkeypatch) -> None:

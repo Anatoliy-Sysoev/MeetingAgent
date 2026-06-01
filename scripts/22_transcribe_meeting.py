@@ -27,6 +27,10 @@ class TranscribeMeetingError(RuntimeError):
         self.stage = stage
 
 
+class AlreadyTranscribed(RuntimeError):
+    pass
+
+
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
@@ -143,7 +147,7 @@ def ensure_status_allows_run(meeting: dict[str, Any], force: bool, resume: bool)
             raise TranscribeMeetingError(f"Meeting status is {status}. Use --force or --resume.", stage="preflight")
         return
     if status == STATUS_TRANSCRIBED and not force:
-        raise TranscribeMeetingError("Meeting is already transcribed. Use --force to overwrite.", stage="preflight")
+        raise AlreadyTranscribed("Meeting is already transcribed. Use --force to overwrite.")
     if status == STATUS_TRANSCRIBED and force:
         return
     raise TranscribeMeetingError(f"Meeting status must allow transcription, got '{status}'.", stage="preflight")
@@ -164,6 +168,33 @@ def parse_output_formats(value: str) -> set[str]:
 
 def relative_path(meeting_dir: Path, path: Path) -> str:
     return path.resolve().relative_to(meeting_dir.resolve()).as_posix()
+
+
+def existing_segments_path(meeting_dir: Path, meeting: dict[str, Any]) -> Path:
+    value = meeting.get("artifacts", {}).get("segments")
+    if isinstance(value, str) and value:
+        path = meeting_dir / value
+        if path.exists():
+            return path
+    return meeting_dir / "transcript" / "segments.jsonl"
+
+
+def validate_artifact_paths_exist(meeting: dict[str, Any], meeting_dir: Path, artifact_keys: set[str]) -> None:
+    artifacts = meeting.get("artifacts", {})
+    missing: list[str] = []
+    for key in sorted(artifact_keys):
+        value = artifacts.get(key)
+        if not isinstance(value, str) or not value:
+            missing.append(f"{key}=<missing>")
+            continue
+        path = Path(value)
+        if path.is_absolute() or not (meeting_dir / path).exists():
+            missing.append(f"{key}={value}")
+    if missing:
+        raise TranscribeMeetingError(
+            "Successful transcription produced missing artifact paths: " + "; ".join(missing),
+            stage="artifact_validation",
+        )
 
 
 def mark_failed(meeting_path: Path, meeting: dict[str, Any] | None, exc: BaseException, stage: str, mutate: bool) -> None:
@@ -251,6 +282,21 @@ def update_meeting_artifacts(
     meeting.pop("last_error", None)
 
 
+def required_artifact_keys_for_formats(output_formats: set[str]) -> set[str]:
+    keys = {"segments", "transcription_report"}
+    format_to_artifact = {
+        "md": "transcript",
+        "txt": "transcript_txt",
+        "json": "transcript_json",
+        "srt": "transcript_srt",
+        "vtt": "transcript_vtt",
+    }
+    for fmt, artifact_key in format_to_artifact.items():
+        if fmt in output_formats:
+            keys.add(artifact_key)
+    return keys
+
+
 def run(args: argparse.Namespace) -> int:
     meeting_dir = resolve_path(args.meeting_dir)
     meeting_path = meeting_dir / "meeting.json"
@@ -264,14 +310,18 @@ def run(args: argparse.Namespace) -> int:
     try:
         if args.engine not in SUPPORTED_ENGINES:
             raise TranscribeMeetingError(f"Unsupported engine: {args.engine}", stage="preflight")
-        if args.engine == "from-segments" and not args.segments_path:
+        if args.engine == "from-segments" and not args.segments_path and not args.resume:
             raise TranscribeMeetingError("--engine from-segments requires --segments-path.", stage="preflight")
         if not meeting_path.exists():
             raise TranscribeMeetingError(f"meeting.json not found: {meeting_path}", stage="preflight")
 
         meeting = read_json(meeting_path)
         validate_schema(meeting, schema_path)
-        ensure_status_allows_run(meeting, args.force, args.resume)
+        try:
+            ensure_status_allows_run(meeting, args.force, args.resume)
+        except AlreadyTranscribed as exc:
+            print(str(exc))
+            return 0
 
         media_path = choose_media(meeting_dir, meeting) if args.engine != "from-segments" else None
         if args.dry_run:
@@ -303,12 +353,23 @@ def run(args: argparse.Namespace) -> int:
         meeting.pop("last_error", None)
         write_json_atomic(meeting_path, meeting)
 
-        if args.engine == "from-segments":
+        resume_segments_path = existing_segments_path(meeting_dir, meeting)
+        if args.resume and resume_segments_path.exists():
+            raw_segments = read_jsonl(resume_segments_path)
+            model = f"gigaam/{args.model}" if args.engine == "gigaam" else (args.model or None)
+            backend_metrics: dict[str, Any] = {
+                "asr_engine": args.engine,
+                "resume": True,
+                "input_segments": str(resume_segments_path),
+                "input_rows": len(raw_segments),
+            }
+        elif args.engine == "from-segments":
             external_segments_path = resolve_path(args.segments_path)
             raw_segments = read_jsonl(external_segments_path)
             model = args.model or None
-            backend_metrics: dict[str, Any] = {
+            backend_metrics = {
                 "asr_engine": "from-segments",
+                "resume": False,
                 "input_segments": str(external_segments_path),
                 "input_rows": len(raw_segments),
             }
@@ -355,6 +416,7 @@ def run(args: argparse.Namespace) -> int:
         report_path.write_text(json.dumps(report.to_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
         update_meeting_artifacts(meeting, meeting_dir, written, report_path)
+        validate_artifact_paths_exist(meeting, meeting_dir, required_artifact_keys_for_formats(output_formats))
         validate_schema(meeting, schema_path)
         write_json_atomic(meeting_path, meeting)
 
