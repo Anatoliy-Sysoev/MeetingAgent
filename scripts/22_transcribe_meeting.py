@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import os
 import shutil
@@ -100,16 +99,6 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def load_legacy_transcribe06():
-    path = ROOT / "scripts" / "06_transcribe_meeting.py"
-    spec = importlib.util.spec_from_file_location("meeting_transcribe_06_compat", path)
-    if not spec or not spec.loader:
-        raise TranscribeMeetingError(f"Cannot load legacy transcriber: {path}", stage="preflight")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 def ensure_tool(name: str) -> None:
     if not shutil.which(name):
         raise TranscribeMeetingError(f"{name} was not found in PATH.", stage="preflight")
@@ -196,8 +185,32 @@ def mark_failed(meeting_path: Path, meeting: dict[str, Any] | None, exc: BaseExc
 
 
 def extract_initial_prompt() -> str:
-    legacy = load_legacy_transcribe06()
-    return str(legacy.extract_initial_prompt(ROOT / "docs" / "glossary.md"))
+    glossary_path = ROOT / "docs" / "glossary.md"
+    if not glossary_path.exists():
+        return ""
+    text = glossary_path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    in_terms = False
+    terms: list[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "## Проектные Термины":
+            in_terms = True
+            continue
+        if in_terms and stripped.startswith("## "):
+            break
+        if not in_terms or not stripped.startswith("|"):
+            continue
+        if stripped.startswith("| ---") or stripped.startswith("| Термин"):
+            continue
+        cells = [cell.strip(" `") for cell in stripped.strip("|").split("|")]
+        if len(cells) >= 2 and cells[0]:
+            terms.append(f"{cells[0]}: {cells[1]}")
+
+    if not terms:
+        return ""
+    return "Встреча по проекту АСУ. Возможные термины: " + "; ".join(terms)
 
 
 def build_faster_whisper_config(args: argparse.Namespace) -> FasterWhisperConfig:
@@ -416,6 +429,7 @@ def run(args: argparse.Namespace) -> int:
             engine=args.engine,
             model=model,
             language=args.language,
+            duration_seconds=backend_metrics.get("duration") if isinstance(backend_metrics.get("duration"), (int, float)) else None,
             started_at=started_at,
             finished_at=now_iso(),
             elapsed_seconds=round(time.time() - start_time, 3),

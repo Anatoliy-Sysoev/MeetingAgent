@@ -438,6 +438,15 @@ scripts/06_transcribe_meeting.py не удалять: его импортиру�
 - dry-run умеет опционально загрузить модель через --check-model.
 
 Осталось:
-- проверить реальный прогон на маленьком аудио;
 - обновить 06_transcribe_meeting.py до thin wrapper только после отвязки 08_process_meeting_pipeline.py от его внутренних функций.
+```
+
+Реальный smoke faster-whisper закрыт:
+
+```text
+Файл: C:\Users\Сотрудник\Desktop\!Проектные документы АСУ\Записи встреч\2026-05-12 14-20-39.mp4
+Длительность: 34.603 sec
+Команда: python scripts/22_transcribe_meeting.py --meeting-dir meetings/2026-05-12__transcription-smoke --engine faster-whisper --model small --language ru --compute-type int8 --force
+Результат: transcribed, 1 segment, все canonical transcript exports созданы.
+Runtime meeting folder ignored и не коммитится.
 ```

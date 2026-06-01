@@ -649,4 +649,17 @@ unit-тест покрывает выбор normalized audio и сохранен
 
 ```text
 python -m pytest tests/unit -q
+real smoke:
+  input: C:\Users\Сотрудник\Desktop\!Проектные документы АСУ\Записи встреч\2026-05-12 14-20-39.mp4
+  duration: 34.603 sec
+  command: python scripts/22_transcribe_meeting.py --meeting-dir meetings/2026-05-12__transcription-smoke --engine faster-whisper --model small --language ru --compute-type int8 --force
+  result: transcribed, 1 segment, transcript TXT/MD/SRT/VTT/JSON/JSONL created
+  report: transcript/transcription_report.json with backend_metrics and duration_seconds=34.603
+```
+
+Исправлено по результату smoke:
+
+```text
+scripts/22_transcribe_meeting.py больше не импортирует scripts/06_transcribe_meeting.py через importlib ради glossary prompt;
+duration_seconds в transcription_report использует media duration из faster-whisper backend metrics, если она доступна.
 ```

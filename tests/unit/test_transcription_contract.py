@@ -111,3 +111,24 @@ def test_transcription_report_counts_duration_chars_and_warnings() -> None:
     assert data["chars_count"] == 7
     assert data["empty_segments_dropped"] == 1
     assert "invalid_segments_dropped=1" in data["warnings"]
+
+
+def test_transcription_report_can_use_backend_duration() -> None:
+    normalization = normalize_segments(
+        [{"start": 10, "end": 12, "text": "short speech"}],
+        engine="faster-whisper",
+        language="ru",
+    )
+
+    report = build_transcription_report(
+        normalization,
+        engine="faster-whisper",
+        model="small",
+        language="ru",
+        duration_seconds=34.6026875,
+        backend_metrics={"duration": 34.6026875},
+    )
+
+    data = report.to_dict()
+    assert data["duration_seconds"] == 34.603
+    assert data["backend_metrics"]["duration"] == 34.6026875
