@@ -23,6 +23,7 @@ def build_transcription_report(
     started_at: str | None = None,
     finished_at: str | None = None,
     elapsed_seconds: float | None = None,
+    backend_metrics: dict[str, object] | None = None,
 ) -> TranscriptionReport:
     warnings = list(normalization.warnings)
     if normalization.invalid_dropped:
@@ -40,4 +41,5 @@ def build_transcription_report(
         started_at=started_at,
         finished_at=finished_at,
         elapsed_seconds=elapsed_seconds,
+        backend_metrics=dict(backend_metrics or {}),
     )

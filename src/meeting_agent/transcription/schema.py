@@ -80,6 +80,7 @@ class TranscriptionReport:
     started_at: str | None = None
     finished_at: str | None = None
     elapsed_seconds: float | None = None
+    backend_metrics: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         data: dict[str, Any] = {
@@ -98,4 +99,6 @@ class TranscriptionReport:
             data["finished_at"] = self.finished_at
         if self.elapsed_seconds is not None:
             data["elapsed_seconds"] = self.elapsed_seconds
+        if self.backend_metrics:
+            data["backend_metrics"] = dict(self.backend_metrics)
         return data

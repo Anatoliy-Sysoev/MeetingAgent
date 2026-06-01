@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import yaml
 from jsonschema import Draft202012Validator
 
 
@@ -39,9 +40,11 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from meeting_agent.transcription import (  # noqa: E402
+    FasterWhisperConfig,
     TranscriptDocument,
     build_transcription_report,
     normalize_segments,
+    transcribe_faster_whisper as run_faster_whisper_backend,
     write_transcript_exports,
 )
 
@@ -52,6 +55,13 @@ def now_iso() -> str:
 
 def read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def read_yaml(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return data if isinstance(data, dict) else {}
 
 
 def write_json_atomic(path: Path, data: dict[str, Any]) -> None:
@@ -129,6 +139,18 @@ def choose_media(meeting_dir: Path, meeting: dict[str, Any]) -> Path:
     raise TranscribeMeetingError("No existing media file found in meeting source.media_files.", stage="preflight")
 
 
+def load_app_config() -> dict[str, Any]:
+    config = read_yaml(ROOT / "config.yaml")
+    if config:
+        return config
+    return read_yaml(ROOT / "config.example.yaml")
+
+
+def transcription_config() -> dict[str, Any]:
+    cfg = load_app_config().get("transcription", {})
+    return cfg if isinstance(cfg, dict) else {}
+
+
 def ensure_status_allows_run(meeting: dict[str, Any], force: bool, resume: bool) -> None:
     status = meeting.get("processing_status")
     if status in {STATUS_NEW, STATUS_FAILED, STATUS_TRANSCRIBING}:
@@ -173,20 +195,28 @@ def mark_failed(meeting_path: Path, meeting: dict[str, Any] | None, exc: BaseExc
     write_json_atomic(meeting_path, meeting)
 
 
-def transcribe_faster_whisper(media_path: Path, args: argparse.Namespace) -> list[dict[str, Any]]:
+def extract_initial_prompt() -> str:
     legacy = load_legacy_transcribe06()
-    initial_prompt = legacy.extract_initial_prompt(ROOT / "docs" / "glossary.md")
-    rows = legacy.transcribe(
-        media_path=media_path,
-        model_name=args.model,
-        compute_type=args.compute_type,
+    return str(legacy.extract_initial_prompt(ROOT / "docs" / "glossary.md"))
+
+
+def build_faster_whisper_config(args: argparse.Namespace) -> FasterWhisperConfig:
+    cfg = transcription_config()
+    return FasterWhisperConfig(
+        model=args.model,
         language=args.language,
-        initial_prompt=initial_prompt,
+        compute_type=args.compute_type,
+        device=args.device,
+        beam_size=args.beam_size,
+        vad_filter=args.vad_filter,
+        source="MIX",
+        initial_prompt=extract_initial_prompt(),
     )
-    for row in rows:
-        row["engine"] = "faster-whisper"
-        row["language"] = args.language
-    return rows
+
+
+def transcribe_faster_whisper(media_path: Path, args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    result = run_faster_whisper_backend(media_path, build_faster_whisper_config(args))
+    return result.segments, result.metrics
 
 
 def run_command(command: list[str], stage: str) -> None:
@@ -330,6 +360,18 @@ def run(args: argparse.Namespace) -> int:
             if args.segments_path:
                 print(f"segments_path: {resolve_path(args.segments_path)}")
             print(f"output_formats: {','.join(sorted(output_formats))}")
+            if args.engine == "faster-whisper":
+                print(f"model: {args.model}")
+                print(f"language: {args.language}")
+                print(f"compute_type: {args.compute_type}")
+                print(f"device: {args.device}")
+                print(f"beam_size: {args.beam_size}")
+                print(f"vad_filter: {args.vad_filter}")
+                if args.check_model:
+                    from meeting_agent.transcription.faster_whisper_backend import load_model
+
+                    load_model(build_faster_whisper_config(args))
+                    print("model_load: ok")
             return 0
 
         mutate_on_error = True
@@ -341,12 +383,18 @@ def run(args: argparse.Namespace) -> int:
         if args.engine == "from-segments":
             raw_segments = read_jsonl(resolve_path(args.segments_path))
             model = args.model or None
+            backend_metrics: dict[str, Any] = {}
         elif args.engine == "faster-whisper":
-            raw_segments = transcribe_faster_whisper(media_path, args)  # type: ignore[arg-type]
+            raw_segments, backend_metrics = transcribe_faster_whisper(media_path, args)  # type: ignore[arg-type]
             model = args.model
         else:
             raw_segments = transcribe_gigaam(media_path, meeting_dir, args)  # type: ignore[arg-type]
             model = f"gigaam/{args.model}"
+            backend_metrics = {
+                "asr_engine": "gigaam",
+                "asr_model": model,
+                "chunk_seconds": args.chunk_seconds,
+            }
 
         normalization = normalize_segments(raw_segments, engine=args.engine, language=args.language)
         if not normalization.segments:
@@ -371,6 +419,7 @@ def run(args: argparse.Namespace) -> int:
             started_at=started_at,
             finished_at=now_iso(),
             elapsed_seconds=round(time.time() - start_time, 3),
+            backend_metrics=backend_metrics,
         )
         report_path = transcript_dir / "transcription_report.json"
         report_path.write_text(json.dumps(report.to_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -402,6 +451,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--model", default=None, help="ASR model name. Defaults depend on engine.")
     parser.add_argument("--language", default="ru")
     parser.add_argument("--compute-type", default="int8")
+    parser.add_argument("--device", default=None)
+    parser.add_argument("--beam-size", default=None, type=int)
+    parser.add_argument("--vad-filter", dest="vad_filter", action="store_true", default=None)
+    parser.add_argument("--no-vad-filter", dest="vad_filter", action="store_false")
+    parser.add_argument("--check-model", action="store_true", help="Load faster-whisper model during --dry-run.")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
@@ -410,10 +464,23 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--gigaam-root", default=str(Path.home() / "GigaAM"))
     parser.add_argument("--gigaam-cache-root", default=str(Path(os.environ.get("ProgramData", r"C:\ProgramData")) / "gigaam_cache"))
     args = parser.parse_args(argv)
+    cfg = transcription_config()
     if args.engine == "faster-whisper" and not args.model:
-        args.model = "small"
+        args.model = str(cfg.get("model") or "small")
     if args.engine == "gigaam" and not args.model:
         args.model = "v3_e2e_rnnt"
+    if args.engine == "faster-whisper":
+        if args.language == "ru" and cfg.get("language"):
+            args.language = str(cfg.get("language") or args.language)
+        if args.compute_type == "int8" and cfg.get("compute_type"):
+            args.compute_type = str(cfg.get("compute_type") or args.compute_type)
+        args.device = str(args.device or cfg.get("device") or "cpu")
+        args.beam_size = int(args.beam_size if args.beam_size is not None else cfg.get("beam_size", 5))
+        args.vad_filter = bool(args.vad_filter if args.vad_filter is not None else cfg.get("vad_filter", True))
+    else:
+        args.device = str(args.device or "cpu")
+        args.beam_size = int(args.beam_size if args.beam_size is not None else 5)
+        args.vad_filter = bool(args.vad_filter if args.vad_filter is not None else True)
     return args
 
 

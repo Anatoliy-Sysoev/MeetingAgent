@@ -7,6 +7,7 @@ from .exporters import (
     build_vtt_transcript,
     write_transcript_exports,
 )
+from .faster_whisper_backend import FasterWhisperConfig, FasterWhisperResult, transcribe_faster_whisper
 from .normalize import NormalizationResult, normalize_segments
 from .report import build_transcription_report
 from .schema import CanonicalSegment, TranscriptDocument, TranscriptionReport
@@ -16,11 +17,14 @@ __all__ = [
     "NormalizationResult",
     "TranscriptDocument",
     "TranscriptionReport",
+    "FasterWhisperConfig",
+    "FasterWhisperResult",
     "build_markdown_transcript",
     "build_plain_text_transcript",
     "build_srt_transcript",
     "build_transcription_report",
     "build_vtt_transcript",
     "normalize_segments",
+    "transcribe_faster_whisper",
     "write_transcript_exports",
 ]
