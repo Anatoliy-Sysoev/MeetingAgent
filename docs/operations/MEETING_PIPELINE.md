@@ -150,6 +150,15 @@ mono
 - валидирует `meeting.json` по `configs/schemas/meeting.schema.json`;
 - использует `source/audio_16k_mono.wav`, если он есть, иначе первый доступный media file;
 - поддерживает `faster-whisper`, `gigaam` и импорт готового JSONL через `from-segments`;
+- для `faster-whisper` берет defaults из `config.yaml/transcription`:
+  - `model`;
+  - `language`;
+  - `compute_type`;
+  - `device`;
+  - `beam_size`;
+  - `vad_filter`;
+- сохраняет `avg_logprob` и `no_speech_prob`, если backend возвращает эти поля;
+- сохраняет backend metrics в `transcript/transcription_report.json`;
 - переводит статус `new -> transcribing -> transcribed`;
 - пишет `transcript/segments.jsonl`, `transcript/transcript.md`, `transcript/transcript.txt`, `transcript/transcript.json`, `transcript/transcript.srt`, `transcript/transcript.vtt`;
 - пишет `transcript/transcription_report.json`;

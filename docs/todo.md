@@ -429,10 +429,15 @@ scripts/06_transcribe_meeting.py не удалять: его импортиру�
 ### Следующий шаг
 
 ```text
-Этап 3: усилить faster-whisper backend:
+Этап 3: faster-whisper backend встроен:
+- src/meeting_agent/transcription/faster_whisper_backend.py;
 - выбор source/audio_16k_mono.wav уже есть;
-- добавить smoke/dry-run проверку модели в 22;
-- сохранить avg_logprob/no_speech_prob, если backend возвращает эти поля;
+- defaults читаются из config.yaml/transcription;
+- avg_logprob/no_speech_prob сохраняются, если backend возвращает поля;
+- backend_metrics пишутся в transcription_report.json;
+- dry-run умеет опционально загрузить модель через --check-model.
+
+Осталось:
 - проверить реальный прогон на маленьком аудио;
 - обновить 06_transcribe_meeting.py до thin wrapper только после отвязки 08_process_meeting_pipeline.py от его внутренних функций.
 ```

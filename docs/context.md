@@ -632,3 +632,21 @@ scripts/06_transcribe_meeting.py не удален: его импортируе�
 ```text
 python -m pytest tests/unit/test_transcription_contract.py tests/unit/test_transcribe_meeting_22.py tests/unit/test_meeting_ingest_audio.py tests/unit/test_meeting_speaker_chunk.py -q
 ```
+
+Этап 3 на 2026-06-01:
+
+```text
+faster-whisper вынесен в src/meeting_agent/transcription/faster_whisper_backend.py;
+scripts/22_transcribe_meeting.py больше не использует scripts/06_transcribe_meeting.py для ASR, только для glossary initial_prompt;
+defaults faster-whisper берутся из config.yaml/transcription с fallback на predictable values;
+приоритет input media: source/audio_16k_mono.wav, затем исходное media из meeting.json;
+сегменты сохраняют avg_logprob и no_speech_prob, если faster-whisper их вернул;
+transcription_report.json содержит backend_metrics: модель, engine, detected language, duration, device, compute_type, beam_size, vad_filter;
+unit-тест покрывает выбор normalized audio и сохранение metrics без загрузки тяжелой ASR-модели.
+```
+
+Проверено для Этапа 3:
+
+```text
+python -m pytest tests/unit -q
+```

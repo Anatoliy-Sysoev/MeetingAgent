@@ -148,3 +148,74 @@ def test_transcribe_dry_run_does_not_mutate_meeting(tmp_path: Path) -> None:
     meeting = read_json(meeting_dir / "meeting.json")
     assert meeting["processing_status"] == "new"
     assert not (meeting_dir / "transcript" / "segments.jsonl").exists()
+
+
+def test_faster_whisper_backend_uses_normalized_audio_and_writes_metrics(tmp_path: Path, monkeypatch) -> None:
+    meeting_dir = make_meeting(tmp_path)
+    normalized_audio = meeting_dir / "source" / "audio_16k_mono.wav"
+    write_tiny_wav(normalized_audio)
+    meeting = read_json(meeting_dir / "meeting.json")
+    meeting["source"]["media_files"].append({"path": "source/audio_16k_mono.wav", "media_type": "audio"})
+    (meeting_dir / "meeting.json").write_text(json.dumps(meeting, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    seen: dict[str, object] = {}
+
+    def fake_transcribe(media_path: Path, args):
+        seen["media_path"] = media_path
+        return (
+            [
+                {
+                    "start": 0,
+                    "end": 1.5,
+                    "text": "Тестовая фраза.",
+                    "source": "MIX",
+                    "engine": "faster-whisper",
+                    "language": "ru",
+                    "avg_logprob": -0.1,
+                    "no_speech_prob": 0.02,
+                }
+            ],
+            {
+                "asr_engine": "faster-whisper",
+                "asr_model": "small",
+                "device": "cpu",
+                "compute_type": "int8",
+                "beam_size": 5,
+                "vad_filter": True,
+            },
+        )
+
+    monkeypatch.setattr(transcribe22, "transcribe_faster_whisper", fake_transcribe)
+    args = argparse.Namespace(
+        meeting_dir=str(meeting_dir),
+        engine="faster-whisper",
+        segments_path=None,
+        model="small",
+        language="ru",
+        compute_type="int8",
+        device="cpu",
+        beam_size=5,
+        vad_filter=True,
+        check_model=False,
+        force=False,
+        resume=False,
+        dry_run=False,
+        output_formats="txt,md,srt,vtt,json,jsonl",
+        chunk_seconds=24,
+        gigaam_root=str(Path.home() / "GigaAM"),
+        gigaam_cache_root=r"C:\ProgramData\gigaam_cache",
+    )
+
+    code = transcribe22.run(args)
+
+    assert code == 0
+    assert seen["media_path"] == normalized_audio
+    rows = [
+        json.loads(line)
+        for line in (meeting_dir / "transcript" / "segments.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert rows[0]["avg_logprob"] == -0.1
+    assert rows[0]["no_speech_prob"] == 0.02
+    report = read_json(meeting_dir / "transcript" / "transcription_report.json")
+    assert report["backend_metrics"]["asr_engine"] == "faster-whisper"
+    assert report["backend_metrics"]["asr_model"] == "small"
