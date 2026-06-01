@@ -541,3 +541,46 @@ SRT/VTT:
 - failed/resume;
 - schema validation.
 ```
+
+## Docker Packaging
+
+### Готово
+
+```text
+Базовая упаковка API/бота без GigaAM:
+- Dockerfile;
+- docker-compose.yml;
+- .dockerignore;
+- config.docker.yaml;
+- docs/docker.md;
+- README.md Docker section;
+- .env.example Docker vars;
+- MEETING_AGENT_CONFIG_PATH для выбора config.docker.yaml внутри контейнера.
+```
+
+### Осталось
+
+```text
+Запустить Docker Desktop и выполнить:
+docker compose build api
+docker compose up api
+Invoke-RestMethod http://localhost:8000/health
+
+После успешного API smoke:
+docker compose --profile bot up bot
+```
+
+## Runtime Smoke - ПСИ Справочники
+
+### В процессе
+
+```text
+Запущена транскрибация meetings/2026-06-01__psi-spravochniki через faster-whisper small int8.
+Видео длительностью 3083.883 sec.
+Проверить после завершения:
+- transcript/segments.jsonl;
+- transcript/transcript.md;
+- transcript/transcription_report.json;
+- meeting.json processing_status=transcribed;
+- затем прогнать 24_merge_transcript_speakers.py и 26_chunk_meeting.py.
+```

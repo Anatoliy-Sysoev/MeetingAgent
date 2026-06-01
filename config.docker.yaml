@@ -1,0 +1,19 @@
+project_root: /app/watched_folder
+work_root: /app
+
+ollama:
+  base_url: http://host.docker.internal:11434
+  chat_base_url: http://host.docker.internal:11434/v1
+  embedding_model: bge-m3
+  chat_model: qwen2.5:7b-instruct
+  embedding_num_ctx: 8192
+  keep_alive: 24h
+  num_parallel: 1
+
+transcription:
+  model: small
+  language: ru
+  compute_type: int8
+  device: cpu
+  beam_size: 5
+  vad_filter: true

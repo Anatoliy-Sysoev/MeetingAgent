@@ -766,3 +766,66 @@ python -m py_compile src/meeting_agent/transcription/exporters.py src/meeting_ag
 .\.venv\Scripts\python.exe -m pytest tests/unit -q
 .\.venv\Scripts\python.exe -m py_compile scripts/22_transcribe_meeting.py tests/unit/test_transcribe_meeting_22.py
 ```
+
+## Docker packaging на 2026-06-01
+
+Сделано:
+
+```text
+Добавлена базовая Docker-упаковка без GigaAM:
+- Dockerfile;
+- docker-compose.yml;
+- .dockerignore;
+- config.docker.yaml;
+- docs/docker.md;
+- README.md обновлен разделом Docker;
+- .env.example дополнен Docker-переменными;
+- src/asu_june_bot/core/config.py поддерживает MEETING_AGENT_CONFIG_PATH.
+```
+
+Назначение:
+
+```text
+api: FastAPI Project Knowledge Bot /health, /search, /chat, /ui;
+bot: Telegram adapter через profile bot;
+volumes: data, logs, meetings, vector_db, watched_folder;
+Ollama остается external dependency через host.docker.internal:11434;
+GigaAM не включен в основной image.
+```
+
+Проверено:
+
+```text
+docker compose config --quiet
+.\.venv\Scripts\python.exe -m pytest tests/unit -q
+.\.venv\Scripts\python.exe -m py_compile src/asu_june_bot/core/config.py scripts/22_transcribe_meeting.py
+```
+
+Ограничение:
+
+```text
+docker compose build api не выполнен, потому что Docker Desktop/daemon не запущен:
+failed to connect to dockerDesktopLinuxEngine.
+После запуска Docker Desktop нужно повторить: docker compose build api && docker compose up api.
+```
+
+## Реальная транскрибация ПСИ Справочники на 2026-06-01
+
+Запущено:
+
+```text
+source video: C:\Users\Сотрудник\Desktop\!Проектные документы АСУ\Записи встреч\ПСИ Справочники.mp4
+meeting_id: 2026-06-01__psi-spravochniki
+audio: meetings/2026-06-01__psi-spravochniki/source/audio_16k_mono.wav
+duration_seconds: 3083.883
+ASR command: scripts/22_transcribe_meeting.py --engine faster-whisper --model small --language ru --compute-type int8 --force
+logs: logs/psi_spravochniki_transcribe.out.log, logs/psi_spravochniki_transcribe.err.log
+```
+
+Текущий статус на момент записи:
+
+```text
+processing_status = transcribing;
+Python ASR process is alive;
+segments.jsonl еще не создан.
+```

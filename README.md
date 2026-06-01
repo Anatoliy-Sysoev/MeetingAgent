@@ -71,7 +71,29 @@ Local Web UI: реализован, HTTP smoke пройден
 Telegram adapter: реализован, local smoke закрыт
 QH-1..QH-5: реализованы и прошли final gate
 QH-5 Release Stabilization: PASSED
-Docker: следующий этап после QH-5
+Docker: базовая локальная упаковка API/бота добавлена
+```
+
+### Docker
+
+Базовая упаковка запускает локальный API и, опционально, Telegram adapter. GigaAM в основной Docker image не входит.
+
+```powershell
+Copy-Item .env.example .env
+docker compose build api
+docker compose up api
+```
+
+Проверка:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/health
+```
+
+Подробности:
+
+```text
+docs/docker.md
 ```
 
 ## Текущий локальный режим работы
@@ -307,9 +329,9 @@ MeetingAgent/
 
 ## Ближайшие вехи
 
-1. Перейти к Docker stage Project Knowledge Bot.
+1. Проверить Docker API smoke на рабочей машине с поднятым Ollama.
 2. Параллельно прогнать полный realistic 100 eval и начать manual review dataset pipeline.
-3. Принять решение по QH-6 Feedback Dataset Loop: сразу после Docker или параллельно.
+3. Принять решение по QH-6 Feedback Dataset Loop: сразу после Docker smoke или параллельно.
 4. По общему MeetingAgent вернуться к incremental RAG update и meeting watcher после стабилизации бота.
 
 ## Навигация по документации
