@@ -616,10 +616,19 @@ python -m pytest tests/unit/test_transcription_contract.py -q
 python -m pytest tests/unit/test_transcription_contract.py tests/unit/test_meeting_ingest_audio.py tests/unit/test_meeting_speaker_chunk.py tests/unit/test_meeting_analyze.py tests/unit/test_meeting_search.py -q
 ```
 
-Текущий разрыв:
+Этап 2 на 2026-06-01:
 
 ```text
-официальный scripts/22_transcribe_meeting.py еще не создан;
-scripts/06_transcribe_meeting.py пока остается текущим faster-whisper entrypoint;
-GigaAM пока остается отдельным wrapper, не backend единого транскрипционного CLI.
+scripts/22_transcribe_meeting.py создан как официальный entrypoint;
+поддержаны engines: faster-whisper, gigaam, from-segments;
+поддержаны options: --model, --language, --compute-type, --force, --resume, --dry-run, --output-formats;
+from-segments покрыт unit-тестами без тяжелых ASR-моделей;
+meeting.schema.json расширен transcript_txt/transcript_json/transcript_srt/transcript_vtt/transcription_report;
+scripts/06_transcribe_meeting.py не удален: его импортирует scripts/08_process_meeting_pipeline.py.
+```
+
+Проверено для Этапа 2:
+
+```text
+python -m pytest tests/unit/test_transcription_contract.py tests/unit/test_transcribe_meeting_22.py tests/unit/test_meeting_ingest_audio.py tests/unit/test_meeting_speaker_chunk.py -q
 ```

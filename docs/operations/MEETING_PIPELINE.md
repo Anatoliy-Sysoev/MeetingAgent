@@ -102,21 +102,45 @@ mono
 
 Успешный audio extraction не вводит новый статус схемы и оставляет `processing_status = new`, чтобы следующий ASR-шаг мог стартовать без миграции `meeting.schema.json`. Нормализованный WAV добавляется в `source.media_files` и `rag.no_index_artifacts`.
 
-### 3. ASR
+### 3. ASR / Transcription
 
-Минимальный обработчик одной встречи:
+Основной обработчик одной встречи:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\06_transcribe_meeting.py `
-  --meeting-dir meetings\2026-05-08__test-meeting
+.\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py `
+  --meeting-dir meetings\2026-05-08__test-meeting `
+  --engine faster-whisper
 ```
 
 Проверка без транскрибации:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\06_transcribe_meeting.py `
+.\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py `
   --meeting-dir meetings\2026-05-08__test-meeting `
+  --engine faster-whisper `
   --dry-run
+```
+
+Поддерживаемые режимы:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug `
+  --engine faster-whisper `
+  --model small `
+  --language ru `
+  --compute-type int8
+
+.\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug `
+  --engine gigaam `
+  --model v3_e2e_rnnt `
+  --language ru
+
+.\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug `
+  --engine from-segments `
+  --segments-path "$env:USERPROFILE\Downloads\gigaam_support_scheme\segments_gigaam.jsonl"
 ```
 
 Скрипт работает только с одной готовой папкой встречи. Он не делает watcher, live-режим, diarization, memo/protocol и RAG-индексацию.
@@ -124,12 +148,15 @@ mono
 Что делает скрипт:
 
 - валидирует `meeting.json` по `configs/schemas/meeting.schema.json`;
-- проверяет `ffmpeg` и первый файл из `source.media_files`;
-- использует `faster-whisper` с настройками `small`, `int8`, `ru` по умолчанию;
-- передает проектные термины из `docs/glossary.md` как `initial_prompt`;
+- использует `source/audio_16k_mono.wav`, если он есть, иначе первый доступный media file;
+- поддерживает `faster-whisper`, `gigaam` и импорт готового JSONL через `from-segments`;
 - переводит статус `new -> transcribing -> transcribed`;
-- пишет `transcript/segments.jsonl` и `transcript/transcript.md`;
+- пишет `transcript/segments.jsonl`, `transcript/transcript.md`, `transcript/transcript.txt`, `transcript/transcript.json`, `transcript/transcript.srt`, `transcript/transcript.vtt`;
+- пишет `transcript/transcription_report.json`;
+- без `--force` не перезаписывает готовый transcript;
 - при ошибке переводит встречу в `failed` и записывает причину в `meeting.json.last_error`.
+
+`scripts/06_transcribe_meeting.py` остается legacy compatibility entrypoint для существующего `scripts/08_process_meeting_pipeline.py`.
 
 ### 4. Speaker Transcript
 

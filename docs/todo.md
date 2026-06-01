@@ -405,18 +405,34 @@ runtime artifacts в meetings/ и data/meeting_* ignored, в Git хранитс�
 - unit tests.
 ```
 
-### Следующий шаг
+### Готово в Этапе 2
 
 ```text
-Этап 2: реализовать scripts/22_transcribe_meeting.py как официальный entrypoint.
-
-Требования:
+scripts/22_transcribe_meeting.py реализован как официальный entrypoint:
 - --engine faster-whisper;
 - --engine gigaam;
 - --engine from-segments --segments-path ...;
-- обновление meeting.json artifacts/status;
-- запись transcript/transcription_report.json;
-- no-overwrite без --force;
+- --model;
+- --language ru;
+- --compute-type int8;
+- --force;
+- --resume;
 - --dry-run;
-- compatibility wrapper или deprecation path для scripts/06_transcribe_meeting.py.
+- --output-formats txt,md,srt,vtt,json,jsonl;
+- запись transcript/transcription_report.json;
+- обновление meeting.json artifacts/status;
+- отказ от перезаписи готового transcript без --force.
+
+scripts/06_transcribe_meeting.py не удалять: его импортирует scripts/08_process_meeting_pipeline.py.
+```
+
+### Следующий шаг
+
+```text
+Этап 3: усилить faster-whisper backend:
+- выбор source/audio_16k_mono.wav уже есть;
+- добавить smoke/dry-run проверку модели в 22;
+- сохранить avg_logprob/no_speech_prob, если backend возвращает эти поля;
+- проверить реальный прогон на маленьком аудио;
+- обновить 06_transcribe_meeting.py до thin wrapper только после отвязки 08_process_meeting_pipeline.py от его внутренних функций.
 ```

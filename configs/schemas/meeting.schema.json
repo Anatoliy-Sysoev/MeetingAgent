@@ -132,7 +132,22 @@
         "transcript": {
           "$ref": "#/$defs/relative_path"
         },
+        "transcript_txt": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "transcript_json": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "transcript_srt": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "transcript_vtt": {
+          "$ref": "#/$defs/relative_path"
+        },
         "segments": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "transcription_report": {
           "$ref": "#/$defs/relative_path"
         },
         "speaker_transcript": {

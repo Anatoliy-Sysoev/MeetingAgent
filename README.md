@@ -91,11 +91,14 @@ scripts/03_build_index.py
 scripts/05_build_numpy_index.py
 scripts/04_query.py
 scripts/09_chat.py
+scripts/22_transcribe_meeting.py
 scripts/06_transcribe_meeting.py
 scripts/07_generate_meeting_artifacts.py
 ```
 
 `scripts/09_chat.py` считается legacy/prototype для project-only чата. Целевой bot runtime дальше развивается не там.
+
+`scripts/22_transcribe_meeting.py` - основной entrypoint транскрибации встреч. `scripts/06_transcribe_meeting.py` оставлен как legacy compatibility script, потому что используется существующим pipeline.
 
 ### 2. Project Knowledge Bot v2.1/v2.2
 
