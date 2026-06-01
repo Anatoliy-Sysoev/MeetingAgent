@@ -96,7 +96,19 @@ def load_script_module(module_name: str, filename: str):
 
 
 artifacts07 = load_script_module("meeting_artifacts_07", "07_generate_meeting_artifacts.py")
-transcribe06 = load_script_module("meeting_transcribe_06", "06_transcribe_meeting.py")
+
+SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from meeting_agent.transcription import (  # noqa: E402
+    FasterWhisperConfig,
+    TranscriptDocument,
+    build_markdown_transcript,
+    extract_initial_prompt,
+    normalize_segments,
+    transcribe_faster_whisper,
+)
 
 
 def now_iso() -> str:
@@ -295,28 +307,32 @@ def transcribe_window(
         print(f"[ASR] window {window.window_id}: {elapsed:.1f}s")
         return WindowResult(window=window, audio_path=audio_path, segments_path=segments_path, segments=segments, asr_elapsed=elapsed, skipped_asr=True)
 
-    model = transcribe06.load_model(asr_model, compute_type)
-    segment_iter, _info = model.transcribe(
-        str(audio_path),
-        language=language,
-        initial_prompt=initial_prompt or None,
-        vad_filter=False,
-        beam_size=3,
+    asr_result = transcribe_faster_whisper(
+        audio_path,
+        FasterWhisperConfig(
+            model=asr_model,
+            language=language,
+            compute_type=compute_type,
+            device="cpu",
+            beam_size=3,
+            vad_filter=False,
+            source="MIX",
+            initial_prompt=initial_prompt,
+        ),
     )
     segments: list[dict[str, Any]] = []
-    for local_idx, segment in enumerate(segment_iter, start=1):
-        absolute_start = round(window.start + float(segment.start), 3)
-        absolute_end = round(window.start + float(segment.end), 3)
-        segments.append(
-            {
-                "segment_index": window.index * 10000 + local_idx,
-                "window_id": window.window_id,
-                "start": absolute_start,
-                "end": absolute_end,
-                "text": segment.text.strip(),
-                "source": "MIX",
-            }
-        )
+    for local_idx, segment in enumerate(asr_result.segments, start=1):
+        absolute_start = round(window.start + float(segment["start"]), 3)
+        absolute_end = round(window.start + float(segment["end"]), 3)
+        row = {
+            **segment,
+            "segment_index": window.index * 10000 + local_idx,
+            "window_id": window.window_id,
+            "start": absolute_start,
+            "end": absolute_end,
+            "source": segment.get("source") or "MIX",
+        }
+        segments.append(row)
     write_jsonl_atomic(segments_path, segments)
     elapsed = time.time() - start_time
     print(f"[ASR] window {window.window_id}: {elapsed:.1f}s")
@@ -845,7 +861,7 @@ def run(args: argparse.Namespace) -> int:
         if args.force:
             shutil.rmtree(partials_dir, ignore_errors=True)
         partials_dir.mkdir(parents=True, exist_ok=True)
-        initial_prompt = transcribe06.extract_initial_prompt(repo_root / "docs" / "glossary.md")
+        initial_prompt = extract_initial_prompt(repo_root / "docs" / "glossary.md")
         map_template = artifacts07.read_prompt(prompt_dir / "meeting_map_extract.md")
         reduce_template = artifacts07.read_prompt(prompt_dir / "meeting_reduce_artifacts.md")
         render_template = artifacts07.read_prompt(prompt_dir / "meeting_render_documents.md")
@@ -895,7 +911,20 @@ def run(args: argparse.Namespace) -> int:
         write_jsonl_atomic(meeting_dir / "transcript" / "segments.jsonl", all_segments)
         write_text_atomic(
             meeting_dir / "transcript" / "transcript.md",
-            transcribe06.build_markdown_transcript(meeting, all_segments, args.asr_model, args.asr_compute_type, args.asr_language),
+            build_markdown_transcript(
+                TranscriptDocument(
+                    meeting_id=str(meeting.get("meeting_id", "")),
+                    title=str(meeting.get("title") or meeting.get("meeting_id") or "meeting"),
+                    engine="faster-whisper",
+                    model=args.asr_model,
+                    language=args.asr_language,
+                    segments=normalize_segments(
+                        all_segments,
+                        engine="faster-whisper",
+                        language=args.asr_language,
+                    ).segments,
+                )
+            ),
         )
 
         valid_partials: list[dict[str, Any]] = []
