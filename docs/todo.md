@@ -579,15 +579,19 @@ docker compose --profile bot up bot
 - 22_transcribe_meeting.py;
 - 24_merge_transcript_speakers.py;
 - 26_chunk_meeting.py;
-- smoke 31_meeting_search.py по transcript/chunks.jsonl.
+- smoke 31_meeting_search.py по transcript/chunks.jsonl;
+- 27_enrich_meeting_chunks.py;
+- 28_index_meeting_chunks.py;
+- 29_analyze_meeting.py --mode extractive;
+- 31_meeting_search.py по data/meeting_chunks.jsonl.
 ```
 
 ### Следующий шаг
 
 ```text
-Сделать следующий проход product pipeline для этой же карточки:
-- 27_enrich_meeting_chunks.py;
-- 28_index_meeting_chunks.py;
-- 29_analyze_meeting.py;
-- повторный 31_meeting_search.py уже по data/meeting_chunks.jsonl с timestamp_start/timestamp_end.
+Поднять качество meeting artifacts:
+- прогнать 29_analyze_meeting.py в ollama-map-reduce на этой же карточке;
+- уменьшить ложные action_items/open_questions в 27/29;
+- при необходимости добавить post-filter для коротких/служебных реплик;
+- затем сравнить extractive vs llm outputs на одной и той же встрече.
 ```

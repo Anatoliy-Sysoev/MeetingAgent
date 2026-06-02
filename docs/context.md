@@ -859,3 +859,41 @@ Smoke поиска:
 "справочник организации удаление" и "методика группа компаний новатэк".
 Ограничение: на raw chunks script печатает ??:??:??, потому что timestamp_start/timestamp_end появляются после index/export шага, а не в transcript/chunks.jsonl.
 ```
+
+## Full meeting pipeline smoke ПСИ Справочники на 2026-06-02
+
+Завершено для карточки `meetings/2026-06-01__psi-spravochniki`:
+
+```text
+27_enrich_meeting_chunks.py:
+- chunks=18
+- output: artifacts/enriched_chunks.jsonl
+
+28_index_meeting_chunks.py:
+- chunks=18
+- output: data/meeting_chunks.jsonl
+- meeting.rag.indexed_artifacts пополнен transcript/chunks.jsonl и artifacts/enriched_chunks.jsonl
+
+29_analyze_meeting.py --mode extractive:
+- processing_status=summarized
+- summary.md, protocol.md, decisions.json, tasks.json, risks.json, open_questions.json созданы
+- decisions=0
+- tasks=44
+- risks=0
+- open_questions=273
+```
+
+Проверено:
+
+```text
+31_meeting_search.py по data/meeting_chunks.jsonl с meeting_id=2026-06-01__psi-spravochniki возвращает timestamp_start/timestamp_end и релевантные фрагменты по запросам:
+- "справочник организации удаление"
+- "группа компаний новотек методика"
+```
+
+Замечание по качеству:
+
+```text
+extractive/heuristic pipeline рабочий, но сильно переизвлекает tasks/open_questions из обычной речи.
+Для качественного memo/protocol нужен следующий проход через реальный LLM map-reduce и более строгие post-filters.
+```
