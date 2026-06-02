@@ -10,6 +10,7 @@ from asu_june_bot.guardrails.project_guard import GuardDecision, ProjectGuard
 from asu_june_bot.retrieval.chunks import read_jsonl
 from asu_june_bot.retrieval.context_builder import ContextBuilder
 from asu_june_bot.retrieval.hybrid import build_hybrid_retriever
+from asu_june_bot.retrieval.models import SearchResult
 from asu_june_bot.retrieval.post_rerank import PostReranker
 from asu_june_bot.retrieval.query_intent import classify_query_intent
 from asu_june_bot.retrieval.vector import OllamaUnavailableError
@@ -140,6 +141,7 @@ class SearchService:
 
         t0 = time.perf_counter()
         built_context = self.context_builder.build(request.query, query_intent_result, rerank_result.results, rerank_result.excluded)
+        built_context = self._promote_ad_cc_role_mapping_sources(request.query, built_context)
         diagnostics.add_stage("context", self._elapsed_ms(t0), built_context.diagnostics)
 
         warnings = list(getattr(retriever, "last_warnings", []) or [])
@@ -169,6 +171,99 @@ class SearchService:
     def _corpus_name(self, cfg: dict[str, Any] | None) -> str:
         resolved_cfg = cfg or self.config or load_config()
         return get_corpus_config(resolved_cfg).name
+
+    @staticmethod
+    def _is_ad_cc_role_mapping_query(query: str) -> bool:
+        lowered = " ".join((query or "").lower().split())
+        has_explicit_cc_group = "app_ccpm_ul_cc" in lowered
+        has_app_group = "app_ccpm" in lowered
+        has_role_route = any(marker in lowered for marker in ("роль", "роли", "ролей", "mapping", "маппинг", "соответствие", "связаны"))
+        has_cc_route = any(marker in lowered for marker in ("строительного контроля", "строительный контроль", "ск"))
+        return has_explicit_cc_group or (has_app_group and has_role_route and has_cc_route)
+
+    @staticmethod
+    def _is_ad_cc_role_mapping_source(source: SearchResult) -> bool:
+        text = " ".join((source.text or "").lower().split())
+        metadata = source.metadata or {}
+        metadata_text = " ".join(
+            str(metadata.get(key) or "").lower()
+            for key in ("document_type", "relative_path", "source_path", "title", "section", "table_id", "table_title")
+        )
+        has_group = any(marker in text or marker in metadata_text for marker in ("app_ccpm_ul_cc_01", "app_ccpm_ul_cc_02", "app_ccpm_ul_cc_03"))
+        has_role = any(
+            marker in text or marker in metadata_text
+            for marker in (
+                "куратор проекта нул",
+                "отвечающий за выполнение функции строительного контроля",
+                "отвечающий за подачу факта",
+                "роли / группы ad",
+                "пользовательские роли",
+            )
+        )
+        return has_group and has_role
+
+    @staticmethod
+    def _is_soi_ad_source(source: SearchResult) -> bool:
+        metadata = source.metadata or {}
+        document_type = str(metadata.get("document_type") or "")
+        path = str(metadata.get("relative_path") or metadata.get("source_path") or "").lower()
+        return document_type == "СоИ AD" or "сои_ad" in path or "active directory" in path
+
+    @staticmethod
+    def _result_key(source: SearchResult) -> str:
+        metadata = source.metadata or {}
+        return str(metadata.get("chunk_id") or metadata.get("db_id") or source.source_id)
+
+    def _promote_ad_cc_role_mapping_sources(self, query: str, built_context: Any) -> Any:
+        if not self._is_ad_cc_role_mapping_query(query):
+            return built_context
+
+        primary = list(getattr(built_context, "primary_sources", []) or [])
+        supporting = list(getattr(built_context, "supporting_sources", []) or [])
+        excluded = list(getattr(built_context, "excluded_sources", []) or [])
+        candidates = primary + supporting + excluded
+        mapping_source = next((source for source in candidates if self._is_ad_cc_role_mapping_source(source)), None)
+
+        diagnostics = dict(getattr(built_context, "diagnostics", {}) or {})
+        if mapping_source is None:
+            diagnostics["ad_cc_role_mapping_promotion"] = {"applied": False, "reason": "no_mapping_source"}
+            built_context.diagnostics = diagnostics
+            return built_context
+
+        mapping_key = self._result_key(mapping_source)
+        moved_soi_keys: list[str] = []
+
+        def without_mapping(items: list[SearchResult]) -> list[SearchResult]:
+            return [item for item in items if self._result_key(item) != mapping_key]
+
+        primary = without_mapping(primary)
+        supporting = without_mapping(supporting)
+        excluded = without_mapping(excluded)
+
+        soi_from_primary = [item for item in primary if self._is_soi_ad_source(item)]
+        if soi_from_primary:
+            moved_soi_keys = [self._result_key(item) for item in soi_from_primary]
+        primary = [item for item in primary if not self._is_soi_ad_source(item)]
+        supporting = soi_from_primary + supporting
+        primary = [mapping_source] + primary
+
+        primary_limit = int(getattr(self.context_builder, "primary_limit", 5) or 5)
+        supporting_limit = int(getattr(self.context_builder, "supporting_limit", 5) or 5)
+        overflow_primary = primary[primary_limit:]
+        primary = primary[:primary_limit]
+        supporting = (supporting + overflow_primary)[:supporting_limit]
+
+        diagnostics["ad_cc_role_mapping_promotion"] = {
+            "applied": True,
+            "promoted_key": mapping_key,
+            "moved_soi_ad_from_primary_to_supporting": moved_soi_keys,
+            "reason": "app_ccpm_ul_cc_role_mapping_query",
+        }
+        built_context.primary_sources = primary
+        built_context.supporting_sources = supporting
+        built_context.excluded_sources = excluded
+        built_context.diagnostics = diagnostics
+        return built_context
 
     @staticmethod
     def _elapsed_ms(start: float) -> float:
