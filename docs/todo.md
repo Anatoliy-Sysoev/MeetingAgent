@@ -1,10 +1,10 @@
 # TODO
 
-Обновлено: 2026-05-28.
+Обновлено: 2026-06-02.
 
 ## Сейчас: NTK realistic-100 P1 retrieval fixes
 
-Прогон, ручная разметка, P0 guard/routing bucket, P1 CTA bucket и P1 PR bucket завершены.
+Прогон, ручная разметка, P0 guard/routing bucket, P1 CTA bucket, P1 PR bucket и P1 NSI regulation/reference bucket завершены.
 
 ```text
 docs/quality/ntk_realistic_100_new_queries.jsonl
@@ -15,6 +15,7 @@ docs/quality/ntk_realistic_100_new_eval_review_manual_summary.md
 docs/quality/ntk_realistic_100_new_p0_project_scope_guard_eval_2026-05-28.md
 docs/quality/ntk_realistic_100_new_p1_cta_missing_source_eval_2026-05-28.md
 docs/quality/ntk_realistic_100_new_p1_pr_missing_source_eval_2026-05-28.md
+docs/quality/ntk_realistic_100_new_p1_nsi_regulation_reference_eval_2026-05-28.md
 ```
 
 Review summary:
@@ -58,12 +59,22 @@ PR missing_source:
   pytest retrieval slice -> 12 passed
 ```
 
+P1 NSI regulation/reference закрыт:
+
+```text
+NSI regulation/reference:
+  NTK100-NEW-053, 054, 055, 056, 057, 059 -> chat-level 6/6 answered
+  clarify -> 0
+  parse_errors -> 0
+  pytest NSI/chat slice -> 32 passed
+  compileall src/asu_june_bot -> ok
+  runtime report: data/ntk_targeted_nsi_6_eval_report.jsonl
+```
+
 Следующие правки делать bucket-first, не смешивая всё в один коммит:
 
 ```text
 P1 retrieval:
-  NSI regulation/reference:
-    NTK100-NEW-053, 054, 055, 056, 057, 059
   Passport:
     NTK100-NEW-063, 064, 065
   AD/app_ccpm:
@@ -77,7 +88,7 @@ P2 guard polish:
 Definition of done для каждого bucket:
 
 ```text
-1. Воспроизвести bucket на текущем main.
+1. Воспроизвести bucket на текущей рабочей ветке от актуального main.
 2. Внести точечный routing/guard/retrieval fix.
 3. Запустить targeted bucket eval.
 4. Запустить полный NTK realistic-100 после серии P0/P1 правок.

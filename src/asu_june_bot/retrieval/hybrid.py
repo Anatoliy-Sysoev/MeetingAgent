@@ -43,7 +43,16 @@ def _prefers_lexical_signal(query: str) -> bool:
         "ldaps",
         "порт 636",
         "регламент ведения",
+        "регламенты ведения",
+        "регламентные документы",
+        "методики ведения",
+        "методика/регламент",
+        "правила ведения",
         "реестр нси",
+        "справочники нси",
+        "атрибутные составы",
+        "атрибутный состав",
+        "модель данных нси",
         "postgresql",
         "minio",
         "kubernetes",
@@ -80,7 +89,19 @@ def _prefers_strong_lexical_signal(query: str) -> bool:
         "ограничения прав",
         "ограничение прав",
     )
-    return any(marker in lowered for marker in exact_pr_markers)
+    exact_nsi_markers = (
+        "регламенты ведения",
+        "регламентные документы",
+        "методики ведения",
+        "методика/регламент",
+        "правила ведения",
+        "какие справочники нси",
+        "справочники нси",
+        "атрибутные составы",
+        "атрибутный состав",
+        "модель данных нси",
+    )
+    return any(marker in lowered for marker in exact_pr_markers + exact_nsi_markers)
 
 
 class HybridRetriever:

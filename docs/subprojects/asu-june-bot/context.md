@@ -1,6 +1,6 @@
 # Контекст Project Knowledge Bot
 
-Обновлено: 2026-05-28.
+Обновлено: 2026-06-02.
 
 ## 1. Назначение
 
@@ -98,6 +98,8 @@ hallucination: 0
 ```
 
 Главный вывод: качество нужно улучшать bucket-first. P0 — project-scope clarify/sensitive guard; P1 — CTA, PR, NSI regulation/reference, Passport, AD/app_ccpm retrieval.
+
+02.06.2026 P1 bucket `NSI regulation/reference` закрыт локально: targeted chat eval по `NTK100-NEW-053, 054, 055, 056, 057, 059` дал `6/6 answered`, `clarify=0`, `failures=0`, `parse_errors=0`. Следующие P1 buckets: `Passport`, затем `AD/app_ccpm`.
 
 ## 2.2. P0 project-scope guard fix
 
