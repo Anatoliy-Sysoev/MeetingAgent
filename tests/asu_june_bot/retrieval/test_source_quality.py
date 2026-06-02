@@ -102,3 +102,39 @@ def test_nsi_registry_note_does_not_get_regulation_primary_exception() -> None:
 
     assert assessment.weak is True
     assert assessment.primary_eligible is False
+
+
+def test_passport_appendices_chunk_can_be_primary_eligible_for_passport_route() -> None:
+    item = result(
+        "Документ: Паспорт ИС. Таблица: Table 3. Приложение №1 План послеаварийного восстановления. Приложение №2 Список источников.",
+        metadata={
+            "chunk_id": "passport-table3",
+            "relative_path": "Этап 1.2/8. Паспорт информационной системы/PRIVATE_SYSTEM_Паспорт ИС_v1.3.3.docx",
+            "document_type": "Паспорт ИС",
+            "title": "Приложения",
+        },
+        diagnostics={"rerank_labels": ["boost:passport_appendices"]},
+    )
+
+    assessment = assess_source_quality(item, intent())
+
+    assert assessment.primary_eligible is True
+    assert "short_text" not in assessment.reasons
+
+
+def test_passport_system_purpose_chunk_can_be_primary_eligible_for_passport_route() -> None:
+    item = result(
+        "Система предназначена для формирования единой информационной среды для автоматизации и цифровизации бизнес-процессов управления строительными проектами.",
+        metadata={
+            "chunk_id": "passport-purpose",
+            "relative_path": "Этап 1.2/8. Паспорт информационной системы/PRIVATE_SYSTEM_Паспорт ИС_v1.3.3.docx",
+            "document_type": "Паспорт ИС",
+            "title": "Описание и область применения",
+        },
+        diagnostics={"rerank_labels": ["boost:passport_system_purpose", "boost:passport_exact_system_purpose"]},
+    )
+
+    assessment = assess_source_quality(item, intent())
+
+    assert assessment.primary_eligible is True
+    assert "short_text" not in assessment.reasons

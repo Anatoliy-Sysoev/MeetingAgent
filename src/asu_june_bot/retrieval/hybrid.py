@@ -70,6 +70,17 @@ def _prefers_lexical_signal(query: str) -> bool:
         "права доступа",
         "ограничения прав",
         "ограничение прав",
+        "паспорт ис",
+        "паспорте ис",
+        "паспорта ис",
+        "связанные документы",
+        "приложения перечислены",
+        "какие приложения",
+        "план послеаварийного восстановления",
+        "список источников",
+        "сведения о системе",
+        "назначение ис",
+        "основное назначение системы",
     )
     return any(marker in lowered for marker in exact_markers)
 
@@ -101,7 +112,19 @@ def _prefers_strong_lexical_signal(query: str) -> bool:
         "атрибутный состав",
         "модель данных нси",
     )
-    return any(marker in lowered for marker in exact_pr_markers + exact_nsi_markers)
+    exact_passport_markers = (
+        "паспорте ис",
+        "паспорта ис",
+        "связанные документы",
+        "приложения перечислены",
+        "какие приложения",
+        "план послеаварийного восстановления",
+        "список источников",
+        "сведения о системе",
+        "назначение ис",
+        "основное назначение системы",
+    )
+    return any(marker in lowered for marker in exact_pr_markers + exact_nsi_markers + exact_passport_markers)
 
 
 class HybridRetriever:

@@ -173,6 +173,107 @@ def test_bm25_prefers_cta_recovery_chunk_over_logging_chunk() -> None:
     assert "резервное копирование" in results[0].text.lower()
 
 
+def test_bm25_prefers_passport_related_documents_table() -> None:
+    rows = [
+        {
+            "text": "Паспорт ИС. Таблица: Table 39. Роль: Поддержка приложения. Регламентные операции.",
+            "metadata": {"document_type": "Паспорт ИС", "relative_path": "docs/passport.docx"},
+        },
+        {
+            "text": "Паспорт ИС. Таблица: Table 2. Связанные документы (этот документ должен читаться вместе с). Название документа: Целевая техническая архитектура (ЦТА). Номер версии /Имя файла: 1./ЦТА_ЦП_УПКС_Этап_1.",
+            "metadata": {"document_type": "Паспорт ИС", "relative_path": "docs/passport.docx"},
+        },
+        {
+            "text": "ЦТА. Архитектура системы и инфраструктура.",
+            "metadata": {"document_type": "ЦТА", "relative_path": "docs/cta.docx"},
+        },
+    ]
+
+    results = BM25SearchAdapter(rows).search(
+        "Что входит в Паспорт ИС и какие связанные документы в нём указаны?",
+        top_k=3,
+    )
+
+    assert results
+    assert results[0].metadata.get("document_type") == "Паспорт ИС"
+    assert "table 2" in results[0].text.lower()
+    assert "целевая техническая архитектура" in results[0].text.lower()
+
+
+def test_bm25_prefers_passport_appendices_table() -> None:
+    rows = [
+        {
+            "text": "Паспорт ИС. Таблица: Table 23. Параметр интеграции: Область применения. Описание: Все контуры системы.",
+            "metadata": {"document_type": "Паспорт ИС", "relative_path": "docs/passport.docx"},
+        },
+        {
+            "text": "Паспорт ИС. Таблица: Table 3. Приложение №1 План послеаварийного восстановления. Приложение №2 Список источников.",
+            "metadata": {"document_type": "Паспорт ИС", "relative_path": "docs/passport.docx"},
+        },
+        {
+            "text": "Паспорт ИС. Роль: Поддержка приложения (1-ая линия).",
+            "metadata": {"document_type": "Паспорт ИС", "relative_path": "docs/passport.docx"},
+        },
+    ]
+
+    retriever = _bm25_with_expansion(
+        rows,
+        {
+            "passport_appendices": {
+                "triggers": ["какие приложения"],
+                "expansions": ["Приложения являются неотъемлемой частью документа", "Приложение №1 План послеаварийного восстановления", "Приложение №2 Список источников"],
+            }
+        },
+    )
+
+    results = retriever.search(
+        "Какие приложения перечислены в Паспорте ИС?",
+        top_k=3,
+        mode="bm25",
+    )
+
+    assert results
+    assert "table 3" in results[0].text.lower()
+    assert "план послеаварийного восстановления" in results[0].text.lower()
+
+
+def test_bm25_prefers_passport_system_purpose_chunk() -> None:
+    rows = [
+        {
+            "text": "Паспорт ИС. Таблица: Table 39. Услуга по поддержке. Регламентные операции.",
+            "metadata": {"document_type": "Паспорт ИС", "relative_path": "docs/passport.docx"},
+        },
+        {
+            "text": "Паспорт ИС. Основное назначение системы: Система предназначена для формирования единой информационной среды для автоматизации и цифровизации бизнес-процессов управления строительными проектами.",
+            "metadata": {"document_type": "Паспорт ИС", "relative_path": "docs/passport.docx"},
+        },
+        {
+            "text": "ФТТ. Общие требования к системе.",
+            "metadata": {"document_type": "ФТТ", "relative_path": "docs/ftt.docx"},
+        },
+    ]
+
+    retriever = _bm25_with_expansion(
+        rows,
+        {
+            "passport_system_purpose": {
+                "triggers": ["сведения о системе"],
+                "expansions": ["Основное назначение системы", "Система предназначена", "формирования единой информационной среды"],
+            }
+        },
+    )
+
+    results = retriever.search(
+        "Какие сведения о системе и назначении ИС указаны в Паспорте ИС?",
+        top_k=3,
+        mode="bm25",
+    )
+
+    assert results
+    assert results[0].metadata.get("document_type") == "Паспорт ИС"
+    assert "система предназначена" in results[0].text.lower()
+
+
 def test_bm25_prefers_cta_postgresql_chunk_over_logging_noise() -> None:
     rows = [
         {

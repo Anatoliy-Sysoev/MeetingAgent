@@ -60,6 +60,8 @@ def _is_inventory_query(query: str) -> bool:
             "регламент",
             "регламенты",
             "методики",
+            "приложение",
+            "приложения",
             "справочник",
             "справочники",
             "атрибутные составы",
@@ -72,7 +74,6 @@ def _is_inventory_query(query: str) -> bool:
 
 def source_to_chat_source(source: dict[str, Any], source_ref: str, bucket: str) -> ChatSource:
     text = _text_from_source(source)
-    preview = _truncate_on_word_boundary(text, 500) if text else None
     score_raw = source.get("score") or source.get("hybrid_score") or source.get("rerank_score")
     try:
         score = float(score_raw) if score_raw is not None else None
@@ -89,7 +90,7 @@ def source_to_chat_source(source: dict[str, Any], source_ref: str, bucket: str) 
         requirement_id=_metadata_value(source, "requirement_id"),
         source_type=_metadata_value(source, "source_type"),
         score=score,
-        text_preview=preview,
+        text_preview=_truncate_on_word_boundary(text, 1200) if text else preview,
         bucket=bucket,
     )
 
