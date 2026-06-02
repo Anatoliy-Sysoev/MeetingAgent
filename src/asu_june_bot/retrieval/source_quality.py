@@ -80,6 +80,65 @@ def _metadata_text(result: SearchResult) -> str:
     return _norm(" ".join(str(part or "") for part in parts))
 
 
+def _rerank_labels(result: SearchResult) -> set[str]:
+    return {str(label) for label in (result.diagnostics or {}).get("rerank_labels") or []}
+
+
+def _is_nsi_regulation_inventory_source(result: SearchResult, text: str, metadata_text: str) -> bool:
+    metadata = result.metadata or {}
+    if str(metadata.get("document_type") or "") != "Методика/Регламент НСИ":
+        return False
+    if "реестр замечаний" in metadata_text:
+        return False
+    labels = _rerank_labels(result)
+    if "boost:nsi_regulation_route" not in labels:
+        return False
+    return any(
+        marker in metadata_text or marker in text
+        for marker in (
+            "регламент_ведения",
+            "регламент ведения",
+            "мвд_",
+            "мвд ",
+            "методика ведения",
+            "методика ведения данных справочника",
+        )
+    )
+
+
+def _is_nsi_registry_note(result: SearchResult, metadata_text: str) -> bool:
+    metadata = result.metadata or {}
+    if str(metadata.get("document_type") or "") != "Методика/Регламент НСИ":
+        return False
+    return "реестр замечаний" in metadata_text and "boost:nsi_regulation_route" in _rerank_labels(result)
+
+
+def _is_nsi_reference_inventory_source(result: SearchResult, text: str) -> bool:
+    metadata = result.metadata or {}
+    if str(metadata.get("document_type") or "") not in {"Реестр НСИ", "Справочник НСИ", "СоИ Справочники"}:
+        return False
+    dictionary_names = (
+        "единицы измерения",
+        "должности",
+        "отделы",
+        "контрагенты",
+        "организации",
+        "объекты строительства",
+        "виды прикрепляемых документов",
+        "договоры",
+        "инвестиционные проекты",
+    )
+    return (
+        ("справочники:" in text and any(name in text for name in dictionary_names))
+        or "атрибутный состав" in text
+        or "атрибутивный состав" in text
+        or "модель данных нси" in text
+        or "реестр объектов нси" in text
+        or "реестр используемых объектов нси" in text
+        or "корпоративный реестр нси" in text
+    )
+
+
 def _has_exact_requirement(result: SearchResult, intent: QueryIntentResult) -> bool:
     if not intent.mentioned_sections:
         return False
@@ -114,11 +173,30 @@ def assess_source_quality(result: SearchResult, intent: QueryIntentResult | None
         reasons.append("low_evidence_marker")
     if "vector" in result.matched_by and "bm25" not in result.matched_by and text_chars < 500:
         reasons.append("short_vector_only")
+    if _is_nsi_registry_note(result, metadata_text):
+        reasons.append("nsi_registry_note")
 
     exact_requirement = bool(intent and _has_exact_requirement(result, intent))
     if exact_requirement:
         # Exact requirement fragments may be short but still critical.
         reasons = [reason for reason in reasons if reason not in {"short_text", "low_word_count", "short_vector_only"}]
+
+    if _is_nsi_regulation_inventory_source(result, text, metadata_text):
+        # For inventory/list questions about NSI regulation documents, a table of contents
+        # or a structural title chunk is valid evidence of the document itself.
+        reasons = [
+            reason
+            for reason in reasons
+            if reason not in {"caption_or_diagram_like", "short_structural_fragment", "short_vector_only"}
+        ]
+
+    if _is_nsi_reference_inventory_source(result, text):
+        # Short table rows with concrete NSI dictionaries/attributes are valid list evidence.
+        reasons = [
+            reason
+            for reason in reasons
+            if reason not in {"short_text", "low_word_count", "short_structural_fragment", "short_vector_only"}
+        ]
 
     weak = bool(reasons)
     if not weak:
@@ -131,7 +209,7 @@ def assess_source_quality(result: SearchResult, intent: QueryIntentResult | None
             primary_eligible=True,
         )
 
-    hard_weak_reasons = {"caption_or_diagram_like", "short_structural_fragment", "low_evidence_marker"}
+    hard_weak_reasons = {"caption_or_diagram_like", "short_structural_fragment", "low_evidence_marker", "nsi_registry_note"}
     primary_eligible = exact_requirement or not bool(set(reasons) & hard_weak_reasons)
     if intent and intent.intent == QueryIntent.DOCUMENT_OVERVIEW and set(reasons) & {"short_text", "low_word_count"}:
         primary_eligible = False

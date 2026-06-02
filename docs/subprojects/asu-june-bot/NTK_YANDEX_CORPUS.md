@@ -390,7 +390,19 @@ chat-level targeted eval: 4/4 answered
 pytest retrieval slice: 12 passed
 ```
 
-Следующий шаг: исправлять оставшиеся P1 bucket-first, начиная с `NSI regulation/reference`, отдельным маленьким коммитом на каждый bucket, с targeted eval перед повторным full `NTK realistic-100`.
+P1 NSI regulation/reference закрыт 2026-06-02:
+
+```text
+docs/quality/ntk_realistic_100_new_p1_nsi_regulation_reference_eval_2026-05-28.md
+
+chat-level targeted eval: 6/6 answered
+clarify: 0
+parse_errors: 0
+pytest NSI/chat slice: 32 passed
+compileall src/asu_june_bot: ok
+```
+
+Следующий шаг: исправлять оставшиеся P1 bucket-first, начиная с `Passport`, затем `AD/app_ccpm`, отдельным маленьким коммитом на каждый bucket, с targeted eval перед повторным full `NTK realistic-100`.
 
 ## Что не сделано
 
@@ -411,4 +423,4 @@ incremental update для Yandex-папки — следующий этап по
   --summary data\asu_june_bot_ntk\smoke_eval_hybrid_summary.json
 ```
 
-Не переключать корпус в безусловный global default до закрытия `NTK-SMOKE-012` и до снятия quality-follow-up по weak primary fallback для регламентов НСИ.
+Не переключать корпус в безусловный global default до закрытия оставшихся P1 buckets `Passport` и `AD/app_ccpm`, а затем повторного full `NTK realistic-100`.

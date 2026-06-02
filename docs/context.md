@@ -1,6 +1,6 @@
 # Контекст проекта
 
-Обновлено: 2026-05-28.
+Обновлено: 2026-06-02.
 
 ## NTK realistic-100 new eval
 
@@ -173,7 +173,32 @@ chat-level targeted eval: 4/4 answered, validation_errors=[]
 pytest retrieval slice: 12 passed
 ```
 
-Остаток P1: `NSI regulation/reference`, `Passport`, `AD/app_ccpm`.
+2026-06-02 закрыт P1 bucket `NSI regulation/reference`:
+
+```text
+docs/quality/ntk_realistic_100_new_p1_nsi_regulation_reference_eval_2026-05-28.md
+```
+
+Изменение: broad `нси` больше не включает MDR/СоИ routing; регламенты/методики ведения НСИ и справочники/атрибутные составы разведены по отдельным routes. BM25/PostRerank/Hybrid/ContextBuilder усиливают `Методика/Регламент НСИ`, `Реестр НСИ`, `Справочник НСИ` и `СоИ Справочники` по точным intent markers, а `ФТТ`/`ПР`/`ЦТА` понижаются для этих запросов. Для inventory/list вопросов добавлен source-grounded fallback, который строит ответ из titles/paths/previews, если LLM вернул ложный `no_answer` при наличии релевантных источников.
+
+Проверка:
+
+```text
+chat-level targeted eval: 6/6 answered
+clarify: 0
+failures: 0
+parse_errors: 0
+pytest NSI/chat slice: 32 passed
+compileall src/asu_june_bot: ok
+```
+
+Runtime report не коммитится:
+
+```text
+data/ntk_targeted_nsi_6_eval_report.jsonl
+```
+
+Остаток P1: `Passport`, `AD/app_ccpm`.
 
 ## NTK Obsidian vault rebuild
 
