@@ -200,15 +200,18 @@ data/ntk_targeted_nsi_6_eval_report.jsonl
 
 Остаток P1: `Passport`, `AD/app_ccpm`.
 
-Git/PR нюанс на 2026-06-02:
+Git/PR статус на 2026-06-02:
 
 ```text
 current branch: codex/ntk-p1-nsi-routing-followup
 branch status: clean, synced with origin/codex/ntk-p1-nsi-routing-followup
-local main: ahead origin/main на 9 коммитов
+main: synced with origin/main after push
+PR #15: open
 ```
 
-`main` не пушился и не переписывался. PR из `codex/ntk-p1-nsi-routing-followup` в `origin/main` будет включать не только NSI routing/source-quality fix, но и накопленные локальные коммиты, которые уже находятся в локальном `main` и ещё не попали в `origin/main`. Это нужно учитывать при review.
+Локальный `main` был ahead `origin/main` на 9 коммитов по transcription/GigaAM/Docker. После проверки состава и отсутствия runtime/secret-файлов `main` запушен в `origin/main`, чтобы GitHub main соответствовал локальному принятому состоянию и PR #15 не включал эти 9 коммитов.
+
+PR #15 теперь содержит 5 коммитов поверх `origin/main`: smoke/runtime documentation и финальный NSI routing/source-quality fix.
 
 Следующий NTK quality шаг после открытия PR: P1 bucket `Passport`:
 
