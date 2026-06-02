@@ -49,6 +49,27 @@ def _truncate_on_word_boundary(text: str, limit: int) -> str:
     return (truncated or text[:limit]).rstrip() + "…"
 
 
+def _is_inventory_query(query: str) -> bool:
+    lowered = " ".join((query or "").lower().split())
+    has_list_action = any(marker in lowered for marker in ("какие", "перечислены", "есть в корпусе", "какие документы", "какие справочники"))
+    has_inventory_object = any(
+        marker in lowered
+        for marker in (
+            "документ",
+            "документы",
+            "регламент",
+            "регламенты",
+            "методики",
+            "справочник",
+            "справочники",
+            "атрибутные составы",
+            "атрибутный состав",
+            "модель данных",
+        )
+    )
+    return has_list_action and has_inventory_object
+
+
 def source_to_chat_source(source: dict[str, Any], source_ref: str, bucket: str) -> ChatSource:
     text = _text_from_source(source)
     preview = _truncate_on_word_boundary(text, 500) if text else None
@@ -109,10 +130,19 @@ class PromptBuilder:
             ref = f"S{len(sources) + 1}"
             chat_source = source_to_chat_source(item, ref, bucket)
             text = _truncate_on_word_boundary(text, self.max_chars_per_source)
-            meta_parts = [part for part in [chat_source.title, chat_source.section, chat_source.requirement_id] if part]
+            document_type = _metadata_value(item, "document_type")
+            document_path = _metadata_value(item, "document", "path", "source_path", "file_path", "relative_path")
+            source_url = _metadata_value(item, "source_url", "cloud_url", "public_url")
+            meta_parts = [part for part in [chat_source.title, document_type, chat_source.section, chat_source.requirement_id] if part]
             meta_line = " | ".join(meta_parts) if meta_parts else "metadata unavailable"
             bucket_label = "ОСНОВНОЙ ИСТОЧНИК" if bucket == "primary_sources" else "ДОПОЛНИТЕЛЬНЫЙ ИСТОЧНИК"
-            block = f"[{ref}] {bucket_label}\n{meta_line}\n{text}"
+            extra_meta = []
+            if document_path:
+                extra_meta.append(f"Документ: {document_path}")
+            if source_url:
+                extra_meta.append(f"Ссылка: {source_url}")
+            extra_meta_text = "\n".join(extra_meta)
+            block = f"[{ref}] {bucket_label}\n{meta_line}\n{extra_meta_text}\n{text}".strip()
 
             if used_chars + len(block) > self.max_context_chars and sources:
                 skipped_by_budget += 1
@@ -138,6 +168,12 @@ class PromptBuilder:
 
     def build_prompt(self, query: str, context: dict[str, Any]) -> tuple[str, list[ChatSource], dict[str, Any]]:
         sources, source_text, diagnostics = self.build_sources(context)
+        inventory_rule = ""
+        if _is_inventory_query(query):
+            inventory_rule = """
+5. Если вопрос просит перечень документов, справочников или атрибутных составов, используй названия, типы, пути и ссылки источников как допустимые факты контекста.
+6. Для таких перечней не отвечай "данных недостаточно", если релевантные источники найдены; перечисли найденные элементы и явно укажи, что это найдено в переданном контексте.
+""".rstrip()
         prompt = f"""Вопрос пользователя:
 {query}
 
@@ -151,6 +187,7 @@ class PromptBuilder:
 2. Каждое фактическое утверждение заверши ссылкой [Sx].
 3. Не используй excluded sources и внешние знания.
 4. Если данных недостаточно, напиши: "В переданных источниках данных недостаточно для ответа".
+{inventory_rule}
 
 Формат:
 Краткий ответ

@@ -57,6 +57,65 @@ class BM25SearchAdapter:
         return any(marker in text_lower for marker in ("регламент ведения", "методика ведения", "мвд", "ведение объекта нси"))
 
     @staticmethod
+    def _has_nsi_regulation_route(query_lower: str) -> bool:
+        return any(
+            marker in query_lower
+            for marker in (
+                "регламент ведения",
+                "регламенты ведения",
+                "регламентные документы",
+                "методика/регламент",
+                "методики ведения",
+                "методика ведения",
+                "правила ведения",
+                "мвд",
+            )
+        )
+
+    @staticmethod
+    def _has_nsi_reference_route(query_lower: str) -> bool:
+        return any(
+            marker in query_lower
+            for marker in (
+                "какие справочники нси",
+                "справочники нси",
+                "справочник нси",
+                "реестр нси",
+                "реестр объектов нси",
+                "атрибутные составы",
+                "атрибутный состав",
+                "модель данных нси",
+                "маппинг справочников",
+                "маппинг атрибутов",
+                "свок рд",
+            )
+        )
+
+    @staticmethod
+    def _is_nsi_reference_chunk(text_lower: str) -> bool:
+        dictionary_names = (
+            "единицы измерения",
+            "должности",
+            "отделы",
+            "контрагенты",
+            "организации",
+            "объекты строительства",
+            "виды прикрепляемых документов",
+            "договоры",
+            "инвестиционные проекты",
+        )
+        return (
+            ("справочники:" in text_lower and any(name in text_lower for name in dictionary_names))
+            or "атрибутный состав" in text_lower
+            or "атрибутивный состав" in text_lower
+            or "модель данных нси" in text_lower
+            or "реестр объектов нси" in text_lower
+            or "реестр используемых объектов нси" in text_lower
+            or "корпоративный реестр нси" in text_lower
+            or "table 8" in text_lower and "справочники" in text_lower
+        )
+
+    @staticmethod
     def _is_cta_recovery_chunk(text_lower: str) -> bool:
         return any(
             marker in text_lower
@@ -455,26 +514,36 @@ class BM25SearchAdapter:
             elif has_explicit_cta_route:
                 boosts.append(("intent:cta_infrastructure_penalty_non_cta", 0.25))
 
-        has_nsi_regulation_route = any(marker in lowered for marker in ("регламент ведения", "регламенты ведения", "мвд"))
-        has_nsi_register_route = any(marker in lowered for marker in ("реестр нси", "свок рд"))
+        has_nsi_regulation_route = self._has_nsi_regulation_route(lowered)
+        has_nsi_reference_route = self._has_nsi_reference_route(original_lowered) or self._has_nsi_reference_route(lowered)
         if has_nsi_regulation_route:
             if document_type == "Методика/Регламент НСИ":
-                boosts.append(("intent:nsi_regulation_primary", 2.75))
+                boosts.append(("intent:nsi_regulation_primary", 3.2))
                 if self._is_nsi_regulation_chunk(text_lower):
-                    boosts.append(("intent:nsi_regulation_chunk", 1.45))
+                    boosts.append(("intent:nsi_regulation_chunk", 1.75))
             elif document_type == "Реестр НСИ":
-                boosts.append(("intent:nsi_regulation_register_support", 1.8))
+                boosts.append(("intent:nsi_regulation_register_support", 1.45))
             elif document_type in {"Справочник НСИ", "СоИ Справочники"}:
-                boosts.append(("intent:nsi_regulation_supporting", 1.2))
+                boosts.append(("intent:nsi_regulation_supporting", 1.05))
             elif document_type in {"ФТТ", "ПР", "ЦТА"}:
-                boosts.append(("intent:nsi_regulation_penalty_project_docs", 0.55))
-        elif has_nsi_register_route:
+                boosts.append(("intent:nsi_regulation_penalty_project_docs", 0.38))
+        elif has_nsi_reference_route:
             if document_type == "Реестр НСИ":
-                boosts.append(("intent:nsi_register", 2.5))
-            elif document_type in {"Справочник НСИ", "Методика/Регламент НСИ"}:
-                boosts.append(("intent:nsi_register_supporting", 1.45))
+                boosts.append(("intent:nsi_reference_register", 3.2))
+                if self._is_nsi_reference_chunk(text_lower):
+                    boosts.append(("intent:nsi_reference_chunk", 2.0))
+            elif document_type == "СоИ Справочники":
+                boosts.append(("intent:nsi_reference_soi_spravochniki", 2.6))
+                if self._is_nsi_reference_chunk(text_lower):
+                    boosts.append(("intent:nsi_reference_chunk", 2.4))
+            elif document_type == "Справочник НСИ":
+                boosts.append(("intent:nsi_reference_dictionary", 2.3))
+                if self._is_nsi_reference_chunk(text_lower):
+                    boosts.append(("intent:nsi_reference_chunk", 1.8))
+            elif document_type == "Методика/Регламент НСИ":
+                boosts.append(("intent:nsi_reference_regulation_supporting", 1.15))
             elif document_type in {"ФТТ", "ПР", "ЦТА"}:
-                boosts.append(("intent:nsi_register_penalty_project_docs", 0.55))
+                boosts.append(("intent:nsi_reference_penalty_project_docs", 0.32))
 
         if "глоссарий" not in lowered and (
             "контекст: глоссарий" in text_lower
