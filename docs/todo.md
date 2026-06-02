@@ -651,3 +651,52 @@ Acceptance:
 - targeted chat eval по AD/app_ccpm даёт answered без hallucination;
 - добавить regression tests.
 ```
+
+## NTK realistic 100 v2: ручная проверка
+
+### Готово
+
+```text
+NTK realistic 100 v2 прогнан полностью:
+- rows: 100/100;
+- returncode=0: 100/100;
+- parse_errors: 0;
+- failures: 0.
+```
+
+Опубликованные артефакты:
+
+```text
+docs/quality/ntk_realistic_100_v2_queries_2026-06-02.jsonl
+docs/quality/ntk_realistic_100_v2_eval_report.jsonl
+docs/quality/ntk_realistic_100_v2_eval_review.jsonl
+docs/quality/ntk_realistic_100_v2_eval_review_summary.json
+docs/quality/ntk_realistic_100_v2_eval_status_2026-06-02.md
+```
+
+Runtime statuses:
+
+```text
+answered: 39
+no_answer: 33
+clarify: 20
+refused: 7
+validation_failed: 1
+```
+
+### Следующий шаг
+
+```text
+Заполнить в docs/quality/ntk_realistic_100_v2_eval_review.jsonl:
+- review_verdict;
+- review_comment.
+```
+
+После ручной разметки:
+
+```text
+1. Сформировать manual summary.
+2. Разложить дефекты по bucket'ам.
+3. Исправлять bucket-first, не общими правками.
+4. Каждый bucket подтверждать targeted rerun.
+```

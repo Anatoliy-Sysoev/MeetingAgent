@@ -1006,3 +1006,55 @@ docs/quality/ntk_realistic_100_new_p1_passport_eval_2026-06-02.md
 P1 AD/app_ccpm.
 Важно: вопрос про группы AD для ролей строительного контроля должен поднимать ПР Стройконтроль, приложение 2 - группы, а не только СоИ AD.
 ```
+
+## NTK realistic 100 v2 завершен на 2026-06-02
+
+Прогон нового набора `NTK realistic 100 v2` завершен штатно.
+
+Артефакты опубликованы в Git:
+
+```text
+docs/quality/ntk_realistic_100_v2_queries_2026-06-02.jsonl
+docs/quality/ntk_realistic_100_v2_eval_report.jsonl
+docs/quality/ntk_realistic_100_v2_eval_review.jsonl
+docs/quality/ntk_realistic_100_v2_eval_review_summary.json
+docs/quality/ntk_realistic_100_v2_eval_status_2026-06-02.md
+```
+
+Параметры:
+
+```text
+model: qwen2.5:7b-instruct
+mode: hybrid
+active_corpus: ntk
+rows: 100/100
+returncode=0: 100/100
+parse_errors: 0
+failures: 0
+```
+
+Распределение runtime statuses:
+
+```text
+answered: 39
+no_answer: 33
+clarify: 20
+refused: 7
+validation_failed: 1
+```
+
+Время:
+
+```text
+avg_duration_sec: 84.463
+max_duration_sec: 300.377
+min_duration_sec: 0.676
+```
+
+Текущий вывод:
+
+```text
+Технически прогон успешен.
+Quality verdict еще не выставлен.
+Следующий шаг - ручная разметка review_verdict/review_comment в docs/quality/ntk_realistic_100_v2_eval_review.jsonl.
+```
