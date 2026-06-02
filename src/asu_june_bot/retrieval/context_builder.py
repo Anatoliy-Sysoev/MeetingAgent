@@ -50,6 +50,93 @@ def has_noise_label(result: SearchResult) -> bool:
     return any(label.startswith("penalty:software") or label.startswith("penalty:front_matter") for label in labels)
 
 
+def _has_nsi_regulation_route(query: str) -> bool:
+    lowered = " ".join((query or "").lower().split())
+    return any(
+        marker in lowered
+        for marker in (
+            "регламент ведения",
+            "регламенты ведения",
+            "регламентные документы",
+            "методика/регламент",
+            "методики ведения",
+            "методика ведения",
+            "правила ведения",
+            "мвд",
+        )
+    )
+
+
+def _has_nsi_reference_route(query: str) -> bool:
+    lowered = " ".join((query or "").lower().split())
+    return any(
+        marker in lowered
+        for marker in (
+            "какие справочники нси",
+            "справочники нси",
+            "справочник нси",
+            "реестр нси",
+            "реестр объектов нси",
+            "атрибутные составы",
+            "атрибутный состав",
+            "модель данных нси",
+            "маппинг справочников",
+            "маппинг атрибутов",
+            "свок рд",
+        )
+    )
+
+
+def _is_nsi_reference_evidence(result: SearchResult) -> bool:
+    txt = text_lower(result)
+    metadata_text = " ".join(
+        str(result.metadata.get(key) or "").lower()
+        for key in ("document_type", "relative_path", "title", "table_id", "table_title", "row_header")
+    )
+    dictionary_names = (
+        "единицы измерения",
+        "должности",
+        "отделы",
+        "контрагенты",
+        "организации",
+        "объекты строительства",
+        "виды прикрепляемых документов",
+        "договоры",
+        "инвестиционные проекты",
+    )
+    return (
+        ("справочники:" in txt and any(name in txt for name in dictionary_names))
+        or "атрибутный состав" in txt
+        or "атрибутивный состав" in txt
+        or "модель данных нси" in txt
+        or "реестр объектов нси" in txt
+        or "реестр используемых объектов нси" in txt
+        or "корпоративный реестр нси" in txt
+        or ("table 8" in metadata_text and "справочник" in txt)
+    )
+
+
+def _is_nsi_regulation_evidence(result: SearchResult) -> bool:
+    metadata_text = " ".join(
+        str(result.metadata.get(key) or "").lower()
+        for key in ("relative_path", "title", "document_name")
+    )
+    if "реестр замечаний" in metadata_text:
+        return False
+    txt = text_lower(result)
+    return any(
+        marker in metadata_text or marker in txt
+        for marker in (
+            "регламент_ведения",
+            "регламент ведения",
+            "мвд_",
+            "мвд ",
+            "методика ведения",
+            "методика ведения данных справочника",
+        )
+    )
+
+
 def result_sections(result: SearchResult) -> set[str]:
     sections: set[str] = set()
     raw_sections = result.metadata.get("sections") or []
@@ -254,6 +341,22 @@ class ContextBuilder:
             if dt == "ФТТ" and (has_label(result, "boost:exact_section_mention") or not is_vector_only(result)):
                 return "primary"
             if dt in {"ПР", "ПМИ"}:
+                return "supporting"
+            return "excluded" if is_vector_only(result) else "supporting"
+
+        if _has_nsi_regulation_route(query):
+            if dt == "Методика/Регламент НСИ" and _is_nsi_regulation_evidence(result):
+                return "primary"
+            if dt in {"Реестр НСИ", "Справочник НСИ", "СоИ Справочники", "ФТТ"}:
+                return "supporting"
+            return "excluded" if is_vector_only(result) else "supporting"
+
+        if _has_nsi_reference_route(query):
+            if dt in {"Реестр НСИ", "Справочник НСИ", "СоИ Справочники"} and _is_nsi_reference_evidence(result):
+                return "primary"
+            if dt == "Методика/Регламент НСИ" and _is_nsi_reference_evidence(result):
+                return "supporting"
+            if dt == "ФТТ":
                 return "supporting"
             return "excluded" if is_vector_only(result) else "supporting"
 

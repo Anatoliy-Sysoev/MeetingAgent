@@ -124,3 +124,54 @@ Regression slice:
 2. Если остаются weak primary fallback cases — усилить BM25/PostRerank для Методика/Регламент НСИ и атрибутных составов.
 3. Затем переходить к P1 Passport.
 ```
+
+## Фактическая локальная проверка 2026-06-02
+
+Команда:
+
+```powershell
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
+$env:ASU_JUNE_BOT_ACTIVE_CORPUS = "ntk"
+
+.\.venv\Scripts\python.exe scripts\14_run_realistic_100_eval.py `
+  --dataset data\ntk_targeted_nsi_6_queries.jsonl `
+  --output data\ntk_targeted_nsi_6_eval_report.jsonl `
+  --chat-script scripts\asu_june_bot_chat.py `
+  --mode hybrid `
+  --top-k 5 `
+  --max-tokens 700
+```
+
+Результат:
+
+```text
+total: 6
+failures: 0
+parse_errors: 0
+statuses:
+  answered: 6
+avg_duration_sec: 210.971
+min_duration_sec: 152.399
+max_duration_sec: 267.231
+```
+
+По кейсам:
+
+```text
+NTK100-NEW-053 -> answered, primary: Методика/Регламент НСИ
+NTK100-NEW-054 -> answered, primary: Методика/Регламент НСИ
+NTK100-NEW-055 -> answered, primary: Методика/Регламент НСИ, inventory_fallback_answer=true
+NTK100-NEW-056 -> answered, primary: Методика/Регламент НСИ, inventory_fallback_answer=true
+NTK100-NEW-057 -> answered, primary: СоИ Справочники
+NTK100-NEW-059 -> answered, primary: СоИ Справочники + Справочник НСИ
+```
+
+Regression:
+
+```text
+pytest NSI/chat slice: 32 passed
+compileall src/asu_june_bot: ok
+```
+
+Вывод: bucket `NSI regulation/reference` закрыт локально. Runtime report `data/ntk_targeted_nsi_6_eval_report.jsonl` не коммитится.
