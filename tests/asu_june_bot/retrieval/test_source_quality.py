@@ -13,7 +13,7 @@ from asu_june_bot.retrieval.query_intent import QueryIntent, QueryIntentResult  
 from asu_june_bot.retrieval.source_quality import assess_source_quality, is_primary_eligible, is_weak_source, with_source_quality  # noqa: E402
 
 
-def result(text: str, *, matched_by: list[str] | None = None, metadata: dict | None = None) -> SearchResult:
+def result(text: str, *, matched_by: list[str] | None = None, metadata: dict | None = None, diagnostics: dict | None = None) -> SearchResult:
     return SearchResult(
         source_id="SRC-001",
         text=text,
@@ -22,6 +22,7 @@ def result(text: str, *, matched_by: list[str] | None = None, metadata: dict | N
         bm25_score=1.0,
         matched_by=matched_by or ["bm25"],
         metadata=metadata or {"chunk_id": "chunk-1", "relative_path": "doc.md", "document_type": "ФТТ"},
+        diagnostics=diagnostics or {},
     )
 
 
@@ -65,3 +66,39 @@ def test_with_source_quality_adds_diagnostics_and_label() -> None:
     assert is_primary_eligible(updated) is False
     assert updated.diagnostics["source_quality"]["weak"] is True
     assert "quality:weak_source" in updated.diagnostics["rerank_labels"]
+
+
+def test_nsi_regulation_toc_chunk_can_be_primary_eligible_for_inventory_route() -> None:
+    item = result(
+        "РЕГЛАМЕНТ ВЕДЕНИЯ СПРАВОЧНИКА «РЕЕСТР НОРМАТИВНЫХ ДОКУМЕНТОВ». СОДЕРЖАНИЕ 1. ОБЩИЕ ПОЛОЖЕНИЯ 3.",
+        metadata={
+            "chunk_id": "nsi-regulation",
+            "relative_path": "Этап 1.1/10. Регламент ведения объекта НСИ/Регламент_ведения_данных_справочника_РЕЕСТР_НОРМАТИВНЫХ_ДОКУМЕНТОВ.docx",
+            "document_type": "Методика/Регламент НСИ",
+            "title": "Регламент_ведения_данных_справочника_РЕЕСТР_НОРМАТИВНЫХ_ДОКУМЕНТОВ.docx",
+        },
+        diagnostics={"rerank_labels": ["boost:nsi_regulation_route"]},
+    )
+
+    assessment = assess_source_quality(item, intent())
+
+    assert assessment.primary_eligible is True
+    assert "caption_or_diagram_like" not in assessment.reasons
+
+
+def test_nsi_registry_note_does_not_get_regulation_primary_exception() -> None:
+    item = result(
+        "Документ: Реестр замечаний. Наименование документа: Регламент ведения объекта НСИ.",
+        metadata={
+            "chunk_id": "nsi-registry-note",
+            "relative_path": "Этап 1.1/10. Регламент ведения объекта НСИ/Реестр_замечаний.xlsx",
+            "document_type": "Методика/Регламент НСИ",
+            "title": "Реестр замечаний",
+        },
+        diagnostics={"rerank_labels": ["boost:nsi_regulation_route"]},
+    )
+
+    assessment = assess_source_quality(item, intent())
+
+    assert assessment.weak is True
+    assert assessment.primary_eligible is False

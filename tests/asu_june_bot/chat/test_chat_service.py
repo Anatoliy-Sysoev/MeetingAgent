@@ -116,6 +116,33 @@ def search_error_payload() -> dict:
     }
 
 
+def nsi_inventory_payload() -> dict:
+    return {
+        "status": "ok",
+        "query": "Какие справочники НСИ перечислены в корпусе?",
+        "context": {
+            "primary_sources": [
+                {
+                    "chunk_id": "nsi-table8",
+                    "source_id": "doc-soi-nsi",
+                    "title": "Цели и задачи интеграции",
+                    "document_type": "СоИ Справочники",
+                    "document": "Этап 1.1/11. Соглашения об интеграции для интерфейсов/PRIVATE_SYSTEM_СоИ_Справочники_v2.2.1.docx",
+                    "source_url": "https://example.test/soi-nsi",
+                    "source_type": "project_doc",
+                    "text": "Справочники: Единицы измерения; Должности; Отделы; Контрагенты; Организации; Объекты строительства.",
+                }
+            ],
+            "supporting_sources": [],
+            "excluded_sources": [],
+            "diagnostics": {},
+        },
+        "results": [{"chunk_id": "nsi-table8"}],
+        "guard": {"decision": "allow"},
+        "diagnostics": {"search_service": {"retrieval_called": True}},
+    }
+
+
 def test_chat_refused_does_not_call_llm() -> None:
     search = FakeSearchService(refused_payload())
     llm = FakeLLMClient("should not be used")
@@ -228,3 +255,30 @@ def test_chat_no_answer_marker_returns_no_answer_status() -> None:
     assert response.diagnostics["llm_called"] is True
     assert response.diagnostics["no_answer_marker_present"] is True
     assert response.diagnostics["validation_errors"] == []
+
+
+def test_chat_inventory_prompt_includes_source_metadata_and_list_policy() -> None:
+    search = FakeSearchService(nsi_inventory_payload())
+    llm = FakeLLMClient("Краткий ответ\nВ корпусе найдены справочники: Единицы измерения, Должности, Отделы. [S1]\n\nОбоснование\n- Перечень указан в источнике СоИ Справочники. [S1]")
+    service = ChatService(search_service=search, llm_client=llm)
+
+    response = service.chat(ChatRequest(query="Какие справочники НСИ перечислены в корпусе?", model="fake-model"))
+
+    assert response.status == "answered"
+    assert "СоИ Справочники" in llm.last_request.prompt
+    assert "PRIVATE_SYSTEM_СоИ_Справочники_v2.2.1.docx" in llm.last_request.prompt
+    assert "https://example.test/soi-nsi" in llm.last_request.prompt
+    assert "используй названия, типы, пути и ссылки источников" in llm.last_request.prompt
+
+
+def test_chat_inventory_fallback_converts_false_no_answer_to_source_list() -> None:
+    search = FakeSearchService(nsi_inventory_payload())
+    llm = FakeLLMClient("Краткий ответ\nВ переданных источниках данных недостаточно для ответа.\n\nОбоснование\n- Модель не извлекла перечень. [S1]")
+    service = ChatService(search_service=search, llm_client=llm)
+
+    response = service.chat(ChatRequest(query="Какие справочники НСИ перечислены в корпусе?", model="fake-model"))
+
+    assert response.status == "answered"
+    assert response.diagnostics["inventory_fallback_answer"] is True
+    assert "Единицы измерения" in response.answer
+    assert "[S1]" in response.answer

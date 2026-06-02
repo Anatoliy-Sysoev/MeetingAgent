@@ -9,6 +9,7 @@ from asu_june_bot.search import SearchRequest, SearchService
 from asu_june_bot.search.models import SearchStatus
 
 from .answer_validator import AnswerValidator, has_no_answer_marker
+from .inventory_answer import build_inventory_fallback_answer
 from .models import ChatRequest, ChatResponse, ChatStatus
 from .prompt_builder import SYSTEM_PROMPT, PromptBuilder
 from .semantic_warnings import SemanticWarningAnalyzer, semantic_warnings_to_payload
@@ -157,6 +158,33 @@ class ChatService:
             )
 
         if has_no_answer_marker(answer):
+            inventory_fallback = build_inventory_fallback_answer(request.query, sources)
+            if inventory_fallback:
+                answer = inventory_fallback
+                diagnostics["inventory_fallback_answer"] = True
+                ok, validation_errors = self.answer_validator.validate_answered(answer, sources)
+                diagnostics["validation_errors"] = validation_errors
+                if ok:
+                    return finalize(
+                        ChatResponse(
+                            status=ChatStatus.ANSWERED.value,
+                            query=request.query,
+                            answer=answer,
+                            sources=sources,
+                            search=search_payload,
+                            diagnostics=diagnostics,
+                        )
+                    )
+                return finalize(
+                    ChatResponse(
+                        status=ChatStatus.VALIDATION_FAILED.value,
+                        query=request.query,
+                        answer=answer,
+                        sources=sources,
+                        search=search_payload,
+                        diagnostics=diagnostics,
+                    )
+                )
             diagnostics["validation_errors"] = []
             diagnostics["no_answer_marker_present"] = True
             return finalize(

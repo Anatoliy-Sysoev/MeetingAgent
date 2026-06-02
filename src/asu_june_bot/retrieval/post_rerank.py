@@ -88,6 +88,65 @@ def _is_nsi_regulation_chunk(text: str) -> bool:
     return any(marker in text for marker in ("регламент ведения", "методика ведения", "мвд", "ведение объекта нси"))
 
 
+def _has_nsi_regulation_route(query_lower: str) -> bool:
+    return any(
+        marker in query_lower
+        for marker in (
+            "регламент ведения",
+            "регламенты ведения",
+            "регламентные документы",
+            "методика/регламент",
+            "методики ведения",
+            "методика ведения",
+            "правила ведения",
+            "мвд",
+        )
+    )
+
+
+def _has_nsi_reference_route(query_lower: str) -> bool:
+    return any(
+        marker in query_lower
+        for marker in (
+            "какие справочники нси",
+            "справочники нси",
+            "справочник нси",
+            "реестр нси",
+            "реестр объектов нси",
+            "атрибутные составы",
+            "атрибутный состав",
+            "модель данных нси",
+            "маппинг справочников",
+            "маппинг атрибутов",
+            "свок рд",
+        )
+    )
+
+
+def _is_nsi_reference_chunk(text: str) -> bool:
+    dictionary_names = (
+        "единицы измерения",
+        "должности",
+        "отделы",
+        "контрагенты",
+        "организации",
+        "объекты строительства",
+        "виды прикрепляемых документов",
+        "договоры",
+        "инвестиционные проекты",
+    )
+    return (
+        ("справочники:" in text and any(name in text for name in dictionary_names))
+        or "атрибутный состав" in text
+        or "атрибутивный состав" in text
+        or "модель данных нси" in text
+        or "реестр объектов нси" in text
+        or "реестр используемых объектов нси" in text
+        or "корпоративный реестр нси" in text
+        or ("table 8" in text and "справочники" in text)
+    )
+
+
 def _is_cta_recovery_chunk(text: str) -> bool:
     return any(
         marker in text
@@ -483,34 +542,49 @@ class PostReranker:
                     multiplier *= 0.25
                     labels.append("penalty:cta_infrastructure_non_cta_doc")
 
-            has_nsi_regulation_route = any(marker in query_lower for marker in ("регламент ведения", "регламенты ведения", "мвд"))
-            has_nsi_register_route = any(marker in query_lower for marker in ("реестр нси", "свок рд"))
+            has_nsi_regulation_route = _has_nsi_regulation_route(query_lower)
+            has_nsi_reference_route = _has_nsi_reference_route(query_lower)
             if has_nsi_regulation_route:
                 if document_type == "Методика/Регламент НСИ":
-                    multiplier *= 2.6
+                    multiplier *= 3.0
                     labels.append("boost:nsi_regulation_route")
                     if _is_nsi_regulation_chunk(text):
-                        multiplier *= 1.35
+                        multiplier *= 1.65
                         labels.append("boost:nsi_regulation_chunk")
                 elif document_type == "Реестр НСИ":
-                    multiplier *= 1.75
+                    multiplier *= 1.35
                     labels.append("boost:nsi_regulation_register_support")
                 elif document_type in {"Справочник НСИ", "СоИ Справочники"}:
-                    multiplier *= 1.15
+                    multiplier *= 1.05
                     labels.append("boost:nsi_regulation_supporting")
                 elif document_type in {"ФТТ", "ПР", "ЦТА"}:
-                    multiplier *= 0.55
+                    multiplier *= 0.38
                     labels.append("penalty:nsi_regulation_project_docs")
-            elif has_nsi_register_route:
+            elif has_nsi_reference_route:
                 if document_type == "Реестр НСИ":
-                    multiplier *= 2.4
-                    labels.append("boost:nsi_register_route")
-                elif document_type in {"Справочник НСИ", "Методика/Регламент НСИ"}:
-                    multiplier *= 1.35
-                    labels.append("boost:nsi_register_supporting")
+                    multiplier *= 3.0
+                    labels.append("boost:nsi_reference_register")
+                    if _is_nsi_reference_chunk(text):
+                        multiplier *= 1.9
+                        labels.append("boost:nsi_reference_chunk")
+                elif document_type == "СоИ Справочники":
+                    multiplier *= 2.5
+                    labels.append("boost:nsi_reference_soi_spravochniki")
+                    if _is_nsi_reference_chunk(text):
+                        multiplier *= 2.2
+                        labels.append("boost:nsi_reference_chunk")
+                elif document_type == "Справочник НСИ":
+                    multiplier *= 2.2
+                    labels.append("boost:nsi_reference_dictionary")
+                    if _is_nsi_reference_chunk(text):
+                        multiplier *= 1.7
+                        labels.append("boost:nsi_reference_chunk")
+                elif document_type == "Методика/Регламент НСИ":
+                    multiplier *= 1.15
+                    labels.append("boost:nsi_reference_regulation_supporting")
                 elif document_type in {"ФТТ", "ПР", "ЦТА"}:
-                    multiplier *= 0.55
-                    labels.append("penalty:nsi_register_project_docs")
+                    multiplier *= 0.32
+                    labels.append("penalty:nsi_reference_project_docs")
 
             if intent.intent == QueryIntent.REQUIREMENT_LOOKUP:
                 if document_type == "ФТТ":

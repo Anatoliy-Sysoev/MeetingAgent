@@ -68,6 +68,84 @@ def test_bm25_includes_regulation_doc_for_nsi_regulations_query() -> None:
     assert "Методика/Регламент НСИ" in top_doc_types
 
 
+def test_bm25_prefers_nsi_regulation_docs_for_methodology_query() -> None:
+    rows = [
+        {
+            "text": "ФТТ. Разработка методик ведения объектов НСИ и регламентов ведения объектов НСИ.",
+            "metadata": {"document_type": "ФТТ", "relative_path": "docs/ftt.docx"},
+        },
+        {
+            "text": "МЕТОДИКА ВЕДЕНИЯ ДАННЫХ СПРАВОЧНИКА «РЕЕСТР НОРМАТИВНЫХ ДОКУМЕНТОВ». Правила ведения объекта НСИ.",
+            "metadata": {"document_type": "Методика/Регламент НСИ", "relative_path": "docs/МВД_РЕЕСТР_НОРМАТИВНЫХ_ДОКУМЕНТОВ_3.docx"},
+        },
+        {
+            "text": "РЕГЛАМЕНТ ВЕДЕНИЯ СПРАВОЧНИКА «РЕЕСТР НОРМАТИВНЫХ ДОКУМЕНТОВ». Порядок ведения справочника.",
+            "metadata": {"document_type": "Методика/Регламент НСИ", "relative_path": "docs/Регламент_ведения_данных_справочника_РЕЕСТР_НОРМАТИВНЫХ_ДОКУМЕНТОВ.docx"},
+        },
+    ]
+
+    results = BM25SearchAdapter(rows).search(
+        "Что документы Методика/Регламент НСИ говорят про правила ведения объектов НСИ?",
+        top_k=3,
+    )
+
+    assert results
+    assert results[0].metadata.get("document_type") == "Методика/Регламент НСИ"
+    assert "фтт" not in results[0].text.lower()
+
+
+def test_bm25_prefers_soi_reference_table_for_nsi_dictionary_inventory() -> None:
+    rows = [
+        {
+            "text": "ФТТ. Корпоративный реестр НСИ содержит перечень сущностей и модель данных.",
+            "metadata": {"document_type": "ФТТ", "relative_path": "docs/ftt.docx"},
+        },
+        {
+            "text": "Таблица: Table 8. Справочники: Единицы измерения; Должности; Отделы; Контрагенты; Организации; Объекты строительства.",
+            "metadata": {"document_type": "СоИ Справочники", "relative_path": "docs/soi_spravochniki.docx"},
+        },
+        {
+            "text": "Реестр объектов НСИ. Модель данных НСИ и атрибутивный состав используемых объектов НСИ.",
+            "metadata": {"document_type": "Реестр НСИ", "relative_path": "docs/nsi_register.xlsx"},
+        },
+    ]
+
+    results = BM25SearchAdapter(rows).search(
+        "Какие справочники НСИ перечислены в корпусе?",
+        top_k=3,
+    )
+
+    assert results
+    assert results[0].metadata.get("document_type") in {"СоИ Справочники", "Реестр НСИ"}
+    assert results[0].metadata.get("document_type") != "ФТТ"
+
+
+def test_bm25_prefers_nsi_attribute_sources_over_ftt_for_attribute_inventory() -> None:
+    rows = [
+        {
+            "text": "ФТТ. Формирование Реестра и модели данных НСИ включает атрибутивный состав.",
+            "metadata": {"document_type": "ФТТ", "relative_path": "docs/ftt.docx"},
+        },
+        {
+            "text": "Таблица 8, содержит общий перечень потоков НСИ. Детальный маппинг актуализирован по справочникам. Справочники: Единицы измерения; Должности; Отделы.",
+            "metadata": {"document_type": "СоИ Справочники", "relative_path": "docs/soi_spravochniki.docx"},
+        },
+        {
+            "text": "Реестр объектов НСИ. Атрибутивный состав справочников НСИ: единое наименование, владелец объекта, модель данных.",
+            "metadata": {"document_type": "Реестр НСИ", "relative_path": "docs/nsi_register.xlsx"},
+        },
+    ]
+
+    results = BM25SearchAdapter(rows).search(
+        "Какие атрибутные составы справочников НСИ описаны в документах?",
+        top_k=3,
+    )
+
+    assert results
+    assert results[0].metadata.get("document_type") in {"СоИ Справочники", "Реестр НСИ"}
+    assert results[0].metadata.get("document_type") != "ФТТ"
+
+
 def test_bm25_prefers_cta_recovery_chunk_over_logging_chunk() -> None:
     rows = [
         {
