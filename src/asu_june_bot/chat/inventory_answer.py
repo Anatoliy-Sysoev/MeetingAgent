@@ -5,6 +5,9 @@ import re
 from .models import ChatSource
 
 
+APP_CCPM_GROUP_RE = re.compile(r"\bapp_ccpm_[A-Za-z0-9_-]+\b", flags=re.I)
+
+
 def _norm(text: str) -> str:
     return " ".join((text or "").lower().replace("ё", "е").split())
 
@@ -55,12 +58,41 @@ def _passport_inventory_kind(query: str) -> str | None:
     return None
 
 
+def _is_soi_ad_app_ccpm_query(query: str) -> bool:
+    lowered = _norm(query)
+    return "app_ccpm" in lowered and any(
+        marker in lowered
+        for marker in (
+            "маска",
+            "префикс",
+            "группа",
+            "группы",
+            "групп",
+            "именуются",
+            "правило",
+            "ad",
+            "active directory",
+        )
+    )
+
+
+def _is_soi_ad_ldaps_query(query: str) -> bool:
+    lowered = _norm(query)
+    has_transport_marker = any(marker in lowered for marker in ("ldaps", "ldap", "порт", "636", "ssl"))
+    has_ad_marker = any(marker in lowered for marker in ("ad", "active directory", "сои ad"))
+    return has_transport_marker and has_ad_marker
+
+
 def _source_label(source: ChatSource) -> str:
     if source.title:
         return source.title
     if source.path:
         return source.path.replace("\\", "/").rsplit("/", 1)[-1]
     return source.source_id or source.chunk_id or source.source_ref
+
+
+def _source_text(source: ChatSource) -> str:
+    return " ".join(str(part or "") for part in (source.title, source.path, source.text_preview))
 
 
 def _source_evidence(source: ChatSource) -> str | None:
@@ -82,6 +114,93 @@ def _source_evidence(source: ChatSource) -> str | None:
                 break
         return evidence[:320].rstrip(" ;,.")
     return None
+
+
+def _collect_app_ccpm_groups(sources: list[ChatSource]) -> list[tuple[str, ChatSource]]:
+    found: list[tuple[str, ChatSource]] = []
+    seen: set[str] = set()
+    for source in sources:
+        for match in APP_CCPM_GROUP_RE.finditer(_source_text(source)):
+            value = match.group(0)
+            key = value.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            found.append((value, source))
+    return found
+
+
+def _find_ldaps_source(sources: list[ChatSource]) -> ChatSource | None:
+    for source in sources:
+        lowered = _norm(_source_text(source))
+        if "636" in lowered and ("ldaps" in lowered or ("ldap" in lowered and "ssl" in lowered)):
+            return source
+    for source in sources:
+        lowered = _norm(_source_text(source))
+        if "ldaps" in lowered or ("ldap" in lowered and "ssl" in lowered):
+            return source
+    return None
+
+
+def _build_app_ccpm_fallback_answer(query: str, sources: list[ChatSource]) -> str | None:
+    if not _is_soi_ad_app_ccpm_query(query):
+        return None
+    groups = _collect_app_ccpm_groups(sources)
+    if not groups:
+        return None
+
+    source_refs: list[str] = []
+    for _, source in groups:
+        ref = f"[{source.source_ref}]"
+        if ref not in source_refs:
+            source_refs.append(ref)
+    refs = ", ".join(source_refs[:3])
+    examples = ", ".join(group for group, _ in groups[:8])
+    evidence_lines = [
+        f"- Найдена группа `{group}` в источнике {_source_label(source)} [{source.source_ref}]." for group, source in groups[:8]
+    ]
+
+    answer_lines = [
+        "Краткий ответ",
+        f"В переданном контексте формальная wildcard-маска групп `app_ccpm` отдельной строкой не указана. По найденным именам групп используется префикс `app_ccpm_`; примеры: {examples} {refs}.",
+        "",
+        "Обоснование",
+        f"- Вывод сделан только по найденным именам групп `app_ccpm_...` в переданных источниках {refs}.",
+        *evidence_lines,
+    ]
+    return "\n".join(answer_lines)
+
+
+def _build_ldaps_fallback_answer(query: str, sources: list[ChatSource]) -> str | None:
+    if not _is_soi_ad_ldaps_query(query):
+        return None
+    source = _find_ldaps_source(sources)
+    if source is None:
+        return None
+
+    text = _norm(_source_text(source))
+    service_accounts = "сервисные учетные записи с правами на чтение к каждому LDAP-каталогу" if "сервисные учетные записи" in text and "прав" in text and "чтени" in text else None
+    details = ["доступность LDAP-каталога по порту 636 через SSL (LDAPS)"]
+    if service_accounts:
+        details.append(service_accounts)
+
+    answer_lines = [
+        "Краткий ответ",
+        f"В СоИ AD указано: {', '.join(details)} [{source.source_ref}].",
+        "",
+        "Обоснование",
+        f"- Источник {_source_label(source)} содержит параметр порта `636` и связку `SSL (LDAPS)` [{source.source_ref}].",
+    ]
+    if service_accounts:
+        answer_lines.append(f"- В том же фрагменте указано требование предоставить сервисные учетные записи с правами на чтение к LDAP-каталогам [{source.source_ref}].")
+    return "\n".join(answer_lines)
+
+
+def _build_soi_ad_fallback_answer(query: str, sources: list[ChatSource]) -> str | None:
+    app_ccpm_answer = _build_app_ccpm_fallback_answer(query, sources)
+    if app_ccpm_answer:
+        return app_ccpm_answer
+    return _build_ldaps_fallback_answer(query, sources)
 
 
 def _is_relevant_nsi_source(source: ChatSource) -> bool:
@@ -197,12 +316,16 @@ def _dedup_sources(sources: list[ChatSource]) -> list[ChatSource]:
 
 
 def build_inventory_fallback_answer(query: str, sources: list[ChatSource]) -> str | None:
-    """Build a source-grounded answer for narrow NTK NSI inventory/list cases.
+    """Build a source-grounded answer for narrow NTK inventory/list cases.
 
-    This is intentionally limited to NSI list/inventory questions. It prevents
-    a product false-negative where the LLM says no_answer even though retrieval
-    already found relevant source titles, document paths and table rows.
+    This prevents product false-negatives where the LLM says no_answer even
+    though retrieval already found relevant source titles, document paths,
+    table rows or exact parameter fragments.
     """
+
+    soi_ad_answer = _build_soi_ad_fallback_answer(query, sources)
+    if soi_ad_answer:
+        return soi_ad_answer
 
     passport_answer = _build_passport_inventory_fallback(query, sources)
     if passport_answer:
