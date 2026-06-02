@@ -583,15 +583,34 @@ docker compose --profile bot up bot
 
 ## Runtime Smoke - ПСИ Справочники
 
-### В процессе
+### Готово
 
 ```text
-Запущена транскрибация meetings/2026-06-01__psi-spravochniki через faster-whisper small int8.
-Видео длительностью 3083.883 sec.
-Проверить после завершения:
-- transcript/segments.jsonl;
-- transcript/transcript.md;
-- transcript/transcription_report.json;
-- meeting.json processing_status=transcribed;
-- затем прогнать 24_merge_transcript_speakers.py и 26_chunk_meeting.py.
+Карточка meetings/2026-06-01__psi-spravochniki успешно прошла:
+- 22_transcribe_meeting.py;
+- 24_merge_transcript_speakers.py;
+- 26_chunk_meeting.py;
+- smoke 31_meeting_search.py по transcript/chunks.jsonl;
+- 27_enrich_meeting_chunks.py;
+- 28_index_meeting_chunks.py;
+- 29_analyze_meeting.py --mode extractive;
+- 31_meeting_search.py по data/meeting_chunks.jsonl.
+```
+
+### Следующий шаг
+
+```text
+Поднять качество meeting artifacts без упора в текущий CPU-only Ollama runtime:
+- уменьшить ложные action_items/open_questions в 27/29;
+- добавить post-filter для коротких/служебных реплик;
+- уменьшить размер prompt/chunk для будущего LLM map-reduce;
+- при наличии более быстрого runtime/GPU повторить сравнение extractive vs llm на 2026-06-01__psi-spravochniki.
+```
+
+### Подтвержденное ограничение
+
+```text
+29_analyze_meeting.py --mode ollama-map-reduce на текущей машине непрактичен для 51-минутной встречи:
+- qwen2.5:7b-instruct слишком медленный;
+- qwen3:4b с timeout=30 ушел в fallback по всем 18 chunks.
 ```

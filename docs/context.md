@@ -834,9 +834,9 @@ failed to connect to dockerDesktopLinuxEngine.
 После запуска Docker Desktop нужно повторить: docker compose build api && docker compose up api.
 ```
 
-## Реальная транскрибация ПСИ Справочники на 2026-06-01
+## Runtime smoke ПСИ Справочники на 2026-06-01
 
-Запущено:
+Исходный запуск:
 
 ```text
 source video: C:\Users\Сотрудник\Desktop\!Проектные документы АСУ\Записи встреч\ПСИ Справочники.mp4
@@ -847,10 +847,102 @@ ASR command: scripts/22_transcribe_meeting.py --engine faster-whisper --model sm
 logs: logs/psi_spravochniki_transcribe.out.log, logs/psi_spravochniki_transcribe.err.log
 ```
 
-Текущий статус на момент записи:
+Завершено:
 
 ```text
-processing_status = transcribing;
-Python ASR process is alive;
-segments.jsonl еще не создан.
+22_transcribe_meeting.py:
+- engine=faster-whisper
+- model=small
+- duration_seconds=3083.883
+- segments=994
+- artifacts: segments.jsonl, transcript.json/md/txt/srt/vtt, transcription_report.json
+
+24_merge_transcript_speakers.py:
+- utterances=994
+- output: transcript/speaker_transcript.jsonl
+- current mode: diarization-lite, speaker=SPEAKER_UNKNOWN
+
+26_chunk_meeting.py:
+- chunks=18
+- output: transcript/chunks.jsonl
+```
+
+Smoke поиска:
+
+```text
+31_meeting_search.py по transcript/chunks.jsonl возвращает релевантные фрагменты по запросам
+"справочник организации удаление" и "методика группа компаний новатэк".
+Ограничение: на raw chunks script печатает ??:??:??, потому что timestamp_start/timestamp_end появляются после index/export шага, а не в transcript/chunks.jsonl.
+```
+
+## Full meeting pipeline smoke ПСИ Справочники на 2026-06-02
+
+Завершено для карточки `meetings/2026-06-01__psi-spravochniki`:
+
+```text
+27_enrich_meeting_chunks.py:
+- chunks=18
+- output: artifacts/enriched_chunks.jsonl
+
+28_index_meeting_chunks.py:
+- chunks=18
+- output: data/meeting_chunks.jsonl
+- meeting.rag.indexed_artifacts пополнен transcript/chunks.jsonl и artifacts/enriched_chunks.jsonl
+
+29_analyze_meeting.py --mode extractive:
+- processing_status=summarized
+- summary.md, protocol.md, decisions.json, tasks.json, risks.json, open_questions.json созданы
+- decisions=0
+- tasks=44
+- risks=0
+- open_questions=273
+```
+
+Проверено:
+
+```text
+31_meeting_search.py по data/meeting_chunks.jsonl с meeting_id=2026-06-01__psi-spravochniki возвращает timestamp_start/timestamp_end и релевантные фрагменты по запросам:
+- "справочник организации удаление"
+- "группа компаний новотек методика"
+```
+
+Замечание по качеству:
+
+```text
+extractive/heuristic pipeline рабочий, но сильно переизвлекает tasks/open_questions из обычной речи.
+Для качественного memo/protocol нужен следующий проход через реальный LLM map-reduce и более строгие post-filters.
+```
+
+## LLM map-reduce smoke ПСИ Справочники на 2026-06-02
+
+Проверено:
+
+```text
+29_analyze_meeting.py --mode ollama-map-reduce
+model=qwen2.5:7b-instruct
+model=qwen3:4b
+meeting=2026-06-01__psi-spravochniki
+```
+
+Результат:
+
+```text
+На текущей CPU-машине полноценный MAP/REDUCE для этой встречи непрактичен.
+qwen2.5:7b-instruct слишком медленный для chunk-level map.
+qwen3:4b тоже не укладывается в разумный runtime.
+
+Прагматичный прогон с qwen3:4b и timeout=30 показал:
+- все 18 MAP chunks ушли в fallback по read timeout;
+- LLM-улучшения качества не получено;
+- финальные artifacts остались от extractive run.
+```
+
+Вывод:
+
+```text
+Для текущего железа quality path должен идти либо через:
+- более сильные post-filters поверх extractive pipeline;
+- более маленькие chunks/prompts;
+- отдельную более быструю LLM runtime/GPU;
+- либо внешний LLM-only step вне основного CPU pipeline.
 ```
