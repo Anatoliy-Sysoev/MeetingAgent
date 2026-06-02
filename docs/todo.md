@@ -589,9 +589,17 @@ docker compose --profile bot up bot
 ### Следующий шаг
 
 ```text
-Поднять качество meeting artifacts:
-- прогнать 29_analyze_meeting.py в ollama-map-reduce на этой же карточке;
+Поднять качество meeting artifacts без упора в текущий CPU-only Ollama runtime:
 - уменьшить ложные action_items/open_questions в 27/29;
-- при необходимости добавить post-filter для коротких/служебных реплик;
-- затем сравнить extractive vs llm outputs на одной и той же встрече.
+- добавить post-filter для коротких/служебных реплик;
+- уменьшить размер prompt/chunk для будущего LLM map-reduce;
+- при наличии более быстрого runtime/GPU повторить сравнение extractive vs llm на 2026-06-01__psi-spravochniki.
+```
+
+### Подтвержденное ограничение
+
+```text
+29_analyze_meeting.py --mode ollama-map-reduce на текущей машине непрактичен для 51-минутной встречи:
+- qwen2.5:7b-instruct слишком медленный;
+- qwen3:4b с timeout=30 ушел в fallback по всем 18 chunks.
 ```

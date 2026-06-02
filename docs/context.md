@@ -897,3 +897,37 @@ Smoke поиска:
 extractive/heuristic pipeline рабочий, но сильно переизвлекает tasks/open_questions из обычной речи.
 Для качественного memo/protocol нужен следующий проход через реальный LLM map-reduce и более строгие post-filters.
 ```
+
+## LLM map-reduce smoke ПСИ Справочники на 2026-06-02
+
+Проверено:
+
+```text
+29_analyze_meeting.py --mode ollama-map-reduce
+model=qwen2.5:7b-instruct
+model=qwen3:4b
+meeting=2026-06-01__psi-spravochniki
+```
+
+Результат:
+
+```text
+На текущей CPU-машине полноценный MAP/REDUCE для этой встречи непрактичен.
+qwen2.5:7b-instruct слишком медленный для chunk-level map.
+qwen3:4b тоже не укладывается в разумный runtime.
+
+Прагматичный прогон с qwen3:4b и timeout=30 показал:
+- все 18 MAP chunks ушли в fallback по read timeout;
+- LLM-улучшения качества не получено;
+- финальные artifacts остались от extractive run.
+```
+
+Вывод:
+
+```text
+Для текущего железа quality path должен идти либо через:
+- более сильные post-filters поверх extractive pipeline,
+- более маленькие chunks/prompts,
+- отдельную более быструю LLM runtime/GPU,
+- либо внешний LLM-only step вне основного CPU pipeline.
+```
