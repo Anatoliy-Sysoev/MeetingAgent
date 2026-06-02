@@ -95,17 +95,17 @@ def test_ntk_project_markers_allow_retrieval() -> None:
 
 
 def test_food_query_refused_not_clarified() -> None:
-    result = decide("Как приготовить карбонару?")
+    result = decide("Как приготовить суп минестроне?")
     assert result.action == GuardAction.REFUSE
     assert result.aggregate.scope == SegmentScope.OUT_OF_PROJECT
 
 
 def test_ntk_p2_out_of_scope_queries_refused_not_clarified() -> None:
     queries = [
-        "Как подрезать фикус, чтобы он распушился?",
-        "Что делать, если застудил шею?",
-        "Найди ракетку для бадминтона на Taobao.",
-        "Почему Chrome тормозит и какой браузер лучше?",
+        "Какая погода завтра в Берлине?",
+        "Посоветуй фильм для просмотра на выходных.",
+        "Составь туристический маршрут на три дня по Риму.",
+        "Как приготовить овощной суп?",
     ]
 
     for query in queries:
