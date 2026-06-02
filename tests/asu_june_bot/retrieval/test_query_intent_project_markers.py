@@ -20,6 +20,8 @@ def test_ntk_project_markers_are_project_related() -> None:
         "Какие группы AD app_ccpm используются для ролей строительного контроля?",
         "Как используется Bearer Token при интеграции MDR/НСИ?",
         "Что входит в Паспорт ИС и какие связанные документы в нём указаны?",
+        "Какие приложения перечислены в Паспорте ИС?",
+        "Какие сведения о системе и назначении ИС указаны в Паспорте ИС?",
         "Какие ограничения есть на экспорт данных в PDF, Excel и CSV?",
     ]
 
@@ -42,3 +44,16 @@ def test_cta_recovery_query_gets_dedicated_intent() -> None:
 
     assert result.is_project_related is True
     assert result.intent == QueryIntent.CTA_RECOVERY_RTO_RPO
+
+
+def test_passport_followup_queries_are_document_overview() -> None:
+    queries = [
+        "Что входит в Паспорт ИС и какие связанные документы в нём указаны?",
+        "Какие приложения перечислены в Паспорте ИС?",
+        "Какие сведения о системе и назначении ИС указаны в Паспорте ИС?",
+    ]
+
+    for query in queries:
+        result = classify_query_intent(query)
+        assert result.is_project_related is True, query
+        assert result.intent == QueryIntent.DOCUMENT_OVERVIEW, query

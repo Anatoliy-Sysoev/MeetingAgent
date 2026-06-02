@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from .models import SearchResult
@@ -18,8 +18,8 @@ class BuiltContext:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "primary_sources": [source.to_dict() for source in self.primary_sources],
-            "supporting_sources": [source.to_dict() for source in self.supporting_sources],
+            "primary_sources": [source.to_dict(preview_chars=1800) for source in self.primary_sources],
+            "supporting_sources": [source.to_dict(preview_chars=1800) for source in self.supporting_sources],
             "excluded_sources": [source.to_dict(preview_chars=240) for source in self.excluded_sources],
             "diagnostics": self.diagnostics,
         }
@@ -83,6 +83,73 @@ def _has_nsi_reference_route(query: str) -> bool:
             "маппинг справочников",
             "маппинг атрибутов",
             "свок рд",
+        )
+    )
+
+
+def _has_passport_route(query: str) -> bool:
+    lowered = " ".join((query or "").lower().split())
+    return any(marker in lowered for marker in ("паспорт ис", "паспорте ис", "паспорта ис", "паспорт информационной системы"))
+
+
+def _has_passport_related_docs_route(query: str) -> bool:
+    lowered = " ".join((query or "").lower().split())
+    return _has_passport_route(lowered) and "связанн" in lowered and "документ" in lowered
+
+
+def _has_passport_appendices_route(query: str) -> bool:
+    lowered = " ".join((query or "").lower().split())
+    return _has_passport_route(lowered) and any(
+        marker in lowered for marker in ("какие приложения", "приложения перечислены", "приложения в паспорте", "приложения паспорта")
+    )
+
+
+def _has_passport_system_purpose_route(query: str) -> bool:
+    lowered = " ".join((query or "").lower().split())
+    return _has_passport_route(lowered) and any(
+        marker in lowered
+        for marker in (
+            "сведения о системе",
+            "назначение ис",
+            "назначении ис",
+            "назначение системы",
+            "описание системы",
+            "область применения",
+        )
+    )
+
+
+def _is_passport_related_docs_evidence(result: SearchResult) -> bool:
+    txt = text_lower(result)
+    return (
+        "таблица: table 2" in txt
+        and "название документа" in txt
+        and ("номер версии" in txt or "имя файла" in txt)
+    ) or "связанные документы (этот документ должен читаться вместе с)" in txt
+
+
+def _is_passport_appendices_evidence(result: SearchResult) -> bool:
+    txt = text_lower(result)
+    return (
+        "таблица: table 3" in txt
+        and ("приложение №" in txt or "план послеаварийного восстановления" in txt or "список источников" in txt)
+    ) or "приложения (являются неотъемлемой частью документа)" in txt
+
+
+def _is_passport_system_purpose_evidence(result: SearchResult) -> bool:
+    txt = text_lower(result)
+    return any(
+        marker in txt
+        for marker in (
+            "полное наименование описываемой системы",
+            "краткое наименование описываемой системы",
+            "основное назначение системы",
+            "система предназначена для формирования единой информационной среды",
+            "описание системы и область применения",
+            "описание и область применения",
+            "область применения: пао",
+            "настоящий паспорт ис подготовлен",
+            "в границы описания включены",
         )
     )
 
@@ -178,6 +245,32 @@ def _remove_result_by_key(results: list[SearchResult], key: str) -> list[SearchR
     return [result for result in results if result_key(result) != key]
 
 
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _passport_table_id_for_query(query: str) -> str | None:
+    if _has_passport_related_docs_route(query):
+        return "Table 2"
+    if _has_passport_appendices_route(query):
+        return "Table 3"
+    return None
+
+
+def _is_passport_table_item(result: SearchResult, table_id: str) -> bool:
+    return doc_type(result) == "Паспорт ИС" and str(result.metadata.get("table_id") or "") == table_id
+
+
+def _passport_table_sort_key(result: SearchResult) -> tuple[int, int]:
+    row_index = result.metadata.get("row_index")
+    if row_index is None:
+        return (0, _safe_int(result.metadata.get("chunk_index")))
+    return (1, _safe_int(row_index))
+
+
 class ContextBuilder:
     def __init__(
         self,
@@ -254,8 +347,11 @@ class ContextBuilder:
             primary, primary_parent_diag = self.parent_expander.expand(primary, candidate_pool)
             supporting, supporting_parent_diag = self.parent_expander.expand(supporting, candidate_pool)
         else:
+            candidate_pool = assessed_results + assessed_excluded
             primary_parent_diag = {"parent_expansion": "disabled"}
             supporting_parent_diag = {"parent_expansion": "disabled"}
+
+        primary, supporting, passport_table_diag = self._expand_passport_table_context(query, primary, supporting, candidate_pool)
 
         for result in assessed_excluded:
             key = result_key(result)
@@ -286,6 +382,7 @@ class ContextBuilder:
                     "primary": primary_parent_diag,
                     "supporting": supporting_parent_diag,
                 },
+                "passport_table_expansion": passport_table_diag,
             },
         )
 
@@ -298,12 +395,118 @@ class ContextBuilder:
             return result
         return None
 
+    def _expand_passport_table_context(
+        self,
+        query: str,
+        primary: list[SearchResult],
+        supporting: list[SearchResult],
+        candidates: list[SearchResult],
+    ) -> tuple[list[SearchResult], list[SearchResult], dict[str, Any]]:
+        table_id = _passport_table_id_for_query(query)
+        if not table_id:
+            return primary, supporting, {"applied": False, "reason": "not_passport_table_route"}
+
+        table_items = sorted(
+            [item for item in candidates if _is_passport_table_item(item, table_id)],
+            key=_passport_table_sort_key,
+        )
+        if len(table_items) < 2:
+            return primary, supporting, {"applied": False, "reason": "insufficient_table_items", "table_id": table_id, "items": len(table_items)}
+
+        anchor = next((item for item in primary if _is_passport_table_item(item, table_id)), None)
+        if anchor is None:
+            anchor = next((item for item in supporting if _is_passport_table_item(item, table_id)), None)
+        if anchor is None:
+            return primary, supporting, {"applied": False, "reason": "no_selected_table_anchor", "table_id": table_id, "items": len(table_items)}
+
+        seen_texts: set[str] = set()
+        parts: list[str] = []
+        expanded_keys: list[str] = []
+        for item in table_items:
+            text = " ".join((item.text or "").split())
+            if not text or text in seen_texts:
+                continue
+            seen_texts.add(text)
+            parts.append(text)
+            expanded_keys.append(result_key(item))
+
+        if len(parts) < 2:
+            return primary, supporting, {"applied": False, "reason": "insufficient_unique_table_text", "table_id": table_id, "items": len(table_items)}
+
+        combined_text = "\n\n".join(parts)
+        diagnostics = dict(anchor.diagnostics or {})
+        diagnostics["passport_table_expansion"] = {
+            "applied": True,
+            "table_id": table_id,
+            "expanded_count": len(parts),
+            "expanded_keys": expanded_keys,
+        }
+        labels = list(diagnostics.get("rerank_labels") or [])
+        if "boost:passport_table_expanded" not in labels:
+            labels.append("boost:passport_table_expanded")
+        diagnostics["rerank_labels"] = labels
+        metadata = dict(anchor.metadata or {})
+        metadata["passport_table_expanded"] = True
+        metadata["passport_table_expanded_count"] = len(parts)
+        expanded_anchor = replace(anchor, text=combined_text, metadata=metadata, diagnostics=diagnostics)
+        expanded_key_set = set(expanded_keys)
+
+        replaced = False
+        new_primary: list[SearchResult] = []
+        for item in primary:
+            if not replaced and result_key(item) == result_key(anchor):
+                new_primary.append(expanded_anchor)
+                replaced = True
+            elif result_key(item) in expanded_key_set:
+                continue
+            else:
+                new_primary.append(item)
+        new_supporting: list[SearchResult] = []
+        for item in supporting:
+            if not replaced and result_key(item) == result_key(anchor):
+                new_supporting.append(expanded_anchor)
+                replaced = True
+            elif result_key(item) in expanded_key_set:
+                continue
+            else:
+                new_supporting.append(item)
+        if not replaced:
+            new_primary.insert(0, expanded_anchor)
+
+        return new_primary, new_supporting, {
+            "applied": True,
+            "table_id": table_id,
+            "expanded_count": len(parts),
+            "expanded_keys": expanded_keys,
+        }
+
     def _bucket(self, query: str, intent: QueryIntentResult, result: SearchResult) -> str:
         dt = doc_type(result)
         txt = text_lower(result)
 
         if has_noise_label(result):
             return "excluded"
+
+        if _has_passport_related_docs_route(query):
+            if dt == "Паспорт ИС" and _is_passport_related_docs_evidence(result):
+                return "primary"
+            if dt == "Паспорт ИС":
+                return "supporting"
+            return "excluded" if is_vector_only(result) else "supporting"
+
+        if _has_passport_appendices_route(query):
+            if dt == "Паспорт ИС" and _is_passport_appendices_evidence(result):
+                return "primary"
+            if dt == "Паспорт ИС":
+                return "supporting"
+            return "excluded" if is_vector_only(result) else "supporting"
+
+        if _has_passport_system_purpose_route(query):
+            if dt == "Паспорт ИС" and _is_passport_system_purpose_evidence(result):
+                return "primary"
+            if dt == "Паспорт ИС":
+                return "supporting"
+            return "excluded" if is_vector_only(result) else "supporting"
 
         if intent.intent == QueryIntent.DOCUMENT_OVERVIEW:
             if dt == "Паспорт ИС" and any(marker in txt for marker in ["в границы описания включены", "настоящий паспорт ис подготовлен", "архитектурные и эксплуатационные сведения"]):
