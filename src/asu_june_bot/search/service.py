@@ -214,6 +214,35 @@ class SearchService:
         metadata = source.metadata or {}
         return str(metadata.get("chunk_id") or metadata.get("db_id") or source.source_id)
 
+    @staticmethod
+    def _with_inferred_ad_cc_mapping_metadata(source: SearchResult) -> SearchResult:
+        metadata = dict(source.metadata or {})
+        path = str(metadata.get("relative_path") or metadata.get("source_path") or "")
+        text = " ".join((source.text or "").split())
+        changed = False
+        if not metadata.get("document_type") and "Описание разработок и настроек ИС" in path:
+            metadata["document_type"] = "Описание разработок ИС"
+            changed = True
+        if not metadata.get("title") and "Роли / группы AD" in text:
+            metadata["title"] = "Роли / группы AD"
+            changed = True
+        if not metadata.get("table_title") and "Роли / группы AD" in text:
+            metadata["table_title"] = "Роли / группы AD"
+            changed = True
+        if changed:
+            metadata["metadata_inference"] = "ad_cc_role_mapping_table"
+            return SearchResult(
+                source_id=source.source_id,
+                text=source.text,
+                score=source.score,
+                vector_score=source.vector_score,
+                bm25_score=source.bm25_score,
+                metadata=metadata,
+                matched_by=list(source.matched_by),
+                diagnostics=dict(source.diagnostics),
+            )
+        return source
+
     def _promote_ad_cc_role_mapping_sources(self, query: str, built_context: Any) -> Any:
         if not self._is_ad_cc_role_mapping_query(query):
             return built_context
@@ -230,6 +259,7 @@ class SearchService:
             built_context.diagnostics = diagnostics
             return built_context
 
+        mapping_source = self._with_inferred_ad_cc_mapping_metadata(mapping_source)
         mapping_key = self._result_key(mapping_source)
         moved_soi_keys: list[str] = []
 
@@ -258,6 +288,7 @@ class SearchService:
             "promoted_key": mapping_key,
             "moved_soi_ad_from_primary_to_supporting": moved_soi_keys,
             "reason": "app_ccpm_ul_cc_role_mapping_query",
+            "metadata_inference": (mapping_source.metadata or {}).get("metadata_inference"),
         }
         built_context.primary_sources = primary
         built_context.supporting_sources = supporting
