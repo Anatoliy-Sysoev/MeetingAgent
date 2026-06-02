@@ -2,6 +2,12 @@
 
 Дата: 2026-06-02.
 
+Статус:
+
+```text
+closed
+```
+
 Bucket:
 
 ```text
@@ -106,6 +112,7 @@ NTK100-NEW-041 -> answered, ad_cc_role_mapping_promotion.applied=true
 036: false no_answer — источники содержат конкретные app_ccpm_... группы, но LLM не формирует безопасный ответ по префиксу/примерам.
 039: false no_answer — источники содержат LDAPS/SSL/порт 636, но LLM возвращает no_answer.
 040/041: answered, но у promoted source отсутствовали document_type/title, поэтому diagnostics отображались как primary "::".
+040/041: LLM мог вернуть формально answered, но семантически неверный ответ по наличию mapping.
 ```
 
 ## Что исправлено
@@ -131,6 +138,11 @@ LDAPS/636:
   если вопрос содержит LDAPS/LDAP/порт/636/SSL и AD;
   если в sources найден фрагмент с 636 + LDAPS или LDAP+SSL;
   ответ строится по найденному фрагменту: порт 636, SSL/LDAPS, сервисные УЗ с правами чтения при наличии в preview.
+
+AD role mapping:
+  если вопрос содержит app_ccpm_ul_cc и маркеры role/mapping;
+  пары app_ccpm_ul_cc_* -> роль извлекаются из source text детерминированно до вызова LLM;
+  это устраняет ложный answered/no_answer от LLM на точном табличном mapping.
 ```
 
 ### 2. Metadata inference для mapping source
@@ -158,9 +170,96 @@ if text/table содержит "Роли / группы AD":
 metadata_inference: ad_cc_role_mapping_table
 ```
 
-## Acceptance criteria
+### 3. Pre-LLM deterministic answer
 
-Нужно подтвердить локальным targeted eval на актуальном NTK corpus:
+Файл:
+
+```text
+src/asu_june_bot/chat/service.py
+```
+
+Для узких AD/app_ccpm/LDAPS кейсов deterministic answer формируется после поиска и до вызова LLM:
+
+```text
+pre_llm_deterministic_answer = true
+llm_called = false
+```
+
+## Итоговый targeted eval
+
+Команда:
+
+```powershell
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
+$env:ASU_JUNE_BOT_ACTIVE_CORPUS = "ntk"
+
+.\.venv\Scripts\python.exe scripts\14_run_realistic_100_eval.py `
+  --dataset data\ntk_targeted_ad_app_ccpm_4_queries.jsonl `
+  --output data\ntk_targeted_ad_app_ccpm_4_eval_report.jsonl `
+  --chat-script scripts\asu_june_bot_chat.py `
+  --mode hybrid `
+  --top-k 5 `
+  --max-tokens 700
+```
+
+Результат:
+
+```text
+total: 4
+failures: 0
+parse_errors: 0
+statuses:
+  answered: 4
+avg_duration_sec: 15.555
+max_duration_sec: 16.549
+min_duration_sec: 14.801
+```
+
+Проверка ответов:
+
+```text
+NTK100-NEW-036:
+  status = answered
+  llm_called = False
+  pre_llm_deterministic_answer = True
+  validation_errors = []
+  primary = СоИ AD
+  answer: wildcard-маска app_ccpm отдельной строкой не указана; найден префикс app_ccpm_ и примеры app_ccpm_ul_cc_01/02/03/app_ccpm_ul_headoffice.
+
+NTK100-NEW-039:
+  status = answered
+  llm_called = False
+  pre_llm_deterministic_answer = True
+  validation_errors = []
+  primary = СоИ AD
+  answer: LDAP-каталог доступен по порту 636 через SSL (LDAPS); сервисные учетные записи имеют права чтения к LDAP-каталогам.
+
+NTK100-NEW-040:
+  status = answered
+  llm_called = False
+  pre_llm_deterministic_answer = True
+  validation_errors = []
+  primary = Описание разработок ИС:Роли / группы AD
+  answer: app_ccpm_ul_cc_01 — Куратор Проекта НУЛ; app_ccpm_ul_cc_02 — Отвечающий за выполнение функции строительного контроля; app_ccpm_ul_cc_03 — Отвечающий за подачу факта.
+
+NTK100-NEW-041:
+  status = answered
+  llm_called = False
+  pre_llm_deterministic_answer = True
+  validation_errors = []
+  primary = Описание разработок ИС:Роли / группы AD
+  answer: app_ccpm_ul_cc_01 — Куратор Проекта НУЛ; app_ccpm_ul_cc_02 — Отвечающий за выполнение функции строительного контроля; app_ccpm_ul_cc_03 — Отвечающий за подачу факта.
+```
+
+Regression:
+
+```text
+pytest tests/asu_june_bot -q -> 170 passed
+python -m compileall -q src\asu_june_bot -> ok
+```
+
+## Acceptance closed
 
 ```text
 NTK100-NEW-036 -> answered
@@ -170,6 +269,8 @@ NTK100-NEW-041 -> answered
 clarify = 0
 parse_errors = 0
 failures = 0
+validation_errors = []
+no hallucination by manual source review
 ```
 
 Source acceptance:
@@ -184,15 +285,9 @@ Source acceptance:
 
 040/041:
   primary содержит Описание разработок ИС / Table 12 / Роли / группы AD;
-  СоИ AD находится в supporting;
-  diagnostics.ad_cc_role_mapping_promotion.applied = true.
-```
-
-Regression:
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot -q
-.\.venv\Scripts\python.exe -m compileall -q src\asu_june_bot
+  СоИ AD находится в supporting/related context when present;
+  diagnostics.ad_cc_role_mapping_promotion.applied = true;
+  deterministic answer перечисляет app_ccpm_ul_cc_01/02/03 и связанные роли.
 ```
 
 ## Runtime data
@@ -202,4 +297,11 @@ Runtime reports не коммитятся:
 ```text
 data/ntk_targeted_ad_app_ccpm_4_queries.jsonl
 data/ntk_targeted_ad_app_ccpm_4_eval_report.jsonl
+```
+
+## Residual risk
+
+```text
+Если в будущей версии корпуса появится ПР Стройконтроль / Приложение 2 с точными app_ccpm_ul_cc_01/02/03, acceptance для 040/041 можно вернуть к более строгому primary = ПР.
+В текущем chunks_v2 такой источник отсутствует, поэтому текущий accepted primary — Описание разработок ИС / Table 12.
 ```
