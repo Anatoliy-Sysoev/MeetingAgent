@@ -9,7 +9,7 @@ from asu_june_bot.search import SearchRequest, SearchService
 from asu_june_bot.search.models import SearchStatus
 
 from .answer_validator import AnswerValidator, has_no_answer_marker
-from .inventory_answer import build_inventory_fallback_answer
+from .inventory_answer import build_inventory_fallback_answer, build_pre_llm_deterministic_answer
 from .models import ChatRequest, ChatResponse, ChatStatus
 from .prompt_builder import SYSTEM_PROMPT, PromptBuilder
 from .semantic_warnings import SemanticWarningAnalyzer, semantic_warnings_to_payload
@@ -112,6 +112,33 @@ class ChatService:
                     status=ChatStatus.NO_SOURCES.value,
                     query=request.query,
                     answer="В найденном контексте нет источников, достаточных для формирования ответа.",
+                    search=search_payload,
+                    diagnostics=diagnostics,
+                )
+            )
+
+        deterministic_answer = build_pre_llm_deterministic_answer(request.query, sources)
+        if deterministic_answer:
+            diagnostics["pre_llm_deterministic_answer"] = True
+            ok, validation_errors = self.answer_validator.validate_answered(deterministic_answer, sources)
+            diagnostics["validation_errors"] = validation_errors
+            if ok:
+                return finalize(
+                    ChatResponse(
+                        status=ChatStatus.ANSWERED.value,
+                        query=request.query,
+                        answer=deterministic_answer,
+                        sources=sources,
+                        search=search_payload,
+                        diagnostics=diagnostics,
+                    )
+                )
+            return finalize(
+                ChatResponse(
+                    status=ChatStatus.VALIDATION_FAILED.value,
+                    query=request.query,
+                    answer=deterministic_answer,
+                    sources=sources,
                     search=search_payload,
                     diagnostics=diagnostics,
                 )
