@@ -77,6 +77,70 @@ def _is_software_or_support_table(text: str) -> bool:
     )
 
 
+def _has_passport_route(query_lower: str) -> bool:
+    return any(
+        marker in query_lower
+        for marker in (
+            "паспорт ис",
+            "паспорте ис",
+            "паспорта ис",
+            "паспорт информационной системы",
+        )
+    )
+
+
+def _is_passport_related_docs_query(query_lower: str) -> bool:
+    return "связанн" in query_lower and "документ" in query_lower
+
+
+def _is_passport_appendices_query(query_lower: str) -> bool:
+    return any(marker in query_lower for marker in ("какие приложения", "приложения перечислены", "приложения в паспорте", "приложения паспорта"))
+
+
+def _is_passport_system_purpose_query(query_lower: str) -> bool:
+    return any(
+        marker in query_lower
+        for marker in (
+            "сведения о системе",
+            "назначение ис",
+            "назначении ис",
+            "назначение системы",
+            "описание системы",
+            "область применения",
+        )
+    )
+
+
+def _is_passport_related_docs_chunk(text: str) -> bool:
+    return (
+        "таблица: table 2" in text
+        and "название документа" in text
+        and ("номер версии" in text or "имя файла" in text)
+    ) or "связанные документы (этот документ должен читаться вместе с)" in text
+
+
+def _is_passport_appendices_chunk(text: str) -> bool:
+    return (
+        "таблица: table 3" in text
+        and ("приложение №" in text or "план послеаварийного восстановления" in text or "список источников" in text)
+    ) or "приложения (являются неотъемлемой частью документа)" in text
+
+
+def _is_passport_system_purpose_chunk(text: str) -> bool:
+    return any(
+        marker in text
+        for marker in (
+            "полное наименование описываемой системы",
+            "краткое наименование описываемой системы",
+            "основное назначение системы",
+            "система предназначена для формирования единой информационной среды",
+            "описание системы и область применения",
+            "описание и область применения",
+            "область применения: пао",
+        )
+    )
+
+
 def _is_ad_role_mapping_chunk(text: str) -> bool:
     has_group_anchor = "app_ccpm" in text or "справочник групп ad" in text or "группы ad пользователя" in text
     has_role_anchor = "роль" in text or "роли строительного контроля" in text or "строительного контроля" in text
@@ -406,6 +470,40 @@ class PostReranker:
                     multiplier *= 1.8
                     labels.append("boost:overview_scope_chunk")
 
+            query_lower = query.lower()
+            has_passport_route = _has_passport_route(query_lower)
+            if has_passport_route:
+                if document_type == "Паспорт ИС":
+                    multiplier *= 1.35
+                    labels.append("boost:passport_route")
+                    if _is_passport_related_docs_query(query_lower):
+                        if _is_passport_related_docs_chunk(text):
+                            multiplier *= 4.8
+                            labels.append("boost:passport_related_documents")
+                        elif _is_software_or_support_table(text):
+                            multiplier *= 0.22
+                            labels.append("penalty:passport_support_noise_for_related_docs")
+                    if _is_passport_appendices_query(query_lower):
+                        if _is_passport_appendices_chunk(text):
+                            multiplier *= 5.4
+                            labels.append("boost:passport_appendices")
+                        elif _is_software_or_support_table(text):
+                            multiplier *= 0.08
+                            labels.append("penalty:passport_support_noise_for_appendices")
+                    if _is_passport_system_purpose_query(query_lower):
+                        if _is_passport_system_purpose_chunk(text) or any(marker in text for marker in ["в границы описания включены", "настоящий паспорт ис подготовлен"]):
+                            multiplier *= 4.0
+                            labels.append("boost:passport_system_purpose")
+                            if "система предназначена для формирования единой информационной среды" in text:
+                                multiplier *= 5.0
+                                labels.append("boost:passport_exact_system_purpose")
+                        elif _is_software_or_support_table(text):
+                            multiplier *= 0.22
+                            labels.append("penalty:passport_support_noise_for_purpose")
+                elif document_type in {"ФТТ", "ПР", "ЦТА", "СоИ AD", "СоИ Справочники"}:
+                    multiplier *= 0.42
+                    labels.append("penalty:passport_other_doc_type")
+
             if intent.intent == QueryIntent.INTEGRATION_OVERVIEW:
                 if document_type in {"ЦТА", "Паспорт ИС", "СоИ AD", "СоИ Справочники", "ФТТ"}:
                     multiplier *= 1.35
@@ -414,7 +512,6 @@ class PostReranker:
                     multiplier *= 0.72
                     labels.append("penalty:integration_pr_vector_only")
 
-            query_lower = query.lower()
             has_soi_ad_route = any(marker in query_lower for marker in ("сои ad", "active directory", "ldaps", "app_ccpm", "группы ad"))
             if has_soi_ad_route:
                 if document_type == "СоИ AD":

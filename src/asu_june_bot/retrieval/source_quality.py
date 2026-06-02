@@ -139,6 +139,42 @@ def _is_nsi_reference_inventory_source(result: SearchResult, text: str) -> bool:
     )
 
 
+def _is_passport_inventory_source(result: SearchResult, text: str, metadata_text: str) -> bool:
+    metadata = result.metadata or {}
+    if str(metadata.get("document_type") or "") != "Паспорт ИС":
+        return False
+    labels = _rerank_labels(result)
+    if not any(
+        label in labels
+        for label in (
+            "boost:passport_related_documents",
+            "boost:passport_appendices",
+            "boost:passport_system_purpose",
+            "boost:overview_scope_chunk",
+        )
+    ):
+        return False
+    if "реестр замечаний" in metadata_text:
+        return False
+    return any(
+        marker in text
+        for marker in (
+            "таблица: table 2",
+            "таблица: table 3",
+            "связанные документы",
+            "приложения (являются неотъемлемой частью документа)",
+            "приложение №",
+            "план послеаварийного восстановления",
+            "список источников",
+            "основное назначение системы",
+            "система предназначена для формирования единой информационной среды",
+            "описание системы и область применения",
+            "полное наименование описываемой системы",
+            "настоящий паспорт ис подготовлен",
+        )
+    )
+
+
 def _has_exact_requirement(result: SearchResult, intent: QueryIntentResult) -> bool:
     if not intent.mentioned_sections:
         return False
@@ -192,6 +228,15 @@ def assess_source_quality(result: SearchResult, intent: QueryIntentResult | None
 
     if _is_nsi_reference_inventory_source(result, text):
         # Short table rows with concrete NSI dictionaries/attributes are valid list evidence.
+        reasons = [
+            reason
+            for reason in reasons
+            if reason not in {"short_text", "low_word_count", "short_structural_fragment", "short_vector_only"}
+        ]
+
+    if _is_passport_inventory_source(result, text, metadata_text):
+        # Passport front-matter tables and purpose snippets are often short but answer
+        # inventory questions directly: related docs, appendices, system purpose.
         reasons = [
             reason
             for reason in reasons

@@ -23,6 +23,7 @@ def result(
     matched_by: list[str] | None = None,
     relative_path: str = "doc.md",
     title: str | None = None,
+    diagnostics: dict | None = None,
 ) -> SearchResult:
     return SearchResult(
         source_id=source_id,
@@ -39,6 +40,7 @@ def result(
             "section": "Авторизация",
             "title": title,
         },
+        diagnostics=diagnostics or {},
     )
 
 
@@ -146,3 +148,90 @@ def test_context_builder_promotes_nsi_reference_table_even_if_vector_only() -> N
 
     assert [item.metadata["chunk_id"] for item in context.primary_sources] == ["soi-table8"]
     assert "ftt" in [item.metadata["chunk_id"] for item in context.supporting_sources]
+
+
+def test_context_builder_promotes_passport_related_documents_table() -> None:
+    related_docs = result(
+        "passport-table2",
+        "Документ: Паспорт ИС. Таблица: Table 2. Связанные документы (этот документ должен читаться вместе с). Название документа: Целевая техническая архитектура (ЦТА). Номер версии /Имя файла: 1./ЦТА_ЦП_УПКС_Этап_1.",
+        document_type="Паспорт ИС",
+        relative_path="Этап 1.2/8. Паспорт информационной системы/ЦП УПКС_Паспорт ИС_v1.3.3.docx",
+        title="Связанные документы",
+        score=4.0,
+        diagnostics={"rerank_labels": ["boost:passport_related_documents"]},
+    )
+    scope = result(
+        "passport-scope",
+        "Настоящий Паспорт ИС подготовлен для информационной системы ЦП УПКС. В границы описания включены архитектурные и эксплуатационные сведения.",
+        document_type="Паспорт ИС",
+        relative_path="Этап 1.2/8. Паспорт информационной системы/ЦП УПКС_Паспорт ИС_v1.3.3.docx",
+        title="Границы описания",
+        score=10.0,
+    )
+
+    context = ContextBuilder(primary_limit=2, supporting_limit=3, enable_parent_expansion=False).build(
+        "Что входит в Паспорт ИС и какие связанные документы в нём указаны?",
+        QueryIntentResult(intent=QueryIntent.DOCUMENT_OVERVIEW, confidence=0.88, is_project_related=True),
+        [scope, related_docs],
+        [],
+    )
+
+    assert "passport-table2" in [item.metadata["chunk_id"] for item in context.primary_sources]
+
+
+def test_context_builder_promotes_passport_appendices_table() -> None:
+    appendices = result(
+        "passport-table3",
+        "Документ: Паспорт ИС. Таблица: Table 3. Приложение №1 План послеаварийного восстановления. Приложение №2 Список источников.",
+        document_type="Паспорт ИС",
+        relative_path="Этап 1.2/8. Паспорт информационной системы/ЦП УПКС_Паспорт ИС_v1.3.3.docx",
+        title="Приложения",
+        score=4.0,
+        diagnostics={"rerank_labels": ["boost:passport_appendices"]},
+    )
+    support_noise = result(
+        "passport-support",
+        "Документ: Паспорт ИС. Роль: Поддержка приложения. Регламентные операции.",
+        document_type="Паспорт ИС",
+        relative_path="Этап 1.2/8. Паспорт информационной системы/ЦП УПКС_Паспорт ИС_v1.3.3.docx",
+        title="Услуга по поддержке",
+        score=10.0,
+    )
+
+    context = ContextBuilder(primary_limit=2, supporting_limit=3, enable_parent_expansion=False).build(
+        "Какие приложения перечислены в Паспорте ИС?",
+        QueryIntentResult(intent=QueryIntent.DOCUMENT_OVERVIEW, confidence=0.88, is_project_related=True),
+        [support_noise, appendices],
+        [],
+    )
+
+    assert "passport-table3" in [item.metadata["chunk_id"] for item in context.primary_sources]
+
+
+def test_context_builder_promotes_passport_system_purpose() -> None:
+    purpose = result(
+        "passport-purpose",
+        "Основное назначение системы: Система предназначена для формирования единой информационной среды для автоматизации и цифровизации бизнес-процессов управления строительными проектами.",
+        document_type="Паспорт ИС",
+        relative_path="Этап 1.2/8. Паспорт информационной системы/ЦП УПКС_Паспорт ИС_v1.3.3.docx",
+        title="Описание и область применения",
+        score=4.0,
+        diagnostics={"rerank_labels": ["boost:passport_system_purpose", "boost:passport_exact_system_purpose"]},
+    )
+    support_noise = result(
+        "passport-integration",
+        "Документ: Паспорт ИС. Таблица: Table 23. Параметр интеграции: Область применения. Описание: Все контуры системы.",
+        document_type="Паспорт ИС",
+        relative_path="Этап 1.2/8. Паспорт информационной системы/ЦП УПКС_Паспорт ИС_v1.3.3.docx",
+        title="Информация по интеграции",
+        score=10.0,
+    )
+
+    context = ContextBuilder(primary_limit=2, supporting_limit=3, enable_parent_expansion=False).build(
+        "Какие сведения о системе и назначении ИС указаны в Паспорте ИС?",
+        QueryIntentResult(intent=QueryIntent.DOCUMENT_OVERVIEW, confidence=0.88, is_project_related=True),
+        [support_noise, purpose],
+        [],
+    )
+
+    assert "passport-purpose" in [item.metadata["chunk_id"] for item in context.primary_sources]
