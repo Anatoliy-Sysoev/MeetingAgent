@@ -6,6 +6,7 @@ from .models import ChatSource
 
 
 APP_CCPM_GROUP_RE = re.compile(r"\bapp_ccpm_[A-Za-z0-9_-]+\b", flags=re.I)
+ROLE_MAPPING_RE = re.compile(r"\b(app_ccpm_[A-Za-z0-9_-]+)\s*[—-]\s*([^;\n]+)", flags=re.I)
 
 
 def _norm(text: str) -> str:
@@ -56,6 +57,27 @@ def _passport_inventory_kind(query: str) -> str | None:
     if any(marker in lowered for marker in ("сведения о системе", "назначение ис", "назначении ис", "назначение системы")):
         return "system_purpose"
     return None
+
+
+def _is_soi_ad_role_mapping_query(query: str) -> bool:
+    lowered = _norm(query)
+    has_group_marker = "app_ccpm_ul_cc" in lowered
+    has_mapping_marker = any(
+        marker in lowered
+        for marker in (
+            "роль",
+            "роли",
+            "ролей",
+            "mapping",
+            "маппинг",
+            "соответствие",
+            "связаны",
+            "где искать",
+            "явный",
+            "к ролям",
+        )
+    )
+    return has_group_marker and has_mapping_marker
 
 
 def _is_soi_ad_app_ccpm_query(query: str) -> bool:
@@ -130,6 +152,26 @@ def _collect_app_ccpm_groups(sources: list[ChatSource]) -> list[tuple[str, ChatS
     return found
 
 
+def _collect_ad_role_mappings(sources: list[ChatSource]) -> list[tuple[str, str, ChatSource]]:
+    mappings: list[tuple[str, str, ChatSource]] = []
+    seen: set[str] = set()
+    for source in sources:
+        text = _source_text(source)
+        for match in ROLE_MAPPING_RE.finditer(text):
+            group = match.group(1).strip()
+            role = " ".join(match.group(2).split()).strip(" ;,.")
+            if not group.lower().startswith("app_ccpm_ul_cc"):
+                continue
+            if not role:
+                continue
+            key = group.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            mappings.append((group, role, source))
+    return mappings
+
+
 def _find_ldaps_source(sources: list[ChatSource]) -> ChatSource | None:
     for source in sources:
         lowered = _norm(_source_text(source))
@@ -140,6 +182,27 @@ def _find_ldaps_source(sources: list[ChatSource]) -> ChatSource | None:
         if "ldaps" in lowered or ("ldap" in lowered and "ssl" in lowered):
             return source
     return None
+
+
+def _build_ad_role_mapping_fallback_answer(query: str, sources: list[ChatSource]) -> str | None:
+    if not _is_soi_ad_role_mapping_query(query):
+        return None
+    mappings = _collect_ad_role_mappings(sources)
+    if not mappings:
+        return None
+
+    main_source = mappings[0][2]
+    mapping_text = "; ".join(f"`{group}` — {role}" for group, role, _ in mappings)
+    answer_lines = [
+        "Краткий ответ",
+        f"Явный mapping групп `app_ccpm_ul_cc` к ролям найден в источнике `{_source_label(main_source)}`: {mapping_text} [{main_source.source_ref}].",
+        "",
+        "Обоснование",
+        f"- Источник `{_source_label(main_source)}` содержит строку `Роли / группы AD` с перечислением групп `app_ccpm_ul_cc_01`, `app_ccpm_ul_cc_02`, `app_ccpm_ul_cc_03` и связанных ролей [{main_source.source_ref}].",
+    ]
+    for group, role, source in mappings:
+        answer_lines.append(f"- `{group}` соответствует роли `{role}` [{source.source_ref}].")
+    return "\n".join(answer_lines)
 
 
 def _build_app_ccpm_fallback_answer(query: str, sources: list[ChatSource]) -> str | None:
@@ -197,10 +260,24 @@ def _build_ldaps_fallback_answer(query: str, sources: list[ChatSource]) -> str |
 
 
 def _build_soi_ad_fallback_answer(query: str, sources: list[ChatSource]) -> str | None:
+    role_mapping_answer = _build_ad_role_mapping_fallback_answer(query, sources)
+    if role_mapping_answer:
+        return role_mapping_answer
     app_ccpm_answer = _build_app_ccpm_fallback_answer(query, sources)
     if app_ccpm_answer:
         return app_ccpm_answer
     return _build_ldaps_fallback_answer(query, sources)
+
+
+def build_pre_llm_deterministic_answer(query: str, sources: list[ChatSource]) -> str | None:
+    """Return deterministic answers for narrow AD cases before calling LLM.
+
+    This is intentionally limited to exact AD/app_ccpm and LDAPS questions,
+    where the source fragments are structured enough that LLM generation adds
+    latency and can create false answered/no_answer outcomes.
+    """
+
+    return _build_soi_ad_fallback_answer(query, sources)
 
 
 def _is_relevant_nsi_source(source: ChatSource) -> bool:
