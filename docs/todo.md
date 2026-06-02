@@ -6,6 +6,17 @@
 
 Прогон, ручная разметка, P0 guard/routing bucket, P1 CTA bucket, P1 PR bucket и P1 NSI regulation/reference bucket завершены.
 
+Git/PR статус на 2026-06-02:
+
+```text
+текущая ветка: codex/ntk-p1-nsi-routing-followup
+ветка чистая и синхронизирована с origin/codex/ntk-p1-nsi-routing-followup
+local main всё ещё ahead origin/main на 9 коммитов
+main не пушить и не трогать в рамках текущего шага
+```
+
+Следующее действие перед новым bucket: открыть PR из `codex/ntk-p1-nsi-routing-followup` в `main`. В PR явно указать, что diff включает накопленные локальные коммиты, которые уже есть в local `main`, но отсутствуют в `origin/main`.
+
 ```text
 docs/quality/ntk_realistic_100_new_queries.jsonl
 docs/quality/ntk_realistic_100_new_eval_review_filled.jsonl

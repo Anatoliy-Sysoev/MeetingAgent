@@ -200,6 +200,24 @@ data/ntk_targeted_nsi_6_eval_report.jsonl
 
 Остаток P1: `Passport`, `AD/app_ccpm`.
 
+Git/PR нюанс на 2026-06-02:
+
+```text
+current branch: codex/ntk-p1-nsi-routing-followup
+branch status: clean, synced with origin/codex/ntk-p1-nsi-routing-followup
+local main: ahead origin/main на 9 коммитов
+```
+
+`main` не пушился и не переписывался. PR из `codex/ntk-p1-nsi-routing-followup` в `origin/main` будет включать не только NSI routing/source-quality fix, но и накопленные локальные коммиты, которые уже находятся в локальном `main` и ещё не попали в `origin/main`. Это нужно учитывать при review.
+
+Следующий NTK quality шаг после открытия PR: P1 bucket `Passport`:
+
+```text
+NTK100-NEW-063
+NTK100-NEW-064
+NTK100-NEW-065
+```
+
 ## NTK Obsidian vault rebuild
 
 27.05.2026 добавлен воспроизводимый генератор полной пересборки Obsidian vault по корпусу NTK Yandex:
