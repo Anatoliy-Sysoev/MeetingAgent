@@ -98,3 +98,18 @@ def test_food_query_refused_not_clarified() -> None:
     result = decide("Как приготовить карбонару?")
     assert result.action == GuardAction.REFUSE
     assert result.aggregate.scope == SegmentScope.OUT_OF_PROJECT
+
+
+def test_ntk_p2_out_of_scope_queries_refused_not_clarified() -> None:
+    queries = [
+        "Как подрезать фикус, чтобы он распушился?",
+        "Что делать, если застудил шею?",
+        "Найди ракетку для бадминтона на Taobao.",
+        "Почему Chrome тормозит и какой браузер лучше?",
+    ]
+
+    for query in queries:
+        result = decide(query)
+        assert result.action == GuardAction.REFUSE, query
+        assert result.reason == "out_of_project_query", query
+        assert result.aggregate.scope == SegmentScope.OUT_OF_PROJECT, query
