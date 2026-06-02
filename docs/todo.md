@@ -614,3 +614,40 @@ docker compose --profile bot up bot
 - qwen2.5:7b-instruct слишком медленный;
 - qwen3:4b с timeout=30 ушел в fallback по всем 18 chunks.
 ```
+
+## NTK realistic-100: следующий bucket после Passport
+
+### Готово
+
+```text
+P1 Passport закрыт:
+- NTK100-NEW-063 answered;
+- NTK100-NEW-064 answered;
+- NTK100-NEW-065 answered.
+
+Подтверждение:
+- docs/quality/ntk_realistic_100_new_p1_passport_eval_2026-06-02.md;
+- targeted chat eval: answered=3/3, failures=0, parse_errors=0;
+- pytest tests/asu_june_bot -q: 170 passed.
+```
+
+### Следующий шаг
+
+```text
+P1 AD/app_ccpm.
+
+Цель:
+- вопрос "Какие группы AD app_ccpm используются для ролей строительного контроля?" должен поднимать не только СоИ AD, но и ПР Стройконтроль, приложение 2 - группы.
+
+Что проверить:
+- есть ли в NTK corpus chunks по Приложению 2 ПР Стройконтроль;
+- какие chunk_id/table_id содержат app_ccpm и роли;
+- почему текущий routing уводит primary в СоИ AD;
+- нужен ли PR-specific boost/route для AD role mapping.
+
+Acceptance:
+- targeted search показывает primary из ПР Стройконтроль / Приложение 2;
+- СоИ AD остаётся supporting для общей схемы синхронизации/групп;
+- targeted chat eval по AD/app_ccpm даёт answered без hallucination;
+- добавить regression tests.
+```

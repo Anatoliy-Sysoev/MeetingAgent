@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from .models import ChatSource
 
 
@@ -38,6 +40,19 @@ def _is_nsi_inventory_query(query: str) -> bool:
         )
     )
     return has_list_shape and has_nsi_object
+
+
+def _passport_inventory_kind(query: str) -> str | None:
+    lowered = _norm(query)
+    if "паспорт ис" not in lowered and "паспорте ис" not in lowered and "паспорта ис" not in lowered:
+        return None
+    if "связанн" in lowered and "документ" in lowered:
+        return "related_documents"
+    if any(marker in lowered for marker in ("какие приложения", "приложения перечислены", "приложения паспорта", "приложения в паспорте")):
+        return "appendices"
+    if any(marker in lowered for marker in ("сведения о системе", "назначение ис", "назначении ис", "назначение системы")):
+        return "system_purpose"
+    return None
 
 
 def _source_label(source: ChatSource) -> str:
@@ -94,6 +109,81 @@ def _is_relevant_nsi_source(source: ChatSource) -> bool:
     )
 
 
+def _extract_passport_related_documents(text: str) -> list[str]:
+    items: list[str] = []
+    for match in re.finditer(r"Название документа:\s*(.+?)(?=\s+Номер версии|\s+Дата:|\s+Документ:|$)", text, flags=re.I):
+        value = " ".join(match.group(1).split()).strip(" ;,.")
+        if value and value not in items:
+            items.append(value)
+    return items
+
+
+def _extract_passport_appendices(text: str) -> list[str]:
+    lowered = _norm(text)
+    items: list[str] = []
+    if "план послеаварийного восстановления" in lowered:
+        items.append("План послеаварийного восстановления")
+    if "список источников" in lowered:
+        items.append("Список источников")
+    return items
+
+
+def _extract_passport_system_purpose(text: str) -> list[str]:
+    match = re.search(r"(Система предназначена.+?)(?=$|\n|Основные функции системы:|Область применения:)", text, flags=re.I | re.S)
+    if not match:
+        return []
+    value = " ".join(match.group(1).split()).strip(" ;,.")
+    return [value] if value else []
+
+
+def _build_passport_inventory_fallback(query: str, sources: list[ChatSource]) -> str | None:
+    kind = _passport_inventory_kind(query)
+    if not kind:
+        return None
+
+    extracted: list[tuple[str, ChatSource]] = []
+    for source in sources:
+        text = source.text_preview or ""
+        haystack = _norm(" ".join(str(part or "") for part in (source.title, source.path, text)))
+        has_passport_source_marker = "паспорт ис" in haystack or "паспорт информационной системы" in haystack
+        if kind != "system_purpose" and not has_passport_source_marker:
+            continue
+        if kind == "related_documents":
+            items = _extract_passport_related_documents(text)
+        elif kind == "appendices":
+            items = _extract_passport_appendices(text)
+        else:
+            items = _extract_passport_system_purpose(text)
+        for item in items:
+            if item not in [name for name, _ in extracted]:
+                extracted.append((item, source))
+
+    if not extracted:
+        return None
+
+    refs_list: list[str] = []
+    for _, source in extracted[:3]:
+        ref = f"[{source.source_ref}]"
+        if ref not in refs_list:
+            refs_list.append(ref)
+    refs = ", ".join(refs_list)
+    if kind == "related_documents":
+        answer = "В переданном контексте Паспорта ИС найдены связанные документы: "
+    elif kind == "appendices":
+        answer = "В переданном контексте Паспорта ИС найдены приложения: "
+    else:
+        answer = "В переданном контексте Паспорта ИС указано назначение системы: "
+
+    answer_lines = [
+        "Краткий ответ",
+        answer + "; ".join(f"{item} [{source.source_ref}]" for item, source in extracted) + ".",
+        "",
+        "Обоснование",
+        f"- {'Факт извлечён из найденного фрагмента' if kind == 'system_purpose' else 'Перечень извлечён из табличного фрагмента'} Паспорта ИС {refs}.",
+    ]
+    return "\n".join(answer_lines)
+
+
 def _dedup_sources(sources: list[ChatSource]) -> list[ChatSource]:
     selected: list[ChatSource] = []
     seen: set[str] = set()
@@ -113,6 +203,10 @@ def build_inventory_fallback_answer(query: str, sources: list[ChatSource]) -> st
     a product false-negative where the LLM says no_answer even though retrieval
     already found relevant source titles, document paths and table rows.
     """
+
+    passport_answer = _build_passport_inventory_fallback(query, sources)
+    if passport_answer:
+        return passport_answer
 
     if not _is_nsi_inventory_query(query):
         return None

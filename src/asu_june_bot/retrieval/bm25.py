@@ -368,6 +368,40 @@ class BM25SearchAdapter:
         return "паспорт" in lowered and "ис" in lowered and any(marker in lowered for marker in ["что входит", "состав", "структур", "раздел", "включает", "из чего"])
 
     @staticmethod
+    def _has_passport_route(lowered: str) -> bool:
+        return any(
+            marker in lowered
+            for marker in (
+                "паспорт ис",
+                "паспорте ис",
+                "паспорта ис",
+                "паспорт информационной системы",
+            )
+        )
+
+    @staticmethod
+    def _is_passport_related_docs_query(lowered: str) -> bool:
+        return "связанн" in lowered and "документ" in lowered
+
+    @staticmethod
+    def _is_passport_appendices_query(lowered: str) -> bool:
+        return any(marker in lowered for marker in ("какие приложения", "приложения перечислены", "приложения в паспорте", "приложения паспорта"))
+
+    @staticmethod
+    def _is_passport_system_purpose_query(lowered: str) -> bool:
+        return any(
+            marker in lowered
+            for marker in (
+                "сведения о системе",
+                "назначение ис",
+                "назначении ис",
+                "назначение системы",
+                "описание системы",
+                "область применения",
+            )
+        )
+
+    @staticmethod
     def _is_passport_software_table(text_lower: str) -> bool:
         return (
             "контекст: программное обеспечение информационной системы" in text_lower
@@ -375,6 +409,50 @@ class BM25SearchAdapter:
             or "строка" in text_lower[:350] and "postgresql" in text_lower
             or "строка" in text_lower[:350] and "kubernetes" in text_lower
             or "строка" in text_lower[:350] and "nginx" in text_lower
+        )
+
+    @staticmethod
+    def _is_passport_related_docs_chunk(text_lower: str) -> bool:
+        return (
+            "таблица: table 2" in text_lower
+            and "название документа" in text_lower
+            and ("номер версии" in text_lower or "имя файла" in text_lower)
+        ) or "связанные документы (этот документ должен читаться вместе с)" in text_lower
+
+    @staticmethod
+    def _is_passport_appendices_chunk(text_lower: str) -> bool:
+        return (
+            "таблица: table 3" in text_lower
+            and ("приложение №" in text_lower or "план послеаварийного восстановления" in text_lower or "список источников" in text_lower)
+        ) or "приложения (являются неотъемлемой частью документа)" in text_lower
+
+    @staticmethod
+    def _is_passport_system_purpose_chunk(text_lower: str) -> bool:
+        return any(
+            marker in text_lower
+            for marker in (
+                "полное наименование описываемой системы",
+                "краткое наименование описываемой системы",
+                "основное назначение системы",
+                "система предназначена для формирования единой информационной среды",
+                "описание системы и область применения",
+                "описание и область применения",
+                "область применения: пао",
+            )
+        )
+
+    @staticmethod
+    def _is_passport_support_noise_chunk(text_lower: str) -> bool:
+        return any(
+            marker in text_lower
+            for marker in (
+                "роль: поддержка приложения",
+                "поддержка приложения (1-ая линия)",
+                "поддержка приложения (2-ая линия)",
+                "услуга по поддержке",
+                "требования к квалификации и численности сотрудников",
+                "регламентные операции",
+            )
         )
 
     @staticmethod
@@ -395,9 +473,30 @@ class BM25SearchAdapter:
         text_lower = doc.text.lower()
         boosts: list[tuple[str, float]] = []
         has_soi_ad_route = any(marker in lowered for marker in ("сои ad", "active directory", "ldaps", "app_ccpm", "группы ad"))
+        has_passport_route = self._has_passport_route(lowered)
 
-        if "паспорт" in lowered and "ис" in lowered:
-            boosts.append(("intent:passport", 2.0 if document_type == "Паспорт ИС" else 0.72))
+        if has_passport_route:
+            boosts.append(("intent:passport", 2.25 if document_type == "Паспорт ИС" else 0.55))
+            if document_type in {"ФТТ", "ПР", "ЦТА", "СоИ AD", "СоИ Справочники"}:
+                boosts.append(("penalty:passport_other_doc_type", 0.42))
+            if document_type == "Паспорт ИС":
+                if self._is_passport_related_docs_query(lowered):
+                    if self._is_passport_related_docs_chunk(text_lower):
+                        boosts.append(("intent:passport_related_documents", 5.6))
+                    elif self._is_passport_support_noise_chunk(text_lower):
+                        boosts.append(("penalty:passport_support_noise_for_related_docs", 0.18))
+                if self._is_passport_appendices_query(lowered):
+                    if self._is_passport_appendices_chunk(text_lower):
+                        boosts.append(("intent:passport_appendices", 6.4))
+                    elif self._is_passport_support_noise_chunk(text_lower) or self._is_passport_software_table(text_lower):
+                        boosts.append(("penalty:passport_support_noise_for_appendices", 0.08))
+                if self._is_passport_system_purpose_query(lowered):
+                    if self._is_passport_system_purpose_chunk(text_lower) or self._is_passport_scope_chunk(text_lower):
+                        boosts.append(("intent:passport_system_purpose", 4.8))
+                        if "система предназначена для формирования единой информационной среды" in text_lower:
+                            boosts.append(("intent:passport_exact_system_purpose", 2.4))
+                    elif self._is_passport_support_noise_chunk(text_lower) or self._is_passport_software_table(text_lower):
+                        boosts.append(("penalty:passport_support_noise_for_purpose", 0.22))
             if self._is_passport_overview_query(lowered):
                 if self._is_passport_scope_chunk(text_lower):
                     boosts.append(("intent:passport_overview_scope", 2.6))

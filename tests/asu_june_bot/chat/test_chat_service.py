@@ -143,6 +143,87 @@ def nsi_inventory_payload() -> dict:
     }
 
 
+def passport_related_documents_payload() -> dict:
+    return {
+        "status": "ok",
+        "query": "Что входит в Паспорт ИС и какие связанные документы в нём указаны?",
+        "context": {
+            "primary_sources": [
+                {
+                    "chunk_id": "passport-table2-expanded",
+                    "source_id": "doc-passport",
+                    "title": "ЦП УПКС_Паспорт ИС_v1.3.3.docx",
+                    "document_type": "Паспорт ИС",
+                    "document": "Этап 1.2/8. Паспорт информационной системы/ЦП УПКС_Паспорт ИС_v1.3.3.docx",
+                    "source_url": "https://example.test/passport",
+                    "source_type": "project_doc",
+                    "text": "Документ: Паспорт ИС. Таблица: Table 2. Строка: 2 Название документа: Проектное решение «Модуль СМР (Строительный контроль)» Номер версии /Имя файла: 1.ЦП_УПКС_ПР_СМР_Строительный_контроль_v_ Дата: .03.2026. Документ: Паспорт ИС. Таблица: Table 2. Строка: 3 Название документа: Целевая техническая архитектура (ЦТА) Номер версии /Имя файла: 1./ЦТА_ЦП_УПКС_Этап_1 Дата: .2026. Документ: Паспорт ИС. Таблица: Table 2. Строка: 4 Название документа: Соглашение об интеграции (Active Directory) Номер версии /Имя файла: 1.1/ЦП УПКС_СоИ_AD Дата: .03.2026.",
+                }
+            ],
+            "supporting_sources": [],
+            "excluded_sources": [],
+            "diagnostics": {},
+        },
+        "results": [{"chunk_id": "passport-table2-expanded"}],
+        "guard": {"decision": "allow"},
+        "diagnostics": {"search_service": {"retrieval_called": True}},
+    }
+
+
+def passport_appendices_payload() -> dict:
+    return {
+        "status": "ok",
+        "query": "Какие приложения перечислены в Паспорте ИС?",
+        "context": {
+            "primary_sources": [
+                {
+                    "chunk_id": "passport-table3-expanded",
+                    "source_id": "doc-passport",
+                    "title": "ЦП УПКС_Паспорт ИС_v1.3.3.docx",
+                    "document_type": "Паспорт ИС",
+                    "document": "Этап 1.2/8. Паспорт информационной системы/ЦП УПКС_Паспорт ИС_v1.3.3.docx",
+                    "source_url": "https://example.test/passport",
+                    "source_type": "project_doc",
+                    "text": "Документ: Паспорт ИС. Таблица: Table 3. Заголовки: Приложение №1 План послеаварийного восстановления | План послеаварийного восстановления. Документ: Паспорт ИС. Таблица: Table 3. Строка: 3 Приложение №1 План послеаварийного восстановления: Приложение №2 Список источников План послеаварийного восстановления: Список источников.",
+                }
+            ],
+            "supporting_sources": [],
+            "excluded_sources": [],
+            "diagnostics": {},
+        },
+        "results": [{"chunk_id": "passport-table3-expanded"}],
+        "guard": {"decision": "allow"},
+        "diagnostics": {"search_service": {"retrieval_called": True}},
+    }
+
+
+def passport_purpose_payload() -> dict:
+    return {
+        "status": "ok",
+        "query": "Какие сведения о системе и назначении ИС указаны в Паспорте ИС?",
+        "context": {
+            "primary_sources": [
+                {
+                    "chunk_id": "passport-purpose",
+                    "source_id": "doc-passport",
+                    "title": "Описание и область применения",
+                    "document_type": "Паспорт ИС",
+                    "document": "Этап 1.2/8. Паспорт информационной системы/ЦП УПКС_Паспорт ИС_v1.3.3.docx",
+                    "source_url": "https://example.test/passport",
+                    "source_type": "project_doc",
+                    "text": "Система предназначена для формирования единой информационной среды для автоматизации и цифровизации бизнес-процессов управления строительными проектами от стадии проектирования до ввода в эксплуатацию.",
+                }
+            ],
+            "supporting_sources": [],
+            "excluded_sources": [],
+            "diagnostics": {},
+        },
+        "results": [{"chunk_id": "passport-purpose"}],
+        "guard": {"decision": "allow"},
+        "diagnostics": {"search_service": {"retrieval_called": True}},
+    }
+
+
 def test_chat_refused_does_not_call_llm() -> None:
     search = FakeSearchService(refused_payload())
     llm = FakeLLMClient("should not be used")
@@ -281,4 +362,47 @@ def test_chat_inventory_fallback_converts_false_no_answer_to_source_list() -> No
     assert response.status == "answered"
     assert response.diagnostics["inventory_fallback_answer"] is True
     assert "Единицы измерения" in response.answer
+    assert "[S1]" in response.answer
+
+
+def test_chat_passport_related_documents_fallback_converts_false_no_answer() -> None:
+    search = FakeSearchService(passport_related_documents_payload())
+    llm = FakeLLMClient("Краткий ответ\nВ переданных источниках данных недостаточно для ответа.\n\nОбоснование\n- Модель не извлекла перечень. [S1]")
+    service = ChatService(search_service=search, llm_client=llm)
+
+    response = service.chat(ChatRequest(query="Что входит в Паспорт ИС и какие связанные документы в нём указаны?", model="fake-model"))
+
+    assert response.status == "answered"
+    assert response.diagnostics["inventory_fallback_answer"] is True
+    assert "Проектное решение" in response.answer
+    assert "Целевая техническая архитектура" in response.answer
+    assert "Соглашение об интеграции" in response.answer
+    assert "[S1]" in response.answer
+
+
+def test_chat_passport_appendices_fallback_converts_false_no_answer() -> None:
+    search = FakeSearchService(passport_appendices_payload())
+    llm = FakeLLMClient("Краткий ответ\nВ переданных источниках данных недостаточно для ответа.\n\nОбоснование\n- Модель не извлекла перечень. [S1]")
+    service = ChatService(search_service=search, llm_client=llm)
+
+    response = service.chat(ChatRequest(query="Какие приложения перечислены в Паспорте ИС?", model="fake-model"))
+
+    assert response.status == "answered"
+    assert response.diagnostics["inventory_fallback_answer"] is True
+    assert "План послеаварийного восстановления" in response.answer
+    assert "Список источников" in response.answer
+    assert "[S1]" in response.answer
+
+
+def test_chat_passport_purpose_fallback_converts_false_no_answer() -> None:
+    search = FakeSearchService(passport_purpose_payload())
+    llm = FakeLLMClient("Краткий ответ\nВ переданных источниках данных недостаточно для ответа.\n\nОбоснование\n- Модель не извлекла назначение. [S1]")
+    service = ChatService(search_service=search, llm_client=llm)
+
+    response = service.chat(ChatRequest(query="Какие сведения о системе и назначении ИС указаны в Паспорте ИС?", model="fake-model"))
+
+    assert response.status == "answered"
+    assert response.diagnostics["inventory_fallback_answer"] is True
+    assert "Система предназначена" in response.answer
+    assert "единой информационной среды" in response.answer
     assert "[S1]" in response.answer

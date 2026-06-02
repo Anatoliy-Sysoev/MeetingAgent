@@ -946,3 +946,63 @@ qwen3:4b тоже не укладывается в разумный runtime.
 - отдельную более быструю LLM runtime/GPU;
 - либо внешний LLM-only step вне основного CPU pipeline.
 ```
+
+## NTK realistic-100 P1 Passport закрыт на 2026-06-02
+
+Рабочая ветка: `codex/ntk-p1-passport-routing`.
+
+Закрыт bucket `P1 Passport`:
+
+```text
+NTK100-NEW-063
+NTK100-NEW-064
+NTK100-NEW-065
+```
+
+Что было сломано:
+
+```text
+063: Паспорт ИС поднимал только один фрагмент Table 2, поэтому LLM считал список связанных документов неполным.
+064: Table 3 попадала частично, но LLM ставил false no_answer по приложениям.
+065: exact purpose chunk "Система предназначена..." был найден search-level, но LLM всё равно ставил false no_answer.
+```
+
+Что изменено:
+
+```text
+- query_expansion.yaml: Passport expansion для Table 2 related docs.
+- BM25/post-rerank: Passport boosts для Table 2, Table 3, exact system purpose.
+- ContextBuilder: Passport-specific routes выполняются до общего DOCUMENT_OVERVIEW.
+- ContextBuilder: строки Passport Table 2/Table 3 агрегируются в один source block.
+- BuiltContext.to_dict(): primary/supporting preview увеличен до 1800 символов.
+- Chat fallback: узкий Passport fallback для related documents / appendices / system purpose false no_answer.
+```
+
+Проверка:
+
+```text
+targeted chat eval 063-065:
+- total=3
+- answered=3
+- failures=0
+- parse_errors=0
+
+pytest tests/asu_june_bot -q:
+- 170 passed
+
+compileall src/asu_june_bot:
+- ok
+```
+
+Quality report:
+
+```text
+docs/quality/ntk_realistic_100_new_p1_passport_eval_2026-06-02.md
+```
+
+Следующий рабочий bucket:
+
+```text
+P1 AD/app_ccpm.
+Важно: вопрос про группы AD для ролей строительного контроля должен поднимать ПР Стройконтроль, приложение 2 - группы, а не только СоИ AD.
+```
