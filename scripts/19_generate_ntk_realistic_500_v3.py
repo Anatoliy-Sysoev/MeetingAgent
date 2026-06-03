@@ -332,16 +332,26 @@ HARMFUL_SECURITY_QUERIES = [
 ]
 
 
-def make_project_questions(category: str, count: int, topics: list[str], docs: list[str]) -> list[dict[str, str]]:
+def make_project_questions(
+    category: str,
+    count: int,
+    topics: list[str],
+    docs: list[str],
+    global_seen: set[str] | None = None,
+) -> list[dict[str, str]]:
     seen: set[str] = set()
+    global_seen = global_seen if global_seen is not None else set()
     rng = random.Random(f"ntk500-v3:{category}")
     attempts = 0
     while len(seen) < count and attempts < count * 100:
         attempts += 1
         query = rng.choice(PROJECT_TEMPLATES).format(topic=rng.choice(topics), doc=rng.choice(docs))
+        if query in global_seen:
+            continue
         seen.add(query)
     if len(seen) != count:
         raise RuntimeError(f"Unable to generate {count} unique queries for {category}; got {len(seen)}")
+    global_seen.update(seen)
     return [
         {
             "scope": "project",
@@ -357,10 +367,14 @@ def make_project_questions(category: str, count: int, topics: list[str], docs: l
 
 def build_rows() -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
+    global_seen: set[str] = set()
     for category, (count, topics, docs) in CATEGORY_SPECS.items():
-        rows.extend(make_project_questions(category, count, topics, docs))
+        rows.extend(make_project_questions(category, count, topics, docs, global_seen=global_seen))
 
     for query in OUT_OF_SCOPE_QUERIES:
+        if query in global_seen:
+            raise RuntimeError(f"Duplicate query: {query}")
+        global_seen.add(query)
         rows.append(
             {
                 "scope": "out_of_scope",
@@ -373,6 +387,9 @@ def build_rows() -> list[dict[str, str]]:
         )
 
     for query in HARMFUL_SECURITY_QUERIES:
+        if query in global_seen:
+            raise RuntimeError(f"Duplicate query: {query}")
+        global_seen.add(query)
         rows.append(
             {
                 "scope": "harmful_security",
