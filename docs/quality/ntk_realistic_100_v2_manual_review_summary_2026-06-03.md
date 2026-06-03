@@ -162,6 +162,55 @@ retrieval_called = false
 музыка / подбор музыки
 ```
 
+### Fix status 2026-06-03
+
+Внесён follow-up fix для guard/scope слоя после локального падения `test_project_guard_v2.py` на двух регрессиях:
+
+```text
+1. out_of_scope false clarify:
+   "Расскажи кратко историю строительства Эйфелевой башни." -> должен быть refused.
+
+2. project false clarify:
+   "Как в проектном решении описан переход замечания между статусами после создания?" -> должен быть allow.
+```
+
+Коммиты:
+
+```text
+57fa876 Fix NTK v2 false clarify guard markers
+7d792ea Add NTK v2 false clarify guard regressions
+57fa876 follow-up replaced by latest scope markers update
+7d792ea follow-up replaced by latest guard regression update
+```
+
+Текущие актуальные изменения:
+
+```text
+src/asu_june_bot/guardrails/scope_classifier.py:
+  - добавлены project-маркеры для проектного решения, статусов замечаний, продуктивного контура, очередей, восстановления, ПМИ/испытаний, администрирования, МТО, ИД, логов и трассировки;
+  - добавлены generic out-of-scope-маркеры: туристический маршрут, история строительства, историческая справка, подбери музыку;
+  - out-of-scope блок оставлен без персональных regression-примеров.
+
+tests/asu_june_bot/test_project_guard_v2.py:
+  - добавлены 17 project false-clarify regression cases;
+  - добавлены 3 neutral out-of-scope false-clarify regression cases.
+```
+
+Локально нужно подтвердить:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\test_project_guard_v2.py -q
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot -q
+.\.venv\Scripts\python.exe -m compileall -q src\asu_june_bot
+```
+
+После зелёного guard-slice нужно повторить targeted eval по 20 кейсам:
+
+```text
+Project false clarify: 17/17 не должны быть clarify/refused; retrieval_called=true.
+Out-of-scope false clarify: 3/3 должны быть refused; retrieval_called=false.
+```
+
 ### P1. FTT / PR / testing false no_answer and weak retrieval
 
 Кейсы с высоким приоритетом:
@@ -239,18 +288,3 @@ False clarify по проектным вопросам + out_of_scope false clar
 2. Он блокирует retrieval полностью.
 3. После исправления этих 20 bad_refusal кейсов можно повторить targeted eval и получить более честную картину retrieval/answer quality.
 ```
-
-## Runtime / source files
-
-Runtime review-файлы не менять вручную без merge script. Patch-файл содержит только:
-
-```text
-eval_id
-scope
-category
-status
-review_verdict
-review_comment
-```
-
-Для переноса разметки в полный review-файл нужно выполнить локальный merge по `eval_id`.
