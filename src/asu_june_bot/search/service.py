@@ -136,6 +136,11 @@ class SearchService:
             return self._with_diagnostics(payload, diagnostics, request.include_diagnostics)
 
         t0 = time.perf_counter()
+        raw_results, table_17_diagnostics = self._inject_cta_table_17_results(request.query, raw_results, rows)
+        if table_17_diagnostics.get("applied") or table_17_diagnostics.get("reason") != "not_cta_infrastructure_query":
+            diagnostics.add_stage("cta_table_17_injection", self._elapsed_ms(t0), table_17_diagnostics)
+
+        t0 = time.perf_counter()
         rerank_result = self.post_reranker.rerank(request.query, query_intent_result, raw_results, top_k=request.top_k)
         diagnostics.add_stage("rerank", self._elapsed_ms(t0), rerank_result.diagnostics)
 
@@ -173,6 +178,152 @@ class SearchService:
         return get_corpus_config(resolved_cfg).name
 
     @staticmethod
+    def _norm_text(text: str) -> str:
+        return " ".join((text or "").lower().replace("ё", "е").split())
+
+    @classmethod
+    def _is_cta_infrastructure_table_query(cls, query: str) -> bool:
+        lowered = cls._norm_text(query)
+        return any(
+            marker in lowered
+            for marker in (
+                "инфраструктурные компоненты",
+                "компоненты архитектуры",
+                "продуктивный контур",
+                "продуктивного контура",
+                "серверы продуктивного контура",
+                "перечень серверов продуктивного контура",
+            )
+        )
+
+    @classmethod
+    def _row_haystack(cls, row: dict[str, Any]) -> str:
+        metadata_parts = [
+            row.get("document_type"),
+            row.get("relative_path"),
+            row.get("source_path"),
+            row.get("title"),
+            row.get("section"),
+            row.get("table_id"),
+            row.get("table_title"),
+            row.get("row_header"),
+            row.get("text"),
+        ]
+        return cls._norm_text(" ".join(str(part or "") for part in metadata_parts))
+
+    @classmethod
+    def _result_haystack(cls, result: SearchResult) -> str:
+        metadata = result.metadata or {}
+        metadata_parts = [
+            metadata.get("document_type"),
+            metadata.get("relative_path"),
+            metadata.get("source_path"),
+            metadata.get("title"),
+            metadata.get("section"),
+            metadata.get("table_id"),
+            metadata.get("table_title"),
+            result.text,
+        ]
+        return cls._norm_text(" ".join(str(part or "") for part in metadata_parts))
+
+    @staticmethod
+    def _row_key(row: dict[str, Any]) -> str:
+        return str(row.get("chunk_id") or row.get("db_id") or row.get("block_id") or id(row))
+
+    @staticmethod
+    def _result_key(source: SearchResult) -> str:
+        metadata = source.metadata or {}
+        return str(metadata.get("chunk_id") or metadata.get("db_id") or source.source_id)
+
+    @classmethod
+    def _is_table_17_row(cls, row: dict[str, Any]) -> bool:
+        haystack = cls._row_haystack(row)
+        has_table_17 = any(marker in haystack for marker in ("table 17", "таблица 17", "табл. 17", "табл 17"))
+        has_productive_servers = "перечень серверов продуктивного контура" in haystack or (
+            "продуктивного контура" in haystack and "наименование" in haystack and "назначение" in haystack
+        )
+        return has_table_17 or has_productive_servers
+
+    @staticmethod
+    def _row_to_search_result(row: dict[str, Any], score: float) -> SearchResult:
+        metadata = dict(row)
+        if not metadata.get("document_type"):
+            metadata["document_type"] = "ЦТА"
+        metadata["metadata_inference"] = "cta_table_17_injection"
+        source_id = str(row.get("source_id") or row.get("db_id") or row.get("chunk_id") or row.get("block_id"))
+        return SearchResult(
+            source_id=source_id,
+            text=str(row.get("text") or ""),
+            score=score,
+            vector_score=None,
+            bm25_score=score,
+            metadata=metadata,
+            matched_by=["cta_table_17_injection"],
+            diagnostics={"injected": True, "reason": "cta_table_17_related_chunk"},
+        )
+
+    def _inject_cta_table_17_results(
+        self,
+        query: str,
+        raw_results: list[SearchResult],
+        rows: list[dict[str, Any]],
+    ) -> tuple[list[SearchResult], dict[str, Any]]:
+        if not self._is_cta_infrastructure_table_query(query):
+            return raw_results, {"applied": False, "reason": "not_cta_infrastructure_query"}
+
+        existing_keys = {self._result_key(result) for result in raw_results}
+        related_paths: set[str] = set()
+        for result in raw_results:
+            haystack = self._result_haystack(result)
+            metadata = result.metadata or {}
+            path = str(metadata.get("relative_path") or metadata.get("source_path") or "")
+            if not path:
+                continue
+            references_table_17 = any(marker in haystack for marker in ("табл. 17", "табл 17", "таблица 17", "table 17"))
+            is_cta = str(metadata.get("document_type") or "") == "ЦТА" or "цта" in path.lower() or "целевая техническая архитектура" in path.lower()
+            if is_cta and (references_table_17 or "продуктивного контура" in haystack):
+                related_paths.add(path)
+
+        candidate_rows: list[dict[str, Any]] = []
+        for row in rows:
+            key = self._row_key(row)
+            if key in existing_keys:
+                continue
+            path = str(row.get("relative_path") or row.get("source_path") or "")
+            haystack = self._row_haystack(row)
+            is_related_path = path in related_paths
+            is_cta = str(row.get("document_type") or "") == "ЦТА" or "цта" in path.lower() or "целевая техническая архитектура" in path.lower()
+            if not (is_related_path or is_cta):
+                continue
+            if not self._is_table_17_row(row):
+                continue
+            candidate_rows.append(row)
+
+        if not candidate_rows:
+            return raw_results, {
+                "applied": False,
+                "reason": "table_17_chunk_not_found",
+                "related_paths": sorted(related_paths)[:5],
+            }
+
+        def row_rank(row: dict[str, Any]) -> tuple[int, int]:
+            haystack = self._row_haystack(row)
+            table_row_bonus = 1 if str(row.get("block_type") or "") == "table_row" else 0
+            component_bonus = sum(1 for marker in ("postgresql", "minio", "kubernetes", "redis", "rabbitmq", "nginx", "grafana", "siem") if marker in haystack)
+            return component_bonus, table_row_bonus
+
+        selected_rows = sorted(candidate_rows, key=row_rank, reverse=True)[:8]
+        base_score = (max((result.score for result in raw_results), default=1.0) or 1.0) + 1.0
+        injected_results = [self._row_to_search_result(row, base_score - idx * 0.01) for idx, row in enumerate(selected_rows)]
+        return injected_results + raw_results, {
+            "applied": True,
+            "reason": "cta_table_17_chunks_injected",
+            "injected": len(injected_results),
+            "related_paths": sorted(related_paths)[:5],
+            "sample_chunk_ids": [self._row_key(row) for row in selected_rows[:5]],
+        }
+
+    @staticmethod
     def _is_ad_cc_role_mapping_query(query: str) -> bool:
         lowered = " ".join((query or "").lower().split())
         has_explicit_cc_group = "app_ccpm_ul_cc" in lowered
@@ -208,11 +359,6 @@ class SearchService:
         document_type = str(metadata.get("document_type") or "")
         path = str(metadata.get("relative_path") or metadata.get("source_path") or "").lower()
         return document_type == "СоИ AD" or "сои_ad" in path or "active directory" in path
-
-    @staticmethod
-    def _result_key(source: SearchResult) -> str:
-        metadata = source.metadata or {}
-        return str(metadata.get("chunk_id") or metadata.get("db_id") or source.source_id)
 
     @staticmethod
     def _with_inferred_ad_cc_mapping_metadata(source: SearchResult) -> SearchResult:
