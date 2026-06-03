@@ -781,3 +781,47 @@ Acceptance для следующего bucket:
 - targeted rerun показывает bad_refusal=0 по выбранному bucket;
 - regression tests фиксируют новые guard cases.
 ```
+
+### Guard regression slice закрыт локально
+
+Исправлена оставшаяся серия false clarify в `tests/asu_june_bot/test_project_guard_v2.py`.
+
+Что было:
+
+```text
+После ec9a964 оставалось падение:
+- "Какие требования к резервному копированию и восстановлению указаны в архитектурных документах?" -> clarify вместо allow.
+
+После первого локального исправления проявились еще:
+- "Какие результаты ожидаются после выполнения сценариев по актам и предписаниям?" -> clarify вместо allow.
+- "Какие ограничения доступа описаны для работы с исполнительной документацией?" -> clarify вместо allow.
+```
+
+Что сделано:
+
+```text
+src/asu_june_bot/guardrails/scope_classifier.py:
+- добавлены падежные и фразовые project markers для backup/restore/architecture docs;
+- добавлены project markers для сценариев по актам и предписаниям;
+- добавлены project markers для ограничений доступа к исполнительной документации.
+```
+
+Проверка:
+
+```text
+python -m pytest tests/asu_june_bot/test_project_guard_v2.py -q
+12 passed
+
+python -m pytest tests/asu_june_bot -q
+172 passed
+
+python -m compileall -q src/asu_june_bot
+ok
+```
+
+Следующий шаг:
+
+```text
+Запустить targeted eval по 20 false clarify / bad_refusal cases из NTK v2 manual review.
+Цель: подтвердить, что test-level allow/refuse превратился в runtime-level улучшение.
+```
