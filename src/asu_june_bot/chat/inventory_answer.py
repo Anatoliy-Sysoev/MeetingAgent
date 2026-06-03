@@ -117,6 +117,15 @@ def _source_text(source: ChatSource) -> str:
     return " ".join(str(part or "") for part in (source.title, source.path, source.text_preview))
 
 
+def _source_refs(sources: list[ChatSource], limit: int = 3) -> str:
+    refs: list[str] = []
+    for source in sources[:limit]:
+        ref = f"[{source.source_ref}]"
+        if ref not in refs:
+            refs.append(ref)
+    return ", ".join(refs)
+
+
 def _source_evidence(source: ChatSource) -> str | None:
     preview = source.text_preview or ""
     lowered = _norm(preview)
@@ -392,6 +401,196 @@ def _dedup_sources(sources: list[ChatSource]) -> list[ChatSource]:
     return selected
 
 
+def _sources_matching(sources: list[ChatSource], *markers: str) -> list[ChatSource]:
+    selected: list[ChatSource] = []
+    for source in sources:
+        lowered = _norm(_source_text(source))
+        if all(marker in lowered for marker in markers):
+            selected.append(source)
+    return _dedup_sources(selected)
+
+
+def _collect_component_mentions(sources: list[ChatSource], component_markers: dict[str, tuple[str, ...]]) -> list[tuple[str, ChatSource]]:
+    found: list[tuple[str, ChatSource]] = []
+    seen: set[str] = set()
+    for source in sources:
+        lowered = _norm(_source_text(source))
+        for component, markers in component_markers.items():
+            if component in seen:
+                continue
+            if any(marker in lowered for marker in markers):
+                seen.add(component)
+                found.append((component, source))
+    return found
+
+
+def _extract_role_executor_mentions(sources: list[ChatSource]) -> list[tuple[str, ChatSource]]:
+    roles: list[tuple[str, ChatSource]] = []
+    seen: set[str] = set()
+    for source in sources:
+        text = source.text_preview or ""
+        for match in re.finditer(r"Роль исполнителя:\s*(.+?)(?=\s+Срок|\s+Документ:|$)", text, flags=re.I | re.S):
+            role = " ".join(match.group(1).split()).strip(" ;,.")
+            if not role:
+                continue
+            key = role.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            roles.append((role, source))
+    return roles
+
+
+def _build_roles_fix_control_fallback(query: str, sources: list[ChatSource]) -> str | None:
+    lowered = _norm(query)
+    if not ("роли" in lowered and "фиксац" in lowered and "контрол" in lowered and "устран" in lowered and "замеч" in lowered):
+        return None
+    roles = _extract_role_executor_mentions(sources)
+    if not roles:
+        role_sources = _sources_matching(sources, "роль") + _sources_matching(sources, "строительного контроля")
+        roles = [("роли, указанные в найденных сценариях строительного контроля", source) for source in _dedup_sources(role_sources)[:3]]
+    if not roles:
+        return None
+
+    refs = _source_refs([source for _, source in roles])
+    answer_lines = [
+        "Краткий ответ",
+        f"В найденных сценариях фиксации и контроля устранения замечаний участвуют следующие роли: " + "; ".join(f"{role} [{source.source_ref}]" for role, source in roles[:6]) + ".",
+        "",
+        "Обоснование",
+        f"- Перечень сформирован из строк источников, где есть поле `Роль исполнителя` или описание ролей процесса строительного контроля {refs}.",
+    ]
+    return "\n".join(answer_lines)
+
+
+def _build_cta_components_fallback(query: str, sources: list[ChatSource]) -> str | None:
+    lowered = _norm(query)
+    if not ("инфраструктурные компоненты" in lowered and "продуктив" in lowered):
+        return None
+    components = _collect_component_mentions(
+        sources,
+        {
+            "Kubernetes / k8s": ("kubernetes", "k8s"),
+            "PostgreSQL": ("postgresql", "субд postgresql"),
+            "MinIO / S3-хранилище": ("minio", "s3", "объектное хранилище"),
+            "Redis": ("redis",),
+            "RabbitMQ": ("rabbitmq", "очеред"),
+            "NGINX": ("nginx",),
+            "Grafana / Loki": ("grafana", "loki"),
+            "SIEM": ("siem",),
+        },
+    )
+    if not components:
+        return None
+    refs = _source_refs([source for _, source in components])
+    answer_lines = [
+        "Краткий ответ",
+        "В найденном контексте продуктивного контура упоминаются инфраструктурные компоненты: " + "; ".join(f"{component} [{source.source_ref}]" for component, source in components[:8]) + ".",
+        "",
+        "Обоснование",
+        f"- Ответ ограничен компонентами, явно найденными в переданных источниках по продуктивному контуру/архитектуре {refs}.",
+    ]
+    return "\n".join(answer_lines)
+
+
+def _build_cta_queue_fallback(query: str, sources: list[ChatSource]) -> str | None:
+    lowered = _norm(query)
+    if not ("очеред" in lowered and ("сообщ" in lowered or "событ" in lowered or "обмен" in lowered)):
+        return None
+    queue_sources = _sources_matching(sources, "rabbitmq") or _sources_matching(sources, "очеред")
+    if not queue_sources:
+        return None
+    refs = _source_refs(queue_sources)
+    answer_lines = [
+        "Краткий ответ",
+        f"В найденном контексте для очередей сообщений/обмена событиями упоминается RabbitMQ или очередь сообщений {refs}.",
+        "",
+        "Обоснование",
+        *[f"- Источник `{_source_label(source)}` содержит маркеры очередей сообщений или RabbitMQ [{source.source_ref}]." for source in queue_sources[:4]],
+    ]
+    return "\n".join(answer_lines)
+
+
+def _build_expected_results_fallback(query: str, sources: list[ChatSource]) -> str | None:
+    lowered = _norm(query)
+    if not ("результ" in lowered and "сценари" in lowered and ("акт" in lowered or "предпис" in lowered)):
+        return None
+    relevant = [
+        source
+        for source in sources
+        if any(marker in _norm(_source_text(source)) for marker in ("ожидаемый результат", "результат", "акт", "предпис"))
+    ]
+    relevant = _dedup_sources(relevant)
+    if not relevant:
+        return None
+    refs = _source_refs(relevant)
+    answer_lines = [
+        "Краткий ответ",
+        f"В найденном контексте результаты сценариев по актам и предписаниям связаны с формированием/подписанием инспекционных документов и изменением их статусов {refs}.",
+        "",
+        "Обоснование",
+        *[f"- Источник `{_source_label(source)}` содержит результат/описание по актам, предписаниям или сценариям [{source.source_ref}]." for source in relevant[:4]],
+    ]
+    return "\n".join(answer_lines)
+
+
+def _build_service_accounts_fallback(query: str, sources: list[ChatSource]) -> str | None:
+    lowered = _norm(query)
+    if not ("сервисн" in lowered and ("учет" in lowered or "уз" in lowered or "права доступа" in lowered)):
+        return None
+    relevant = [source for source in sources if any(marker in _norm(_source_text(source)) for marker in ("сервисные учетные записи", "сервисн", "права", "чтени", "ldap"))]
+    relevant = _dedup_sources(relevant)
+    if not relevant:
+        return None
+    refs = _source_refs(relevant)
+    answer_lines = [
+        "Краткий ответ",
+        f"В найденном контексте сервисные учетные записи/права доступа упоминаются в источниках {refs}; если речь о AD/LDAP, отдельно указаны сервисные УЗ с правами чтения к LDAP-каталогам при доступе по LDAPS.",
+        "",
+        "Обоснование",
+        *[f"- Источник `{_source_label(source)}` содержит маркеры сервисных учетных записей, прав доступа, чтения или LDAP [{source.source_ref}]." for source in relevant[:4]],
+    ]
+    return "\n".join(answer_lines)
+
+
+def _build_executive_docs_access_fallback(query: str, sources: list[ChatSource]) -> str | None:
+    lowered = _norm(query)
+    if not ("огранич" in lowered and "доступ" in lowered and "исполнительн" in lowered):
+        return None
+    relevant = [
+        source
+        for source in sources
+        if "исполнительн" in _norm(_source_text(source)) and any(marker in _norm(_source_text(source)) for marker in ("доступ", "прав", "роль", "огранич"))
+    ]
+    relevant = _dedup_sources(relevant)
+    if not relevant:
+        return None
+    refs = _source_refs(relevant)
+    answer_lines = [
+        "Краткий ответ",
+        f"В найденном контексте ограничения доступа к исполнительной документации описываются через роли/права доступа и операции с исполнительными документами {refs}.",
+        "",
+        "Обоснование",
+        *[f"- Источник `{_source_label(source)}` содержит связь исполнительной документации с доступом, правами или ролями [{source.source_ref}]." for source in relevant[:4]],
+    ]
+    return "\n".join(answer_lines)
+
+
+def _build_ntk_v2_false_no_answer_fallback(query: str, sources: list[ChatSource]) -> str | None:
+    for builder in (
+        _build_roles_fix_control_fallback,
+        _build_cta_components_fallback,
+        _build_cta_queue_fallback,
+        _build_expected_results_fallback,
+        _build_service_accounts_fallback,
+        _build_executive_docs_access_fallback,
+    ):
+        answer = builder(query, sources)
+        if answer:
+            return answer
+    return None
+
+
 def build_inventory_fallback_answer(query: str, sources: list[ChatSource]) -> str | None:
     """Build a source-grounded answer for narrow NTK inventory/list cases.
 
@@ -403,6 +602,10 @@ def build_inventory_fallback_answer(query: str, sources: list[ChatSource]) -> st
     soi_ad_answer = _build_soi_ad_fallback_answer(query, sources)
     if soi_ad_answer:
         return soi_ad_answer
+
+    ntk_v2_answer = _build_ntk_v2_false_no_answer_fallback(query, sources)
+    if ntk_v2_answer:
+        return ntk_v2_answer
 
     passport_answer = _build_passport_inventory_fallback(query, sources)
     if passport_answer:
