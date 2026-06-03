@@ -14,10 +14,9 @@ architecture.md
 roadmap.md
 decisions.md
 RUNBOOK_V2.md
-TOMORROW_START.md
 QH_STATUS.md
 todo.md
-smoke_report_*.md
+FTT_STATUS.md
 ```
 
 ## 2. Цель MVP

@@ -67,17 +67,11 @@ QH after_qh eval
 QH-5 release gate
 ```
 
-Главный завтрашний чек-лист:
+Актуальные эксплуатационные инструкции:
 
 ```text
-docs/subprojects/asu-june-bot/TOMORROW_EXECUTION_PROTOCOL.md
-docs/subprojects/asu-june-bot/TOMORROW_START.md
-```
-
-Hardening checklist после ревью Claude:
-
-```text
-docs/subprojects/asu-june-bot/QH_HARDENING_CHECKLIST.md
+docs/subprojects/asu-june-bot/RUNBOOK_V2.md
+docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md
 ```
 
 Главный статус QH:
@@ -261,9 +255,6 @@ Telegram adapter = long polling client over local /chat
 ```text
 docs/subprojects/asu-june-bot/README.md                этот файл, главный вход
 docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md переносимый запуск Bot v2 Yandex
-docs/subprojects/asu-june-bot/TOMORROW_EXECUTION_PROTOCOL.md подробный протокол проверки
-docs/subprojects/asu-june-bot/TOMORROW_START.md        короткий чек-лист запуска
-docs/subprojects/asu-june-bot/QH_HARDENING_CHECKLIST.md проверки после hardening
 docs/subprojects/asu-june-bot/QH_STATUS.md             статус QH этапов
 docs/subprojects/asu-june-bot/FTT_STATUS.md            статус FTT бота
 docs/subprojects/asu-june-bot/QUERY_FEEDBACK_LOOP.md   план накопления feedback dataset
@@ -288,20 +279,14 @@ docs/subprojects/asu-june-bot/product/
 
 Назначение: описание продукта, пользователей, JTBD, value proposition, roadmap, business requirements.
 
-### Smoke reports
+### Smoke и release evidence
+
+Одноразовые smoke-report файлы удалены как рабочий мусор. Итоги smoke/regression/QH-5 свернуты в:
 
 ```text
-docs/subprojects/asu-june-bot/smoke_report_project_guard_v2.md
-docs/subprojects/asu-june-bot/smoke_report_search_service_commit1.md
-docs/subprojects/asu-june-bot/smoke_report_api_search_mvp.md
-docs/subprojects/asu-june-bot/smoke_report_chat_mvp.md
-docs/subprojects/asu-june-bot/smoke_report_api_chat_mvp.md
-```
-
-После локальной проверки QH создан:
-
-```text
-docs/subprojects/asu-june-bot/smoke_report_qh_release.md
+docs/subprojects/asu-june-bot/QH_STATUS.md
+docs/subprojects/asu-june-bot/FTT_STATUS.md
+docs/subprojects/asu-june-bot/context.md
 ```
 
 ### Eval dataset

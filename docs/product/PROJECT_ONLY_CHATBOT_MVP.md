@@ -117,7 +117,8 @@ exact section / requirement boost
 Smoke-отчет:
 
 ```text
-docs/subprojects/asu-june-bot/search_smoke_report_2026-05-14.md
+docs/subprojects/asu-june-bot/QH_STATUS.md
+docs/subprojects/asu-june-bot/FTT_STATUS.md
 ```
 
 ## Текущие результаты smoke

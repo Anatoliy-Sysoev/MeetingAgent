@@ -109,6 +109,18 @@ docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md
 
 Зафиксировано: `data/asu_june_bot_ntk/*` не хранится в GitHub. Для быстрого запуска на другом ПК нужно запросить runtime-пакет `data/asu_june_bot_ntk` с `chunks_v2.jsonl` и `numpy_index_v2`, либо пересобрать корпус из исходной папки Яндекс.Диска. Docker packaging уже есть в корне проекта и подходит для API/Telegram запуска с `ASU_JUNE_BOT_ACTIVE_CORPUS=ntk`.
 
+03.06.2026 удалены одноразовые рабочие документы, которые больше не нужны как входные источники:
+
+```text
+TOMORROW_START.md
+TOMORROW_EXECUTION_PROTOCOL.md
+QH_HARDENING_CHECKLIST.md
+search_smoke_report_2026-05-14.md
+smoke_report_*.md
+```
+
+Их полезное содержание свернуто в `README.md`, `RUNBOOK_V2.md`, `QH_STATUS.md`, `FTT_STATUS.md`, `context.md` и `todo.md`.
+
 ## 2.2. P0 project-scope guard fix
 
 28.05.2026 закрыт P0 bucket `project_scope_clarify_or_sensitive_guard`.
@@ -495,22 +507,14 @@ final QH gate
 after_qh eval
 baseline comparison
 qh gate with --local-validation-done --baseline-compared
-smoke_report_qh_release.md
+QH_STATUS.md / FTT_STATUS.md
 ```
 
 ## 8. Завтрашний запуск
 
 Главный детальный документ:
 
-```text
-docs/subprojects/asu-june-bot/TOMORROW_EXECUTION_PROTOCOL.md
-```
-
-Короткий чек-лист:
-
-```text
-docs/subprojects/asu-june-bot/TOMORROW_START.md
-```
+Операционный запуск теперь описан в `RUNBOOK_V2.md`, а перенос Bot v2 Yandex на другой ПК — в `README_YANDEX_V2_LOCAL.md`.
 
 Порядок:
 
@@ -555,10 +559,9 @@ Telegram:
 
 ```text
 README.md
-TOMORROW_EXECUTION_PROTOCOL.md
-TOMORROW_START.md
 QH_STATUS.md
 FTT_STATUS.md
+README_YANDEX_V2_LOCAL.md
 architecture.md
 mvp.md
 roadmap.md
@@ -569,7 +572,6 @@ todo.md
 eval_questions.md
 ideas.md
 product/
-smoke_report_*.md
 ```
 
 ## 10. Локальная проверка 2026-05-18 / 2026-05-19
@@ -591,9 +593,7 @@ baseline comparison: baseline 6/13, 46.2% -> after_qh 7/13, 53.8%
 
 Создан отчёт:
 
-```text
-docs/subprojects/asu-june-bot/smoke_report_qh_release.md
-```
+Сводка QH-5 и smoke/regression теперь хранится в `QH_STATUS.md`, `FTT_STATUS.md` и этом `context.md`.
 
 QH-5 закрыт как `PASSED`: Telegram smoke закрыт локально, final gate выполнен с `--local-validation-done --baseline-compared`.
 

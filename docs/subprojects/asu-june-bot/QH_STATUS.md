@@ -37,10 +37,11 @@ realistic 100 smoke --limit 10: 10/10 answered, failures=0, parse_errors=0
 final QH gate: status=passed, pending=[]
 ```
 
-Отчёт:
+Сводка проверки зафиксирована в:
 
 ```text
-docs/subprojects/asu-june-bot/smoke_report_qh_release.md
+docs/subprojects/asu-june-bot/context.md
+docs/subprojects/asu-june-bot/FTT_STATUS.md
 ```
 
 ## QH-1. Observability + Eval Baseline

@@ -12,6 +12,18 @@ docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md
 
 Важно для запуска на другом ПК: `data/asu_june_bot_ntk/*` не хранится в GitHub. Нужно запросить runtime-пакет корпуса или пересобрать корпус по `docs/subprojects/asu-june-bot/NTK_YANDEX_CORPUS.md`.
 
+Документация подпроекта очищена от одноразовых проверочных документов. Дальше в качестве входных документов использовать:
+
+```text
+docs/subprojects/asu-june-bot/README.md
+docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md
+docs/subprojects/asu-june-bot/RUNBOOK_V2.md
+docs/subprojects/asu-june-bot/context.md
+docs/subprojects/asu-june-bot/todo.md
+docs/subprojects/asu-june-bot/QH_STATUS.md
+docs/subprojects/asu-june-bot/FTT_STATUS.md
+```
+
 Прогон, ручная разметка, P0 guard/routing bucket, P1 CTA bucket, P1 PR bucket и P1 NSI regulation/reference bucket завершены.
 
 ```text

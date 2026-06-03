@@ -45,7 +45,7 @@ archive/design/api_search_mvp_design.md
 Причина:
 
 ```text
-API Search MVP реализован. Активное состояние отражено в architecture.md, mvp.md, roadmap.md, RUNBOOK_V2.md и smoke_report_api_search_mvp.md.
+API Search MVP реализован. Активное состояние отражено в architecture.md, mvp.md, roadmap.md, RUNBOOK_V2.md, QH_STATUS.md и FTT_STATUS.md.
 ```
 
 ## Case-conflict runbook

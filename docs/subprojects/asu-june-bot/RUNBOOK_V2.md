@@ -44,15 +44,7 @@ docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md
 
 Runtime-данные `data/asu_june_bot_ntk/*` не хранятся в Git. Для быстрого запуска нужно запросить пакет `data/asu_june_bot_ntk` или пересобрать корпус из исходной папки Яндекс.Диска.
 
-## Быстрый старт завтра
-
-Для восстановления после выключения рабочего ПК сначала выполнить отдельный чек-лист:
-
-```text
-docs/subprojects/asu-june-bot/TOMORROW_START.md
-```
-
-Он содержит минимальную последовательность:
+## Быстрый старт
 
 ```text
 git pull -> health -> tests -> API -> Web UI -> Telegram adapter
@@ -76,14 +68,12 @@ Telegram adapter over local /chat
 QH-1 Observability + Eval Baseline skeleton
 ```
 
-Финальные smoke-отчёты:
+Итоги финальных smoke/regression:
 
 ```text
-docs/subprojects/asu-june-bot/smoke_report_project_guard_v2.md
-docs/subprojects/asu-june-bot/smoke_report_search_service_commit1.md
-docs/subprojects/asu-june-bot/smoke_report_api_search_mvp.md
-docs/subprojects/asu-june-bot/smoke_report_chat_mvp.md
-docs/subprojects/asu-june-bot/smoke_report_api_chat_mvp.md
+docs/subprojects/asu-june-bot/QH_STATUS.md
+docs/subprojects/asu-june-bot/FTT_STATUS.md
+docs/subprojects/asu-june-bot/context.md
 ```
 
 Рекомендуемая chat-модель MVP:

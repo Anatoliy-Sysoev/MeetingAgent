@@ -2,7 +2,7 @@
 
 Архивировано: 2026-05-16.
 
-Причина архивирования: дизайн-драфт реализован. Активное состояние API Search MVP теперь отражено в `../..//architecture.md`, `../..//mvp.md`, `../..//roadmap.md`, `../..//RUNBOOK_V2.md` и `../..//smoke_report_api_search_mvp.md`.
+Причина архивирования: дизайн-драфт реализован. Активное состояние API Search MVP теперь отражено в `../..//architecture.md`, `../..//mvp.md`, `../..//roadmap.md`, `../..//RUNBOOK_V2.md`, `../..//QH_STATUS.md` и `../..//FTT_STATUS.md`.
 
 Исходный путь до архивирования:
 
@@ -540,7 +540,7 @@ Invoke-RestMethod `
 - API smoke tests;
 - PowerShell smoke commands;
 - update `RUNBOOK_V2.md`;
-- create `smoke_report_api_search_mvp.md`.
+- record smoke summary in `QH_STATUS.md` / `FTT_STATUS.md`.
 
 ## Definition of Done
 

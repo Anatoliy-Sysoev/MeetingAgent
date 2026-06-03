@@ -53,7 +53,7 @@ API smoke: ok/refused сценарии пройдены
 Web UI HTTP smoke: /ui отдаёт страницу с основными элементами
 chat_runs.jsonl: пишется
 after_qh eval: 7/13 против baseline 6/13
-smoke_report_qh_release.md: создан; addendum 2026-05-19 фиксирует QH-5 PASSED
+QH-5 PASSED зафиксирован в QH_STATUS.md и context.md
 2026-05-19: final QH gate -> passed, realistic 100 smoke --limit 10 -> 10/10 answered
 ```
 
@@ -247,7 +247,7 @@ GET /health
 POST /search
 SearchRequest validation
 MAX_QUERY_CHARS = 2000
-smoke_report_api_search_mvp.md
+Search/API smoke summary зафиксирован в QH_STATUS.md и context.md
 ```
 
 Осталось:
@@ -280,7 +280,7 @@ Chat CLI
 
 ```text
 answered на qwen2.5:7b-instruct подтверждено 2026-05-18
-actual smoke output зафиксирован в smoke_report_qh_release.md
+actual smoke summary зафиксирован в QH_STATUS.md и context.md
 ```
 
 Ограничение:

@@ -614,12 +614,11 @@ monitoring dashboards
 
 ```text
 README.md                      входная точка
-TOMORROW_START.md              восстановление и сдачный smoke
+RUNBOOK_V2.md                  восстановление и эксплуатационные команды
 QH_STATUS.md                   статус QH этапов
 mvp.md                         функционально-технический scope
 roadmap.md                     план-график
 RUNBOOK_V2.md                  эксплуатация и проверки
 decisions.md                   архитектурные решения
 product/                       продуктовый контур
-smoke_report_*.md              доказательства прохождения этапов
 ```

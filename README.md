@@ -49,7 +49,7 @@ docs/subprojects/asu-june-bot/README.md
 Ключевые документы подпроекта:
 
 ```text
-docs/subprojects/asu-june-bot/TOMORROW_START.md
+docs/subprojects/asu-june-bot/RUNBOOK_V2.md
 docs/subprojects/asu-june-bot/context.md
 docs/subprojects/asu-june-bot/decisions.md
 docs/subprojects/asu-june-bot/architecture.md
@@ -169,7 +169,7 @@ Telegram adapter = внешний вход поверх локального /ch
 ### Завтрашнее восстановление
 
 ```text
-docs/subprojects/asu-june-bot/TOMORROW_START.md
+docs/subprojects/asu-june-bot/RUNBOOK_V2.md
 ```
 
 ### Health
@@ -271,7 +271,7 @@ docs/todo.md
 
 ```text
 docs/subprojects/asu-june-bot/README.md
-docs/subprojects/asu-june-bot/TOMORROW_START.md
+docs/subprojects/asu-june-bot/RUNBOOK_V2.md
 docs/subprojects/asu-june-bot/context.md
 docs/subprojects/asu-june-bot/decisions.md
 docs/subprojects/asu-june-bot/todo.md
@@ -372,7 +372,7 @@ docs/subprojects/asu-june-bot/TECHNICAL_DIAGRAMS.md
 Завтрашний чек-лист запуска:
 
 ```text
-docs/subprojects/asu-june-bot/TOMORROW_START.md
+docs/subprojects/asu-june-bot/RUNBOOK_V2.md
 ```
 
 Telegram adapter:

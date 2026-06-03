@@ -26,7 +26,7 @@ API smoke: ok
 Web UI HTTP smoke: ok
 after_qh eval: 7/13, 53.8%
 baseline comparison: 6/13 -> 7/13
-smoke_report_qh_release.md создан
+QH-5 summary зафиксирован в QH_STATUS.md / FTT_STATUS.md
 Telegram smoke: закрыт локально
 final QH gate: status=passed, pending=[]
 ```
@@ -54,10 +54,9 @@ docs/subprojects/asu-june-bot/QUERY_FEEDBACK_LOOP.md
 Главные документы:
 
 ```text
-docs/subprojects/asu-june-bot/TOMORROW_EXECUTION_PROTOCOL.md
-docs/subprojects/asu-june-bot/QH_HARDENING_CHECKLIST.md
 docs/subprojects/asu-june-bot/QH_STATUS.md
 docs/subprojects/asu-june-bot/FTT_STATUS.md
+docs/subprojects/asu-june-bot/RUNBOOK_V2.md
 docs/subprojects/asu-june-bot/QUERY_FEEDBACK_LOOP.md
 docs/subprojects/asu-june-bot/TECHNICAL_DIAGRAMS.md
 ```
@@ -85,6 +84,8 @@ docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md
 2. На новом ПК проверить Docker запуск с ASU_JUNE_BOT_ACTIVE_CORPUS=ntk.
 3. При необходимости добавить отдельный compose profile для offline/BM25-only режима.
 ```
+
+Одноразовые документы `TOMORROW_*`, `QH_HARDENING_CHECKLIST.md` и старые `smoke_report_*.md` удалены из активной документации. Новые проверки фиксировать не отдельными временными файлами, а в `QH_STATUS.md`, `FTT_STATUS.md`, `context.md`, `todo.md` или `docs/quality/*`, если это eval evidence.
 
 ## NTK realistic-100 new manual review
 
@@ -243,7 +244,6 @@ AnswerValidator больше не превращает честное 'недо�
 SearchApiRequest extra='forbid'
 SourcePolicy ограничивает requested source types безопасным allowlist
 unhandled API errors санитизированы
-QH_HARDENING_CHECKLIST.md добавлен
 README/RUNBOOK/context обновлены
 ```
 
@@ -307,7 +307,8 @@ mixed query -> refused
 Подробные команды:
 
 ```text
-docs/subprojects/asu-june-bot/QH_HARDENING_CHECKLIST.md
+docs/subprojects/asu-june-bot/QH_STATUS.md
+docs/subprojects/asu-june-bot/FTT_STATUS.md
 ```
 
 ## QH-1 baseline: первичный вывод
