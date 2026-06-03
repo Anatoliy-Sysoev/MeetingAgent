@@ -228,6 +228,34 @@ class ChatService:
         ok, validation_errors = self.answer_validator.validate_answered(answer, sources)
         diagnostics["validation_errors"] = validation_errors
         if not ok:
+            inventory_fallback = build_inventory_fallback_answer(request.query, sources)
+            if inventory_fallback:
+                fallback_ok, fallback_validation_errors = self.answer_validator.validate_answered(inventory_fallback, sources)
+                diagnostics["inventory_fallback_answer"] = True
+                diagnostics["inventory_fallback_reason"] = "validation_failed"
+                diagnostics["llm_validation_errors"] = validation_errors
+                diagnostics["validation_errors"] = fallback_validation_errors
+                if fallback_ok:
+                    return finalize(
+                        ChatResponse(
+                            status=ChatStatus.ANSWERED.value,
+                            query=request.query,
+                            answer=inventory_fallback,
+                            sources=sources,
+                            search=search_payload,
+                            diagnostics=diagnostics,
+                        )
+                    )
+                return finalize(
+                    ChatResponse(
+                        status=ChatStatus.VALIDATION_FAILED.value,
+                        query=request.query,
+                        answer=inventory_fallback,
+                        sources=sources,
+                        search=search_payload,
+                        diagnostics=diagnostics,
+                    )
+                )
             return finalize(
                 ChatResponse(
                     status=ChatStatus.VALIDATION_FAILED.value,
