@@ -700,3 +700,84 @@ validation_failed: 1
 3. Исправлять bucket-first, не общими правками.
 4. Каждый bucket подтверждать targeted rerun.
 ```
+
+### Ручная разметка получена
+
+```text
+docs/quality/ntk_realistic_100_v2_manual_review_patch.jsonl
+docs/quality/ntk_realistic_100_v2_manual_review_summary_2026-06-03.md
+docs/quality/ntk_realistic_100_v2_eval_review_filled.jsonl
+docs/quality/ntk_realistic_100_v2_eval_review_compact_filled.jsonl
+```
+
+Проверка:
+
+```text
+full_patched: 100/100
+compact_patched: 100/100
+bad_json: 0
+```
+
+Manual verdict counts:
+
+```text
+ok: 36
+low_score: 34
+bad_refusal: 20
+garbage_source: 6
+out_of_scope: 3
+missing_source: 1
+```
+
+### Следующий рабочий bucket
+
+```text
+P0/P1 False clarify / bad_refusal.
+```
+
+Причина:
+
+```text
+Guard/scope слой блокирует retrieval.
+Пока false clarify не исправлен, реальные retrieval defects частично скрыты.
+```
+
+Project false clarify cases:
+
+```text
+NTK100-V2-009
+NTK100-V2-011
+NTK100-V2-015
+NTK100-V2-021
+NTK100-V2-023
+NTK100-V2-027
+NTK100-V2-048
+NTK100-V2-053
+NTK100-V2-054
+NTK100-V2-061
+NTK100-V2-065
+NTK100-V2-067
+NTK100-V2-073
+NTK100-V2-080
+NTK100-V2-083
+NTK100-V2-086
+NTK100-V2-090
+```
+
+Out-of-scope false clarify cases:
+
+```text
+NTK100-V2-093
+NTK100-V2-095
+NTK100-V2-096
+```
+
+Acceptance для следующего bucket:
+
+```text
+- project false clarify cases переходят в allow/answered или no_answer с retrieval;
+- нейтральные out_of_scope false clarify переходят в refused/out_of_scope;
+- harmful_security behavior не ухудшается;
+- targeted rerun показывает bad_refusal=0 по выбранному bucket;
+- regression tests фиксируют новые guard cases.
+```

@@ -1058,3 +1058,87 @@ min_duration_sec: 0.676
 Quality verdict еще не выставлен.
 Следующий шаг - ручная разметка review_verdict/review_comment в docs/quality/ntk_realistic_100_v2_eval_review.jsonl.
 ```
+
+## NTK realistic 100 v2 ручная разметка опубликована на 2026-06-03
+
+Ручная разметка `NTK realistic 100 v2` получена и слита в полные review-файлы.
+
+Артефакты:
+
+```text
+docs/quality/ntk_realistic_100_v2_manual_review_patch.jsonl
+docs/quality/ntk_realistic_100_v2_manual_review_summary_2026-06-03.md
+docs/quality/ntk_realistic_100_v2_eval_review_filled.jsonl
+docs/quality/ntk_realistic_100_v2_eval_review_compact_filled.jsonl
+```
+
+Проверка merge:
+
+```text
+full_patched: 100/100
+compact_patched: 100/100
+bad_json: 0
+```
+
+Manual verdict counts:
+
+```text
+ok: 36
+low_score: 34
+bad_refusal: 20
+garbage_source: 6
+out_of_scope: 3
+missing_source: 1
+```
+
+Status x verdict:
+
+```text
+answered / ok: 31
+answered / low_score: 8
+clarify / bad_refusal: 20
+no_answer / garbage_source: 6
+no_answer / low_score: 26
+no_answer / missing_source: 1
+refused / ok: 4
+refused / out_of_scope: 3
+validation_failed / ok: 1
+```
+
+Вывод:
+
+```text
+Технически прогон успешен, но quality-pass не подтвержден.
+Главный следующий bucket: false clarify / bad_refusal.
+Начинать надо с guard/scope, потому что он блокирует retrieval и искажает оценку качества поиска.
+```
+
+False clarify project cases:
+
+```text
+NTK100-V2-009
+NTK100-V2-011
+NTK100-V2-015
+NTK100-V2-021
+NTK100-V2-023
+NTK100-V2-027
+NTK100-V2-048
+NTK100-V2-053
+NTK100-V2-054
+NTK100-V2-061
+NTK100-V2-065
+NTK100-V2-067
+NTK100-V2-073
+NTK100-V2-080
+NTK100-V2-083
+NTK100-V2-086
+NTK100-V2-090
+```
+
+Out-of-scope false clarify:
+
+```text
+NTK100-V2-093
+NTK100-V2-095
+NTK100-V2-096
+```
