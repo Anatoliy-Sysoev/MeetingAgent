@@ -1,8 +1,16 @@
 # TODO
 
-Обновлено: 2026-06-02.
+Обновлено: 2026-06-03.
 
 ## Сейчас: NTK realistic-100 P1 retrieval fixes
+
+Документация переноса Bot v2 Yandex на другой локальный ПК обновлена:
+
+```text
+docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md
+```
+
+Важно для запуска на другом ПК: `data/asu_june_bot_ntk/*` не хранится в GitHub. Нужно запросить runtime-пакет корпуса или пересобрать корпус по `docs/subprojects/asu-june-bot/NTK_YANDEX_CORPUS.md`.
 
 Прогон, ручная разметка, P0 guard/routing bucket, P1 CTA bucket, P1 PR bucket и P1 NSI regulation/reference bucket завершены.
 

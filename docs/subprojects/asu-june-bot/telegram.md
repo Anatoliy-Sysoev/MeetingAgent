@@ -1,6 +1,6 @@
 # Telegram adapter для Project Knowledge Bot
 
-Обновлено: 2026-05-19.
+Обновлено: 2026-06-03.
 
 ## Назначение
 
@@ -33,6 +33,19 @@ API запуск:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_api.py --host 127.0.0.1 --port 8000
+```
+
+Для Docker-запуска Bot v2 Yandex на другом ПК см.:
+
+```text
+docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md
+```
+
+В Docker profile `bot` adapter обращается к API по `http://api:8000/chat`, поэтому в `.env` для контейнерного запуска использовать:
+
+```dotenv
+ASU_JUNE_BOT_CHAT_API_URL=http://api:8000/chat
+ASU_JUNE_BOT_ACTIVE_CORPUS=ntk
 ```
 
 Проверка:

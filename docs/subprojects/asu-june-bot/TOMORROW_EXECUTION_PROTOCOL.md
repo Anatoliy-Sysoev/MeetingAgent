@@ -82,7 +82,7 @@ docs/subprojects/asu-june-bot/smoke_report_qh_release.md
 не пересчитывать embeddings, если health показывает vector_ready=true
 не менять модель embeddings bge-m3
 не коммитить Telegram token
-не начинать Docker до QH-5 passed
+не переносить Docker/Yandex запуск на другой ПК без runtime-пакета data/asu_june_bot_ntk или плана пересборки корпуса
 не чинить всё подряд перед сдачей
 ```
 

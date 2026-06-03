@@ -1,6 +1,6 @@
 # Завтрашний старт Project Knowledge Bot
 
-Обновлено: 2026-05-19.
+Обновлено: 2026-06-03.
 
 ## Цель
 
@@ -14,8 +14,17 @@ API работает
 Web UI открывается
 Telegram adapter отвечает при наличии локального token
 QH-5 уже PASSED
-следующий этап выбран: Docker или QH-6
+Docker packaging уже добавлен
+для Bot v2 Yandex на другом ПК использовать отдельный install README
 ```
+
+Переносимый запуск Yandex/NTK корпуса:
+
+```text
+docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md
+```
+
+Важно: `data/asu_june_bot_ntk/*` не лежит в GitHub. Для быстрого запуска на другом ПК нужен runtime-пакет корпуса или пересборка по `NTK_YANDEX_CORPUS.md`.
 
 ## 0. Открыть проект
 
@@ -278,7 +287,7 @@ Remove-Item Env:\ASU_JUNE_BOT_ALLOWED_CHAT_IDS -ErrorAction SilentlyContinue
 не удалять data/asu_june_bot
 не пересчитывать embeddings, если индекс уже готов
 не менять модель embeddings bge-m3
-не начинать Docker до фактического прохождения QH-5 gate
+не передавать новый ПК без runtime-пакета data/asu_june_bot_ntk или плана пересборки корпуса
 не чинить все eval failures перед демонстрацией
 не коммитить Telegram token
 ```

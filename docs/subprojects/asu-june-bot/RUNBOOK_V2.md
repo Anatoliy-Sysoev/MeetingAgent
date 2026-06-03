@@ -1,6 +1,6 @@
 # Asu June Bot v2 Runbook
 
-Обновлено: 2026-05-16.
+Обновлено: 2026-06-03.
 
 ## Назначение
 
@@ -35,6 +35,14 @@ data/asu_june_bot_ntk/
 ```text
 docs/subprojects/asu-june-bot/NTK_YANDEX_CORPUS.md
 ```
+
+Переносимый запуск Yandex/NTK корпуса на другом локальном ПК:
+
+```text
+docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md
+```
+
+Runtime-данные `data/asu_june_bot_ntk/*` не хранятся в Git. Для быстрого запуска нужно запросить пакет `data/asu_june_bot_ntk` или пересобрать корпус из исходной папки Яндекс.Диска.
 
 ## Быстрый старт завтра
 
@@ -589,4 +597,4 @@ dedup parent context
 - Не внедрять JSON-mode, retry, NLI и LLM-judge до накопления eval dataset.
 - Не внедрять source quality filter без baseline.
 - Не внедрять parent expansion без замера эффекта source quality filter.
-- Не начинать Docker до QH-5 Release Stabilization.
+- Docker packaging уже добавлен после QH-5 Release Stabilization. Для Yandex/NTK запуска на другом ПК использовать `docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md`.

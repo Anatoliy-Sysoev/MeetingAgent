@@ -1,6 +1,6 @@
 # TODO Project Knowledge Bot
 
-Обновлено: 2026-06-02.
+Обновлено: 2026-06-03.
 
 ## Текущий статус
 
@@ -70,6 +70,20 @@ docs/subprojects/asu-june-bot/TECHNICAL_DIAGRAMS.md
 
 ```text
 NTK realistic-100 P1 Passport, затем AD/app_ccpm bucket, затем полный NTK realistic-100 rerun. Docker packaging и QH-6 Feedback Dataset Loop не смешивать с retrieval quality коммитами.
+```
+
+Документация переноса Bot v2 Yandex на другой локальный ПК обновлена:
+
+```text
+docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md
+```
+
+Остаток по переносимости:
+
+```text
+1. Подготовить и передать runtime-пакет data/asu_june_bot_ntk для нового ПК.
+2. На новом ПК проверить Docker запуск с ASU_JUNE_BOT_ACTIVE_CORPUS=ntk.
+3. При необходимости добавить отдельный compose profile для offline/BM25-only режима.
 ```
 
 ## NTK realistic-100 new manual review

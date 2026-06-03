@@ -1,6 +1,6 @@
 # QH Status — Project Knowledge Bot
 
-Обновлено: 2026-05-19.
+Обновлено: 2026-06-03.
 
 ## Итоговый статус
 
@@ -332,7 +332,7 @@ QH gate с local-validation-done и baseline-compared показывает passe
 
 ```text
 не откатывать QH-5 в PASSED без фактических smoke/eval на новой машине
-не начинать Docker без актуального health/smoke на текущей машине
+не считать Docker/Yandex перенос готовым без актуального health/smoke на целевой машине
 не удалять weak chunks из индекса
 не делать parent expansion без лимита
 не превращать semantic warnings в hard-fail

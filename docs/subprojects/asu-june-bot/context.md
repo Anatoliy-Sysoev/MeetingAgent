@@ -1,6 +1,6 @@
 # Контекст Project Knowledge Bot
 
-Обновлено: 2026-06-02.
+Обновлено: 2026-06-03.
 
 ## 1. Назначение
 
@@ -100,6 +100,14 @@ hallucination: 0
 Главный вывод: качество нужно улучшать bucket-first. P0 — project-scope clarify/sensitive guard; P1 — CTA, PR, NSI regulation/reference, Passport, AD/app_ccpm retrieval.
 
 02.06.2026 P1 bucket `NSI regulation/reference` закрыт локально: targeted chat eval по `NTK100-NEW-053, 054, 055, 056, 057, 059` дал `6/6 answered`, `clarify=0`, `failures=0`, `parse_errors=0`. Следующие P1 buckets: `Passport`, затем `AD/app_ccpm`.
+
+03.06.2026 актуализирована документация переноса Bot v2 Yandex на другой локальный ПК. Добавлен отдельный install README:
+
+```text
+docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md
+```
+
+Зафиксировано: `data/asu_june_bot_ntk/*` не хранится в GitHub. Для быстрого запуска на другом ПК нужно запросить runtime-пакет `data/asu_june_bot_ntk` с `chunks_v2.jsonl` и `numpy_index_v2`, либо пересобрать корпус из исходной папки Яндекс.Диска. Docker packaging уже есть в корне проекта и подходит для API/Telegram запуска с `ASU_JUNE_BOT_ACTIVE_CORPUS=ntk`.
 
 ## 2.2. P0 project-scope guard fix
 
@@ -607,7 +615,7 @@ QH-5 закрыт как `PASSED`: Telegram smoke закрыт локально,
 
 ```text
 1. Зафиксировать QH_STATUS.md и FTT_STATUS.md.
-2. Перейти к Docker stage.
+2. Docker stage базово реализован; проверить перенос на другой локальный ПК.
 3. Не менять retrieval/guard без eval baseline.
 ```
 
@@ -622,7 +630,7 @@ QH-5 закрыт как `PASSED`: Telegram smoke закрыт локально,
 не пытаться заставить /search писать осмысленные ответы
 не подключать DSPy в runtime
 не делать LLM-as-judge/NLI до накопления dataset
-не делать Docker до QH-5 passed
+не передавать новый ПК без runtime-пакета data/asu_june_bot_ntk или плана пересборки корпуса
 не развивать scripts/09_chat.py как основной runtime
 не смешивать старый RAG v1 и новый bot v2.1
 ```

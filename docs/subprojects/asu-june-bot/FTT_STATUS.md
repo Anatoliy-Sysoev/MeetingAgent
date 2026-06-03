@@ -1,6 +1,6 @@
 # FTT status Project Knowledge Bot
 
-Обновлено: 2026-05-19.
+Обновлено: 2026-06-03.
 
 ## 1. Назначение
 
@@ -32,7 +32,8 @@ QH-2: IMPLEMENTED_CODE_READY
 QH-3: IMPLEMENTED_CODE_READY
 QH-4: IMPLEMENTED_CODE_READY
 QH-5: PASSED
-Docker: NOT_STARTED_AFTER_QH5
+Docker: BASIC_PACKAGING_ADDED
+Yandex/NTK local transfer README: ADDED
 ```
 
 До закрытия FTT текущего MVP выполнено:
@@ -56,11 +57,11 @@ smoke_report_qh_release.md: создан; addendum 2026-05-19 фиксирует
 2026-05-19: final QH gate -> passed, realistic 100 smoke --limit 10 -> 10/10 answered
 ```
 
-Осталось реализовать после закрытия текущего MVP:
+Осталось после закрытия текущего MVP:
 
 ```text
-1. Docker packaging.
-2. README/runbook под docker deployment.
+1. Проверить Docker запуск Bot v2 Yandex на другом локальном ПК с runtime-пакетом data/asu_june_bot_ntk.
+2. Подготовить runtime-пакет data/asu_june_bot_ntk для передачи.
 3. Подготовка к выделению в отдельный репозиторий.
 4. UI hardening, если текущей HTML-страницы недостаточно.
 5. Optional: OpenWebUI/другой внешний UI adapter.
@@ -557,7 +558,7 @@ local-validation-done
 baseline-compared
 Telegram smoke
 QH_STATUS.md -> QH-5 PASSED
-Docker explicitly postponed
+Docker basic packaging added after QH-5
 ```
 
 ## 4. Остаток реализации по FTT до сдачи
@@ -565,8 +566,8 @@ Docker explicitly postponed
 Минимальный остаток:
 
 ```text
-Docker packaging
-README/runbook под docker deployment
+проверка Docker запуска на другом локальном ПК
+передача runtime-пакета data/asu_june_bot_ntk
 решение по QH-6 Feedback Dataset Loop
 ```
 
@@ -574,15 +575,15 @@ README/runbook под docker deployment
 
 ## 5. Остаток реализации после сдачи MVP
 
-После QH-5:
+После QH-5 реализовано/начато:
 
 ```text
 Dockerfile
 .dockerignore
 docker-compose.yml
 .env.example for Docker
-docs/deployment/docker.md
-healthcheck внутри compose
+docs/docker.md
+docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md
 volume strategy для data/asu_june_bot
 подготовка отдельного репозитория
 ```
@@ -603,7 +604,7 @@ GPU inference path
 ## 6. Что не реализовывать сейчас
 
 ```text
-не делать Docker до QH-5 passed
+не передавать новый ПК без runtime-пакета data/asu_june_bot_ntk или плана пересборки корпуса
 не подключать DSPy в runtime
 не делать fine-tuning
 не делать LLM-as-judge без dataset

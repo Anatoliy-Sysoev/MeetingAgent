@@ -435,5 +435,5 @@ weather/mixed answered
 не удалять no_answer
 не открывать no_guard обратно
 не добавлять code/system_export в default allowlist
-не делать Docker до QH-5 passed
+не переносить Docker/Yandex запуск на другой ПК без runtime-пакета data/asu_june_bot_ntk или плана пересборки корпуса
 ```

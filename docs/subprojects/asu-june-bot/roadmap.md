@@ -1,6 +1,6 @@
 # Roadmap Project Knowledge Bot
 
-Обновлено: 2026-05-19.
+Обновлено: 2026-06-03.
 
 ## 1. Принцип roadmap
 
@@ -12,7 +12,7 @@
 
 Любое изменение retrieval/context/LLM должно иметь проверку на baseline cases.
 
-Docker-упаковка начинается после фактического прохождения QH-5. На 2026-05-19 QH-5 passed, поэтому Docker стал следующим инженерным этапом.
+Docker-упаковка начата после фактического прохождения QH-5: в корне проекта добавлены `Dockerfile`, `.dockerignore`, `docker-compose.yml`, `config.docker.yaml` и `docs/docker.md`. Следующий delivery-шаг — проверить Bot v2 Yandex на другом локальном ПК с runtime-пакетом `data/asu_june_bot_ntk`.
 
 Feedback Dataset Loop начинается после QH-5 как QH-6. После закрытия QH-5 можно проектировать runtime `/feedback`, UI/Telegram feedback-команды и manual approval flow.
 
@@ -33,7 +33,7 @@ Feedback Dataset Loop начинается после QH-5 как QH-6. Посл
 Этап 11. QH-4 Semantic Warnings / Manual Labels      Реализован и проверен
 Этап 12. QH-5 Release Stabilization                  PASSED
 Этап 13. QH-6 Feedback Dataset Loop                  Следующий quality-трек
-Этап 14. Docker Packaging                            Следующий delivery-трек
+Этап 14. Docker Packaging                            Базово реализован, нужен переносной smoke
 Этап 15. UI hardening / OpenWebUI adapter            Позже
 Этап 16. GPU migration path                          Позже
 Этап 17. Enterprise-hardening                        Позже
@@ -424,7 +424,7 @@ Telegram /good и /bad
 Статус:
 
 ```text
-Запланирован после фактического QH-5 passed
+Базово реализован после фактического QH-5 passed
 ```
 
 Минимальный состав:
@@ -434,8 +434,9 @@ Dockerfile
 .dockerignore
 docker-compose.yml
 .env.example
-config.docker.example.yaml
-docs/deployment/docker.md
+config.docker.yaml
+docs/docker.md
+docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md
 bot-api service
 host volumes для data/eval/config
 ```
@@ -461,7 +462,7 @@ Enterprise-hardening
 
 ```text
 не считать QH-5 passed без локального smoke/eval
-не начинать Docker до фактического QH-5 passed
+не передавать новый ПК без runtime-пакета data/asu_june_bot_ntk или плана пересборки корпуса
 не расширять runtime feedback endpoints до QH-5 passed
 не удалять weak chunks из индекса
 не делать parent expansion без лимита

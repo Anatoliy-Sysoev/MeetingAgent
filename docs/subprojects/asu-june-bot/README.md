@@ -1,8 +1,8 @@
 # Project Knowledge Bot
 
-Статус: локальный project-only RAG/Chat MVP реализован; API `/search` и `/chat`, Web UI, Telegram adapter и QH-1..QH-5 прошли локальную проверку. Следующий этап — Docker packaging и/или QH-6 Feedback Dataset Loop.
+Статус: локальный project-only RAG/Chat MVP реализован; API `/search` и `/chat`, Web UI, Telegram adapter, QH-1..QH-5 и базовая Docker-упаковка прошли локальную проверку. Для боевого Yandex/NTK корпуса используется feature flag `ASU_JUNE_BOT_ACTIVE_CORPUS=ntk`.
 
-Обновлено: 2026-05-19.
+Обновлено: 2026-06-03.
 
 ## 1. Назначение
 
@@ -103,6 +103,14 @@ docs/subprojects/asu-june-bot/QUERY_FEEDBACK_LOOP.md
 ```text
 docs/subprojects/asu-june-bot/NTK_YANDEX_CORPUS.md
 ```
+
+Переносимый запуск Bot v2 Yandex на другом локальном ПК:
+
+```text
+docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md
+```
+
+Важно: runtime-данные `data/asu_june_bot_ntk/*` не лежат в GitHub. Для быстрого запуска нужно запросить готовый пакет `data/asu_june_bot_ntk`, включая `chunks_v2.jsonl` и `numpy_index_v2`, либо пересобрать корпус из исходной папки Яндекс.Диска.
 
 Рабочая chat-модель MVP:
 
@@ -252,6 +260,7 @@ Telegram adapter = long polling client over local /chat
 
 ```text
 docs/subprojects/asu-june-bot/README.md                этот файл, главный вход
+docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md переносимый запуск Bot v2 Yandex
 docs/subprojects/asu-june-bot/TOMORROW_EXECUTION_PROTOCOL.md подробный протокол проверки
 docs/subprojects/asu-june-bot/TOMORROW_START.md        короткий чек-лист запуска
 docs/subprojects/asu-june-bot/QH_HARDENING_CHECKLIST.md проверки после hardening

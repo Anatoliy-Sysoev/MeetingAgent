@@ -1,8 +1,16 @@
 # Контекст проекта
 
-Обновлено: 2026-06-02.
+Обновлено: 2026-06-03.
 
 ## NTK realistic-100 new eval
+
+2026-06-03 актуализирована документация подпроекта Project Knowledge Bot для переноса Bot v2 Yandex на другой локальный ПК:
+
+```text
+docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md
+```
+
+Зафиксировано: runtime chunks/index/cache для Yandex/NTK корпуса не лежат в GitHub. Для быстрого запуска на другом ПК нужно запросить пакет `data/asu_june_bot_ntk` с `chunks_v2.jsonl` и `numpy_index_v2`, либо пересобрать корпус из исходной папки Яндекс.Диска. Docker packaging в корне проекта используется как основной переносимый запуск API/Telegram с `ASU_JUNE_BOT_ACTIVE_CORPUS=ntk`.
 
 2026-05-27 добавлен новый набор из 100 вопросов для NTK corpus:
 
