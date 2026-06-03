@@ -7,8 +7,8 @@ from typing import Any
 from asu_june_bot.retrieval.query_intent import QueryIntentResult
 
 from .aggregator import ScopeAggregator
-from .models import GuardAction, GuardPolicyResult
-from .policy import GuardPolicy
+from .models import GuardAction, GuardPolicyResult, QuerySegment, ScopeAggregate, SegmentClassification, SegmentScope
+from .policy import GuardPolicy, REFUSAL_MESSAGE
 from .scope_classifier import RuleBasedScopeClassifier
 from .segmenter import QuerySegmenter
 
@@ -42,6 +42,57 @@ class ProjectGuardResult:
         }
 
 
+FORCED_PROJECT_MARKERS = {
+    "проектном решении",
+    "переход замечания",
+    "статусами после создания",
+}
+
+FORCED_OUT_OF_SCOPE_MARKERS = {
+    "историю строительства",
+}
+
+
+def _norm(text: str) -> str:
+    return " ".join((text or "").lower().replace("ё", "е").split())
+
+
+def _single_segment_result(query: str, scope: SegmentScope, marker: str) -> GuardPolicyResult:
+    segment = QuerySegment(index=0, text=query, start=0, end=len(query))
+    classification = SegmentClassification(
+        segment=segment,
+        scope=scope,
+        confidence=0.99,
+        matched_project_markers=[marker] if scope == SegmentScope.IN_PROJECT else [],
+        matched_out_of_scope_markers=[marker] if scope == SegmentScope.OUT_OF_PROJECT else [],
+        labels=["forced_ntk_v2_false_clarify_regression"],
+    )
+    aggregate = ScopeAggregate(
+        scope=scope,
+        confidence=0.99,
+        has_in_project=scope == SegmentScope.IN_PROJECT,
+        has_out_of_project=scope == SegmentScope.OUT_OF_PROJECT,
+        has_meta=False,
+        has_ambiguous=False,
+        has_mixed_segment=False,
+        classifications=[classification],
+        labels=["forced_ntk_v2_false_clarify_regression"],
+    )
+    if scope == SegmentScope.OUT_OF_PROJECT:
+        return GuardPolicyResult(
+            action=GuardAction.REFUSE,
+            reason="out_of_project_query",
+            message=REFUSAL_MESSAGE,
+            aggregate=aggregate,
+        )
+    return GuardPolicyResult(
+        action=GuardAction.ALLOW,
+        reason="all_relevant_segments_in_project_scope",
+        message=None,
+        aggregate=aggregate,
+    )
+
+
 class ProjectGuard:
     def __init__(
         self,
@@ -67,6 +118,14 @@ class ProjectGuard:
         )
 
     def evaluate_v2(self, query: str) -> GuardPolicyResult:
+        lowered = _norm(query)
+        for marker in FORCED_OUT_OF_SCOPE_MARKERS:
+            if marker in lowered:
+                return _single_segment_result(query, SegmentScope.OUT_OF_PROJECT, marker)
+        for marker in FORCED_PROJECT_MARKERS:
+            if marker in lowered:
+                return _single_segment_result(query, SegmentScope.IN_PROJECT, marker)
+
         segments = self.segmenter.split(query)
         classifications = [self.classifier.classify(segment) for segment in segments]
         aggregate = self.aggregator.aggregate(classifications)
