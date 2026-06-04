@@ -49,7 +49,12 @@ Release:
 2. Public repository landing page на GitHub проверен после push:
    README.md отображается как English OSS landing, видны language switch, MIT license, Security, Contributing, Issues 8 и Release v0.1.0.
 
-3. По мере развития поддерживать parity README.md / README.ru.md и docs/en / docs/ru.
+3. README polish выполнен:
+   `<repo-url>` заменён на `https://github.com/Anatoliy-Sysoev/MeetingAgent.git`, добавлен блок `Public Examples`.
+
+4. Issues #19-#26 оставить открытыми как публичный backlog.
+
+5. По мере развития поддерживать parity README.md / README.ru.md и docs/en / docs/ru.
 ```
 
 Не смешивать с OSS packaging без отдельного решения:

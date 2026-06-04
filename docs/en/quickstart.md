@@ -5,7 +5,7 @@
 ## Install
 
 ```powershell
-git clone <repo-url>
+git clone https://github.com/Anatoliy-Sysoev/MeetingAgent.git
 cd MeetingAgent
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt

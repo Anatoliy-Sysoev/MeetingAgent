@@ -49,6 +49,8 @@ Issues #19-#26 созданы как публичный OSS backlog.
 Release v0.1.0 создан: Initial OSS foundation.
 ```
 
+2026-06-04 README polish: placeholder `<repo-url>` заменён на реальный clone URL, в верхнюю часть README добавлен блок `Public Examples` со ссылками на synthetic sample transcript/protocol/summary/action items.
+
 Важно: до начала OSS packaging в рабочем дереве уже были незакоммиченные изменения по NTK retrieval/gate diagnostics:
 
 ```text

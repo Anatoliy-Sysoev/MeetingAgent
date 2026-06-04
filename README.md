@@ -72,12 +72,23 @@ Detailed documentation:
 - [Bot v2 Yandex local setup](docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md)
 - [Telegram adapter](docs/subprojects/asu-june-bot/telegram.md)
 
+## Public Examples
+
+Synthetic examples are available for a safe first look at the meeting artifact format:
+
+- [Sample transcript](examples/en/sample_transcript.md)
+- [Sample protocol](examples/en/sample_protocol.md)
+- [Sample summary](examples/en/sample_summary.md)
+- [Sample action items](examples/en/sample_action_items.json)
+
+These examples do not contain private project data.
+
 ## Quickstart
 
 ### 1. Install Dependencies
 
 ```powershell
-git clone <repo-url>
+git clone https://github.com/Anatoliy-Sysoev/MeetingAgent.git
 cd MeetingAgent
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
