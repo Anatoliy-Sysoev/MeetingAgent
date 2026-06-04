@@ -1277,3 +1277,76 @@ PostgreSQL / LDAPS / app_ccpm / ЭЦП.
 3. После guard-fix повторить guard-only 500 baseline.
 4. Только после снижения guard false_clarify переходить к retrieval/validator baseline.
 ```
+
+## NTK v3 P0 harmful guard и retrieval-only probe на 2026-06-04
+
+P0 harmful-intent guard закрыт точечными pre-retrieval маркерами злоупотребления:
+
+```text
+src/asu_june_bot/guardrails/scope_classifier.py
+```
+
+Повторный guard-only baseline после P0:
+
+```text
+total: 500
+ok: 419
+false_clarify_project: 65
+false_clarify_boundary: 16
+false_allow: 0
+
+actual_status:
+ok: 385
+clarify: 81
+refused: 34
+```
+
+Проверка:
+
+```text
+python -m pytest tests/asu_june_bot/test_project_guard_v2.py tests/asu_june_bot/test_project_guard_v2_cases.py -q
+77 passed
+```
+
+Снят retrieval-only probe без guard и без LLM:
+
+```text
+scripts/asu_june_bot_retrieval_dataset_probe.py
+docs/quality/ntk_realistic_500_v3_retrieval_probe_2026-06-04.jsonl
+docs/quality/ntk_realistic_500_v3_retrieval_probe_summary_2026-06-04.md
+```
+
+Команда:
+
+```powershell
+$env:ASU_JUNE_BOT_ACTIVE_CORPUS='ntk'
+.\.venv\Scripts\python.exe scripts\asu_june_bot_retrieval_dataset_probe.py
+```
+
+Результат:
+
+```text
+total: 500
+status ok: 500
+
+best_vector_score percentiles:
+project count=334, p50=0.600615, p10=0.5155384
+out_of_scope count=30, p50=0.4333395, p90=0.498191, max=0.529221
+harmful_security count=17, p50=0.520957, p90=0.576301, max=0.641913
+```
+
+Вывод по gate:
+
+```text
+Один vector floor недостаточен как универсальный post-retrieval gate.
+У 116 project-вопросов top result BM25-only, vector_score=None.
+
+floor 0.55 дает:
+- project_below_or_missing: 181/450
+- out_of_scope_above: 0/30
+- harmful_above: 4/20
+
+Значит out_of_scope хорошо отделяется по vector_score, но harmful_security не должен полагаться на retrieval-gate:
+его надо держать pre-retrieval intent guard.
+Для project нужен комбинированный gate: vector floor OR strong BM25/lexical route/project_doc evidence.
+```

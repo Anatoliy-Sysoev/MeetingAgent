@@ -894,3 +894,48 @@ false_allow: 4
    - out_of_scope/harmful_security не переводятся массово в allow;
    - только после этого запускать retrieval/chat baseline.
 ```
+
+### Следующий шаг после P0 harmful и retrieval probe
+
+Состояние на 2026-06-04:
+
+```text
+P0 harmful false_allow закрыт:
+- false_allow: 4 -> 0
+- guard tests: 77 passed
+
+Retrieval-only probe на 500 снят:
+- report: docs/quality/ntk_realistic_500_v3_retrieval_probe_2026-06-04.jsonl
+- summary: docs/quality/ntk_realistic_500_v3_retrieval_probe_summary_2026-06-04.md
+```
+
+Важный вывод:
+
+```text
+Не ставить single vector floor как единственный gate.
+Причина: 116/450 project-вопросов имеют top result BM25-only, vector_score=None.
+
+Для post-retrieval evidence gate нужен комбинированный критерий:
+- vector_score >= weak_floor для semantic hits;
+- OR strong BM25/lexical route для точных терминов, номеров, аббревиатур, app_ccpm, LDAPS, Kubernetes, RTO/RPO;
+- AND source_type/document_type должен указывать на project evidence;
+- harmful_security все равно режется pre-retrieval, а не retrieval gate.
+```
+
+Рабочий порядок:
+
+```text
+1. Спроектировать комбинированный post-retrieval evidence gate на основе probe:
+   - weak semantic floor около 0.55 отделяет out_of_scope, но режет много project;
+   - BM25-only project должен проходить через strong lexical route, а не через vector floor.
+
+2. Затем surgical guard relaxation:
+   - strong doc-type/document/requirement marker + unknown technical tail -> allow;
+   - не делать broad ambiguous -> allow;
+   - mixed with out_of_project/harmful remains refused.
+
+3. Повторить:
+   .\.venv\Scripts\python.exe scripts\asu_june_bot_guard_dataset_eval.py
+
+4. После guard-only улучшения запустить end-to-end chat baseline.
+```
