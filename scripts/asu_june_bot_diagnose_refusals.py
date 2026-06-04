@@ -24,6 +24,11 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+WORK_ROOT = Path(__file__).resolve().parents[1]
+SRC_DIR = WORK_ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
 DEFAULT_PATH = "data/asu_june_bot/chat_runs.jsonl"
 
 NO_ANSWER_STATUSES = {"no_answer", "no_sources"}
@@ -144,6 +149,28 @@ def classify(e):
     return "other"
 
 
+def load_guard():
+    from asu_june_bot.guardrails.project_guard import ProjectGuard
+
+    return ProjectGuard()
+
+
+def guard_diagnostics_payload(guard, query: str) -> dict:
+    result = guard.evaluate_v2(query)
+    payload = result.to_dict()
+    aggregate = payload.get("aggregate") or {}
+    segments = aggregate.get("segments") or []
+    return {
+        "guard_action": payload.get("action"),
+        "guard_reason": payload.get("reason"),
+        "guard_message": payload.get("message"),
+        "aggregate_scope": aggregate.get("scope"),
+        "aggregate_confidence": aggregate.get("confidence"),
+        "aggregate_labels": aggregate.get("labels"),
+        "segments": segments,
+    }
+
+
 BUCKET_LABELS = {
     "answered": "answered (ответ дан)",
     "A_guard_refuse": "ПУТЬ А: guard refuse (до retrieval)",
@@ -168,6 +195,17 @@ def main():
     parser = argparse.ArgumentParser(description="Разбор отказов Asu June Bot по chat_runs.jsonl")
     parser.add_argument("--path", default=DEFAULT_PATH, help="Путь к chat_runs.jsonl")
     parser.add_argument("--examples", type=int, default=5, help="Сколько примеров запросов печатать на бакет")
+    parser.add_argument(
+        "--dump-bucket",
+        choices=BUCKET_ORDER,
+        help="Выгрузить все запросы выбранного бакета в --out",
+    )
+    parser.add_argument("--out", help="Путь для выгрузки --dump-bucket")
+    parser.add_argument(
+        "--guard-diagnostics",
+        action="store_true",
+        help="Для --dump-bucket добавить результат ProjectGuard.evaluate_v2(): reason, segments, markers",
+    )
     args = parser.parse_args()
 
     path = Path(args.path)
@@ -189,6 +227,35 @@ def main():
         raise SystemExit("В файле нет валидных JSON-строк.")
 
     extracted = [extract(r) for r in rows]
+
+    if args.dump_bucket:
+        selected = [(row, item) for row, item in zip(rows, extracted, strict=True) if classify(item) == args.dump_bucket]
+        if not args.out:
+            raise SystemExit("--dump-bucket требует --out")
+        out_path = Path(args.out)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        guard = load_guard() if args.guard_diagnostics else None
+        with out_path.open("w", encoding="utf-8", newline="\n") as w:
+            for row, item in selected:
+                payload = {
+                    "query": item["query"],
+                    "bucket": args.dump_bucket,
+                    "status": item["status"],
+                    "guard": item["guard"],
+                    "retrieval_called": item["retrieval_called"],
+                    "sources": item["sources"],
+                    "llm_called": item["llm_called"],
+                    "run_id": row.get("run_id"),
+                    "created_at": row.get("created_at"),
+                    "answer_preview": row.get("answer_preview"),
+                }
+                if guard and item["query"]:
+                    payload.update(guard_diagnostics_payload(guard, str(item["query"])))
+                w.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n")
+        print(f"dump_bucket={args.dump_bucket}")
+        print(f"rows={len(selected)}")
+        print(f"out={out_path}")
+        return
 
     # 1. Проверка, что извлечение полей сработало (по первой строке).
     first = extracted[0]
