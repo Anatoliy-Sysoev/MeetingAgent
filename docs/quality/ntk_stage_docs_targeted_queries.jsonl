@@ -1,0 +1,7 @@
+{"id":"STAGE-DOCS-001","scope":"project","category":"ftt_stage_deliverables","model":"qwen2.5:7b-instruct","query":"Какие документы необходимы для этапа 2.1","expected_behavior":"answer_from_ftt_table_18"}
+{"id":"STAGE-DOCS-002","scope":"project","category":"ftt_stage_deliverables","model":"qwen2.5:7b-instruct","query":"Какие документы относятся к этапу 2","expected_behavior":"answer_from_ftt_table_18"}
+{"id":"STAGE-DOCS-003","scope":"project","category":"ftt_stage_deliverables","model":"qwen2.5:7b-instruct","query":"Какие документы относятся к этапу 1","expected_behavior":"answer_from_ftt_table_18"}
+{"id":"STAGE-DOCS-004","scope":"project","category":"ftt_stage_deliverables","model":"qwen2.5:7b-instruct","query":"Какая документация относится к этапу 1","expected_behavior":"answer_from_ftt_table_18"}
+{"id":"STAGE-DOCS-005","scope":"project","category":"ftt_stage_deliverables","model":"qwen2.5:7b-instruct","query":"Проектная документация этапа 1.2","expected_behavior":"answer_from_ftt_table_18"}
+{"id":"STAGE-DOCS-006","scope":"project","category":"ftt_stage_deliverables","model":"qwen2.5:7b-instruct","query":"Какие документы необходимы на этапе 2 по ФТТ","expected_behavior":"answer_from_ftt_table_18"}
+{"id":"STAGE-DOCS-007","scope":"project","category":"ftt_glossary","model":"qwen2.5:7b-instruct","query":"Что такое ФТТ","expected_behavior":"answer_from_ftt_glossary"}
