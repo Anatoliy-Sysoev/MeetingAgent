@@ -46,7 +46,8 @@ Release:
 1. Решить, нужен ли сейчас GitHub Pages + MkDocs Material.
    Для заявки OpenAI достаточно README.md + README.ru.md + docs/en + docs/ru.
 
-2. Проверить public repository landing page на GitHub после push.
+2. Public repository landing page на GitHub проверен после push:
+   README.md отображается как English OSS landing, видны language switch, MIT license, Security, Contributing, Issues 8 и Release v0.1.0.
 
 3. По мере развития поддерживать parity README.md / README.ru.md и docs/en / docs/ru.
 ```
