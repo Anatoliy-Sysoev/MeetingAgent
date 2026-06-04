@@ -42,6 +42,13 @@ examples/ru/
 
 Примеры в `examples/*` синтетические и не содержат private project data.
 
+GitHub-side P0 также закрыт:
+
+```text
+Issues #19-#26 созданы как публичный OSS backlog.
+Release v0.1.0 создан: Initial OSS foundation.
+```
+
 Важно: до начала OSS packaging в рабочем дереве уже были незакоммиченные изменения по NTK retrieval/gate diagnostics:
 
 ```text

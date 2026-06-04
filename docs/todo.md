@@ -23,26 +23,32 @@ examples/ru/*
 .github/PULL_REQUEST_TEMPLATE.md
 ```
 
-Осталось для полного OSS-вида:
+GitHub-side P0 закрыт:
 
 ```text
-1. Создать 5-8 открытых GitHub Issues:
-   - Add public sample meeting dataset
-   - Add transcript-to-protocol CLI quickstart
-   - Add Codex security review checklist
-   - Add anonymization pipeline for sensitive transcripts
-   - Add release workflow and changelog automation
-   - Add evaluation benchmark for meeting summaries
-   - Improve English/Russian documentation parity
-   - Add GitHub Pages documentation site
+Issues #19-#26:
+  #19 Add public sample meeting dataset
+  #20 Add transcript-to-protocol CLI quickstart
+  #21 Add Codex security review checklist
+  #22 Add anonymization pipeline for sensitive transcripts
+  #23 Add release workflow and changelog automation
+  #24 Add evaluation benchmark for meeting summaries
+  #25 Improve English/Russian documentation parity
+  #26 Add GitHub Pages documentation site
 
-2. Создать GitHub Release:
-   v0.1.0 - Initial OSS foundation
+Release:
+  v0.1.0 - Initial OSS foundation
+```
 
-3. Решить, нужен ли сейчас GitHub Pages + MkDocs Material.
+Осталось для улучшения OSS-витрины:
+
+```text
+1. Решить, нужен ли сейчас GitHub Pages + MkDocs Material.
    Для заявки OpenAI достаточно README.md + README.ru.md + docs/en + docs/ru.
 
-4. После текущего локального commit/push проверить public repository landing page на GitHub.
+2. Проверить public repository landing page на GitHub после push.
+
+3. По мере развития поддерживать parity README.md / README.ru.md и docs/en / docs/ru.
 ```
 
 Не смешивать с OSS packaging без отдельного решения:
