@@ -28,7 +28,7 @@ def _normalize_scores(results: list[SearchResult], attr: str) -> dict[str, float
 def _prefers_lexical_signal(query: str) -> bool:
     lowered = query.lower()
     exact_markers = (
-        "app_ccpm",
+        "project_role",
         "bearer",
         "bearer token",
         "2520",

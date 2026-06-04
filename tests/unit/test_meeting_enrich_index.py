@@ -66,7 +66,7 @@ def make_chunked_meeting(tmp_path: Path) -> Path:
             "end": 60.0,
             "speakers": ["SPEAKER_UNKNOWN"],
             "sources": ["MIX"],
-            "text": "[SPEAKER_UNKNOWN] Решили подготовить выгрузку по ФТТ. Нужно проверить НОВАДОК.",
+            "text": "[SPEAKER_UNKNOWN] Решили подготовить выгрузку по ФТТ. Нужно проверить DOWNSTREAM_SYSTEM.",
             "utterance_ids": ["utt-000001"],
         }
     ]
@@ -85,7 +85,7 @@ def test_enrich_meeting_chunks_writes_semantic_metadata(tmp_path: Path) -> None:
     rows = read_jsonl(meeting_dir / "artifacts" / "enriched_chunks.jsonl")
     assert rows[0]["semantic_type"] == "decision"
     assert "ФТТ" in rows[0]["entities"]
-    assert "НОВАДОК" in rows[0]["entities"]
+    assert "DOWNSTREAM_SYSTEM" in rows[0]["entities"]
     assert rows[0]["decisions"]
     meeting = read_json(meeting_dir / "meeting.json")
     validate_meeting(meeting)

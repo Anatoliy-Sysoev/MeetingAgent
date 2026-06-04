@@ -58,10 +58,10 @@ def project_payload(long_supporting: bool = False) -> dict:
                 {
                     "chunk_id": "chunk-1",
                     "source_id": "doc-ad",
-                    "title": "PRIVATE_SYSTEM_СоИ_AD",
+                    "title": "PROJECT SYSTEM_СоИ_AD",
                     "section": "Цели и задачи интеграции",
                     "source_type": "project_doc",
-                    "text": "Цель интеграции — получить актуальный перечень пользователей PRIVATE_SYSTEM на основании членства пользователей в группах безопасности корпоративной Active Directory.",
+                    "text": "Цель интеграции — получить актуальный перечень пользователей PROJECT SYSTEM на основании членства пользователей в группах безопасности корпоративной Active Directory.",
                 }
             ],
             "supporting_sources": supporting,
@@ -83,7 +83,7 @@ def refused_payload() -> dict:
     return {
         "status": "refused",
         "query": "Какая погода завтра?",
-        "answer": "Я отвечаю только по материалам проекта PRIVATE_SYSTEM.",
+        "answer": "Я отвечаю только по материалам проекта PROJECT SYSTEM.",
         "context": {"primary_sources": [], "supporting_sources": [], "excluded_sources": [], "diagnostics": {}},
         "results": [],
         "guard": {"decision": "refuse"},
@@ -127,7 +127,7 @@ def nsi_inventory_payload() -> dict:
                     "source_id": "doc-soi-nsi",
                     "title": "Цели и задачи интеграции",
                     "document_type": "СоИ Справочники",
-                    "document": "Этап 1.1/11. Соглашения об интеграции для интерфейсов/PRIVATE_SYSTEM_СоИ_Справочники_v2.2.1.docx",
+                    "document": "Этап 1.1/11. Соглашения об интеграции для интерфейсов/PROJECT SYSTEM_СоИ_Справочники_v2.2.1.docx",
                     "source_url": "https://example.test/soi-nsi",
                     "source_type": "project_doc",
                     "text": "Справочники: Единицы измерения; Должности; Отделы; Контрагенты; Организации; Объекты строительства.",
@@ -152,12 +152,12 @@ def passport_related_documents_payload() -> dict:
                 {
                     "chunk_id": "passport-table2-expanded",
                     "source_id": "doc-passport",
-                    "title": "PRIVATE_SYSTEM_Паспорт ИС_v1.3.3.docx",
+                    "title": "PROJECT SYSTEM_Паспорт ИС_v1.3.3.docx",
                     "document_type": "Паспорт ИС",
-                    "document": "Этап 1.2/8. Паспорт информационной системы/PRIVATE_SYSTEM_Паспорт ИС_v1.3.3.docx",
+                    "document": "Этап 1.2/8. Паспорт информационной системы/PROJECT SYSTEM_Паспорт ИС_v1.3.3.docx",
                     "source_url": "https://example.test/passport",
                     "source_type": "project_doc",
-                    "text": "Документ: Паспорт ИС. Таблица: Table 2. Строка: 2 Название документа: Проектное решение «Модуль СМР (Строительный контроль)» Номер версии /Имя файла: 1.ЦП_УПКС_ПР_СМР_Строительный_контроль_v_ Дата: .03.2026. Документ: Паспорт ИС. Таблица: Table 2. Строка: 3 Название документа: Целевая техническая архитектура (ЦТА) Номер версии /Имя файла: 1./ЦТА_ЦП_УПКС_Этап_1 Дата: .2026. Документ: Паспорт ИС. Таблица: Table 2. Строка: 4 Название документа: Соглашение об интеграции (Active Directory) Номер версии /Имя файла: 1.1/PRIVATE_SYSTEM_СоИ_AD Дата: .03.2026.",
+                    "text": "Документ: Паспорт ИС. Таблица: Table 2. Строка: 2 Название документа: Проектное решение «Модуль СМР (Строительный контроль)» Номер версии /Имя файла: 1.PROJECT_SYSTEM_ПР_СМР_Строительный_контроль_v_ Дата: .03.2026. Документ: Паспорт ИС. Таблица: Table 2. Строка: 3 Название документа: Целевая техническая архитектура (ЦТА) Номер версии /Имя файла: 1./ЦТА_PROJECT_SYSTEM_Этап_1 Дата: .2026. Документ: Паспорт ИС. Таблица: Table 2. Строка: 4 Название документа: Соглашение об интеграции (Active Directory) Номер версии /Имя файла: 1.1/PROJECT SYSTEM_СоИ_AD Дата: .03.2026.",
                 }
             ],
             "supporting_sources": [],
@@ -179,9 +179,9 @@ def passport_appendices_payload() -> dict:
                 {
                     "chunk_id": "passport-table3-expanded",
                     "source_id": "doc-passport",
-                    "title": "PRIVATE_SYSTEM_Паспорт ИС_v1.3.3.docx",
+                    "title": "PROJECT SYSTEM_Паспорт ИС_v1.3.3.docx",
                     "document_type": "Паспорт ИС",
-                    "document": "Этап 1.2/8. Паспорт информационной системы/PRIVATE_SYSTEM_Паспорт ИС_v1.3.3.docx",
+                    "document": "Этап 1.2/8. Паспорт информационной системы/PROJECT SYSTEM_Паспорт ИС_v1.3.3.docx",
                     "source_url": "https://example.test/passport",
                     "source_type": "project_doc",
                     "text": "Документ: Паспорт ИС. Таблица: Table 3. Заголовки: Приложение №1 План послеаварийного восстановления | План послеаварийного восстановления. Документ: Паспорт ИС. Таблица: Table 3. Строка: 3 Приложение №1 План послеаварийного восстановления: Приложение №2 Список источников План послеаварийного восстановления: Список источников.",
@@ -208,7 +208,7 @@ def passport_purpose_payload() -> dict:
                     "source_id": "doc-passport",
                     "title": "Описание и область применения",
                     "document_type": "Паспорт ИС",
-                    "document": "Этап 1.2/8. Паспорт информационной системы/PRIVATE_SYSTEM_Паспорт ИС_v1.3.3.docx",
+                    "document": "Этап 1.2/8. Паспорт информационной системы/PROJECT SYSTEM_Паспорт ИС_v1.3.3.docx",
                     "source_url": "https://example.test/passport",
                     "source_type": "project_doc",
                     "text": "Система предназначена для формирования единой информационной среды для автоматизации и цифровизации бизнес-процессов управления строительными проектами от стадии проектирования до ввода в эксплуатацию.",
@@ -347,7 +347,7 @@ def test_chat_inventory_prompt_includes_source_metadata_and_list_policy() -> Non
 
     assert response.status == "answered"
     assert "СоИ Справочники" in llm.last_request.prompt
-    assert "PRIVATE_SYSTEM_СоИ_Справочники_v2.2.1.docx" in llm.last_request.prompt
+    assert "PROJECT SYSTEM_СоИ_Справочники_v2.2.1.docx" in llm.last_request.prompt
     assert "https://example.test/soi-nsi" in llm.last_request.prompt
     assert "используй названия, типы, пути и ссылки источников" in llm.last_request.prompt
 

@@ -30,9 +30,9 @@ from asu_june_bot.retrieval.post_rerank import PostReranker  # noqa: E402
 from asu_june_bot.retrieval.query_intent import classify_query_intent  # noqa: E402
 
 
-DEFAULT_DATASET = "docs/quality/ntk_realistic_500_v3_queries_2026-06-03.jsonl"
-DEFAULT_REPORT = "docs/quality/ntk_realistic_500_v3_retrieval_probe_candidates_2026-06-04.jsonl"
-DEFAULT_SUMMARY = "docs/quality/ntk_realistic_500_v3_retrieval_probe_candidates_summary_2026-06-04.md"
+DEFAULT_DATASET = "eval/cases/base.jsonl"
+DEFAULT_REPORT = "eval/reports/retrieval_probe_candidates.jsonl"
+DEFAULT_SUMMARY = "eval/reports/retrieval_probe_candidates_summary.md"
 
 TERM_STOPWORDS = {
     "что",
@@ -362,7 +362,7 @@ def build_summary(rows: list[dict[str, Any]], dataset_path: Path, report_path: P
     vector_field = "max_vector_score" if uses_candidate_probe else "best_vector_score"
     term_field = "max_term_overlap"
     lines = [
-        "# NTK realistic 500 v3 retrieval-only probe",
+        "# Retrieval-only probe",
         "",
         "Дата: 2026-06-04",
         "",

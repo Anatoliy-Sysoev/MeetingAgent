@@ -51,13 +51,13 @@ def test_env_override_switches_active_corpus() -> None:
                         "index_dir": "data/asu_june_bot/numpy_index_v2",
                         "report_path": "data/asu_june_bot/index_v2_report.json",
                     },
-                    "ntk": {
-                        "key": "ntk",
-                        "name": "ntk_yandex_corpus",
-                        "chunks_path": "data/asu_june_bot_ntk/chunks_v2.jsonl",
-                        "cache_path": "data/asu_june_bot_ntk/embeddings_cache_v2.jsonl",
-                        "index_dir": "data/asu_june_bot_ntk/numpy_index_v2",
-                        "report_path": "data/asu_june_bot_ntk/index_v2_report.json",
+                    "private": {
+                        "key": "private",
+                        "name": "private_corpus",
+                        "chunks_path": "data/private_corpus/chunks_v2.jsonl",
+                        "cache_path": "data/private_corpus/embeddings_cache_v2.jsonl",
+                        "index_dir": "data/private_corpus/numpy_index_v2",
+                        "report_path": "data/private_corpus/index_v2_report.json",
                     },
                 },
             }
@@ -65,12 +65,12 @@ def test_env_override_switches_active_corpus() -> None:
     }
 
     old = os.environ.get("ASU_JUNE_BOT_ACTIVE_CORPUS")
-    os.environ["ASU_JUNE_BOT_ACTIVE_CORPUS"] = "ntk"
+    os.environ["ASU_JUNE_BOT_ACTIVE_CORPUS"] = "private"
     try:
-        assert get_active_corpus_key(cfg) == "ntk"
+        assert get_active_corpus_key(cfg) == "private"
         corpus = get_corpus_config(cfg)
-        assert corpus.key == "ntk"
-        assert corpus.index_dir.endswith("data/asu_june_bot_ntk/numpy_index_v2")
+        assert corpus.key == "private"
+        assert corpus.index_dir.endswith("data/private_corpus/numpy_index_v2")
     finally:
         if old is None:
             os.environ.pop("ASU_JUNE_BOT_ACTIVE_CORPUS", None)

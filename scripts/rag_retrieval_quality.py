@@ -160,7 +160,7 @@ def build_quality_expansion(question: str) -> str:
             extras.extend(hints)
 
     if "инспекцион" in lowered or "эцп" in lowered or "новадок" in lowered:
-        extras.extend(["инспекционные документы", "ЭЦП", "электронная подпись", "НОВАДОК", "4.1", "4.2.5"])
+        extras.extend(["инспекционные документы", "ЭЦП", "электронная подпись", "DOWNSTREAM_SYSTEM", "4.1", "4.2.5"])
     if "пользовател" in lowered or "производитель" in lowered or "нагруз" in lowered:
         extras.extend(["2520", "600", "120", "нагрузочное тестирование", "производительность", "Таблица 9", "Таблица 10"])
     if "сквоз" in lowered or "кодирован" in lowered or "тэг" in lowered or "тег" in lowered:

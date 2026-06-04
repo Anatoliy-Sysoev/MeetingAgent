@@ -20,9 +20,9 @@ from asu_june_bot.guardrails.models import GuardAction  # noqa: E402
 from asu_june_bot.guardrails.project_guard import ProjectGuard  # noqa: E402
 
 
-DEFAULT_DATASET = "docs/quality/ntk_realistic_500_v3_queries_2026-06-03.jsonl"
-DEFAULT_REPORT = "docs/quality/ntk_realistic_500_v3_guard_only_report_2026-06-04.jsonl"
-DEFAULT_SUMMARY = "docs/quality/ntk_realistic_500_v3_guard_only_summary_2026-06-04.md"
+DEFAULT_DATASET = "eval/cases/base.jsonl"
+DEFAULT_REPORT = "eval/reports/guard_only_report.jsonl"
+DEFAULT_SUMMARY = "eval/reports/guard_only_summary.md"
 
 
 def resolve_path(value: str) -> Path:
@@ -128,7 +128,7 @@ def build_summary(results: list[dict[str, Any]], dataset_path: Path, report_path
     verdict_by_category = nested_counts(results, "category", "verdict")
 
     lines = [
-        "# NTK realistic 500 v3 guard-only baseline",
+        "# Guard-only baseline",
         "",
         "Дата: 2026-06-04",
         "",

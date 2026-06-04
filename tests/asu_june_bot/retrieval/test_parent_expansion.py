@@ -37,7 +37,7 @@ def result(chunk_id: str, text: str, *, chunk_index: int, section: str = "AD") -
 
 
 def test_parent_expansion_enriches_weak_source_with_same_section_neighbor() -> None:
-    weak = with_source_quality(result("chunk-1", "Рисунок 1. UML: CCPM -> AD", chunk_index=1), intent())
+    weak = with_source_quality(result("chunk-1", "Рисунок 1. UML: PROJECT -> AD", chunk_index=1), intent())
     neighbor = result("chunk-2", "Раздел описывает получение пользователей из групп безопасности Active Directory.", chunk_index=2)
 
     expanded, diagnostics = ParentExpander(max_parent_chars=400).expand([weak], [weak, neighbor])

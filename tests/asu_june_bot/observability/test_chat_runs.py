@@ -21,7 +21,7 @@ def test_chat_runs_logger_appends_jsonl(tmp_path: Path) -> None:
         status="answered",
         query=request.query,
         answer="Авторизация описана через AD. [S1]",
-        sources=[ChatSource(source_ref="S1", title="PRIVATE_SYSTEM_СоИ_AD", bucket="primary_sources")],
+        sources=[ChatSource(source_ref="S1", title="PROJECT SYSTEM_СоИ_AD", bucket="primary_sources")],
         search={"status": "ok", "guard": {"decision": "allow"}},
         diagnostics={
             "llm_called": True,

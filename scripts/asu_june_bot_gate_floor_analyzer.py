@@ -98,7 +98,7 @@ def build_report(rows: list[dict[str, Any]], dataset_rows: list[dict[str, Any]] 
 
     lines: list[str] = []
     total = sum(len(values) for values in by_scope.values())
-    lines.append("# NTK retrieval gate floor analyzer")
+    lines.append("# Retrieval gate floor analyzer")
     lines.append("")
     lines.append(f"- rows: {total}")
     for scope in SCOPES:

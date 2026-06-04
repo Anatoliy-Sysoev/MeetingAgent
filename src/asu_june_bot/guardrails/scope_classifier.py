@@ -195,7 +195,7 @@ INTEGRATION_PROJECT_MARKERS = {
     "rest api",
     "openapi",
     "swagger",
-    "app_ccpm",
+    "project_role",
     "порт 636",
     "dn",
     "upn",
@@ -328,8 +328,6 @@ def _contains_any(lowered: str, markers: set[str]) -> list[str]:
 
 
 PROJECT_MARKERS = {
-    "цп упкс",
-    "упкс",
     "асу",
     "asu",
     "фтт",
