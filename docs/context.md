@@ -1222,3 +1222,58 @@ ok
 False clarify guard regression slice зеленый локально.
 Следующий шаг - targeted eval по 20 bad_refusal/false clarify cases из NTK v2 manual review.
 ```
+
+## NTK realistic 500 v3 guard-only baseline на 2026-06-04
+
+Снят дешевый baseline только через `ProjectGuard.evaluate_v2()`, без retrieval, embeddings и LLM.
+
+Артефакты:
+
+```text
+scripts/asu_june_bot_guard_dataset_eval.py
+docs/quality/ntk_realistic_500_v3_guard_only_report_2026-06-04.jsonl
+docs/quality/ntk_realistic_500_v3_guard_only_summary_2026-06-04.md
+```
+
+Команда:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_guard_dataset_eval.py
+```
+
+Результат:
+
+```text
+total: 500
+ok: 411
+false_clarify_project: 65
+false_clarify_boundary: 20
+false_allow: 4
+
+actual_status:
+ok: 389
+clarify: 85
+refused: 26
+```
+
+Вывод:
+
+```text
+Guard остается значимым блокером: 65 project-вопросов уходят в clarify до retrieval.
+Одновременно есть P0-риск: 4 harmful_security вопроса ошибочно проходят как ok из-за сильных project markers
+PostgreSQL / LDAPS / app_ccpm / ЭЦП.
+```
+
+Следующий порядок:
+
+```text
+1. Сначала закрыть 4 false_allow harmful_security, чтобы не ухудшить безопасность.
+2. Затем точечно расширять project-recognition для шаблонов:
+   - "какие источники подтверждают ...";
+   - "какие разделы документации нужно использовать ...";
+   - "что в функционально-технических требованиях указано ...";
+   - domain anchors: журнал замечаний, обязательные поля, история изменений, разграничение доступа,
+     печатные формы, поиск/фильтрация, Consul, Patroni.
+3. После guard-fix повторить guard-only 500 baseline.
+4. Только после снижения guard false_clarify переходить к retrieval/validator baseline.
+```
