@@ -939,3 +939,58 @@ Retrieval-only probe на 500 снят:
 
 4. После guard-only улучшения запустить end-to-end chat baseline.
 ```
+
+### Следующий шаг после candidate-level retrieval probe
+
+Состояние на 2026-06-04:
+
+```text
+Candidate-level probe снят на 500 вопросах:
+- report: docs/quality/ntk_realistic_500_v3_retrieval_probe_candidates_2026-06-04.jsonl
+- summary: docs/quality/ntk_realistic_500_v3_retrieval_probe_candidates_summary_2026-06-04.md
+- gate analysis: docs/quality/ntk_realistic_500_v3_gate_floor_analysis_2026-06-04.md
+
+Probe теперь считает true cosine по top_results[30] через numpy_index_v2 и term_overlap по полному тексту чанка.
+```
+
+Что выяснилось:
+
+```text
+1. 116 BM25-only из первичного top-1 probe почти не являются embedding-пробелом.
+   После true cosine по top-30 project_missing_vector = 2/450.
+
+2. Single vector floor все еще режет project:
+   floor 0.55 -> out_of_scope_above=0, но project_below_or_missing=54/450.
+
+3. Лучший простой frontier:
+   (max_vector >= 0.55) OR (term_overlap >= 2 AND project_doc_hits > 0)
+   -> project_pass=422/450, out_of_scope_leak=0/30.
+
+4. harmful_security нельзя держать evidence gate:
+   harmful_pass=13/20 при этой точке, значит harmful остается pre-retrieval guard.
+```
+
+Следующий рабочий порядок:
+
+```text
+1. Разобрать 28 project loss при floor=0.55/k=2:
+   - выгрузить их id/category/query/top_results;
+   - понять, это weak retrieval, плохой generated query, или нужен intent -> document_type compatibility.
+
+2. Добавить в analyzer третий сигнал:
+   - intent_doc_type_hit;
+   - возможно route_bucket_hit;
+   - считать frontier: vector OR (term_overlap AND intent_doc_type_hit), а не просто project_doc_hits.
+
+3. Только после этого внедрять post-retrieval evidence gate в ContextBuilder/SearchService.
+
+4. После gate — surgical guard relaxation:
+   - strong doc/document/requirement marker + unknown technical tail -> allow;
+   - broad ambiguous -> allow не делать;
+   - harmful/out_of_project mixed remains refused.
+
+5. Повторить:
+   - guard-only 500;
+   - retrieval-only probe;
+   - end-to-end chat eval.
+```

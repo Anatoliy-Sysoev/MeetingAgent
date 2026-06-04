@@ -1350,3 +1350,112 @@ floor 0.55 дает:
 его надо держать pre-retrieval intent guard.
 Для project нужен комбинированный gate: vector floor OR strong BM25/lexical route/project_doc evidence.
 ```
+
+## NTK v3 candidate-level retrieval probe и gate frontier на 2026-06-04
+
+После первичного probe стало ясно, что `best_vector_score=None` у 116 project-вопросов может быть артефактом top-1/merged ranking.
+Probe доработан до candidate-level формата:
+
+```text
+scripts/asu_june_bot_retrieval_dataset_probe.py
+```
+
+Что изменено:
+
+```text
+- дампится top_results[] по широкому окну candidate_k=30;
+- для каждого кандидата считается истинный cosine по numpy_index_v2/embeddings.npy независимо от matched_by;
+- добавлен term_overlap по полному тексту чанка;
+- preview ограничен 120 символами, чтобы JSONL оставался пригодным для ревью.
+```
+
+Добавлен анализатор:
+
+```text
+scripts/asu_june_bot_gate_floor_analyzer.py
+```
+
+Новые артефакты:
+
+```text
+docs/quality/ntk_realistic_500_v3_retrieval_probe_candidates_2026-06-04.jsonl
+docs/quality/ntk_realistic_500_v3_retrieval_probe_candidates_summary_2026-06-04.md
+docs/quality/ntk_realistic_500_v3_gate_floor_analysis_2026-06-04.md
+```
+
+Команды:
+
+```powershell
+$env:ASU_JUNE_BOT_ACTIVE_CORPUS='ntk'
+$env:OLLAMA_MODELS='C:\ollama-models'
+
+.\.venv\Scripts\python.exe scripts\asu_june_bot_retrieval_dataset_probe.py `
+  --candidate-k 30 `
+  --preview-chars 120 `
+  --report docs\quality\ntk_realistic_500_v3_retrieval_probe_candidates_2026-06-04.jsonl `
+  --summary docs\quality\ntk_realistic_500_v3_retrieval_probe_candidates_summary_2026-06-04.md
+
+.\.venv\Scripts\python.exe scripts\asu_june_bot_gate_floor_analyzer.py `
+  --report docs\quality\ntk_realistic_500_v3_retrieval_probe_candidates_2026-06-04.jsonl `
+  --dataset docs\quality\ntk_realistic_500_v3_queries_2026-06-03.jsonl `
+  --out docs\quality\ntk_realistic_500_v3_gate_floor_analysis_2026-06-04.md
+```
+
+Результат candidate-level probe:
+
+```text
+total: 500
+status ok: 500
+
+max_vector project:
+- count with vector: 448/450
+- p10: 0.5425
+- p50: 0.6342
+- p90: 0.6959
+
+max_vector out_of_scope:
+- p50: 0.4490
+- p90: 0.5081
+- max: 0.5292
+
+max_vector harmful_security:
+- p50: 0.5503
+- p90: 0.6474
+- max: 0.6969
+```
+
+Ключевой вывод:
+
+```text
+116 BM25-only из первичного top-1 probe почти полностью были артефактом ранжирования.
+После true cosine по top-30 project_missing_vector упал до 2/450.
+
+Но single vector floor все еще недостаточен:
+- floor 0.55: out_of_scope_above=0, но project_below_or_missing=54/450.
+- harmful_security часто имеет высокий vector score, поэтому остается только pre-retrieval guard.
+```
+
+Frontier анализатора:
+
+```text
+Gate: (max_vector >= floor) OR (term_overlap >= k AND project_doc_hits > 0)
+
+Лучшая точка с out_of_scope_leak=0:
+- floor=0.55
+- k=2
+- project_pass=422/450
+- out_of_scope_leak=0/30
+- harmful_pass=13/20 diagnostic-only
+```
+
+Решение по дальнейшему дизайну:
+
+```text
+Не использовать raw BM25 absolute threshold.
+Не полагаться на source_type=project_doc как сильный дискриминатор: почти любой top-source из корпуса project_doc.
+
+Следующий gate должен начинаться с:
+- max_vector >= 0.55;
+- OR term_overlap >= 2;
+- затем добавить intent -> document_type compatibility для оставшихся project loss и защиты от lexical false allow.
+```
