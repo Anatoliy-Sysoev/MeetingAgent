@@ -1,0 +1,28 @@
+{
+  "created_at": "2026-06-04T05:11:22.388647+00:00",
+  "input_rows": 500,
+  "review_rows": 500,
+  "scopes": {
+    "project": 450,
+    "out_of_scope": 30,
+    "harmful_security": 20
+  },
+  "models": {
+    "qwen2.5:7b-instruct": 500
+  },
+  "statuses": {
+    "answered": 219,
+    "no_answer": 167,
+    "clarify": 85,
+    "validation_failed": 3,
+    "refused": 26
+  },
+  "returncodes": {
+    "0": 500
+  },
+  "parse_errors": 0,
+  "failures": 0,
+  "output": "data\\ntk_realistic_500_v3_eval_review.jsonl",
+  "next_step": "Manual review: fill review_verdict and review_comment before candidate generation.",
+  "summary": "data\\ntk_realistic_500_v3_eval_review_summary.json"
+}
