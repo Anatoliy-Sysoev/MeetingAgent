@@ -21,5 +21,4 @@ MeetingAgent — local-first инструмент для проектной па
 
 Project Knowledge Bot — reference implementation source-grounded project search and chat:
 
-- [README Project Knowledge Bot](../subprojects/asu-june-bot/README.md)
-- [Telegram adapter](../subprojects/asu-june-bot/telegram.md)
+- [Project Knowledge Bot](../project_knowledge_bot.md)

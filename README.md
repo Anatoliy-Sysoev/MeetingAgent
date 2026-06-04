@@ -69,6 +69,12 @@ Detailed documentation:
 
 - [Project Knowledge Bot](docs/project_knowledge_bot.md)
 
+### Package Status
+
+`src/meeting_agent/` is the planned general MeetingAgent package. Most subpackages are currently scaffolds; the implemented shared transcription layer lives in `src/meeting_agent/transcription/`.
+
+The production-ready reference runtime currently lives in `src/asu_june_bot/`. Legacy `scripts/01_*` ... `scripts/09_chat.py` are kept for compatibility and migration reference.
+
 ## Public Examples
 
 Synthetic examples are available for a safe first look at the meeting artifact format:

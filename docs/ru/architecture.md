@@ -38,5 +38,4 @@ Private project data по умолчанию остаётся локально. 
 
 - [Architecture index](../architecture/ARCHITECTURE.md)
 - [MeetingAgent architecture](../meeting_agent_architecture.md)
-- [Project Knowledge Bot architecture](../subprojects/asu-june-bot/architecture.md)
-- [Technical diagrams](../subprojects/asu-june-bot/TECHNICAL_DIAGRAMS.md)
+- [Project Knowledge Bot](../project_knowledge_bot.md)

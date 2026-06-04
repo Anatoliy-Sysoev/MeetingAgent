@@ -8,6 +8,7 @@
 - Дождаться завершения локального comparison run и вручную разметить generated `manual_review` файл из ignored `data/diagnostics/`.
 - Поддерживать tracked quality/docs только в синтетическом или обезличенном виде.
 - Не коммитить runtime outputs из `data/`, `logs/`, `vector_db/`, `watched_folder/`, `meetings/`.
+- Если потребуется полная очистка GitHub history, выполнить отдельную согласованную history purge процедуру.
 
 ## OSS Packaging
 
@@ -17,6 +18,7 @@
 - Настроить release workflow и changelog automation.
 - Улучшить parity между English/Russian docs.
 - Рассмотреть GitHub Pages для публичной документации.
+- Подготовить `v0.1.1` release после documentation cleanup.
 
 ## Product Backlog
 

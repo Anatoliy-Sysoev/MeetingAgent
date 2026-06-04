@@ -12,6 +12,9 @@ MeetingAgent публикуется как local-first OSS проект для �
 - Добавлены безопасные синтетические examples в `examples/`.
 - Runtime-папки `data/`, `logs/`, `vector_db/`, `watched_folder/`, `meetings/` закрыты через `.gitignore`.
 - Приватные eval-отчеты, runtime-датасеты и локальные документы подпроектов сняты с индекса Git и остаются только локально.
+- Публичные ссылки на удаленные private docs заменены на `docs/project_knowledge_bot.md`.
+- Версия FastAPI Project Knowledge Bot берется из package `__version__`.
+- `scripts/README.md` разделяет current runtime и legacy baseline.
 
 ## Важные Файлы
 
@@ -48,5 +51,6 @@ MeetingAgent публикуется как local-first OSS проект для �
 - приватные quality reports и docs подпроекта сняты с индекса через `git rm --cached`;
 - публичные `docs/context.md`, `docs/todo.md`, `docs/decisions.md` заменены на безопасные версии;
 - публичный README больше не ведет на локальные private setup документы.
+- `src/meeting_agent/` явно описан как planned scaffold, кроме реализованного `transcription` слоя.
 
 История Git пока не переписывалась. Если нужно убрать уже опубликованные приватные файлы из истории GitHub, нужен отдельный проход через `git filter-repo` или BFG с force-push.
