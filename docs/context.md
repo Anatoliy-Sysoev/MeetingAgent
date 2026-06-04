@@ -1,6 +1,56 @@
 # Контекст проекта
 
-Обновлено: 2026-06-03.
+Обновлено: 2026-06-04.
+
+## OSS packaging cleanup
+
+2026-06-04 начата упаковка MeetingAgent как внешнего OSS-проекта для OpenAI/Codex-related заявки.
+
+Добавлены публичные OSS-файлы:
+
+```text
+LICENSE
+SECURITY.md
+SECURITY.ru.md
+CONTRIBUTING.md
+CONTRIBUTING.ru.md
+CODE_OF_CONDUCT.md
+CODE_OF_CONDUCT.ru.md
+CHANGELOG.md
+CHANGELOG.ru.md
+pyproject.toml
+```
+
+README переведён в публичный bilingual формат:
+
+```text
+README.md     -> English OSS landing page
+README.ru.md  -> текущая русская подробная версия
+```
+
+Добавлена публичная bilingual структура:
+
+```text
+docs/en/
+docs/ru/
+docs/translation_policy.md
+examples/en/
+examples/ru/
+.github/ISSUE_TEMPLATE/
+.github/PULL_REQUEST_TEMPLATE.md
+```
+
+Примеры в `examples/*` синтетические и не содержат private project data.
+
+Важно: до начала OSS packaging в рабочем дереве уже были незакоммиченные изменения по NTK retrieval/gate diagnostics:
+
+```text
+scripts/asu_june_bot_retrieval_dataset_probe.py
+scripts/asu_june_bot_gate_floor_analyzer.py
+docs/quality/ntk_realistic_500_v3_retrieval_probe_candidates_2026-06-04.jsonl
+```
+
+Эти файлы относятся к отдельной работе и не должны смешиваться с OSS packaging commit без явного решения.
 
 ## NTK realistic-100 new eval
 

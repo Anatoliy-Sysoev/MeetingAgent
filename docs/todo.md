@@ -1,6 +1,57 @@
 # TODO
 
-Обновлено: 2026-06-03.
+Обновлено: 2026-06-04.
+
+## Сейчас: OSS packaging для внешней заявки
+
+Готово локально:
+
+```text
+LICENSE
+SECURITY.md / SECURITY.ru.md
+CONTRIBUTING.md / CONTRIBUTING.ru.md
+CODE_OF_CONDUCT.md / CODE_OF_CONDUCT.ru.md
+CHANGELOG.md / CHANGELOG.ru.md
+pyproject.toml
+README.md / README.ru.md
+docs/en/*
+docs/ru/*
+docs/translation_policy.md
+examples/en/*
+examples/ru/*
+.github/ISSUE_TEMPLATE/*
+.github/PULL_REQUEST_TEMPLATE.md
+```
+
+Осталось для полного OSS-вида:
+
+```text
+1. Создать 5-8 открытых GitHub Issues:
+   - Add public sample meeting dataset
+   - Add transcript-to-protocol CLI quickstart
+   - Add Codex security review checklist
+   - Add anonymization pipeline for sensitive transcripts
+   - Add release workflow and changelog automation
+   - Add evaluation benchmark for meeting summaries
+   - Improve English/Russian documentation parity
+   - Add GitHub Pages documentation site
+
+2. Создать GitHub Release:
+   v0.1.0 - Initial OSS foundation
+
+3. Решить, нужен ли сейчас GitHub Pages + MkDocs Material.
+   Для заявки OpenAI достаточно README.md + README.ru.md + docs/en + docs/ru.
+
+4. После текущего локального commit/push проверить public repository landing page на GitHub.
+```
+
+Не смешивать с OSS packaging без отдельного решения:
+
+```text
+scripts/asu_june_bot_retrieval_dataset_probe.py
+scripts/asu_june_bot_gate_floor_analyzer.py
+docs/quality/ntk_realistic_500_v3_retrieval_probe_candidates_2026-06-04.jsonl
+```
 
 ## Сейчас: NTK realistic-100 P1 retrieval fixes
 

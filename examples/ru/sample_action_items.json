@@ -1,0 +1,9 @@
+[
+  {
+    "owner": "Разработчик",
+    "task": "Добавить DOCX extraction smoke test и обновить quickstart.",
+    "due_date": null,
+    "source_ref": "examples/ru/sample_transcript.md#00:00:26",
+    "status": "open"
+  }
+]
