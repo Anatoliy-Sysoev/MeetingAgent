@@ -36,7 +36,13 @@ MeetingAgent публикуется как local-first OSS проект для �
 
 ## Последнее Изменение
 
-Выполнен cleanup публичного дерева:
+Добавлен локальный диагностический runner для последовательного сравнения Ollama-моделей на пользовательском наборе вопросов:
+
+- runner сохраняет исходный вопрос, фактический `run_query`, ответ, источники, статус и время ответа;
+- результаты пишутся в ignored runtime-папки `data/diagnostics/` и `logs/`;
+- JSONL/summary/manual-review outputs не публикуются в Git.
+
+Ранее выполнен cleanup публичного дерева:
 
 - ужесточены `.gitignore` правила для private/eval/runtime данных;
 - приватные quality reports и docs подпроекта сняты с индекса через `git rm --cached`;

@@ -5,6 +5,7 @@
 ## Сейчас
 
 - Проверить публичное дерево на приватные строки перед следующим push.
+- Дождаться завершения локального comparison run и вручную разметить generated `manual_review` файл из ignored `data/diagnostics/`.
 - Поддерживать tracked quality/docs только в синтетическом или обезличенном виде.
 - Не коммитить runtime outputs из `data/`, `logs/`, `vector_db/`, `watched_folder/`, `meetings/`.
 
