@@ -135,6 +135,34 @@ QUESTIONS: list[dict[str, Any]] = [
 ]
 
 
+def route_hint(category: str) -> str:
+    if category.startswith("ftt_") or category in {"integration_ftt", "vendor_requirements"}:
+        return "Согласно ФТТ"
+    if category == "nonfunctional":
+        return "Согласно ФТТ и ЦТА"
+    if category == "cta":
+        return "Согласно ЦТА"
+    if category == "soi_ad":
+        return "Согласно СоИ AD"
+    if category == "soi_mdr":
+        return "Согласно СоИ Справочники/MDR"
+    if category == "pr_smr":
+        return "Согласно ПР СМР Строительный контроль"
+    if category == "traceability":
+        return "По проектной документации ФТТ, ПР СМР и ЦТА"
+    if category == "trap":
+        return "По загруженным проектным документам, без выдумывания"
+    if category == "conflict":
+        return "По загруженным проектным документам, с фиксацией расхождений"
+    return "По проектной документации"
+
+
+def build_run_query(question: dict[str, Any]) -> str:
+    query = str(question["query"])
+    hint = route_hint(str(question.get("category") or ""))
+    return f"{hint}: {query}"
+
+
 @dataclass(slots=True)
 class NativeOllamaThinkFalseClient(LLMClient):
     model: str
@@ -209,7 +237,13 @@ def source_payload(source: Any) -> dict[str, Any]:
     }
 
 
-def run_model(model: str, output_path: Path, max_tokens: int, top_k: int) -> list[dict[str, Any]]:
+def run_model(
+    model: str,
+    output_path: Path,
+    max_tokens: int,
+    top_k: int,
+    questions: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     cfg = load_config()
     search_service = SearchService(config=cfg)
     chat_service = ChatService(
@@ -225,17 +259,18 @@ def run_model(model: str, output_path: Path, max_tokens: int, top_k: int) -> lis
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("a", encoding="utf-8", newline="\n") as w:
-        for idx, question in enumerate(QUESTIONS, start=1):
+        for idx, question in enumerate(questions, start=1):
             qid = str(question["id"])
             if qid in done_ids:
                 continue
+            run_query = build_run_query(question)
             started = time.perf_counter()
             error = None
             response = None
             try:
                 response = chat_service.chat(
                     ChatRequest(
-                        query=str(question["query"]),
+                        query=run_query,
                         mode="hybrid",
                         top_k=top_k,
                         model=model,
@@ -255,6 +290,7 @@ def run_model(model: str, output_path: Path, max_tokens: int, top_k: int) -> lis
                 "model": model,
                 "elapsed_sec": elapsed_sec,
                 "error": error,
+                "run_query": run_query,
             }
             if response is not None:
                 answer = response.answer or ""
@@ -276,7 +312,7 @@ def run_model(model: str, output_path: Path, max_tokens: int, top_k: int) -> lis
                 json.dumps(
                     {
                         "model": model,
-                        "progress": f"{idx}/{len(QUESTIONS)}",
+                        "progress": f"{idx}/{len(questions)}",
                         "id": qid,
                         "elapsed_sec": elapsed_sec,
                         "status": row.get("status"),
@@ -315,6 +351,7 @@ def build_review_rows(model_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "category": row.get("category"),
                 "expected_behavior": row.get("expected_behavior", "answer_from_project_sources"),
                 "query": row.get("query"),
+                "run_query": row.get("run_query"),
                 "status": row.get("status"),
                 "elapsed_sec": row.get("elapsed_sec"),
                 "answer": row.get("answer"),
@@ -328,14 +365,14 @@ def build_review_rows(model_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return review_rows
 
 
-def build_summary(paths: dict[str, Path], all_rows: list[dict[str, Any]]) -> dict[str, Any]:
+def build_summary(paths: dict[str, Path], all_rows: list[dict[str, Any]], question_count: int) -> dict[str, Any]:
     by_model: dict[str, list[dict[str, Any]]] = {}
     for row in all_rows:
         by_model.setdefault(str(row.get("model")), []).append(row)
 
     summary: dict[str, Any] = {
         "run_id": RUN_ID,
-        "questions": len(QUESTIONS),
+        "questions": question_count,
         "total_answer_rows": len(all_rows),
         "paths": {key: str(path) for key, path in paths.items()},
         "models": {},
@@ -359,12 +396,14 @@ def main() -> None:
     parser.add_argument("--models", nargs="+", default=["qwen3.5:4b", "qwen3.5:9b"])
     parser.add_argument("--max-tokens", type=int, default=1200)
     parser.add_argument("--top-k", type=int, default=8)
+    parser.add_argument("--limit", type=int, default=0, help="Optional first-N question limit for smoke runs")
     args = parser.parse_args()
 
     out_dir = resolve_path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    questions = QUESTIONS[: args.limit] if args.limit else QUESTIONS
     dataset_path = out_dir / "questions.jsonl"
-    write_jsonl(dataset_path, QUESTIONS)
+    write_jsonl(dataset_path, questions)
 
     model_paths: dict[str, Path] = {}
     all_rows: list[dict[str, Any]] = []
@@ -372,7 +411,7 @@ def main() -> None:
         safe_model = model.replace(":", "_").replace("/", "_")
         output_path = out_dir / f"{safe_model}.jsonl"
         model_paths[model] = output_path
-        run_model(model, output_path, max_tokens=args.max_tokens, top_k=args.top_k)
+        run_model(model, output_path, max_tokens=args.max_tokens, top_k=args.top_k, questions=questions)
         all_rows.extend(load_jsonl(output_path))
 
     review_path = out_dir / "manual_review_200_answers.jsonl"
@@ -381,7 +420,7 @@ def main() -> None:
     paths = {"dataset": dataset_path, "manual_review": review_path, "summary": summary_path}
     for model, path in model_paths.items():
         paths[f"model_{model}"] = path
-    summary = build_summary(paths, all_rows)
+    summary = build_summary(paths, all_rows, len(questions))
     summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
 
