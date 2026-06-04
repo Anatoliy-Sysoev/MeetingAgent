@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 
 from fastapi import FastAPI
 
+from asu_june_bot import __version__
 from asu_june_bot.api.dependencies import build_app_state
 from asu_june_bot.api.errors import register_error_handlers
 from asu_june_bot.api.middleware import request_context_middleware
@@ -23,7 +24,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Asu June Bot API",
-        version="0.4.0",
+        version=__version__,
         description="Local project-only search and chat API for Asu June Bot",
         lifespan=lifespan,
     )
