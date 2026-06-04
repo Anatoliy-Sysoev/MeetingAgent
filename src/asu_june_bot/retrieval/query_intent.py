@@ -87,7 +87,7 @@ PROJECT_DOMAIN_MARKERS = {
     "oauth",
     "oidc",
     "rest api",
-    "app_ccpm",
+    "project_role",
     "порт 636",
     "реестр нси",
     "реестр объектов нси",
@@ -100,8 +100,6 @@ PROJECT_DOMAIN_MARKERS = {
 }
 
 PROJECT_MARKERS = {
-    "цп упкс",
-    "упкс",
     "асу",
     "фтт",
     "цта",
@@ -211,7 +209,7 @@ INTEGRATION_MARKERS = {
     "jwt",
     "oauth",
     "oidc",
-    "app_ccpm",
+    "project_role",
     "порт 636",
 }
 

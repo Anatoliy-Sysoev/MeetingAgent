@@ -24,7 +24,7 @@ from asu_june_bot.retrieval.metadata import enrich_metadata  # noqa: E402
 
 
 CHUNKER_VERSION = "v2"
-PROJECT_NAME = "ЦП УПКС"
+PROJECT_NAME = "PROJECT SYSTEM"
 SECTION_RE = re.compile(r"(?<!\d)(\d+(?:\.\d+){1,5})\s*\.", re.UNICODE)
 TEXT_CHILD_MAX_CHARS = 2500
 TABLE_ROW_MAX_CHARS = 2000
@@ -78,7 +78,7 @@ def detect_integration_terms(text: str) -> dict[str, str | None]:
     if "active directory" in lowered or re.search(r"\bad\b", lowered):
         integration = "Active Directory"
         source_system = "AD"
-        target_system = "ЦП УПКС"
+        target_system = "PROJECT SYSTEM"
     if "ldaps" in lowered:
         protocol = "LDAPS"
     elif "ldap" in lowered:
@@ -86,17 +86,17 @@ def detect_integration_terms(text: str) -> dict[str, str | None]:
     if "mdr" in lowered or "кшд" in lowered or "сои" in lowered:
         integration = integration or "MDR / КШД / СОИ"
         source_system = source_system or "MDR / КШД / СОИ"
-        target_system = target_system or "ЦП УПКС"
+        target_system = target_system or "PROJECT SYSTEM"
     if "blitz" in lowered:
         integration = integration or "Blitz IDP"
         source_system = source_system or "Blitz IDP"
-        target_system = target_system or "ЦП УПКС"
+        target_system = target_system or "PROJECT SYSTEM"
     if "smtp" in lowered or "exchange" in lowered or "почтов" in lowered:
         integration = integration or "SMTP / Exchange"
         protocol = protocol or ("SMTP" if "smtp" in lowered else None)
     if "новадок" in lowered:
-        integration = integration or "НОВАДОК"
-        target_system = target_system or "НОВАДОК"
+        integration = integration or "DOWNSTREAM_SYSTEM"
+        target_system = target_system or "DOWNSTREAM_SYSTEM"
     if "1с" in lowered or "основа" in lowered:
         integration = integration or "1С ОСНОВА"
         target_system = target_system or "1С ОСНОВА"

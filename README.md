@@ -33,7 +33,6 @@ MeetingAgent/
   src/                      Python packages
   tests/                    Unit and regression tests
   docs/                     Architecture, context, decisions, quality docs
-  docs/subprojects/         Reference Project Knowledge Bot implementation
   eval/                     Evaluation cases and golden answers
   examples/                 Public synthetic examples
   meetings/                 Local meeting cards, not for private data publication
@@ -68,9 +67,7 @@ documents / audio / video
 
 Detailed documentation:
 
-- [Project Knowledge Bot README](docs/subprojects/asu-june-bot/README.md)
-- [Bot v2 Yandex local setup](docs/subprojects/asu-june-bot/README_YANDEX_V2_LOCAL.md)
-- [Telegram adapter](docs/subprojects/asu-june-bot/telegram.md)
+- [Project Knowledge Bot](docs/project_knowledge_bot.md)
 
 ## Public Examples
 
@@ -144,7 +141,7 @@ http://127.0.0.1:8000/ui
 .\scripts\asu_june_bot_start_telegram.ps1
 ```
 
-See [Telegram adapter docs](docs/subprojects/asu-june-bot/telegram.md).
+Keep the Telegram token in local `.env` only. See [Project Knowledge Bot](docs/project_knowledge_bot.md).
 
 ## Meeting Processing
 

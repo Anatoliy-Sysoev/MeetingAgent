@@ -326,8 +326,8 @@ class SearchService:
     @staticmethod
     def _is_ad_cc_role_mapping_query(query: str) -> bool:
         lowered = " ".join((query or "").lower().split())
-        has_explicit_cc_group = "app_ccpm_ul_cc" in lowered
-        has_app_group = "app_ccpm" in lowered
+        has_explicit_cc_group = "project_role_group" in lowered
+        has_app_group = "project_role" in lowered
         has_role_route = any(marker in lowered for marker in ("роль", "роли", "ролей", "mapping", "маппинг", "соответствие", "связаны"))
         has_cc_route = any(marker in lowered for marker in ("строительного контроля", "строительный контроль", "ск"))
         return has_explicit_cc_group or (has_app_group and has_role_route and has_cc_route)
@@ -340,7 +340,7 @@ class SearchService:
             str(metadata.get(key) or "").lower()
             for key in ("document_type", "relative_path", "source_path", "title", "section", "table_id", "table_title")
         )
-        has_group = any(marker in text or marker in metadata_text for marker in ("app_ccpm_ul_cc_01", "app_ccpm_ul_cc_02", "app_ccpm_ul_cc_03"))
+        has_group = any(marker in text or marker in metadata_text for marker in ("project_role_group_01", "project_role_group_02", "project_role_group_03"))
         has_role = any(
             marker in text or marker in metadata_text
             for marker in (
@@ -433,7 +433,7 @@ class SearchService:
             "applied": True,
             "promoted_key": mapping_key,
             "moved_soi_ad_from_primary_to_supporting": moved_soi_keys,
-            "reason": "app_ccpm_ul_cc_role_mapping_query",
+            "reason": "project_role_group_role_mapping_query",
             "metadata_inference": (mapping_source.metadata or {}).get("metadata_inference"),
         }
         built_context.primary_sources = primary

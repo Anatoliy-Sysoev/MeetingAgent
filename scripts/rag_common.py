@@ -88,7 +88,6 @@ PROJECT_AUTH_ALLOW_TERMS = (
 )
 
 PROJECT_AUTH_CONTEXT_TERMS = (
-    "цп упкс",
     "сои",
     "интеграц",
     "справоч",

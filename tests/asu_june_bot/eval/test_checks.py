@@ -29,7 +29,7 @@ def test_eval_checks_pass_for_answered_response() -> None:
         status="answered",
         query=case.query,
         answer="Авторизация использует AD. [S1]",
-        sources=[ChatSource(source_ref="S1", title="ЦП УПКС_СоИ_AD")],
+        sources=[ChatSource(source_ref="S1", title="PROJECT SYSTEM_СоИ_AD")],
         diagnostics={"llm_called": True},
     )
 
@@ -88,7 +88,7 @@ def test_eval_source_title_check_uses_path_and_preview() -> None:
             ChatSource(
                 source_ref="S1",
                 title="Границы описания",
-                path="ПД НТК/Этап 1.2/8. Паспорт информационной системы/ЦП УПКС_Паспорт ИС_v1.3.2.docx",
+                path="PROJECT_DOCS/Этап 1.2/8. Паспорт информационной системы/PROJECT SYSTEM_Паспорт ИС_v1.3.2.docx",
             )
         ],
         diagnostics={"llm_called": True},

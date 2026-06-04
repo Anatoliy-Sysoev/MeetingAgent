@@ -21,7 +21,7 @@ SEMANTIC_MARKERS = {
     "issue": ("дефект", "инцидент", "ошибка", "не работает", "проблема"),
 }
 ENTITY_RE = re.compile(
-    r"\b(?:ФТТ|ПМИ|ЦТА|ПР|AD|LDAP|LDAPS|JWT|OAuth|OIDC|MDR|КШД|СОИ|НОВАДОК|НОВАТЭК|ОПКС|УПКС|ППО|СПО)\b",
+    r"\b(?:ФТТ|ПМИ|ЦТА|ПР|AD|LDAP|LDAPS|JWT|OAuth|OIDC|MDR|КШД|СОИ|DOWNSTREAM_SYSTEM|CUSTOMER|PROJECT_SYSTEM|PROJECT_SYSTEM|ППО|СПО)\b",
     re.IGNORECASE,
 )
 

@@ -76,13 +76,13 @@ def test_ambiguous_query_clarify() -> None:
     assert result.aggregate.scope == SegmentScope.AMBIGUOUS
 
 
-def test_ntk_project_markers_allow_retrieval() -> None:
+def test_project_markers_allow_retrieval() -> None:
     queries = [
         "Какие ограничения по производительности указаны для 2520 пользователей и 600 одновременно работающих пользователей?",
         "Какие требования к RTO и RPO описаны в архитектуре системы?",
         "Как в ПР реализована работа со статусами замечаний строительного контроля?",
         "Какие документы формируются автоматически после проведения инспекционной проверки?",
-        "Какие группы AD app_ccpm используются для ролей строительного контроля?",
+        "Какие группы AD используются для проектных ролей?",
         "Как используется Bearer Token при интеграции MDR/НСИ?",
         "Что входит в Паспорт ИС и какие связанные документы в нём указаны?",
         "Какие ограничения есть на экспорт данных в PDF, Excel и CSV?",
@@ -100,7 +100,7 @@ def test_food_query_refused_not_clarified() -> None:
     assert result.aggregate.scope == SegmentScope.OUT_OF_PROJECT
 
 
-def test_ntk_p2_out_of_scope_queries_refused_not_clarified() -> None:
+def test_out_of_scope_queries_refused_not_clarified() -> None:
     queries = [
         "Какая погода завтра в Берлине?",
         "Посоветуй фильм для просмотра на выходных.",
@@ -117,7 +117,7 @@ def test_ntk_p2_out_of_scope_queries_refused_not_clarified() -> None:
         assert result.aggregate.scope == SegmentScope.OUT_OF_PROJECT, query
 
 
-def test_ntk_v2_false_clarify_project_queries_allowed() -> None:
+def test_false_clarify_project_queries_allowed() -> None:
     queries = [
         "Какие интеграционные требования связаны с подписанием и хранением инспекционных документов?",
         "Как в проектном решении описан переход замечания между статусами после создания?",

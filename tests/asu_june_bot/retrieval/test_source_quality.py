@@ -36,7 +36,7 @@ def intent(sections: list[str] | None = None) -> QueryIntentResult:
 
 
 def test_short_diagram_like_source_is_weak_and_not_primary_eligible() -> None:
-    item = result("Рисунок 1. UML: CCPM -> AD -> CCPM")
+    item = result("Рисунок 1. UML: PROJECT -> AD -> PROJECT")
 
     assessment = assess_source_quality(item, intent())
 
@@ -47,7 +47,7 @@ def test_short_diagram_like_source_is_weak_and_not_primary_eligible() -> None:
 
 def test_exact_requirement_short_text_can_remain_primary_eligible() -> None:
     item = result(
-        "4.2.5 Интеграция с НОВАДОК. Требуется обеспечить подписание ЭЦП.",
+        "4.2.5 Интеграция с DOWNSTREAM_SYSTEM. Требуется обеспечить подписание ЭЦП.",
         metadata={"chunk_id": "chunk-1", "relative_path": "ФТТ.docx", "document_type": "ФТТ", "sections": ["4.2.5"]},
     )
 
@@ -109,7 +109,7 @@ def test_passport_appendices_chunk_can_be_primary_eligible_for_passport_route() 
         "Документ: Паспорт ИС. Таблица: Table 3. Приложение №1 План послеаварийного восстановления. Приложение №2 Список источников.",
         metadata={
             "chunk_id": "passport-table3",
-            "relative_path": "Этап 1.2/8. Паспорт информационной системы/ЦП УПКС_Паспорт ИС_v1.3.3.docx",
+            "relative_path": "Этап 1.2/8. Паспорт информационной системы/PROJECT SYSTEM_Паспорт ИС_v1.3.3.docx",
             "document_type": "Паспорт ИС",
             "title": "Приложения",
         },
@@ -127,7 +127,7 @@ def test_passport_system_purpose_chunk_can_be_primary_eligible_for_passport_rout
         "Система предназначена для формирования единой информационной среды для автоматизации и цифровизации бизнес-процессов управления строительными проектами.",
         metadata={
             "chunk_id": "passport-purpose",
-            "relative_path": "Этап 1.2/8. Паспорт информационной системы/ЦП УПКС_Паспорт ИС_v1.3.3.docx",
+            "relative_path": "Этап 1.2/8. Паспорт информационной системы/PROJECT SYSTEM_Паспорт ИС_v1.3.3.docx",
             "document_type": "Паспорт ИС",
             "title": "Описание и область применения",
         },

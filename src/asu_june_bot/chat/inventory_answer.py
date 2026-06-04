@@ -5,8 +5,8 @@ import re
 from .models import ChatSource
 
 
-APP_CCPM_GROUP_RE = re.compile(r"\bapp_ccpm_[A-Za-z0-9_-]+\b", flags=re.I)
-ROLE_MAPPING_RE = re.compile(r"\b(app_ccpm_[A-Za-z0-9_-]+)\s*[—-]\s*([^;\n]+)", flags=re.I)
+APP_PROJECT_GROUP_RE = re.compile(r"\bproject_role_[A-Za-z0-9_-]+\b", flags=re.I)
+ROLE_MAPPING_RE = re.compile(r"\b(project_role_[A-Za-z0-9_-]+)\s*[—-]\s*([^;\n]+)", flags=re.I)
 
 
 def _norm(text: str) -> str:
@@ -61,7 +61,7 @@ def _passport_inventory_kind(query: str) -> str | None:
 
 def _is_soi_ad_role_mapping_query(query: str) -> bool:
     lowered = _norm(query)
-    has_group_marker = "app_ccpm_ul_cc" in lowered
+    has_group_marker = "project_role_group" in lowered
     has_mapping_marker = any(
         marker in lowered
         for marker in (
@@ -80,9 +80,9 @@ def _is_soi_ad_role_mapping_query(query: str) -> bool:
     return has_group_marker and has_mapping_marker
 
 
-def _is_soi_ad_app_ccpm_query(query: str) -> bool:
+def _is_soi_ad_project_role_query(query: str) -> bool:
     lowered = _norm(query)
-    return "app_ccpm" in lowered and any(
+    return "project_role" in lowered and any(
         marker in lowered
         for marker in (
             "маска",
@@ -147,11 +147,11 @@ def _source_evidence(source: ChatSource) -> str | None:
     return None
 
 
-def _collect_app_ccpm_groups(sources: list[ChatSource]) -> list[tuple[str, ChatSource]]:
+def _collect_project_role_groups(sources: list[ChatSource]) -> list[tuple[str, ChatSource]]:
     found: list[tuple[str, ChatSource]] = []
     seen: set[str] = set()
     for source in sources:
-        for match in APP_CCPM_GROUP_RE.finditer(_source_text(source)):
+        for match in APP_PROJECT_GROUP_RE.finditer(_source_text(source)):
             value = match.group(0)
             key = value.lower()
             if key in seen:
@@ -169,7 +169,7 @@ def _collect_ad_role_mappings(sources: list[ChatSource]) -> list[tuple[str, str,
         for match in ROLE_MAPPING_RE.finditer(text):
             group = match.group(1).strip()
             role = " ".join(match.group(2).split()).strip(" ;,.")
-            if not group.lower().startswith("app_ccpm_ul_cc"):
+            if not group.lower().startswith("project_role_group"):
                 continue
             if not role:
                 continue
@@ -204,20 +204,20 @@ def _build_ad_role_mapping_fallback_answer(query: str, sources: list[ChatSource]
     mapping_text = "; ".join(f"`{group}` — {role}" for group, role, _ in mappings)
     answer_lines = [
         "Краткий ответ",
-        f"Явный mapping групп `app_ccpm_ul_cc` к ролям найден в источнике `{_source_label(main_source)}`: {mapping_text} [{main_source.source_ref}].",
+        f"Явный mapping групп `project_role_group` к ролям найден в источнике `{_source_label(main_source)}`: {mapping_text} [{main_source.source_ref}].",
         "",
         "Обоснование",
-        f"- Источник `{_source_label(main_source)}` содержит строку `Роли / группы AD` с перечислением групп `app_ccpm_ul_cc_01`, `app_ccpm_ul_cc_02`, `app_ccpm_ul_cc_03` и связанных ролей [{main_source.source_ref}].",
+        f"- Источник `{_source_label(main_source)}` содержит строку `Роли / группы AD` с перечислением групп `project_role_group_01`, `project_role_group_02`, `project_role_group_03` и связанных ролей [{main_source.source_ref}].",
     ]
     for group, role, source in mappings:
         answer_lines.append(f"- `{group}` соответствует роли `{role}` [{source.source_ref}].")
     return "\n".join(answer_lines)
 
 
-def _build_app_ccpm_fallback_answer(query: str, sources: list[ChatSource]) -> str | None:
-    if not _is_soi_ad_app_ccpm_query(query):
+def _build_project_role_fallback_answer(query: str, sources: list[ChatSource]) -> str | None:
+    if not _is_soi_ad_project_role_query(query):
         return None
-    groups = _collect_app_ccpm_groups(sources)
+    groups = _collect_project_role_groups(sources)
     if not groups:
         return None
 
@@ -234,10 +234,10 @@ def _build_app_ccpm_fallback_answer(query: str, sources: list[ChatSource]) -> st
 
     answer_lines = [
         "Краткий ответ",
-        f"В переданном контексте формальная wildcard-маска групп `app_ccpm` отдельной строкой не указана. По найденным именам групп используется префикс `app_ccpm_`; примеры: {examples} {refs}.",
+        f"В переданном контексте формальная wildcard-маска групп `project_role` отдельной строкой не указана. По найденным именам групп используется префикс `project_role_`; примеры: {examples} {refs}.",
         "",
         "Обоснование",
-        f"- Вывод сделан только по найденным именам групп `app_ccpm_...` в переданных источниках {refs}.",
+        f"- Вывод сделан только по найденным именам групп `project_role_...` в переданных источниках {refs}.",
         *evidence_lines,
     ]
     return "\n".join(answer_lines)
@@ -272,16 +272,16 @@ def _build_soi_ad_fallback_answer(query: str, sources: list[ChatSource]) -> str 
     role_mapping_answer = _build_ad_role_mapping_fallback_answer(query, sources)
     if role_mapping_answer:
         return role_mapping_answer
-    app_ccpm_answer = _build_app_ccpm_fallback_answer(query, sources)
-    if app_ccpm_answer:
-        return app_ccpm_answer
+    project_role_answer = _build_project_role_fallback_answer(query, sources)
+    if project_role_answer:
+        return project_role_answer
     return _build_ldaps_fallback_answer(query, sources)
 
 
 def build_pre_llm_deterministic_answer(query: str, sources: list[ChatSource]) -> str | None:
     """Return deterministic answers for narrow AD cases before calling LLM.
 
-    This is intentionally limited to exact AD/app_ccpm and LDAPS questions,
+    This is intentionally limited to exact AD/project_role and LDAPS questions,
     where the source fragments are structured enough that LLM generation adds
     latency and can create false answered/no_answer outcomes.
     """
@@ -576,7 +576,7 @@ def _build_executive_docs_access_fallback(query: str, sources: list[ChatSource])
     return "\n".join(answer_lines)
 
 
-def _build_ntk_v2_false_no_answer_fallback(query: str, sources: list[ChatSource]) -> str | None:
+def _build_inventory_false_no_answer_fallback(query: str, sources: list[ChatSource]) -> str | None:
     for builder in (
         _build_roles_fix_control_fallback,
         _build_cta_components_fallback,
@@ -592,7 +592,7 @@ def _build_ntk_v2_false_no_answer_fallback(query: str, sources: list[ChatSource]
 
 
 def build_inventory_fallback_answer(query: str, sources: list[ChatSource]) -> str | None:
-    """Build a source-grounded answer for narrow NTK inventory/list cases.
+    """Build a source-grounded answer for narrow inventory/list cases.
 
     This prevents product false-negatives where the LLM says no_answer even
     though retrieval already found relevant source titles, document paths,
@@ -603,9 +603,9 @@ def build_inventory_fallback_answer(query: str, sources: list[ChatSource]) -> st
     if soi_ad_answer:
         return soi_ad_answer
 
-    ntk_v2_answer = _build_ntk_v2_false_no_answer_fallback(query, sources)
-    if ntk_v2_answer:
-        return ntk_v2_answer
+    inventory_answer = _build_inventory_false_no_answer_fallback(query, sources)
+    if inventory_answer:
+        return inventory_answer
 
     passport_answer = _build_passport_inventory_fallback(query, sources)
     if passport_answer:

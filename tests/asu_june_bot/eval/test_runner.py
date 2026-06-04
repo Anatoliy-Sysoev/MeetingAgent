@@ -19,7 +19,7 @@ class FakeChatService:
             return ChatResponse(
                 status="refused",
                 query=request.query,
-                answer="Я отвечаю только по материалам проекта ЦП УПКС.",
+                answer="Я отвечаю только по материалам проекта PROJECT SYSTEM.",
                 sources=[],
                 diagnostics={"llm_called": False, "search_status": "refused"},
             )
@@ -27,7 +27,7 @@ class FakeChatService:
             status="answered",
             query=request.query,
             answer="Авторизация использует AD. [S1]",
-            sources=[ChatSource(source_ref="S1", title="ЦП УПКС_СоИ_AD")],
+            sources=[ChatSource(source_ref="S1", title="PROJECT SYSTEM_СоИ_AD")],
             diagnostics={"llm_called": True, "search_status": "ok", "llm_model": "fake-model"},
         )
 

@@ -21,6 +21,9 @@ config.yaml.bak*
 # Runtime RAG data and generated artifacts
 _calibration/
 eval/reports/
+docs/private/
+docs/internal/
+docs/subprojects/asu-june-bot/
 data/*
 !data/.gitkeep
 !data/README.md
@@ -45,6 +48,17 @@ test_*.py
 scratch_*.py
 !tests/**/*.py
 
+# Private corpus and customer-specific one-off tooling
+scripts/*ntk*
+scripts/*yandex*
+scripts/17_generate_realistic_500.py
+scripts/19_generate_ntk_realistic_500_v3.py
+scripts/asu_june_bot_apply_config_v2_1.py
+scripts/asu_june_bot_build_source_links.py
+scripts/monitor_asu_june_bot_ntk_index.ps1
+tests/asu_june_bot/guard_v2_cases.jsonl
+tests/asu_june_bot/**/*ntk*
+
 # Large media and meeting inputs/outputs
 *.mp4
 *.mkv
@@ -57,13 +71,21 @@ scratch_*.py
 
 # Local indexes, caches, and database files
 *.jsonl
-!docs/quality/*.jsonl
 !eval/cases/*.jsonl
 !tests/**/*.jsonl
+tests/asu_june_bot/guard_v2_cases.jsonl
+tests/asu_june_bot/**/*ntk*
 *.sqlite
 *.sqlite3
 *.db
 *.parquet
+
+# Public quality docs are curated manually; private eval datasets/reports stay local.
+docs/quality/**
+!docs/quality/
+!docs/quality/README.md
+!docs/quality/rag_eval_report_template.md
+!docs/quality/synthetic_seed_queries.jsonl
 
 # Office temporary files
 ~$*

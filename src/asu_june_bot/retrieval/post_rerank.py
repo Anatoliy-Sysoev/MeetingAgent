@@ -142,7 +142,7 @@ def _is_passport_system_purpose_chunk(text: str) -> bool:
 
 
 def _is_ad_role_mapping_chunk(text: str) -> bool:
-    has_group_anchor = "app_ccpm" in text or "справочник групп ad" in text or "группы ad пользователя" in text
+    has_group_anchor = "project_role" in text or "справочник групп ad" in text or "группы ad пользователя" in text
     has_role_anchor = "роль" in text or "роли строительного контроля" in text or "строительного контроля" in text
     has_groups_attr = "groups" in text or "атрибут groups" in text
     return has_group_anchor and (has_role_anchor or has_groups_attr)
@@ -512,7 +512,7 @@ class PostReranker:
                     multiplier *= 0.72
                     labels.append("penalty:integration_pr_vector_only")
 
-            has_soi_ad_route = any(marker in query_lower for marker in ("сои ad", "active directory", "ldaps", "app_ccpm", "группы ad"))
+            has_soi_ad_route = any(marker in query_lower for marker in ("сои ad", "active directory", "ldaps", "project_role", "группы ad"))
             if has_soi_ad_route:
                 if document_type == "СоИ AD":
                     multiplier *= 3.0

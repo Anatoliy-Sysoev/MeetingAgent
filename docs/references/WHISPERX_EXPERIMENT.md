@@ -51,7 +51,7 @@ py -3.12 -m venv $env:LOCALAPPDATA\MeetingAgent\whisperx-venv312
 Silero VAD внутри WhisperX через `torch.hub` не смог открыть cache-файл из пути с кириллицей:
 
 ```text
-C:\Users\Сотрудник\.cache\torch\hub\...
+%USERPROFILE%\.cache\torch\hub\...
 ```
 
 Обход: использовать ASCII-путь для `TORCH_HOME`:
@@ -118,4 +118,3 @@ WhisperX лучше сегментирует длинную речь и даёт
 - если нужна diarization и есть готовый HuggingFace-токен;
 - если появится локальный GPU или отдельный cloud-lab на обезличенных данных;
 - если решим делать редактор transcript с точной привязкой слов к таймкоду.
-

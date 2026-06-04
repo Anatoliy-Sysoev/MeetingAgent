@@ -72,7 +72,7 @@ def test_table_row_long_text_can_be_split_and_noise_is_filtered() -> None:
     assert not chunker.is_noise_text("ЗАДАНИЕ ЗАКАЗЧИКА")
 
 
-def test_document_type_covers_ntk_excel_and_wip_inputs() -> None:
+def test_document_type_covers_excel_and_wip_inputs() -> None:
     assert (
         infer_document_type({"relative_path": "Этап 1.1/Справочники/4 СВОК РД.xlsx", "extension": ".xlsx"})
         == "Справочник НСИ"

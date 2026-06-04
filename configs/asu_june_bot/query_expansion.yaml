@@ -282,7 +282,7 @@ soi_ad:
     - сои ad
     - active directory
     - ldaps
-    - app_ccpm
+    - project_role
     - группы ad
     - роли строительного контроля
   expansions:
@@ -291,7 +291,7 @@ soi_ad:
     - LDAPS
     - порт 636
     - группы AD
-    - app_ccpm
+    - project_role
     - справочник групп AD
     - атрибут groups
     - роли строительного контроля

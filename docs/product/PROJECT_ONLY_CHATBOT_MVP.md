@@ -140,12 +140,12 @@ docs/subprojects/asu-june-bot/FTT_STATUS.md
 - ФТТ: КШД/SOAP;
 - ПР: взаимодействие со смежными модулями.
 
-### ФТТ 4.2.5 НОВАДОК ЭЦП
+### ФТТ 4.2.5 downstream signature integration
 
 Запрос:
 
 ```text
-ФТТ 4.2.5 НОВАДОК ЭЦП
+ФТТ 4.2.5 downstream signature integration
 ```
 
 Статус: retrieval практически пригоден.
@@ -153,7 +153,7 @@ docs/subprojects/asu-june-bot/FTT_STATUS.md
 Поднимаются:
 
 - ФТТ в top-1/top-2;
-- интеграционная строка `ЦП УПКС -> НОВАДОК`;
+- интеграционная строка `project system -> downstream system`;
 - встреча `ФТТ_ИД` как аналитический источник;
 - ПР как supporting source.
 
@@ -257,7 +257,7 @@ ContextBuilder должен:
 
 - `Паспорт ИС overview` не забит таблицей ПО;
 - `Интеграции` возвращают ЦТА/Паспорт/ФТТ/СоИ;
-- `ФТТ 4.2.5` возвращает ФТТ с НОВАДОК/ЭЦП как primary source;
+- `ФТТ 4.2.5` возвращает профильный ФТТ как primary source;
 - внепроектный вопрос не превращается в проектный ответ.
 
 ### Этап 2. Local API Search

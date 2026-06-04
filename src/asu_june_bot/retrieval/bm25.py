@@ -47,7 +47,7 @@ class BM25Document:
 class BM25SearchAdapter:
     @staticmethod
     def _is_ad_role_mapping_chunk(text_lower: str) -> bool:
-        has_group_anchor = "app_ccpm" in text_lower or "справочник групп ad" in text_lower or "группы ad пользователя" in text_lower
+        has_group_anchor = "project_role" in text_lower or "справочник групп ad" in text_lower or "группы ad пользователя" in text_lower
         has_role_anchor = "роль" in text_lower or "роли строительного контроля" in text_lower or "строительного контроля" in text_lower
         has_groups_attr = "groups" in text_lower or "атрибут groups" in text_lower
         return has_group_anchor and (has_role_anchor or has_groups_attr)
@@ -472,7 +472,7 @@ class BM25SearchAdapter:
         document_type = str(doc.metadata.get("document_type") or "")
         text_lower = doc.text.lower()
         boosts: list[tuple[str, float]] = []
-        has_soi_ad_route = any(marker in lowered for marker in ("сои ad", "active directory", "ldaps", "app_ccpm", "группы ad"))
+        has_soi_ad_route = any(marker in lowered for marker in ("сои ad", "active directory", "ldaps", "project_role", "группы ad"))
         has_passport_route = self._has_passport_route(lowered)
 
         if has_passport_route:

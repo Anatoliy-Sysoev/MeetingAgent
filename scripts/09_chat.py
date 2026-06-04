@@ -57,8 +57,6 @@ OBVIOUS_OUT_OF_SCOPE_PATTERNS = (
 
 PROJECT_HINT_PATTERNS = (
     r"\bпроект\b",
-    r"\bцп\s*упкс\b",
-    r"\bноватэк\b",
     r"\bпаспорт\s+ис\b",
     r"\bфтт\b",
     r"\bцта\b",

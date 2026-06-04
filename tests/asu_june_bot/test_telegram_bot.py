@@ -30,7 +30,7 @@ def test_format_chat_payload_includes_status_answer_and_sources() -> None:
         "sources": [
             {
                 "source_ref": "S1",
-                "title": "ЦП УПКС_СоИ_AD",
+                "title": "PROJECT SYSTEM_СоИ_AD",
                 "section": "Авторизация",
             }
         ],

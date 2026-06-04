@@ -49,7 +49,7 @@ def integration_intent() -> QueryIntentResult:
 
 
 def test_context_builder_demotes_weak_primary_candidate_to_supporting() -> None:
-    weak = result("weak", "Рисунок 1. UML: CCPM -> AD -> CCPM", score=10.0, chunk_index=1)
+    weak = result("weak", "Рисунок 1. UML: PROJECT -> AD -> PROJECT", score=10.0, chunk_index=1)
     strong = result(
         "strong",
         "Интеграция с Active Directory используется для получения актуального перечня пользователей на основании членства в группах безопасности. " * 4,
@@ -70,7 +70,7 @@ def test_context_builder_demotes_weak_primary_candidate_to_supporting() -> None:
 
 
 def test_context_builder_parent_expands_weak_supporting_source() -> None:
-    weak = result("weak", "Рисунок 1. UML: CCPM -> AD -> CCPM", score=10.0, chunk_index=1)
+    weak = result("weak", "Рисунок 1. UML: PROJECT -> AD -> PROJECT", score=10.0, chunk_index=1)
     neighbor = result(
         "neighbor",
         "Диаграмма относится к разделу, где описано получение пользователей из групп безопасности Active Directory. " * 4,
@@ -125,7 +125,7 @@ def test_context_builder_promotes_nsi_reference_table_even_if_vector_only() -> N
         "Документ: СоИ Справочники. Таблица: Table 8. Справочники: Единицы измерения; Должности; Отделы; Контрагенты; Организации; Объекты строительства.",
         document_type="СоИ Справочники",
         matched_by=["vector"],
-        relative_path="Этап 1.1/11. Соглашения об интеграции для интерфейсов/ЦП УПКС_СоИ_Справочники_v2.2.1.docx",
+        relative_path="Этап 1.1/11. Соглашения об интеграции для интерфейсов/PROJECT SYSTEM_СоИ_Справочники_v2.2.1.docx",
         title="Цели и задачи интеграции",
         score=1.0,
     )
@@ -153,18 +153,18 @@ def test_context_builder_promotes_nsi_reference_table_even_if_vector_only() -> N
 def test_context_builder_promotes_passport_related_documents_table() -> None:
     related_docs = result(
         "passport-table2",
-        "Документ: Паспорт ИС. Таблица: Table 2. Связанные документы (этот документ должен читаться вместе с). Название документа: Целевая техническая архитектура (ЦТА). Номер версии /Имя файла: 1./ЦТА_ЦП_УПКС_Этап_1.",
+        "Документ: Паспорт ИС. Таблица: Table 2. Связанные документы (этот документ должен читаться вместе с). Название документа: Целевая техническая архитектура (ЦТА). Номер версии /Имя файла: 1./ЦТА_PROJECT_SYSTEM_Этап_1.",
         document_type="Паспорт ИС",
-        relative_path="Этап 1.2/8. Паспорт информационной системы/ЦП УПКС_Паспорт ИС_v1.3.3.docx",
+        relative_path="Этап 1.2/8. Паспорт информационной системы/PROJECT SYSTEM_Паспорт ИС_v1.3.3.docx",
         title="Связанные документы",
         score=4.0,
         diagnostics={"rerank_labels": ["boost:passport_related_documents"]},
     )
     scope = result(
         "passport-scope",
-        "Настоящий Паспорт ИС подготовлен для информационной системы ЦП УПКС. В границы описания включены архитектурные и эксплуатационные сведения.",
+        "Настоящий Паспорт ИС подготовлен для информационной системы PROJECT SYSTEM. В границы описания включены архитектурные и эксплуатационные сведения.",
         document_type="Паспорт ИС",
-        relative_path="Этап 1.2/8. Паспорт информационной системы/ЦП УПКС_Паспорт ИС_v1.3.3.docx",
+        relative_path="Этап 1.2/8. Паспорт информационной системы/PROJECT SYSTEM_Паспорт ИС_v1.3.3.docx",
         title="Границы описания",
         score=10.0,
     )
@@ -184,7 +184,7 @@ def test_context_builder_promotes_passport_appendices_table() -> None:
         "passport-table3",
         "Документ: Паспорт ИС. Таблица: Table 3. Приложение №1 План послеаварийного восстановления. Приложение №2 Список источников.",
         document_type="Паспорт ИС",
-        relative_path="Этап 1.2/8. Паспорт информационной системы/ЦП УПКС_Паспорт ИС_v1.3.3.docx",
+        relative_path="Этап 1.2/8. Паспорт информационной системы/PROJECT SYSTEM_Паспорт ИС_v1.3.3.docx",
         title="Приложения",
         score=4.0,
         diagnostics={"rerank_labels": ["boost:passport_appendices"]},
@@ -193,7 +193,7 @@ def test_context_builder_promotes_passport_appendices_table() -> None:
         "passport-support",
         "Документ: Паспорт ИС. Роль: Поддержка приложения. Регламентные операции.",
         document_type="Паспорт ИС",
-        relative_path="Этап 1.2/8. Паспорт информационной системы/ЦП УПКС_Паспорт ИС_v1.3.3.docx",
+        relative_path="Этап 1.2/8. Паспорт информационной системы/PROJECT SYSTEM_Паспорт ИС_v1.3.3.docx",
         title="Услуга по поддержке",
         score=10.0,
     )
@@ -213,7 +213,7 @@ def test_context_builder_promotes_passport_system_purpose() -> None:
         "passport-purpose",
         "Основное назначение системы: Система предназначена для формирования единой информационной среды для автоматизации и цифровизации бизнес-процессов управления строительными проектами.",
         document_type="Паспорт ИС",
-        relative_path="Этап 1.2/8. Паспорт информационной системы/ЦП УПКС_Паспорт ИС_v1.3.3.docx",
+        relative_path="Этап 1.2/8. Паспорт информационной системы/PROJECT SYSTEM_Паспорт ИС_v1.3.3.docx",
         title="Описание и область применения",
         score=4.0,
         diagnostics={"rerank_labels": ["boost:passport_system_purpose", "boost:passport_exact_system_purpose"]},
@@ -222,7 +222,7 @@ def test_context_builder_promotes_passport_system_purpose() -> None:
         "passport-integration",
         "Документ: Паспорт ИС. Таблица: Table 23. Параметр интеграции: Область применения. Описание: Все контуры системы.",
         document_type="Паспорт ИС",
-        relative_path="Этап 1.2/8. Паспорт информационной системы/ЦП УПКС_Паспорт ИС_v1.3.3.docx",
+        relative_path="Этап 1.2/8. Паспорт информационной системы/PROJECT SYSTEM_Паспорт ИС_v1.3.3.docx",
         title="Информация по интеграции",
         score=10.0,
     )
