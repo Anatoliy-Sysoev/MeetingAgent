@@ -1,0 +1,42 @@
+[project]
+name = "meetingagent"
+version = "0.1.0"
+description = "Local-first meeting intelligence and project memory tool."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+  { name = "Anatoliy Sysoev" }
+]
+dependencies = [
+  "beautifulsoup4",
+  "fastapi",
+  "faster-whisper",
+  "httpx",
+  "jsonschema",
+  "lxml",
+  "numpy",
+  "openpyxl",
+  "pandas",
+  "pydantic",
+  "PyMuPDF",
+  "python-docx",
+  "python-pptx",
+  "PyYAML",
+  "requests",
+  "tqdm",
+  "uvicorn"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "ruff"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
