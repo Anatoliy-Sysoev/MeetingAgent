@@ -100,6 +100,19 @@ class SemanticWarningAnalyzer:
                 )
             )
 
+        if diagnostics.get("truncated_answer") or diagnostics.get("llm_finish_reason") == "length":
+            warnings.append(
+                SemanticWarning(
+                    code="truncated_answer",
+                    message="Ответ обрезан лимитом генерации, нужно повторить с большим лимитом.",
+                    severity="high",
+                    details={
+                        "finish_reason": diagnostics.get("llm_finish_reason"),
+                        "max_tokens": diagnostics.get("llm_max_tokens"),
+                    },
+                )
+            )
+
         validation_errors = diagnostics.get("validation_errors") or []
         if validation_errors:
             warnings.append(

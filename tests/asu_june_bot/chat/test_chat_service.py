@@ -26,15 +26,16 @@ class FakeSearchService:
 
 
 class FakeLLMClient:
-    def __init__(self, text: str) -> None:
+    def __init__(self, text: str, finish_reason: str | None = None) -> None:
         self.text = text
+        self.finish_reason = finish_reason
         self.called = False
         self.last_request: LLMRequest | None = None
 
     def generate(self, request: LLMRequest) -> LLMResponse:
         self.called = True
         self.last_request = request
-        return LLMResponse(text=self.text, model=request.model or "fake-model")
+        return LLMResponse(text=self.text, model=request.model or "fake-model", finish_reason=self.finish_reason)
 
 
 def project_payload(long_supporting: bool = False) -> dict:
@@ -301,6 +302,24 @@ def test_chat_empty_llm_response_is_not_answered() -> None:
 
     assert response.status == "llm_empty_response"
     assert response.diagnostics["llm_called"] is True
+
+
+def test_chat_length_finish_reason_returns_truncated_status() -> None:
+    search = FakeSearchService(project_payload())
+    llm = FakeLLMClient(
+        "Краткий ответ\nАвторизация использует данные AD. [S1]\n\nОбоснование\n- Пользователи определяются",
+        finish_reason="length",
+    )
+    service = ChatService(search_service=search, llm_client=llm)
+
+    response = service.chat(ChatRequest(query="СоИ AD как происходит авторизация пользователей?", max_tokens=1400))
+
+    assert response.status == "truncated"
+    assert response.diagnostics["truncated_answer"] is True
+    assert response.diagnostics["llm_finish_reason"] == "length"
+    assert response.diagnostics["llm_max_tokens"] == 1400
+    warning_items = response.warnings["semantic"]["items"]
+    assert any(item["code"] == "truncated_answer" and item["severity"] == "high" for item in warning_items)
 
 
 def test_chat_answer_without_source_reference_fails_validation() -> None:

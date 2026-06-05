@@ -100,6 +100,8 @@ def test_ui_endpoint_returns_local_chat_page() -> None:
     assert "Способ поиска" in response.text
     assert "Сбалансированный" in response.text
     assert "/chat" in response.text
+    assert "max_tokens: 1400" in response.text
+    assert "runtimeWarning" in response.text
     assert str(MAX_QUERY_CHARS) in response.text
 
 
@@ -138,7 +140,7 @@ def test_chat_endpoint_project_query() -> None:
 
 
 def test_chat_endpoint_refused_query_does_not_call_llm() -> None:
-    client, _fake_chat = build_client()
+    client, fake_chat = build_client()
     try:
         response = client.post("/chat", json={"query": "Какая погода завтра в Москве?", "mode": "hybrid", "top_k": 5})
     finally:
@@ -149,6 +151,7 @@ def test_chat_endpoint_refused_query_does_not_call_llm() -> None:
     assert data["status"] == "refused"
     assert data["diagnostics"]["llm_called"] is False
     assert data["sources"] == []
+    assert fake_chat.last_request.max_tokens == 1400
 
 
 def test_chat_endpoint_clarify_query_does_not_call_llm() -> None:

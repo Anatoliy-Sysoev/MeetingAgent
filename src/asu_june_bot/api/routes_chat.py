@@ -22,7 +22,7 @@ class ChatApiRequest(BaseModel):
     include_source_types: list[str] | None = None
     model: str | None = None
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
-    max_tokens: int = Field(default=900, ge=1, le=4096)
+    max_tokens: int = Field(default=1400, ge=1, le=4096)
     timeout_sec: int = Field(default=300, ge=1, le=1800)
     include_diagnostics: bool = True
 

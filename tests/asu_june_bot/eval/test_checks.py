@@ -70,6 +70,28 @@ def test_eval_checks_find_failures() -> None:
     assert "source_titles" in failed
 
 
+def test_eval_checks_fail_truncated_answers() -> None:
+    case = EvalCase(
+        case_id="PROJECT-AD-TRUNCATED",
+        query="СоИ AD как происходит авторизация пользователей?",
+        expected_status="answered",
+        expected_llm_called=True,
+    )
+    response = ChatResponse(
+        status="truncated",
+        query=case.query,
+        answer="Авторизация использует AD. [S1]",
+        sources=[ChatSource(source_ref="S1", title="PROJECT SYSTEM_СоИ_AD")],
+        diagnostics={"llm_called": True, "llm_finish_reason": "length"},
+    )
+
+    checks = run_checks(case, response)
+    failed = {check.name for check in checks if not check.passed}
+
+    assert "not_truncated" in failed
+    assert "status" in failed
+
+
 def test_eval_source_title_check_uses_path_and_preview() -> None:
     case = EvalCase(
         case_id="PROJECT-PASSPORT-001",
