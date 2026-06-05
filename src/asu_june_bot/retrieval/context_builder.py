@@ -33,6 +33,42 @@ def text_lower(result: SearchResult) -> str:
     return " ".join((result.text or "").lower().split())
 
 
+FTT_TABLE_8_STAGE_COLUMNS = {
+    "Входит в объём проекта": ("Этапу 1 (ФТ1)", "Этап 1 (ФТ1)"),
+    "Входит в объём проекта_2": ("Этапу 2 (ФТ2)", "Этап 2 (ФТ2)"),
+    "Входит в объём проекта_3": ("Этапу 3 (ФТ3)", "Этап 3 (ФТ3)"),
+    "Входит в объём проекта_4": ("Этапу 4 (ФТ4)", "Этап 4 (ФТ4)"),
+    "Развитие ИС": ("Развитию ИС / не входит в текущий проект", "Развитие ИС / не входит в текущий проект"),
+}
+
+
+def _is_marked_cell(value: Any) -> bool:
+    return str(value or "").strip().lower() in {"х", "x", "+", "да", "yes", "true", "1"}
+
+
+def _ftt_table_8_stage_facts(result: SearchResult) -> list[str]:
+    if doc_type(result) != "ФТТ":
+        return []
+    if str(result.metadata.get("table_id") or "") != "Table 8":
+        return []
+
+    cells = result.metadata.get("cells") or {}
+    if not isinstance(cells, dict):
+        return []
+
+    requirement_id = str(result.metadata.get("requirement_id") or cells.get("№") or cells.get("N") or "").strip().rstrip(".")
+
+    facts: list[str] = []
+    for column, (phrase, canonical) in FTT_TABLE_8_STAGE_COLUMNS.items():
+        if _is_marked_cell(cells.get(column)):
+            basis = f" Основание: заполнена колонка «{column}»."
+            if requirement_id:
+                facts.append(f"Требование {requirement_id} относится к {phrase}. Каноническое значение: {canonical}.{basis}")
+            else:
+                facts.append(f"Строка таблицы относится к {phrase}. Каноническое значение: {canonical}.{basis}")
+    return facts
+
+
 def is_vector_only(result: SearchResult) -> bool:
     return "vector" in result.matched_by and "bm25" not in result.matched_by
 
@@ -352,6 +388,7 @@ class ContextBuilder:
             supporting_parent_diag = {"parent_expansion": "disabled"}
 
         primary, supporting, passport_table_diag = self._expand_passport_table_context(query, primary, supporting, candidate_pool)
+        primary, supporting, table_header_semantics_diag = self._apply_table_header_semantics(primary, supporting)
 
         for result in assessed_excluded:
             key = result_key(result)
@@ -383,6 +420,7 @@ class ContextBuilder:
                     "supporting": supporting_parent_diag,
                 },
                 "passport_table_expansion": passport_table_diag,
+                "table_header_semantics": table_header_semantics_diag,
             },
         )
 
@@ -478,6 +516,48 @@ class ContextBuilder:
             "table_id": table_id,
             "expanded_count": len(parts),
             "expanded_keys": expanded_keys,
+        }
+
+    def _apply_table_header_semantics(
+        self,
+        primary: list[SearchResult],
+        supporting: list[SearchResult],
+    ) -> tuple[list[SearchResult], list[SearchResult], dict[str, Any]]:
+        applied = 0
+
+        def enrich(result: SearchResult) -> SearchResult:
+            nonlocal applied
+            facts = _ftt_table_8_stage_facts(result)
+            if not facts:
+                return result
+
+            normalized_block = "Нормализованная семантика таблицы:\n" + "\n".join(f"- {fact}" for fact in facts)
+            if normalized_block in result.text:
+                return result
+
+            metadata = dict(result.metadata or {})
+            metadata["table_header_semantics_applied"] = True
+            metadata["table_header_semantics_facts"] = facts
+
+            diagnostics = dict(result.diagnostics or {})
+            diagnostics["table_header_semantics"] = {
+                "applied": True,
+                "facts": facts,
+                "table_id": result.metadata.get("table_id"),
+                "requirement_id": result.metadata.get("requirement_id"),
+            }
+
+            applied += 1
+            return replace(
+                result,
+                text=f"{result.text}\n\n{normalized_block}",
+                metadata=metadata,
+                diagnostics=diagnostics,
+            )
+
+        return [enrich(item) for item in primary], [enrich(item) for item in supporting], {
+            "applied": applied > 0,
+            "enriched_count": applied,
         }
 
     def _bucket(self, query: str, intent: QueryIntentResult, result: SearchResult) -> str:

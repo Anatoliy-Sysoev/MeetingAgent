@@ -51,6 +51,12 @@ MeetingAgent публикуется как local-first OSS проект для �
 - `scripts/diagnostics/pivot_manual_review.py` строит status/verdict pivots по локальному manual-review JSONL;
 - приватные `gold.jsonl`, coverage reports и pivots остаются в ignored `data/diagnostics/`.
 
+Добавлена runtime-семантика заголовков ФТТ Table 8 в `ContextBuilder`:
+
+- строки таблицы с `Входит в объём проекта_3: Х` получают нормализованный факт `Этап 3 (ФТ3)` только в built context;
+- persisted chunks, `chunk_id`, embeddings cache и numpy index не меняются;
+- targeted retrieval/context check для вопросов по требованиям `1.1` и `1.3` подтверждает `Этап 3 (ФТ3)` без `Этап 1 (ФТ1)`.
+
 Ранее выполнен cleanup публичного дерева:
 
 - ужесточены `.gitignore` правила для private/eval/runtime данных;
