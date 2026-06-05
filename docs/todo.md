@@ -1,11 +1,13 @@
 # Todo
 
-Обновлено: 2026-06-04.
+Обновлено: 2026-06-05.
 
 ## Сейчас
 
 - Проверить публичное дерево на приватные строки перед следующим push.
-- Дождаться завершения локального comparison run и вручную разметить generated `manual_review` файл из ignored `data/diagnostics/`.
+- Разметить generated `manual_review` файл из ignored `data/diagnostics/` и затем пересчитать pivot через `scripts/diagnostics/pivot_manual_review.py`.
+- Расширить локальный `gold.jsonl` точными `expected_answer_facts` / `negative_facts` для табличных и конфликтных вопросов.
+- Следующий retrieval bucket: table header semantics в `ContextBuilder` без изменения persisted chunks и без реэмбеддинга.
 - Поддерживать tracked quality/docs только в синтетическом или обезличенном виде.
 - Не коммитить runtime outputs из `data/`, `logs/`, `vector_db/`, `watched_folder/`, `meetings/`.
 - Если потребуется полная очистка GitHub history, выполнить отдельную согласованную history purge процедуру.

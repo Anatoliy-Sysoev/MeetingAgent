@@ -1,6 +1,6 @@
 # Текущий Контекст
 
-Обновлено: 2026-06-04.
+Обновлено: 2026-06-05.
 
 MeetingAgent публикуется как local-first OSS проект для обработки встреч, транскрибации, проектной памяти, RAG-поиска и генерации рабочих артефактов.
 
@@ -44,6 +44,12 @@ MeetingAgent публикуется как local-first OSS проект для �
 - runner сохраняет исходный вопрос, фактический `run_query`, ответ, источники, статус и время ответа;
 - результаты пишутся в ignored runtime-папки `data/diagnostics/` и `logs/`;
 - JSONL/summary/manual-review outputs не публикуются в Git.
+
+Добавлены публично безопасные диагностические утилиты для локальных quality runs:
+
+- `scripts/diagnostics/check_index_coverage.py` проверяет, покрывает ли JSONL индекс ожидаемые gold anchors;
+- `scripts/diagnostics/pivot_manual_review.py` строит status/verdict pivots по локальному manual-review JSONL;
+- приватные `gold.jsonl`, coverage reports и pivots остаются в ignored `data/diagnostics/`.
 
 Ранее выполнен cleanup публичного дерева:
 
