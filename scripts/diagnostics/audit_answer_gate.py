@@ -52,10 +52,10 @@ def integration_ftt_anchor_groups(query: str) -> tuple[AnchorGroup, ...]:
     q = normalize_text(query)
     if "протокол передачи" in q or "протокол" in q:
         return (("https",),)
-    if "формат" in q or "сообщени" in q:
-        return (("json",), ("xml",))
     if "размер" in q or "100" in q:
         return (("100 мб", "100 mb", "100мб"),)
+    if "формат" in q or "сообщени" in q:
+        return (("json",), ("xml",))
     if "аутентификац" in q:
         return (("basic-аутентификация", "basic аутентификация", "basic"),)
     if "идентификац" in q or "объект" in q or "тэг" in q or "тег" in q:

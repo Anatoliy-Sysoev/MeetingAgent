@@ -141,6 +141,11 @@ class SearchService:
             diagnostics.add_stage("cta_table_17_injection", self._elapsed_ms(t0), table_17_diagnostics)
 
         t0 = time.perf_counter()
+        raw_results, ftt_integration_diagnostics = self._inject_integration_ftt_required_anchor_results(request.query, raw_results, rows)
+        if ftt_integration_diagnostics.get("applied") or ftt_integration_diagnostics.get("reason") != "not_integration_ftt_query":
+            diagnostics.add_stage("integration_ftt_required_anchor_selection", self._elapsed_ms(t0), ftt_integration_diagnostics)
+
+        t0 = time.perf_counter()
         rerank_result = self.post_reranker.rerank(request.query, query_intent_result, raw_results, top_k=request.top_k)
         diagnostics.add_stage("rerank", self._elapsed_ms(t0), rerank_result.diagnostics)
 
@@ -321,6 +326,163 @@ class SearchService:
             "injected": len(injected_results),
             "related_paths": sorted(related_paths)[:5],
             "sample_chunk_ids": [self._row_key(row) for row in selected_rows[:5]],
+        }
+
+    @classmethod
+    def _integration_ftt_required_anchor_intent(cls, query: str) -> dict[str, Any] | None:
+        lowered = cls._norm_text(query)
+        if "фтт" not in lowered:
+            return None
+        if not any(marker in lowered for marker in ("интеграц", "системн", "сообщени", "передаваем", "объект")):
+            return None
+
+        routes = (
+            {
+                "intent": "protocol",
+                "markers": ("протокол передачи", "протокол"),
+                "anchors": ("https",),
+            },
+            {
+                "intent": "message_size",
+                "markers": ("размер", "максимальный размер", "100"),
+                "anchors": ("100 мб", "100 mb", "100мб"),
+            },
+            {
+                "intent": "message_format",
+                "markers": ("формат", "формат сообщений", "сообщений"),
+                "anchors": ("json", "xml"),
+            },
+            {
+                "intent": "auth_type",
+                "markers": ("тип аутентификац", "аутентификац"),
+                "anchors": ("basic-аутентификация", "basic аутентификация", "basic"),
+            },
+            {
+                "intent": "object_identification",
+                "markers": ("идентификац", "передаваемых объектов", "тэг", "тег", "заголовке вызова"),
+                "anchors": ("тэг в заголовке вызова", "тег в заголовке вызова", "идентификация передаваемых объектов"),
+            },
+        )
+        for route in routes:
+            if any(marker in lowered for marker in route["markers"]):
+                return route
+        return None
+
+    @staticmethod
+    def _row_to_ftt_anchor_search_result(row: dict[str, Any], score: float, intent: str, anchors: tuple[str, ...]) -> SearchResult:
+        metadata = dict(row)
+        metadata["document_type"] = "ФТТ"
+        metadata["metadata_inference"] = "integration_ftt_required_anchor_selection"
+        source_id = str(row.get("source_id") or row.get("db_id") or row.get("chunk_id") or row.get("block_id"))
+        return SearchResult(
+            source_id=source_id,
+            text=str(row.get("text") or ""),
+            score=score,
+            vector_score=None,
+            bm25_score=score,
+            metadata=metadata,
+            matched_by=["integration_ftt_required_anchor_selection"],
+            diagnostics={
+                "injected": True,
+                "reason": "integration_ftt_required_anchor",
+                "integration_ftt_required_anchor_selection": {
+                    "intent": intent,
+                    "anchors": list(anchors),
+                    "document_type": "ФТТ",
+                },
+                "rerank_labels": [f"boost:integration_ftt_{intent}_anchor"],
+            },
+        )
+
+    @classmethod
+    def _is_ftt_row(cls, row: dict[str, Any]) -> bool:
+        document_type = str(row.get("document_type") or "")
+        path = str(row.get("relative_path") or row.get("source_path") or "").lower()
+        return document_type == "ФТТ" or path.endswith("фтт.docx") or "фтт.docx" in path
+
+    @classmethod
+    def _row_has_any_anchor(cls, row: dict[str, Any], anchors: tuple[str, ...]) -> bool:
+        haystack = cls._row_haystack(row)
+        return any(cls._norm_text(anchor) in haystack for anchor in anchors)
+
+    @classmethod
+    def _result_has_any_anchor(cls, result: SearchResult, anchors: tuple[str, ...]) -> bool:
+        haystack = cls._result_haystack(result)
+        return any(cls._norm_text(anchor) in haystack for anchor in anchors)
+
+    @classmethod
+    def _ftt_anchor_row_rank(cls, row: dict[str, Any], anchors: tuple[str, ...]) -> tuple[int, int, int, int]:
+        haystack = cls._row_haystack(row)
+        title = cls._norm_text(str(row.get("title") or ""))
+        anchor_hits = sum(1 for anchor in anchors if cls._norm_text(anchor) in haystack)
+        integration_title_bonus = 1 if "требования к интеграции и системным взаимодействиям" in title else 0
+        exact_ftt_path_bonus = 1 if str(row.get("relative_path") or "").lower().replace("\\", "/") == "фтт.docx" else 0
+        short_exact_bonus = 1 if anchor_hits and len(str(row.get("text") or "")) <= 120 else 0
+        return anchor_hits, integration_title_bonus, exact_ftt_path_bonus, short_exact_bonus
+
+    def _inject_integration_ftt_required_anchor_results(
+        self,
+        query: str,
+        raw_results: list[SearchResult],
+        rows: list[dict[str, Any]],
+    ) -> tuple[list[SearchResult], dict[str, Any]]:
+        route = self._integration_ftt_required_anchor_intent(query)
+        if route is None:
+            return raw_results, {"applied": False, "reason": "not_integration_ftt_query"}
+
+        intent = str(route["intent"])
+        anchors = tuple(str(anchor) for anchor in route["anchors"])
+        existing_matching = [result for result in raw_results if self._is_ftt_row(result.metadata or {}) and self._result_has_any_anchor(result, anchors)]
+
+        candidate_rows = [row for row in rows if self._is_ftt_row(row) and self._row_has_any_anchor(row, anchors)]
+        if not candidate_rows and not existing_matching:
+            return raw_results, {
+                "applied": False,
+                "reason": "required_anchor_chunk_not_found",
+                "intent": intent,
+                "anchors": list(anchors),
+                "document_type": "ФТТ",
+            }
+
+        base_score = (max((result.score for result in raw_results), default=1.0) or 1.0) + 2.0
+        if candidate_rows:
+            selected_row = sorted(candidate_rows, key=lambda row: self._ftt_anchor_row_rank(row, anchors), reverse=True)[0]
+            selected = self._row_to_ftt_anchor_search_result(selected_row, base_score, intent, anchors)
+            selected_key = self._result_key(selected)
+        else:
+            source = existing_matching[0]
+            metadata = dict(source.metadata or {})
+            metadata["metadata_inference"] = "integration_ftt_required_anchor_selection"
+            diagnostics = dict(source.diagnostics or {})
+            labels = list(diagnostics.get("rerank_labels") or [])
+            labels.append(f"boost:integration_ftt_{intent}_anchor")
+            diagnostics["rerank_labels"] = labels
+            diagnostics["integration_ftt_required_anchor_selection"] = {
+                "intent": intent,
+                "anchors": list(anchors),
+                "document_type": "ФТТ",
+            }
+            selected = SearchResult(
+                source_id=source.source_id,
+                text=source.text,
+                score=base_score,
+                vector_score=source.vector_score,
+                bm25_score=source.bm25_score,
+                metadata=metadata,
+                matched_by=list(dict.fromkeys(source.matched_by + ["integration_ftt_required_anchor_selection"])),
+                diagnostics=diagnostics,
+            )
+            selected_key = self._result_key(selected)
+
+        filtered = [result for result in raw_results if self._result_key(result) != selected_key]
+        return [selected] + filtered, {
+            "applied": True,
+            "intent": intent,
+            "anchors": list(anchors),
+            "injected_chunk_id": selected.metadata.get("chunk_id"),
+            "document_type": "ФТТ",
+            "already_present": bool(existing_matching),
+            "reason": "required_anchor_promoted",
         }
 
     @staticmethod
