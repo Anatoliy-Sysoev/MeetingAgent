@@ -21,7 +21,7 @@ rag:
 generation:
   temperature: 0.1
   top_p: 0.8
-  num_predict: 700
+  num_predict: 1400
   timeout_sec: 180
 
 transcription:

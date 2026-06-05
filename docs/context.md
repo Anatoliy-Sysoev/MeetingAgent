@@ -86,6 +86,15 @@ MeetingAgent публикуется как local-first OSS проект для �
 - `OllamaOpenAIClient` добавляет `/no_think` для `qwen3.5:*`;
 - embeddings model не менялась: `bge-m3`.
 
+Добавлена защита от обрезанных LLM-ответов:
+
+- default `max_tokens` для Project Knowledge Bot API/UI поднят до `1400`;
+- UI теперь отправляет `max_tokens=1400` вместо старого `900`;
+- если LLM возвращает `finish_reason=length`, chat API возвращает статус `truncated`, сохраняет ответ и источники, но не считает результат `answered`;
+- semantic warnings добавляют high-warning `truncated_answer` с сообщением, что ответ обрезан лимитом генерации;
+- UI показывает отдельную warning-плашку: `Ответ обрезан лимитом генерации, нужно повторить с большим лимитом.`;
+- eval checks теперь валят такие ответы через проверку `not_truncated`, чтобы `finish_reason=length` не проходил как `ok`.
+
 Исправлен corpus alias для NTK:
 
 - в `configs/asu_june_bot/corpus.yaml` добавлен явный key `ntk`;

@@ -14,7 +14,7 @@ class LLMRequest:
     system_prompt: str | None = None
     model: str | None = None
     temperature: float = 0.0
-    max_tokens: int = 900
+    max_tokens: int = 1400
     timeout_sec: int = 300
 
 

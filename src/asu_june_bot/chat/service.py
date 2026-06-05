@@ -172,6 +172,20 @@ class ChatService:
         answer = (llm_response.text or "").strip()
         diagnostics["llm_model"] = llm_response.model
         diagnostics["llm_finish_reason"] = llm_response.finish_reason
+        diagnostics["llm_max_tokens"] = request.max_tokens
+        if llm_response.finish_reason == "length":
+            diagnostics["truncated_answer"] = True
+            return finalize(
+                ChatResponse(
+                    status=ChatStatus.TRUNCATED.value,
+                    query=request.query,
+                    answer=answer or "Ответ обрезан лимитом генерации до того, как был сформирован полный текст.",
+                    sources=sources,
+                    search=search_payload,
+                    diagnostics=diagnostics,
+                )
+            )
+
         if not answer:
             return finalize(
                 ChatResponse(

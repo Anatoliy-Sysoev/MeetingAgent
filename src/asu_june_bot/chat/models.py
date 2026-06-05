@@ -9,6 +9,7 @@ from asu_june_bot.core.limits import MAX_QUERY_CHARS, validate_query_length
 
 class ChatStatus(StrEnum):
     ANSWERED = "answered"
+    TRUNCATED = "truncated"
     REFUSED = "refused"
     CLARIFY = "clarify"
     NO_SOURCES = "no_sources"
@@ -29,7 +30,7 @@ class ChatRequest:
     include_source_types: list[str] | None = None
     model: str | None = None
     temperature: float = 0.0
-    max_tokens: int = 900
+    max_tokens: int = 1400
     timeout_sec: int = 300
     include_diagnostics: bool = True
     max_query_chars: int = MAX_QUERY_CHARS

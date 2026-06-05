@@ -456,7 +456,7 @@ def main() -> None:
     parser.add_argument("--model", action="append", required=True)
     parser.add_argument("--mode", default="hybrid", choices=["hybrid", "bm25", "vector"])
     parser.add_argument("--top-k", default=8, type=int)
-    parser.add_argument("--max-tokens", default=900, type=int)
+    parser.add_argument("--max-tokens", default=1400, type=int)
     parser.add_argument("--timeout-sec", default=300, type=int)
     parser.add_argument("--ollama-base-url", default="http://127.0.0.1:11434")
     parser.add_argument("--anchor", action="append", help="Required evidence term. Can be repeated.")

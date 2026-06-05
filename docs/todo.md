@@ -15,6 +15,7 @@
 - `integration_ftt` required-anchor source selection закрыт на targeted Q040-Q044 для локального qwen3.5:4b.
 - Следующий quality bucket: ручная проверка ответов Q040-Q044 после source selection, затем held-out integration questions вне Q040-Q044, и только после этого пересчет pivot по 100 вопросам.
 - Если Q040-Q044 ручная проверка подтвердит качество, следующий retrieval bucket выбирать по обновленному pivot, а не по старой сводке.
+- При ручной разметке и eval считать `status=truncated` отдельным дефектом: это не `answered/ok`, даже если часть ответа выглядит правдоподобно.
 - Вернуть Track B в отдельный roadmap/implementation bucket: source hygiene и свежесть корпуса, исключение `Архив`/черновиков/шаблонов/temp-файлов, канонизация версий, дедупликация, инкрементальная синхронизация и политика ссылок на актуальные документы.
 - Все новые chat/eval прогоны запускать на `qwen3.5:4b`; старые model-comparison артефакты считать historical baseline.
 - Поддерживать tracked quality/docs только в синтетическом или обезличенном виде.
