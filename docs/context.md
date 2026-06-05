@@ -86,6 +86,13 @@ MeetingAgent публикуется как local-first OSS проект для �
 - `OllamaOpenAIClient` добавляет `/no_think` для `qwen3.5:*`;
 - embeddings model не менялась: `bge-m3`.
 
+Исправлен corpus alias для NTK:
+
+- в `configs/asu_june_bot/corpus.yaml` добавлен явный key `ntk`;
+- `ASU_JUNE_BOT_ACTIVE_CORPUS=ntk` теперь должен вести на `data/asu_june_bot_ntk/*`, а не fallback-иться на `default`;
+- это критично для сопоставимости UI и eval: Q030/Q040-Q044 нужно проверять на том же corpus key, на котором работает живой бот;
+- добавлен regression test на live config alias.
+
 Ранее выполнен cleanup публичного дерева:
 
 - ужесточены `.gitignore` правила для private/eval/runtime данных;
