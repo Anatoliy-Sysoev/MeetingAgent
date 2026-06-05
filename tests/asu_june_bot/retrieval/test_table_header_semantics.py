@@ -86,7 +86,7 @@ def test_context_builder_changes_only_built_context_result_not_original_result()
 
 def test_context_builder_skips_non_ftt_or_non_table_8_or_missing_cells() -> None:
     cases = [
-        ftt_table_8_row(document_type="ПР"),
+        ftt_table_8_row(document_type="ПР", table_id="Table 8"),
         ftt_table_8_row(table_id="Table 9"),
         ftt_table_8_row(cells={}),
         ftt_table_8_row(include_cells=False),
@@ -97,3 +97,17 @@ def test_context_builder_skips_non_ftt_or_non_table_8_or_missing_cells() -> None
         assert "Нормализованная семантика таблицы" not in context.primary_sources[0].text
         assert "table_header_semantics_applied" not in context.primary_sources[0].metadata
         assert context.diagnostics["table_header_semantics"]["applied"] is False
+
+
+def test_context_builder_can_disable_table_header_semantics_with_empty_config() -> None:
+    item = ftt_table_8_row()
+    context = ContextBuilder(
+        primary_limit=2,
+        supporting_limit=2,
+        enable_source_quality_filter=False,
+        enable_parent_expansion=False,
+        table_header_maps={},
+    ).build("К какому этапу ФТ отнесено требование 1.1?", project_intent(), [item], [])
+
+    assert "Нормализованная семантика таблицы" not in context.primary_sources[0].text
+    assert context.diagnostics["table_header_semantics"] == {"applied": False, "enriched_count": 0}
