@@ -59,6 +59,7 @@ MeetingAgent публикуется как local-first OSS проект для �
 
 Добавлена runtime-семантика заголовков ФТТ Table 8 в `ContextBuilder`:
 
+- карта заголовков хранится в public-safe `configs/asu_june_bot/table_header_maps.yaml`;
 - строки таблицы с `Входит в объём проекта_3: Х` получают нормализованный факт `Этап 3 (ФТ3)` только в built context;
 - persisted chunks, `chunk_id`, embeddings cache и numpy index не меняются;
 - targeted retrieval/context check для вопросов по требованиям `1.1` и `1.3` подтверждает `Этап 3 (ФТ3)` без `Этап 1 (ФТ1)`.
