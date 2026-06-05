@@ -71,6 +71,14 @@ MeetingAgent публикуется как local-first OSS проект для �
 - значит текущий дефект относится к required-anchor source selection, а не к validator и не к отсутствию документа в корпусе;
 - JSONL/summary outputs остаются в ignored `data/diagnostics/`.
 
+Добавлен required-anchor source selection для ФТТ-интеграций:
+
+- `SearchService` определяет intent для вопросов `integration_ftt`: протокол, формат сообщения, размер сообщения, тип аутентификации, идентификация объектов;
+- до rerank в raw candidates подмешивается или продвигается ФТТ chunk с нужным anchor (`https`, `JSON/XML`, `100Мб`, `Basic-аутентификация`, `тэг в заголовке вызова`);
+- diagnostics stage: `integration_ftt_required_anchor_selection`;
+- targeted проверка Q040-Q044 на локальном qwen3.5:4b: все 5 ответили, required anchors есть в corpus/context/prompt, `no_answer=0`, `validation_failed=0`;
+- Q043 подтверждает `Basic-аутентификация` как ФТТ-источник без подмены Blitz/OIDC как общего типа аутентификации.
+
 Ранее выполнен cleanup публичного дерева:
 
 - ужесточены `.gitignore` правила для private/eval/runtime данных;
