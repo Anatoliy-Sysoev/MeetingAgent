@@ -112,7 +112,7 @@ def test_chat_endpoint_project_query() -> None:
                 "query": "СоИ AD как происходит авторизация пользователей?",
                 "mode": "hybrid",
                 "top_k": 5,
-                "model": "qwen2.5:7b-instruct",
+                "model": "qwen3.5:4b",
                 "max_tokens": 500,
                 "timeout_sec": 300,
             },
@@ -132,7 +132,7 @@ def test_chat_endpoint_project_query() -> None:
     assert fake_chat.last_request.query == "СоИ AD как происходит авторизация пользователей?"
     assert fake_chat.last_request.mode == "hybrid"
     assert fake_chat.last_request.top_k == 5
-    assert fake_chat.last_request.model == "qwen2.5:7b-instruct"
+    assert fake_chat.last_request.model == "qwen3.5:4b"
     assert fake_chat.last_request.max_tokens == 500
     assert fake_chat.last_request.timeout_sec == 300
 

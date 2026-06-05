@@ -96,7 +96,7 @@ def main() -> int:
     parser.add_argument("--review", required=True)
     parser.add_argument("--bucket", required=True)
     parser.add_argument("--chat-script", default="scripts/09_chat_quality.py")
-    parser.add_argument("--model", default="qwen2.5:7b-instruct")
+    parser.add_argument("--model", default="qwen3.5:4b")
     parser.add_argument("--limit", type=int, default=20)
     parser.add_argument("--output", default=None, help="JSONL output path. Default: data/targeted_bucket_eval/<bucket>_<timestamp>.jsonl")
     parser.add_argument("--summary", default=None, help="Summary JSON output path. Default: <output>.summary.json")

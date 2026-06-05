@@ -79,6 +79,13 @@ MeetingAgent публикуется как local-first OSS проект для �
 - targeted проверка Q040-Q044 на локальном qwen3.5:4b: все 5 ответили, required anchors есть в corpus/context/prompt, `no_answer=0`, `validation_failed=0`;
 - Q043 подтверждает `Basic-аутентификация` как ФТТ-источник без подмены Blitz/OIDC как общего типа аутентификации.
 
+Штатная chat-модель переведена на `qwen3.5:4b`:
+
+- обновлены runtime fallbacks для CLI/API/Telegram и локальный ignored `config.yaml`;
+- обновлены public config examples, `.env.example`, quickstarts и UI model selector;
+- `OllamaOpenAIClient` добавляет `/no_think` для `qwen3.5:*`;
+- embeddings model не менялась: `bge-m3`.
+
 Ранее выполнен cleanup публичного дерева:
 
 - ужесточены `.gitignore` правила для private/eval/runtime данных;

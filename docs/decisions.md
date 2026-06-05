@@ -81,3 +81,19 @@
 - репозиторий открыт публично;
 - реальные документы и отчеты могут раскрывать внутренний контекст;
 - для OSS достаточно синтетических examples и обезличенных quality templates.
+
+## 2026-06-05 - qwen3.5:4b Как Единая Локальная Chat-Модель
+
+Решение: Project Knowledge Bot, CLI/API/Telegram defaults, public examples and local `config.yaml` use `qwen3.5:4b` as the only штатная chat-модель.
+
+Почему:
+
+- targeted quality checks на локальном корпусе подтвердили рабочий baseline для `qwen3.5:4b`;
+- единая модель упрощает regression runs, сравнение качества и диагностику false negatives;
+- альтернативные модели больше не должны попадать в штатные quickstarts/defaults без отдельного эксперимента.
+
+Следствия:
+
+- embeddings остаются на `bge-m3`;
+- runtime indexes and chunks не пересобираются из-за смены chat-модели;
+- historical eval artifacts с прежними моделями остаются историческими снимками и не переписываются.

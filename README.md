@@ -109,7 +109,7 @@ For local Ollama workflows, install required models:
 
 ```powershell
 ollama pull bge-m3
-ollama pull qwen2.5:7b-instruct
+ollama pull qwen3.5:4b
 ```
 
 ### 3. Run The Project Knowledge Bot API
@@ -138,7 +138,7 @@ http://127.0.0.1:8000/ui
   "What project integrations are described?" `
   --mode hybrid `
   --top-k 5 `
-  --model qwen2.5:7b-instruct
+  --model qwen3.5:4b
 ```
 
 ### 5. Run Telegram Adapter

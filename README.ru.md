@@ -70,7 +70,7 @@ Copy-Item .env.example .env
 
 ```powershell
 ollama pull bge-m3
-ollama pull qwen2.5:7b-instruct
+ollama pull qwen3.5:4b
 ```
 
 ## Запуск Project Knowledge Bot API

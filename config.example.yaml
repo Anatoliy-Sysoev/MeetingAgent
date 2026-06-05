@@ -4,7 +4,7 @@ work_root: "%USERPROFILE%/Desktop/AI/MeetingAgent"
 ollama:
   base_url: "http://localhost:11434"
   embedding_model: "bge-m3"
-  chat_model: "qwen3:8b"
+  chat_model: "qwen3.5:4b"
   embedding_num_ctx: 8192
   keep_alive: "24h"
 

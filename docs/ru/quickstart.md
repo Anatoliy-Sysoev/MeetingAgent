@@ -23,7 +23,7 @@ Copy-Item .env.example .env
 
 ```powershell
 ollama pull bge-m3
-ollama pull qwen2.5:7b-instruct
+ollama pull qwen3.5:4b
 ```
 
 ## Запуск API
@@ -52,7 +52,7 @@ http://127.0.0.1:8000/ui
   "Какие интеграции описаны в проекте?" `
   --mode hybrid `
   --top-k 5 `
-  --model qwen2.5:7b-instruct
+  --model qwen3.5:4b
 ```
 
 ## Тесты

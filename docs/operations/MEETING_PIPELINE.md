@@ -348,7 +348,7 @@ JSON-вывод для интеграции с ботом или UI:
 .\.venv\Scripts\python.exe scripts\29_analyze_meeting.py `
   --meeting-dir meetings\YYYY-MM-DD__slug `
   --mode ollama-map-reduce `
-  --model qwen2.5:7b-instruct `
+  --model qwen3.5:4b `
   --force
 ```
 
@@ -468,11 +468,11 @@ JSON-схемы структурированных артефактов:
 .\.venv\Scripts\python.exe scripts\07_generate_meeting_artifacts.py `
   --meeting-dir meetings\2026-05-08__test-meeting `
   --mode ollama `
-  --model qwen3:4b `
+  --model qwen3.5:4b `
   --max-transcript-chars 9000
 ```
 
-На текущем CPU-профиле Qwen3 может быть слишком медленной для длинных transcript. Поэтому `ollama`-режим пока считается экспериментальным, а не обязательным путем MVP.
+На текущем CPU-профиле длинные transcript могут быть медленными даже с единой локальной моделью `qwen3.5:4b`. Поэтому `ollama`-режим для больших встреч остается измеряемым runtime-путем, а не обязательным быстрым сценарием.
 
 Map-reduce dry-run:
 
@@ -494,7 +494,7 @@ Map-reduce dry-run:
 .\.venv\Scripts\python.exe scripts\08_process_meeting_pipeline.py `
   --meeting-dir meetings\2026-05-08__test-meeting `
   --asr-model small `
-  --llm-model qwen2.5:7b-instruct `
+  --llm-model qwen3.5:4b `
   --window-seconds 120 `
   --window-overlap-seconds 15 `
   --max-asr-workers 1 `

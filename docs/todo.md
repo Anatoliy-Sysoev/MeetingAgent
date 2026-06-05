@@ -12,6 +12,7 @@
 - `integration_ftt` required-anchor source selection закрыт на targeted Q040-Q044 для локального qwen3.5:4b.
 - Следующий quality bucket: ручная проверка ответов Q040-Q044 после source selection и затем пересчет pivot по 100 вопросам.
 - Если Q040-Q044 ручная проверка подтвердит качество, следующий retrieval bucket выбирать по обновленному pivot, а не по старой сводке.
+- Все новые chat/eval прогоны запускать на `qwen3.5:4b`; старые model-comparison артефакты считать historical baseline.
 - Поддерживать tracked quality/docs только в синтетическом или обезличенном виде.
 - Не коммитить runtime outputs из `data/`, `logs/`, `vector_db/`, `watched_folder/`, `meetings/`.
 - Если потребуется полная очистка GitHub history, выполнить отдельную согласованную history purge процедуру.

@@ -3,7 +3,7 @@
 
 provider: openai_compatible
 base_url: http://localhost:11434/v1
-model: qwen3:4b
+model: qwen3.5:4b
 timeout_sec: 120
 temperature: 0.1
 top_p: 0.8

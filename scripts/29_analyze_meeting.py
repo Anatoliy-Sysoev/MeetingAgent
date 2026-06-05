@@ -279,7 +279,7 @@ def run_map(
     ollama_cfg = cfg.get("ollama", {})
     gen_cfg = cfg.get("generation", {})
     base_url = args.base_url or str(ollama_cfg.get("base_url", "http://localhost:11434"))
-    model = args.model or str(ollama_cfg.get("chat_model", "qwen3:8b"))
+    model = args.model or str(ollama_cfg.get("chat_model", "qwen3.5:4b"))
     keep_alive = str(ollama_cfg.get("keep_alive", "24h"))
     num_ctx = int(args.num_ctx or ollama_cfg.get("generation_num_ctx", ollama_cfg.get("embedding_num_ctx", 8192)))
     temperature = float(args.temperature if args.temperature is not None else gen_cfg.get("temperature", 0.1))
