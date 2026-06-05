@@ -64,6 +64,13 @@ MeetingAgent публикуется как local-first OSS проект для �
 - persisted chunks, `chunk_id`, embeddings cache и numpy index не меняются;
 - targeted retrieval/context check для вопросов по требованиям `1.1` и `1.3` подтверждает `Этап 3 (ФТ3)` без `Этап 1 (ФТ1)`.
 
+Добавлен diagnostic-only аудит answer gate:
+
+- `scripts/diagnostics/audit_answer_gate.py` проверяет наличие required anchors в corpus, built context и prompt после обрезки;
+- локальная проверка `integration_ftt` показала: нужный anchor есть в corpus, но для проблемного вопроса не попадает в context/prompt;
+- значит текущий дефект относится к required-anchor source selection, а не к validator и не к отсутствию документа в корпусе;
+- JSONL/summary outputs остаются в ignored `data/diagnostics/`.
+
 Ранее выполнен cleanup публичного дерева:
 
 - ужесточены `.gitignore` правила для private/eval/runtime данных;

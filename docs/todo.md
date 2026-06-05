@@ -9,7 +9,8 @@
 - Разметить generated `manual_review` файл из ignored `data/diagnostics/` и затем пересчитать pivot через `scripts/diagnostics/pivot_manual_review.py`.
 - Расширить локальный `gold.jsonl` точными `expected_answer_facts` / `negative_facts` для табличных и конфликтных вопросов.
 - Следующий retrieval bucket: table expansion для запросов вида "перечисли требования Этапа 3" без изменения persisted chunks и без реэмбеддинга.
-- Отдельный bucket: по локальному audit `integration_ftt` проверить, почему при наличии ФТТ в top sources часть ответов остаётся `no_answer`.
+- Следующий retrieval bucket: `integration_ftt` required-anchor source selection. Для вопросов с явным intent поднимать точный ФТТ evidence chunk в primary до сборки prompt.
+- Acceptance для этого bucket: required anchor есть в corpus, context и prompt; `no_answer` не возникает при strong evidence; соседние AD/SoI источники не становятся primary authority для общего ФТТ-вопроса.
 - Поддерживать tracked quality/docs только в синтетическом или обезличенном виде.
 - Не коммитить runtime outputs из `data/`, `logs/`, `vector_db/`, `watched_folder/`, `meetings/`.
 - Если потребуется полная очистка GitHub history, выполнить отдельную согласованную history purge процедуру.
