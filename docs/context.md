@@ -83,7 +83,7 @@ MeetingAgent публикуется как local-first OSS проект для �
 
 - обновлены runtime fallbacks для CLI/API/Telegram и локальный ignored `config.yaml`;
 - обновлены public config examples, `.env.example`, quickstarts и UI model selector;
-- `OllamaOpenAIClient` добавляет `/no_think` для `qwen3.5:*`;
+- для `qwen3.5:*` `OllamaOpenAIClient` использует native Ollama `/api/chat` с `think=false`, потому что OpenAI-compatible endpoint игнорирует `think=false`, а `/no_think` не отключает reasoning у текущей локальной модели;
 - embeddings model не менялась: `bge-m3`.
 
 Добавлена защита от обрезанных LLM-ответов:
