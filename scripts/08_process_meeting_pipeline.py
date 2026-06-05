@@ -817,7 +817,7 @@ def run(args: argparse.Namespace) -> int:
         cfg = artifacts07.load_config()
         ollama_cfg = cfg.get("ollama", {})
         base_url = args.base_url or str(ollama_cfg.get("base_url", "http://localhost:11434"))
-        llm_model = args.llm_model or str(ollama_cfg.get("chat_model", "qwen2.5:7b-instruct"))
+        llm_model = args.llm_model or str(ollama_cfg.get("chat_model", "qwen3.5:4b"))
         args.llm_model = llm_model
         keep_alive = str(ollama_cfg.get("keep_alive", "24h"))
 

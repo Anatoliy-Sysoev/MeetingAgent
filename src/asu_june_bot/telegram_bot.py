@@ -22,7 +22,7 @@ class TelegramBotConfig:
     chat_api_url: str = DEFAULT_CHAT_API_URL
     allowed_chat_ids: set[int] | None = None
     top_k: int = 5
-    model: str | None = "qwen2.5:7b-instruct"
+    model: str | None = "qwen3.5:4b"
     max_tokens: int = 700
     timeout_sec: int = 300
     poll_timeout_sec: int = 30
@@ -216,7 +216,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--chat-api-url", default=os.getenv("ASU_JUNE_BOT_CHAT_API_URL", DEFAULT_CHAT_API_URL))
     parser.add_argument("--allowed-chat-ids", default=os.getenv("ASU_JUNE_BOT_ALLOWED_CHAT_IDS"))
     parser.add_argument("--top-k", type=int, default=int(os.getenv("ASU_JUNE_BOT_TELEGRAM_TOP_K", "5")))
-    parser.add_argument("--model", default=os.getenv("ASU_JUNE_BOT_TELEGRAM_MODEL", "qwen2.5:7b-instruct"))
+    parser.add_argument("--model", default=os.getenv("ASU_JUNE_BOT_TELEGRAM_MODEL", "qwen3.5:4b"))
     parser.add_argument("--max-tokens", type=int, default=int(os.getenv("ASU_JUNE_BOT_TELEGRAM_MAX_TOKENS", "700")))
     parser.add_argument("--timeout-sec", type=int, default=int(os.getenv("ASU_JUNE_BOT_TELEGRAM_TIMEOUT_SEC", "300")))
     return parser
