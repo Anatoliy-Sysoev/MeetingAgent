@@ -175,6 +175,53 @@ Important entrypoints:
 
 Runtime meeting outputs may contain private data and should not be committed.
 
+### Transcript-to-Protocol CLI Quickstart
+
+The shortest public-safe path is to use the synthetic sample transcript and a
+local meeting card directory.
+
+1. Create a meeting card from a local media or transcript source:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\20_ingest_meeting.py --file "examples\en\sample_transcript.md" --title "Sample transcript quickstart"
+```
+
+2. If your source file is audio or video, extract normalized audio first:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\21_extract_audio.py --meeting-dir "meetings\<meeting-id>"
+```
+
+3. Transcribe the extracted audio when you start from media:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py --meeting-dir "meetings\<meeting-id>" --engine faster-whisper
+```
+
+4. Chunk the transcript into analysis-ready segments:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\26_chunk_meeting.py --meeting-dir "meetings\<meeting-id>"
+```
+
+5. Generate protocol artifacts:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\29_analyze_meeting.py --meeting-dir "meetings\<meeting-id>"
+```
+
+Expected output paths inside the meeting directory:
+
+- `meeting.json` - meeting card metadata and processing status
+- `transcript/` - transcript exports such as JSONL, Markdown, or subtitles
+- `chunks/chunks.jsonl` - chunked transcript units for downstream analysis
+- `artifacts/summary.md` - short memo / summary
+- `artifacts/protocol.md` - generated protocol
+- `artifacts/decisions.json` - extracted decisions
+- `artifacts/tasks.json` - extracted action items
+- `artifacts/risks.json` - extracted risks
+- `artifacts/open_questions.json` - unresolved questions
+
 ## Docker
 
 The Docker setup packages the local API and optional Telegram adapter. GigaAM is intentionally not included in the main image.
