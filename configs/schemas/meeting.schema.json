@@ -150,6 +150,12 @@
         "transcription_report": {
           "$ref": "#/$defs/relative_path"
         },
+        "diarization": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "diarization_report": {
+          "$ref": "#/$defs/relative_path"
+        },
         "speaker_transcript": {
           "$ref": "#/$defs/relative_path"
         },

@@ -169,9 +169,13 @@ Important entrypoints:
 .\.venv\Scripts\python.exe scripts\20_ingest_meeting.py --file "<path>" --title "<title>"
 .\.venv\Scripts\python.exe scripts\21_extract_audio.py --meeting-dir "<meeting-dir>"
 .\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py --meeting-dir "<meeting-dir>" --engine faster-whisper
+.\.venv\Scripts\python.exe scripts\23_diarize_meeting.py --meeting-dir "<meeting-dir>" --dry-run
+.\.venv\Scripts\python.exe scripts\24_merge_transcript_speakers.py --meeting-dir "<meeting-dir>"
 .\.venv\Scripts\python.exe scripts\26_chunk_meeting.py --meeting-dir "<meeting-dir>"
 .\.venv\Scripts\python.exe scripts\29_analyze_meeting.py --meeting-dir "<meeting-dir>"
 ```
+
+Speaker diarization is optional and uses an isolated `sherpa-onnx` path by default. Install optional dependencies from `requirements-diarization.txt` and keep downloaded ONNX models under ignored `models/diarization/`.
 
 Runtime meeting outputs may contain private data and should not be committed.
 

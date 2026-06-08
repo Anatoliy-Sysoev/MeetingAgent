@@ -167,9 +167,67 @@ mono
 
 `scripts/06_transcribe_meeting.py` остается legacy compatibility entrypoint и перенаправляет старый CLI на `scripts/22_transcribe_meeting.py --engine faster-whisper`.
 
-### 4. Speaker Transcript
+### 4. Optional Speaker Diarization
 
-MVP пока не требует diarization. После ASR можно создать speaker transcript с `SPEAKER_UNKNOWN`:
+Диаризация отделяет говорящих, но не идентифицирует реальные имена людей. Базовый контракт использует анонимные метки:
+
+```text
+SPEAKER_00
+SPEAKER_01
+SPEAKER_UNKNOWN
+```
+
+Основной backend - `sherpa-onnx`. Он выбран как CPU-first путь для Windows без HuggingFace-токена и без PyTorch-конфликтов с GigaAM/faster-whisper. Зависимости ставятся отдельно:
+
+```powershell
+python -m venv .venv-diarization
+.\.venv-diarization\Scripts\python.exe -m pip install -r requirements-diarization.txt
+```
+
+ONNX-модели нужно скачать локально в ignored папку:
+
+```text
+models/diarization/
+  sherpa-onnx-pyannote-segmentation-3-0/model.onnx
+  wespeaker_en_voxceleb_resnet34_LM.onnx
+```
+
+Проверка без обработки:
+
+```powershell
+.\.venv-diarization\Scripts\python.exe scripts\23_diarize_meeting.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug `
+  --dry-run
+```
+
+Запуск:
+
+```powershell
+.\.venv-diarization\Scripts\python.exe scripts\23_diarize_meeting.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug `
+  --num-speakers 2
+```
+
+Если число участников неизвестно, `--num-speakers` не передается и используется auto-clustering. Для известных встреч явное число спикеров повышает качество.
+
+Выход:
+
+```text
+transcript/diarization.jsonl
+transcript/diarization_report.json
+```
+
+`diarization.jsonl` содержит интервалы:
+
+```json
+{"speaker":"SPEAKER_00","start":12.1,"end":20.8,"confidence":null,"backend":"sherpa-onnx/pyannote-seg-3.0+wespeaker-resnet34"}
+```
+
+`diarization_report.json` фиксирует backend, модели, параметры clustering, длительность аудио, время обработки и RTF.
+
+### 5. Speaker Transcript
+
+После ASR можно создать speaker transcript. Если `transcript/diarization.jsonl` отсутствует, все реплики получают `SPEAKER_UNKNOWN`. Если файл есть, speaker выбирается по maximum-overlap с порогом `--min-overlap-ratio`:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\24_merge_transcript_speakers.py `
@@ -194,11 +252,17 @@ source = MIX
 start
 end
 text
+speaker_overlap_seconds
+speaker_overlap_ratio
 ```
 
-Когда появится diarization, этот шаг станет местом слияния ASR segments и speaker intervals.
+Правило merge:
 
-### 5. Meeting-Aware Chunking
+- для каждого ASR segment выбирается speaker interval с максимальным временным пересечением;
+- если покрытие меньше `0.3` длительности ASR segment, используется `SPEAKER_UNKNOWN`;
+- реальная идентификация людей не выполняется; ручной speaker mapping остается отдельным будущим слоем.
+
+### 6. Meeting-Aware Chunking
 
 Для RAG и LLM analysis transcript режется на чанки с учетом времени и реплик:
 
@@ -229,7 +293,7 @@ utterance_ids
 
 По умолчанию chunk ограничен 180 секундами и 6000 символами. Скрипт не разрывает отдельную реплику; если следующая реплика превышает лимит, открывается новый chunk.
 
-### 6. Semantic Enrichment MVP
+### 7. Semantic Enrichment MVP
 
 Первый enrichment-слой работает детерминированно, без LLM:
 
@@ -261,7 +325,7 @@ needs_review = true
 
 Это MVP-слой для indexing/search и первичного отбора. Он не заменяет production LLM analysis и помечает значимые кандидаты как требующие проверки.
 
-### 7. Meeting Index Export
+### 8. Meeting Index Export
 
 Для попадания meeting chunks в общий RAG-контур используется экспорт в совместимый JSONL:
 
@@ -288,7 +352,7 @@ text
 
 `meeting_chunk` добавлен в default allowed source types для `scripts/asu_june_bot_build_index_v2.py` и retrieval source policy. Для сборки отдельного индекса по встречам можно передать `data/meeting_chunks.jsonl` как `--chunks-path` в index builder.
 
-### 8. Smoke Meeting Search
+### 9. Smoke Meeting Search
 
 Быстрый поиск по экспортированным meeting chunks работает без Ollama и без основного индекса:
 
@@ -340,7 +404,7 @@ JSON-вывод для интеграции с ботом или UI:
   --index-only
 ```
 
-### 9. LLM Map-Reduce Analysis
+### 10. LLM Map-Reduce Analysis
 
 Структурированные артефакты встречи создаются после enrichment:
 
@@ -373,7 +437,7 @@ artifacts/_partials/llm_map_reduce/
 - для строгой отладки без fallback есть флаг `--strict-llm`;
 - повторный запуск с `--force` перезаписывает итоговые артефакты, но переиспользует уже готовые partial JSON; для полного пересчета partials добавить `--recompute-partials`.
 
-### 10. Structured Artifact Indexing
+### 11. Structured Artifact Indexing
 
 После `29_analyze_meeting.py` structured JSON-артефакты можно экспортировать в общий meeting index как отдельные source types:
 
@@ -546,8 +610,9 @@ Markdown-карточка и таблицы решений, задач, риск
 
 ## Будущие Улучшения
 
-- diarization спикеров;
 - профили голосов;
+- ручной speaker mapping на реальные имена;
+- optional pyannote backend как high-quality режим после сравнения с sherpa-onnx;
 - синхронизация транскрипта с проигрывателем;
 - UI для ручной корректировки;
 - экспорт в DOCX/Markdown.

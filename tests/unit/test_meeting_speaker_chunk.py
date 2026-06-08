@@ -82,10 +82,19 @@ def make_meeting_with_segments(tmp_path: Path) -> Path:
     return meeting_dir
 
 
+def merge_args(meeting_dir: Path, *, force: bool = False, diarization_path: str | None = None, min_overlap_ratio: float = 0.3):
+    return argparse.Namespace(
+        meeting_dir=str(meeting_dir),
+        diarization_path=diarization_path,
+        min_overlap_ratio=min_overlap_ratio,
+        force=force,
+    )
+
+
 def test_merge_transcript_speakers_creates_unknown_speaker_transcript(tmp_path: Path) -> None:
     meeting_dir = make_meeting_with_segments(tmp_path)
 
-    code = merge_speakers.run(argparse.Namespace(meeting_dir=str(meeting_dir), force=False))
+    code = merge_speakers.run(merge_args(meeting_dir))
 
     assert code == 0
     utterances = read_jsonl(meeting_dir / "transcript" / "speaker_transcript.jsonl")
@@ -100,7 +109,7 @@ def test_merge_transcript_speakers_creates_unknown_speaker_transcript(tmp_path: 
 
 def test_chunk_meeting_groups_utterances_without_splitting_them(tmp_path: Path) -> None:
     meeting_dir = make_meeting_with_segments(tmp_path)
-    merge_speakers.run(argparse.Namespace(meeting_dir=str(meeting_dir), force=False))
+    merge_speakers.run(merge_args(meeting_dir))
 
     code = chunk_meeting.run(
         argparse.Namespace(
@@ -122,3 +131,51 @@ def test_chunk_meeting_groups_utterances_without_splitting_them(tmp_path: Path) 
     meeting = read_json(meeting_dir / "meeting.json")
     validate_meeting(meeting)
     assert meeting["artifacts"]["chunks"] == "transcript/chunks.jsonl"
+
+
+def test_merge_transcript_speakers_uses_diarization_overlap(tmp_path: Path) -> None:
+    meeting_dir = make_meeting_with_segments(tmp_path)
+    diarization_path = meeting_dir / "transcript" / "diarization.jsonl"
+    rows = [
+        {"speaker": "SPEAKER_00", "start": 0.0, "end": 9.0, "backend": "test"},
+        {"speaker": "SPEAKER_01", "start": 10.0, "end": 130.0, "backend": "test"},
+    ]
+    with diarization_path.open("w", encoding="utf-8", newline="\n") as fh:
+        for row in rows:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    meeting = read_json(meeting_dir / "meeting.json")
+    meeting["artifacts"]["diarization"] = "transcript/diarization.jsonl"
+    (meeting_dir / "meeting.json").write_text(
+        json.dumps(meeting, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    code = merge_speakers.run(merge_args(meeting_dir))
+
+    assert code == 0
+    utterances = read_jsonl(meeting_dir / "transcript" / "speaker_transcript.jsonl")
+    assert [row["speaker"] for row in utterances] == ["SPEAKER_00", "SPEAKER_01", "SPEAKER_01"]
+    assert utterances[0]["speaker_overlap_ratio"] == 0.9
+    assert utterances[1]["speaker_overlap_ratio"] == 1.0
+
+
+def test_merge_transcript_speakers_keeps_unknown_below_overlap_threshold(tmp_path: Path) -> None:
+    meeting_dir = make_meeting_with_segments(tmp_path)
+    diarization_path = meeting_dir / "transcript" / "diarization.jsonl"
+    diarization_path.write_text(
+        json.dumps({"speaker": "SPEAKER_00", "start": 0.0, "end": 1.0, "backend": "test"}, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    meeting = read_json(meeting_dir / "meeting.json")
+    meeting["artifacts"]["diarization"] = "transcript/diarization.jsonl"
+    (meeting_dir / "meeting.json").write_text(
+        json.dumps(meeting, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    code = merge_speakers.run(merge_args(meeting_dir, min_overlap_ratio=0.3))
+
+    assert code == 0
+    utterances = read_jsonl(meeting_dir / "transcript" / "speaker_transcript.jsonl")
+    assert utterances[0]["speaker"] == "SPEAKER_UNKNOWN"
+    assert utterances[0]["speaker_overlap_ratio"] == 0.1

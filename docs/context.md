@@ -39,6 +39,14 @@ MeetingAgent публикуется как local-first OSS проект для �
 
 ## Последнее Изменение
 
+Добавлен optional speaker diarization слой для MeetingAgent:
+
+- `src/meeting_agent/diarization/` содержит контракт интервалов, нормализацию, maximum-overlap speaker assignment и `sherpa-onnx` backend;
+- `scripts/23_diarize_meeting.py` пишет `transcript/diarization.jsonl` и `transcript/diarization_report.json`;
+- `scripts/24_merge_transcript_speakers.py` теперь использует `diarization.jsonl`, если он есть, иначе сохраняет старый fallback `SPEAKER_UNKNOWN`;
+- `configs/schemas/meeting.schema.json` поддерживает `artifacts.diarization` и `artifacts.diarization_report`;
+- optional зависимости вынесены в `requirements-diarization.txt`, а ONNX-модели хранятся локально в ignored `models/`.
+
 В `AGENTS.md` закреплены правила после cleanup публичного Git:
 
 - что ведется в репозитории: код, public-safe docs, synthetic examples, safe config examples и тесты без приватных данных;

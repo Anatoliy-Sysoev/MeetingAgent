@@ -36,7 +36,8 @@
 ## Product Backlog
 
 - UI для запуска транскрибации локального видео.
-- Speaker diarization как отдельный backend с явным opt-in.
+- Speaker diarization: проверить `sherpa-onnx` на 2-3 реальных встречах, подобрать `num_speakers`/`cluster_threshold`, затем решить нужен ли optional pyannote backend.
+- Ручной speaker mapping `SPEAKER_XX -> имя/роль`.
 - DOCX export для протокола встречи.
 - Quality eval для meeting artifacts на синтетических наборах.
 - API/Telegram integration для meeting search без обхода source-grounding.
