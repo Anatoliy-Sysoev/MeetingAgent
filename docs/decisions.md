@@ -129,3 +129,20 @@
 
 - если `small` был запущен случайно и transcript artifacts еще не созданы, его можно останавливать без потери результата;
 - Docker/HuggingFace cache нужно настроить так, чтобы `large-v3-turbo` не скачивался заново при каждом запуске одноразового контейнера.
+
+## 2026-06-08 - Единый ASCII Ollama Model Store
+
+Решение: для локального Windows runtime закрепить canonical Ollama model store `C:\ollama-models` и запускать Ollama через `scripts/start_ollama_local.ps1`.
+
+Почему:
+
+- `qwen3.5:4b` и `qwen3.5:9b` уже лежали в `C:\ollama-models`, но активный Ollama server после перезагрузки смотрел в другой store;
+- Docker-контейнеры MeetingAgent обращаются к активному Ollama API через `host.docker.internal:11434`, а не читают model store напрямую;
+- `bge-m3` может падать при загрузке blob из Unicode-пути профиля Windows;
+- один ASCII store снижает риск расхождения между CLI, Docker, API и Telegram.
+
+Следствия:
+
+- перед meeting analysis, API или bot smoke нужно проверять `ollama list` и `/api/tags`;
+- дубли `C:\Users\<user>\.ollama\models` и `C:\ollama_models` не удаляются автоматически;
+- очистку дублей делать только после ручного подтверждения, что `C:\ollama-models` используется активным `ollama serve`.

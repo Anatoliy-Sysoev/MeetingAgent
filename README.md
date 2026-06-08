@@ -112,6 +112,14 @@ ollama pull bge-m3
 ollama pull qwen3.5:4b
 ```
 
+On Windows, use a single ASCII Ollama model store before running Docker/API workflows:
+
+```powershell
+.\scripts\start_ollama_local.ps1 -Restart
+```
+
+See [Ollama local runtime](docs/operations/OLLAMA_LOCAL_RUNTIME.md).
+
 ### 3. Run The Project Knowledge Bot API
 
 ```powershell

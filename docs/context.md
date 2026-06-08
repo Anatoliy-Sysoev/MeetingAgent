@@ -53,7 +53,7 @@ MeetingAgent публикуется как local-first OSS проект для �
 - `scripts/28_index_meeting_chunks.py` и `scripts/32_index_meeting_artifacts.py` экспортировали meeting chunks/artifacts в local runtime meeting index;
 - `scripts/31_meeting_search.py` успешно нашел meeting chunks и structured action items по smoke-запросам.
 
-Ограничение текущего прогона: `scripts/29_analyze_meeting.py --mode ollama-map-reduce --model qwen3.5:4b` ушел в fallback, потому что текущий Ollama endpoint, доступный по `http://localhost:11434`, не показывает `qwen3.5:4b` в `/api/tags`, а `ollama show qwen3.5:4b` возвращает `model not found`. Документация и конфиги считают `qwen3.5:4b` штатной моделью, поэтому нужно синхронизировать фактический Ollama runtime: либо установить/поднять именно эту модель в текущем Ollama, либо проверить, что используется правильный Ollama instance.
+Ограничение текущего прогона: `scripts/29_analyze_meeting.py --mode ollama-map-reduce --model qwen3.5:4b` ушел в fallback, потому что активный Ollama endpoint смотрел не в тот model store. Расследование подтвердило, что `qwen3.5:4b` не удалялась: модель лежит в `C:\ollama-models`, но запущенный `ollama serve` отдавал другой набор моделей. Для стабилизации добавлены `scripts/start_ollama_local.ps1` и `docs/operations/OLLAMA_LOCAL_RUNTIME.md`; canonical store для Windows - `C:\ollama-models`.
 
 Контейнерный профиль для diarization добавлен как рабочий runtime-слой:
 

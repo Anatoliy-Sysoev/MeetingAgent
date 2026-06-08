@@ -5,8 +5,9 @@
 ## Сейчас
 
 - Meeting smoke в Docker доведен до local indexed state: transcript import, speaker merge, chunks, enrichment, meeting chunk/artifact export и `31_meeting_search.py` прошли на локальной private встрече.
-- Проверить фактический Ollama runtime для `qwen3.5:4b`: текущий `ollama list` / `/api/tags` на `http://localhost:11434` не показывает эту модель, хотя docs/config считают ее штатной.
-- После синхронизации Ollama runtime повторить `scripts/29_analyze_meeting.py --mode ollama-map-reduce --model qwen3.5:4b --force --recompute-partials` на локальной meeting card.
+- Перезапустить Ollama через `.\scripts\start_ollama_local.ps1 -Restart`, чтобы активный server использовал canonical `C:\ollama-models`.
+- Проверить `ollama list`, `ollama show qwen3.5:4b`, `ollama show bge-m3` и `/api/tags` из Docker.
+- После подтверждения `qwen3.5:4b` повторить `scripts/29_analyze_meeting.py --mode ollama-map-reduce --model qwen3.5:4b --force --recompute-partials` на локальной meeting card.
 - После успешного LLM map-reduce заново выполнить `scripts/32_index_meeting_artifacts.py` и smoke `scripts/31_meeting_search.py` по решениям, задачам, рискам и открытым вопросам.
 - Зафиксировать public-safe выводы по времени и качеству `large-v3-turbo` ASR и `sherpa-onnx` diarization без публикации реальных meeting artifacts.
 - Добавить/проверить Docker cache для HuggingFace models, чтобы `large-v3-turbo` не скачивался заново в каждом одноразовом контейнере.
@@ -17,7 +18,7 @@
 - Targeted live Q030/Q031 закрыт: оба ответа дают `Этап 3 (ФТ3)` и `finish_reason=stop`.
 - Targeted live Q041-Q044 закрыт: ответы содержат требуемые ФТТ anchors и `finish_reason=stop`.
 - Открытый live дефект: Q040 про протокол передачи данных остается false `no_answer`, хотя HTTPS anchor доступен в контексте. Следующий фикс должен запрещать false no_answer при strong ФТТ evidence для protocol intent или улучшать selection/prompt для Q040.
-- Для Windows/Ollama зафиксировать local runbook: если embeddings падают на Unicode-пути профиля, использовать ASCII `OLLAMA_MODELS` model store.
+- Для Windows/Ollama canonical runbook зафиксирован в `docs/operations/OLLAMA_LOCAL_RUNTIME.md`; следующий шаг - после проверки аккуратно решить, удалять ли дубли model store.
 - До нового pivot собрать и проверить локальный `gold.jsonl`: manual review уже давал ошибочные метки, поэтому pivot без gold key нельзя считать надежным основанием для выбора следующего bucket.
 - Разметить generated `manual_review` файл из ignored `data/diagnostics/` и затем пересчитать pivot через `scripts/diagnostics/pivot_manual_review.py`.
 - Расширить локальный `gold.jsonl` точными `expected_answer_facts` / `negative_facts` для табличных и конфликтных вопросов.
