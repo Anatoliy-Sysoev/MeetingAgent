@@ -12,8 +12,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /app/requirements.txt
+COPY requirements-diarization.txt /app/requirements-diarization.txt
+ARG INSTALL_DIARIZATION=false
 RUN python -m pip install --upgrade pip \
-    && python -m pip install -r /app/requirements.txt
+    && python -m pip install -r /app/requirements.txt \
+    && if [ "$INSTALL_DIARIZATION" = "true" ]; then python -m pip install -r /app/requirements-diarization.txt; fi
 
 COPY . /app
 

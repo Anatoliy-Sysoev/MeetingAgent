@@ -168,7 +168,7 @@ Important entrypoints:
 ```powershell
 .\.venv\Scripts\python.exe scripts\20_ingest_meeting.py --file "<path>" --title "<title>"
 .\.venv\Scripts\python.exe scripts\21_extract_audio.py --meeting-dir "<meeting-dir>"
-.\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py --meeting-dir "<meeting-dir>" --engine faster-whisper
+.\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py --meeting-dir "<meeting-dir>" --engine faster-whisper --model large-v3-turbo --language ru --compute-type int8
 .\.venv\Scripts\python.exe scripts\23_diarize_meeting.py --meeting-dir "<meeting-dir>" --dry-run
 .\.venv\Scripts\python.exe scripts\24_merge_transcript_speakers.py --meeting-dir "<meeting-dir>"
 .\.venv\Scripts\python.exe scripts\26_chunk_meeting.py --meeting-dir "<meeting-dir>"
@@ -181,12 +181,18 @@ Runtime meeting outputs may contain private data and should not be committed.
 
 ## Docker
 
-The Docker setup packages the local API and optional Telegram adapter. GigaAM is intentionally not included in the main image.
+The Docker setup packages the local API, optional Telegram adapter, and an optional diarization/meeting-processing profile. GigaAM is intentionally not included in the main image.
 
 ```powershell
 Copy-Item .env.example .env
 docker compose build api
 docker compose up api
+```
+
+Optional diarization image:
+
+```powershell
+docker compose --profile diarization build diarization
 ```
 
 See [Docker documentation](docs/docker.md).

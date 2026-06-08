@@ -1,6 +1,6 @@
 # Текущий Контекст
 
-Обновлено: 2026-06-05.
+Обновлено: 2026-06-08.
 
 MeetingAgent публикуется как local-first OSS проект для обработки встреч, транскрибации, проектной памяти, RAG-поиска и генерации рабочих артефактов.
 
@@ -38,6 +38,22 @@ MeetingAgent публикуется как local-first OSS проект для �
 Локальные подробные рабочие заметки сохранены в ignored-папке `docs/private/` и не должны попадать в Git.
 
 ## Последнее Изменение
+
+Локальный meeting smoke проверяет Docker-путь на реальной записи, но runtime-артефакты и идентификаторы встречи остаются только локально:
+
+- исходное видео монтируется через `MEETINGAGENT_RECORDINGS_DIR`;
+- `scripts/20_ingest_meeting.py` и `scripts/21_extract_audio.py` создают meeting card и `source/audio_16k_mono.wav`;
+- `scripts/23_diarize_meeting.py` в контейнере прошел на `sherpa-onnx` и записывает `transcript/diarization.jsonl` + `transcript/diarization_report.json`;
+- для качественного offline ASR используется `faster-whisper large-v3-turbo`, а `small` остается только для быстрых черновых smoke-проверок;
+- downstream merge/chunk/analyze нужно запускать только после появления transcript artifacts.
+
+Контейнерный профиль для diarization добавлен как рабочий runtime-слой:
+
+- `Dockerfile` поддерживает build arg `INSTALL_DIARIZATION=true`;
+- `docker-compose.yml` содержит profile/service `diarization`;
+- `requirements-diarization.txt` ставится только в optional image;
+- `models/` игнорируется Git и используется для локальных ONNX/HuggingFace model caches;
+- GigaAM по-прежнему не включается в основной Docker image.
 
 Добавлен optional speaker diarization слой для MeetingAgent:
 

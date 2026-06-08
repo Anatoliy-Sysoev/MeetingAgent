@@ -97,3 +97,35 @@
 - embeddings остаются на `bge-m3`;
 - runtime indexes and chunks не пересобираются из-за смены chat-модели;
 - historical eval artifacts с прежними моделями остаются историческими снимками и не переписываются.
+
+## 2026-06-08 - sherpa-onnx Как Default Speaker Diarization
+
+Решение: для локальной diarization по умолчанию использовать optional `sherpa-onnx` backend с ONNX-моделями `sherpa-onnx-pyannote-segmentation-3-0/model.onnx` и `wespeaker_en_voxceleb_resnet34_LM.onnx`.
+
+Почему:
+
+- путь работает CPU-first и не требует HuggingFace token/license acceptance в runtime;
+- зависимости изолированы в `requirements-diarization.txt` и optional Docker image, чтобы не конфликтовать с GigaAM/faster-whisper;
+- ONNX-модели хранятся локально в ignored `models/diarization/`, а не в Git;
+- результат сохраняется в стабильный контракт `transcript/diarization.jsonl` и затем используется `scripts/24_merge_transcript_speakers.py`.
+
+Следствия:
+
+- `pyannote.audio` остается optional high-quality/fallback направлением, но не является текущим default;
+- реальные имена людей не определяются автоматически: используется `SPEAKER_XX`, ручной mapping остается отдельным будущим слоем;
+- качество нужно проверять на 2-3 реальных русскоязычных встречах с подбором `num_speakers`, `cluster_threshold` и числа потоков.
+
+## 2026-06-08 - large-v3-turbo Для Качественной Offline-Транскрибации
+
+Решение: для продуктового offline ASR профиля использовать `faster-whisper large-v3-turbo` с `language=ru` и `compute_type=int8`; `small` оставлять только для черновых smoke/live сценариев.
+
+Почему:
+
+- встречные протоколы, задачи и решения зависят от качества transcript;
+- `small` быстрее, но может ухудшать смысловые артефакты и последующий RAG;
+- текущий реальный smoke на встрече 2026-06-08 должен валидировать именно `large-v3-turbo`.
+
+Следствия:
+
+- если `small` был запущен случайно и transcript artifacts еще не созданы, его можно останавливать без потери результата;
+- Docker/HuggingFace cache нужно настроить так, чтобы `large-v3-turbo` не скачивался заново при каждом запуске одноразового контейнера.

@@ -90,11 +90,9 @@ pipeline можно перезапустить без повторного ко�
 scripts/22_transcribe_meeting.py
 ```
 
-Можно переиспользовать текущую реализацию:
+`scripts/06_transcribe_meeting.py` оставлен как compatibility wrapper. Основной entrypoint - `scripts/22_transcribe_meeting.py`.
 
-```text
-scripts/06_transcribe_meeting.py
-```
+Рекомендуемый профиль для готовых записей: `faster-whisper large-v3-turbo`, `language=ru`, `compute_type=int8`. `small` допустим только для черновых smoke/live-проверок.
 
 Выход:
 
@@ -139,17 +137,25 @@ processing_status = transcribed.
 
 Для MVP diarization необязательна.
 
-Если pyannote не настроен:
+Если diarization не запущена:
 
 ```text
 speaker = SPEAKER_UNKNOWN
 ```
 
-Целевой будущий скрипт:
+Текущий скрипт:
 
 ```text
 scripts/23_diarize_meeting.py
 ```
+
+Текущий default backend:
+
+```text
+sherpa-onnx
+```
+
+`pyannote.audio` остается optional fallback/high-quality направлением, а не обязательным MVP default.
 
 MVP-совместимый merge:
 
@@ -162,7 +168,8 @@ Acceptance:
 ```text
 speaker_transcript.jsonl создается даже без diarization;
 каждый utterance имеет speaker/start/end/text;
-без diarization speaker = SPEAKER_UNKNOWN.
+без diarization speaker = SPEAKER_UNKNOWN;
+с diarization speaker назначается по maximum-overlap из transcript/diarization.jsonl.
 ```
 
 ### 5. Meeting-Aware Chunking
@@ -301,8 +308,8 @@ cloud ASR/LLM.
 1. Зафиксировать architecture/scope docs.
 2. Реализовать scripts/20_ingest_meeting.py.
 3. Реализовать scripts/21_extract_audio.py.
-4. Привести scripts/06_transcribe_meeting.py к контракту 22_transcribe_meeting или сделать thin wrapper.
-5. Сделать diarization-lite merge с SPEAKER_UNKNOWN.
+4. Поддерживать scripts/22_transcribe_meeting.py как основной ASR entrypoint, а scripts/06_transcribe_meeting.py как thin wrapper.
+5. Проверить diarization/merge на 2-3 реальных встречах и подобрать параметры sherpa-onnx.
 6. Реализовать scripts/26_chunk_meeting.py.
 7. Реализовать scripts/27_enrich_meeting_chunks.py.
 8. Реализовать scripts/28_index_meeting_chunks.py.

@@ -124,8 +124,8 @@ faster-whisper
 Профили:
 
 ```text
-small/int8      быстрый черновик и live MVP
-large-v3-turbo  качественный offline-профиль
+large-v3-turbo/int8  качественный offline-профиль для готовых записей
+small/int8           быстрый черновик и live MVP
 ```
 
 GigaAM:
@@ -140,19 +140,37 @@ GigaAM не заменяет основной ASR-контракт до срав
 
 ## Diarization
 
-Целевой инструмент:
+Текущий default:
+
+```text
+sherpa-onnx
+```
+
+Модели:
+
+```text
+sherpa-onnx-pyannote-segmentation-3-0/model.onnx
+wespeaker_en_voxceleb_resnet34_LM.onnx
+```
+
+Почему так:
+
+```text
+CPU-first;
+без HuggingFace token в runtime;
+меньше риск конфликтов torch-зависимостей с GigaAM;
+можно изолировать в optional Docker profile.
+```
+
+Optional fallback/high-quality направление:
 
 ```text
 pyannote.audio 3.1+
 ```
 
-Ограничение:
+Ограничение pyannote: может потребоваться HuggingFace token, license acceptance и отдельная проверка совместимости PyTorch-зависимостей.
 
-```text
-может потребоваться HuggingFace token и принятие license
-```
-
-MVP может работать без diarization:
+MVP/product pipeline может работать без diarization:
 
 ```text
 speaker = SPEAKER_UNKNOWN

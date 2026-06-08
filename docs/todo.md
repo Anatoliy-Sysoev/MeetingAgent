@@ -1,9 +1,14 @@
 # Todo
 
-Обновлено: 2026-06-05.
+Обновлено: 2026-06-08.
 
 ## Сейчас
 
+- Для локального meeting smoke после завершения `large-v3-turbo` проверить наличие `transcript/segments.jsonl`, `transcript/transcript.*` и `transcript/transcription_report.json`.
+- Затем запустить только downstream-этапы: `24_merge_transcript_speakers.py`, `26_chunk_meeting.py`, `27_enrich_meeting_chunks.py`, `29_analyze_meeting.py`, `28/32_index_meeting_*` и smoke `31_meeting_search.py`.
+- Зафиксировать public-safe выводы по времени и качеству `large-v3-turbo` ASR без публикации реальных meeting artifacts.
+- Добавить/проверить Docker cache для HuggingFace models, чтобы `large-v3-turbo` не скачивался заново в каждом одноразовом контейнере.
+- После успешного smoke закоммитить Docker/profile/docs изменения отдельным коммитом.
 - Проверить публичное дерево на приватные строки перед следующим push.
 - При каждом новом публичном артефакте сверяться с `AGENTS.md`: Git хранит только public-safe код/docs/examples/tests, приватные corpus/runtime/eval остаются локально.
 - P0: подтвердить, что live UI/API и eval используют один corpus key. При `ASU_JUNE_BOT_ACTIVE_CORPUS=ntk` `/health` должен показывать `corpus_key=ntk` и пути `data/asu_june_bot_ntk/*`.
@@ -36,7 +41,9 @@
 ## Product Backlog
 
 - UI для запуска транскрибации локального видео.
-- Speaker diarization: проверить `sherpa-onnx` на 2-3 реальных встречах, подобрать `num_speakers`/`cluster_threshold`, затем решить нужен ли optional pyannote backend.
+- Speaker diarization: проверить `sherpa-onnx` на 2-3 реальных встречах, подобрать `num_speakers`/`cluster_threshold`/`num_threads`, затем решить нужен ли optional pyannote backend.
+- Для diarization добавить CLI/config параметр `--num-threads`; текущий CPU runtime чувствителен к числу потоков.
+- Зафиксировать ограничение maximum-overlap: длинный ASR-сегмент с двумя говорящими получает одного speaker; будущий слой - re-segmentation или word-level timestamps.
 - Ручной speaker mapping `SPEAKER_XX -> имя/роль`.
 - DOCX export для протокола встречи.
 - Quality eval для meeting artifacts на синтетических наборах.

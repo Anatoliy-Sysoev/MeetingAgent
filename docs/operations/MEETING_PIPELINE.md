@@ -127,7 +127,7 @@ mono
 .\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py `
   --meeting-dir meetings\YYYY-MM-DD__slug `
   --engine faster-whisper `
-  --model small `
+  --model large-v3-turbo `
   --language ru `
   --compute-type int8
 
@@ -164,6 +164,8 @@ mono
 - пишет `transcript/transcription_report.json`;
 - без `--force` не перезаписывает готовый transcript;
 - при ошибке переводит встречу в `failed` и записывает причину в `meeting.json.last_error`.
+
+Рекомендуемый offline-профиль для качественной транскрибации встреч: `faster-whisper large-v3-turbo`, `language=ru`, `compute_type=int8`. Модель `small` использовать только для быстрых черновых smoke/live-проверок, где качество transcript не является критичным.
 
 `scripts/06_transcribe_meeting.py` остается legacy compatibility entrypoint и перенаправляет старый CLI на `scripts/22_transcribe_meeting.py --engine faster-whisper`.
 
@@ -224,6 +226,21 @@ transcript/diarization_report.json
 ```
 
 `diarization_report.json` фиксирует backend, модели, параметры clustering, длительность аудио, время обработки и RTF.
+
+Контейнерный запуск:
+
+```powershell
+docker compose --profile diarization build diarization
+
+$env:MEETINGAGENT_RECORDINGS_DIR = "$env:USERPROFILE\Desktop\ProjectRecordings"
+
+docker compose --profile diarization run --rm diarization `
+  python scripts/23_diarize_meeting.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug `
+  --force
+```
+
+Если встреча длинная, сначала убедиться, что `source/audio_16k_mono.wav` уже создан. Для качества нужно проверить результат глазами: `sherpa-onnx` разделяет говорящих на `SPEAKER_XX`, но не определяет реальные имена.
 
 ### 5. Speaker Transcript
 

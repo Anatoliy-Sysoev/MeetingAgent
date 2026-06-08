@@ -1,6 +1,6 @@
 # Этапы Проекта И ФТТ MeetingAgent
 
-Обновлено: 2026-05-26.
+Обновлено: 2026-06-08.
 
 Этот документ - рабочая карта реализации MeetingAgent. По нему можно идти как по чек-листу: какой этап делаем сейчас, какие пункты ФТТ закрываем, какой артефакт должен появиться и как понять, что этап готов.
 
@@ -67,7 +67,7 @@ MeetingAgent должен уметь относить документы, вст
 | `MA-01` | RAG-фундамент | Собрать корпус документов, chunks, embeddings и устойчивый поиск. | `FTT-MA-02` - `FTT-MA-06`, `FTT-MA-15` | Работает: numpy backend, hybrid retrieval, FTS5, rerank, bucket routing и source-quality gate |
 | `MA-02` | Качество поиска | Проверить RAG на реальных вопросах, убрать мусор, зафиксировать метрики. | `FTT-MA-07` | Работает: realistic eval pipeline, manual review, approved regression set и targeted bucket eval; продолжается улучшение по buckets |
 | `MA-03` | Карточка встречи | Описать единый формат папки встречи и артефактов. | `FTT-MA-08`, `FTT-MA-09`, `FTT-MA-20` | Контракт создан: `meeting.json`, JSON-схема, markdown template; MVP roadmap обновлен 2026-05-26 |
-| `MA-04` | Offline-транскрибация записи | Обрабатывать готовые видео/аудио из watched folder. | `FTT-MA-08`, `FTT-MA-11` | Базовый слой готов: `20_ingest_meeting.py`, `21_extract_audio.py`, speaker transcript, meeting chunks, enrichment export, CLI одной встречи, GigaAM wrapper; watcher/queue запланированы |
+| `MA-04` | Offline-транскрибация записи | Обрабатывать готовые видео/аудио из watched folder. | `FTT-MA-08`, `FTT-MA-11` | Базовый слой готов: `20_ingest_meeting.py`, `21_extract_audio.py`, `22_transcribe_meeting.py`, optional `23_diarize_meeting.py`, speaker transcript, meeting chunks, enrichment export, CLI одной встречи, GigaAM/from-segments import; watcher/queue запланированы |
 | `MA-05` | Live-транскрибация встречи | Писать черновой транскрипт в процессе встречи. | `FTT-MA-10`, `FTT-MA-11` | Запланировано, есть эксперимент WhisperDesk |
 | `MA-06` | Memo, протокол, задачи | Генерировать структурированные итоги встречи. | `FTT-MA-12`, `FTT-MA-20` | Скаффолд: prompt-пакет, JSON-схемы, extractive CLI; production-генератор не закрыт |
 | `MA-07` | Классификация и маршрутизация | Определять этап проекта, ФТТ, документ и задачу. | `FTT-MA-13`, `FTT-MA-15` | Начато: heuristic meeting enrichment и export meeting_chunk в RAG-compatible JSONL; project classifier запланирован |
@@ -190,7 +190,7 @@ meetings/
 
 **Критерий готовности:** любую встречу можно открыть как самостоятельный пакет данных.
 
-**Статус:** базовый слой готов. Есть `configs/schemas/meeting.schema.json`, `docs/templates/MEETING_CARD.md`, architecture/scope docs и `scripts/20_ingest_meeting.py`, который создает карточку по каноническому контракту. Следующий шаг - ASR wrapper и speaker transcript.
+**Статус:** базовый слой готов. Есть `configs/schemas/meeting.schema.json`, `docs/templates/MEETING_CARD.md`, architecture/scope docs и `scripts/20_ingest_meeting.py`, который создает карточку по каноническому контракту. ASR entrypoint, optional diarization, speaker transcript и chunking уже реализованы; следующий шаг - прогон полного реального pipeline и оценка качества.
 
 ### `FTT-MA-10` Live-Транскрибация Встречи
 
@@ -233,7 +233,7 @@ meetings/
 
 **Критерий готовности:** каждый сегмент transcript имеет `source`, `start`, `end`, `text`; для live MVP source должен различать минимум `MIC`, `SYS` и `MIX`.
 
-**Статус:** частично готово для offline-записей: `scripts/21_extract_audio.py` создает `source/audio_16k_mono.wav` в формате mono 16000 Hz, добавляет его в `source.media_files` и помечает как no-index artifact. `scripts/24_merge_transcript_speakers.py` создает реплики с `speaker=SPEAKER_UNKNOWN` и `source=MIX`, а `scripts/26_chunk_meeting.py` сохраняет timestamps/speakers/sources в meeting chunks. Live-источники `MIC/SYS/MIX` и pyannote diarization пока запланированы.
+**Статус:** частично готово для offline-записей: `scripts/21_extract_audio.py` создает `source/audio_16k_mono.wav` в формате mono 16000 Hz, добавляет его в `source.media_files` и помечает как no-index artifact. `scripts/22_transcribe_meeting.py` пишет transcript с таймкодами. `scripts/23_diarize_meeting.py` добавляет optional `sherpa-onnx` speaker intervals, а `scripts/24_merge_transcript_speakers.py` назначает `SPEAKER_XX` по maximum-overlap или fallback `SPEAKER_UNKNOWN` и сохраняет `source=MIX`. `scripts/26_chunk_meeting.py` сохраняет timestamps/speakers/sources в meeting chunks. Live-источники `MIC/SYS/MIX` пока запланированы; `pyannote` оставлен как optional fallback, а не default.
 
 ### `FTT-MA-12` Memo, Протокол, Решения, Риски И Задачи
 
@@ -432,7 +432,9 @@ meeting_id = YYYY-MM-DD__slug, не UUID;
 карточка встречи = meetings/<meeting_id>/, не data/meetings/<meeting_id>/;
 data/ остается для runtime indexes/cache/eval;
 diarization не блокирует MVP: speaker может быть SPEAKER_UNKNOWN;
-scripts/06_transcribe_meeting.py, 07_generate_meeting_artifacts.py и 08_process_meeting_pipeline.py являются существующей базой для целевых шагов 22/29.
+sherpa-onnx является текущим default diarization backend, pyannote - optional fallback;
+scripts/22_transcribe_meeting.py является основным ASR entrypoint, scripts/06_transcribe_meeting.py - compatibility wrapper;
+scripts/07_generate_meeting_artifacts.py и 08_process_meeting_pipeline.py являются существующей базой для целевых шагов 29/full pipeline.
 ```
 
 Ближайший practical slice:
@@ -440,8 +442,9 @@ scripts/06_transcribe_meeting.py, 07_generate_meeting_artifacts.py и 08_process
 ```text
 20_ingest_meeting.py (готово)
 21_extract_audio.py (готово)
-22_transcribe_meeting.py как wrapper/рефактор над 06_transcribe_meeting.py
-24_merge_transcript_speakers.py с SPEAKER_UNKNOWN (готово)
+22_transcribe_meeting.py как основной ASR entrypoint (готово)
+23_diarize_meeting.py optional sherpa-onnx diarization (готово, требует проверки на 2-3 реальных встречах)
+24_merge_transcript_speakers.py с SPEAKER_UNKNOWN или SPEAKER_XX по diarization overlap (готово)
 26_chunk_meeting.py (готово)
 27_enrich_meeting_chunks.py (heuristic MVP готово)
 28_index_meeting_chunks.py (RAG-compatible export готово)
@@ -508,8 +511,9 @@ scripts/06_transcribe_meeting.py, 07_generate_meeting_artifacts.py и 08_process
 
 - `20_ingest_meeting.py`;
 - `21_extract_audio.py`;
-- ASR через `06_transcribe_meeting.py` или thin wrapper `22_transcribe_meeting.py`;
-- `speaker_transcript.jsonl` с `SPEAKER_UNKNOWN`;
+- ASR через `22_transcribe_meeting.py` (`large-v3-turbo` для качественного offline-профиля);
+- optional diarization через `23_diarize_meeting.py`;
+- `speaker_transcript.jsonl` с `SPEAKER_UNKNOWN` или `SPEAKER_XX`;
 - meeting-aware chunks;
 - indexing/search по meeting chunks.
 
