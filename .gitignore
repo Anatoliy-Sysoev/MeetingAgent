@@ -20,6 +20,7 @@ config.yaml.bak*
 
 # Runtime RAG data and generated artifacts
 _calibration/
+models/
 eval/reports/
 docs/private/
 docs/internal/

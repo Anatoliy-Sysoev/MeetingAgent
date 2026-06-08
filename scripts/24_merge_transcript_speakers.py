@@ -9,6 +9,13 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+from meeting_agent.diarization import assign_speaker, normalize_intervals  # noqa: E402
+
 
 DEFAULT_SPEAKER = "SPEAKER_UNKNOWN"
 DEFAULT_SOURCE = "MIX"
@@ -25,7 +32,7 @@ def now_iso() -> str:
 
 
 def repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+    return ROOT
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -51,6 +58,13 @@ def resolve_meeting_dir(value: str) -> Path:
     path = Path(value).expanduser()
     if not path.is_absolute():
         path = Path.cwd() / path
+    return path.resolve()
+
+
+def resolve_path(value: str, *, base: Path) -> Path:
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        path = base / path
     return path.resolve()
 
 
@@ -83,8 +97,14 @@ def format_time(seconds: float) -> str:
     return f"{total // 3600:02d}:{(total % 3600) // 60:02d}:{total % 60:02d}"
 
 
-def build_utterances(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def build_utterances(
+    segments: list[dict[str, Any]],
+    diarization_intervals: list[Any] | None = None,
+    *,
+    min_overlap_ratio: float = 0.3,
+) -> list[dict[str, Any]]:
     utterances: list[dict[str, Any]] = []
+    intervals = diarization_intervals or []
     for index, segment in enumerate(segments, start=1):
         text = str(segment.get("text") or "").strip()
         if not text:
@@ -103,16 +123,28 @@ def build_utterances(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 stage="validate_segments",
             )
 
+        speaker = DEFAULT_SPEAKER
+        speaker_overlap_seconds = 0.0
+        speaker_overlap_ratio = 0.0
+        if intervals:
+            speaker, speaker_overlap_seconds, speaker_overlap_ratio = assign_speaker(
+                {"start": start, "end": end},
+                intervals,
+                min_overlap_ratio=min_overlap_ratio,
+            )
+
         utterances.append(
             {
                 "utterance_id": f"utt-{len(utterances) + 1:06d}",
                 "segment_index": index - 1,
-                "speaker": DEFAULT_SPEAKER,
-                "speaker_name": DEFAULT_SPEAKER,
+                "speaker": speaker,
+                "speaker_name": speaker,
                 "source": str(segment.get("source") or DEFAULT_SOURCE),
                 "start": start,
                 "end": end,
                 "text": text,
+                "speaker_overlap_seconds": speaker_overlap_seconds,
+                "speaker_overlap_ratio": speaker_overlap_ratio,
             }
         )
     if not utterances:
@@ -141,6 +173,13 @@ def update_meeting(meeting: dict[str, Any]) -> None:
     meeting.pop("last_error", None)
 
 
+def load_diarization_intervals(path: Path | None) -> tuple[list[Any], list[str]]:
+    if path is None or not path.exists():
+        return [], []
+    raw_intervals = read_jsonl(path)
+    return normalize_intervals(raw_intervals, backend="external")
+
+
 def mark_failed(meeting_path: Path, meeting: dict[str, Any], exc: BaseException, stage: str) -> None:
     meeting["processing_status"] = "failed"
     meeting["updated_at"] = now_iso()
@@ -167,6 +206,14 @@ def run(args: argparse.Namespace) -> int:
     segments_path = meeting_dir / segments_rel
     if not segments_path.exists():
         raise MergeSpeakersError(f"segments.jsonl not found: {segments_path}", stage="preflight")
+    diarization_path: Path | None = None
+    if args.diarization_path:
+        diarization_path = resolve_path(args.diarization_path, base=meeting_dir)
+    else:
+        diarization_rel = meeting.get("artifacts", {}).get("diarization", "transcript/diarization.jsonl")
+        candidate = meeting_dir / diarization_rel
+        if candidate.exists():
+            diarization_path = candidate
 
     output_jsonl = meeting_dir / "transcript" / "speaker_transcript.jsonl"
     output_txt = meeting_dir / "transcript" / "speaker_transcript.txt"
@@ -177,7 +224,12 @@ def run(args: argparse.Namespace) -> int:
         )
 
     try:
-        utterances = build_utterances(read_jsonl(segments_path))
+        intervals, interval_warnings = load_diarization_intervals(diarization_path)
+        utterances = build_utterances(
+            read_jsonl(segments_path),
+            intervals,
+            min_overlap_ratio=args.min_overlap_ratio,
+        )
         write_jsonl(output_jsonl, utterances)
         output_txt.write_text(build_text(utterances), encoding="utf-8")
         update_meeting(meeting)
@@ -189,6 +241,9 @@ def run(args: argparse.Namespace) -> int:
 
     print("speaker transcript complete")
     print(f"utterances: {len(utterances)}")
+    print(f"diarization_intervals: {len(intervals)}")
+    if interval_warnings:
+        print(f"diarization_warnings: {len(interval_warnings)}")
     print(f"jsonl: {output_jsonl}")
     print(f"text: {output_txt}")
     return 0
@@ -199,6 +254,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         description="Create a diarization-lite speaker transcript from ASR segments.",
     )
     parser.add_argument("--meeting-dir", required=True, help="Path to meeting folder.")
+    parser.add_argument("--diarization-path", help="Explicit diarization JSONL path. Defaults to meeting artifact.")
+    parser.add_argument("--min-overlap-ratio", type=float, default=0.3)
     parser.add_argument("--force", action="store_true", help="Overwrite existing speaker transcript.")
     return parser.parse_args(argv)
 
