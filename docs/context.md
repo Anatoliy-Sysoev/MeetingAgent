@@ -39,13 +39,21 @@ MeetingAgent публикуется как local-first OSS проект для �
 
 ## Последнее Изменение
 
-Локальный meeting smoke проверяет Docker-путь на реальной записи, но runtime-артефакты и идентификаторы встречи остаются только локально:
+Локальный meeting smoke проверил Docker-путь на реальной записи, но runtime-артефакты и идентификаторы встречи остаются только локально:
 
 - исходное видео монтируется через `MEETINGAGENT_RECORDINGS_DIR`;
 - `scripts/20_ingest_meeting.py` и `scripts/21_extract_audio.py` создают meeting card и `source/audio_16k_mono.wav`;
 - `scripts/23_diarize_meeting.py` в контейнере прошел на `sherpa-onnx` и записывает `transcript/diarization.jsonl` + `transcript/diarization_report.json`;
 - для качественного offline ASR используется `faster-whisper large-v3-turbo`, а `small` остается только для быстрых черновых smoke-проверок;
-- downstream merge/chunk/analyze нужно запускать только после появления transcript artifacts.
+- внешний `large-v3-turbo` transcript импортирован через `scripts/22_transcribe_meeting.py --engine from-segments`;
+- canonical transcript exports созданы: `segments.jsonl`, `transcript.json`, `transcript.txt`, `transcript.md`, `transcript.srt`, `transcript.vtt`, `transcription_report.json`;
+- `scripts/24_merge_transcript_speakers.py` создал speaker transcript с `SPEAKER_XX`;
+- `scripts/26_chunk_meeting.py` создал meeting chunks;
+- `scripts/27_enrich_meeting_chunks.py` создал deterministic enrichment;
+- `scripts/28_index_meeting_chunks.py` и `scripts/32_index_meeting_artifacts.py` экспортировали meeting chunks/artifacts в local runtime meeting index;
+- `scripts/31_meeting_search.py` успешно нашел meeting chunks и structured action items по smoke-запросам.
+
+Ограничение текущего прогона: `scripts/29_analyze_meeting.py --mode ollama-map-reduce --model qwen3.5:4b` ушел в fallback, потому что текущий Ollama endpoint, доступный по `http://localhost:11434`, не показывает `qwen3.5:4b` в `/api/tags`, а `ollama show qwen3.5:4b` возвращает `model not found`. Документация и конфиги считают `qwen3.5:4b` штатной моделью, поэтому нужно синхронизировать фактический Ollama runtime: либо установить/поднять именно эту модель в текущем Ollama, либо проверить, что используется правильный Ollama instance.
 
 Контейнерный профиль для diarization добавлен как рабочий runtime-слой:
 
