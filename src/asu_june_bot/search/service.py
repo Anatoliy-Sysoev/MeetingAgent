@@ -214,6 +214,13 @@ class SearchService:
             row.get("row_header"),
             row.get("text"),
         ]
+        cells = row.get("cells")
+        if isinstance(cells, dict):
+            metadata_parts.extend(cells.keys())
+            metadata_parts.extend(cells.values())
+        headers = row.get("headers")
+        if isinstance(headers, list):
+            metadata_parts.extend(headers)
         return cls._norm_text(" ".join(str(part or "") for part in metadata_parts))
 
     @classmethod
@@ -229,6 +236,13 @@ class SearchService:
             metadata.get("table_title"),
             result.text,
         ]
+        cells = metadata.get("cells")
+        if isinstance(cells, dict):
+            metadata_parts.extend(cells.keys())
+            metadata_parts.extend(cells.values())
+        headers = metadata.get("headers")
+        if isinstance(headers, list):
+            metadata_parts.extend(headers)
         return cls._norm_text(" ".join(str(part or "") for part in metadata_parts))
 
     @staticmethod
@@ -295,7 +309,6 @@ class SearchService:
             if key in existing_keys:
                 continue
             path = str(row.get("relative_path") or row.get("source_path") or "")
-            haystack = self._row_haystack(row)
             is_related_path = path in related_paths
             is_cta = str(row.get("document_type") or "") == "ЦТА" or "цта" in path.lower() or "целевая техническая архитектура" in path.lower()
             if not (is_related_path or is_cta):
@@ -359,7 +372,7 @@ class SearchService:
             },
             {
                 "intent": "object_identification",
-                "markers": ("идентификац", "передаваемых объектов", "тэг", "тег", "заголовке вызова"),
+                "markers": ("идентификац", "идентифиц", "передаваемых объектов", "тэг", "тег", "заголовке вызова"),
                 "anchors": ("тэг в заголовке вызова", "тег в заголовке вызова", "идентификация передаваемых объектов"),
             },
         )
@@ -401,24 +414,35 @@ class SearchService:
         return document_type == "ФТТ" or path.endswith("фтт.docx") or "фтт.docx" in path
 
     @classmethod
-    def _row_has_any_anchor(cls, row: dict[str, Any], anchors: tuple[str, ...]) -> bool:
+    def _row_has_any_anchor(cls, row: dict[str, Any], anchors: tuple[str, ...], intent: str | None = None) -> bool:
         haystack = cls._row_haystack(row)
-        return any(cls._norm_text(anchor) in haystack for anchor in anchors)
+        if any(cls._norm_text(anchor) in haystack for anchor in anchors):
+            return True
+        return bool(intent == "object_identification" and cls._has_object_identification_evidence(haystack))
 
     @classmethod
-    def _result_has_any_anchor(cls, result: SearchResult, anchors: tuple[str, ...]) -> bool:
+    def _result_has_any_anchor(cls, result: SearchResult, anchors: tuple[str, ...], intent: str | None = None) -> bool:
         haystack = cls._result_haystack(result)
-        return any(cls._norm_text(anchor) in haystack for anchor in anchors)
+        if any(cls._norm_text(anchor) in haystack for anchor in anchors):
+            return True
+        return bool(intent == "object_identification" and cls._has_object_identification_evidence(haystack))
 
     @classmethod
-    def _ftt_anchor_row_rank(cls, row: dict[str, Any], anchors: tuple[str, ...]) -> tuple[int, int, int, int]:
+    def _has_object_identification_evidence(cls, haystack: str) -> bool:
+        has_object_scope = ("передаваем" in haystack and "объект" in haystack) or "идентификац" in haystack or "идентифиц" in haystack
+        has_header_tag = any(marker in haystack for marker in ("тэг", "тег", "заголов"))
+        return has_object_scope and has_header_tag
+
+    @classmethod
+    def _ftt_anchor_row_rank(cls, row: dict[str, Any], anchors: tuple[str, ...]) -> tuple[int, int, int, int, int]:
         haystack = cls._row_haystack(row)
         title = cls._norm_text(str(row.get("title") or ""))
         anchor_hits = sum(1 for anchor in anchors if cls._norm_text(anchor) in haystack)
+        object_identification_bonus = 1 if cls._has_object_identification_evidence(haystack) else 0
         integration_title_bonus = 1 if "требования к интеграции и системным взаимодействиям" in title else 0
         exact_ftt_path_bonus = 1 if str(row.get("relative_path") or "").lower().replace("\\", "/") == "фтт.docx" else 0
-        short_exact_bonus = 1 if anchor_hits and len(str(row.get("text") or "")) <= 120 else 0
-        return anchor_hits, integration_title_bonus, exact_ftt_path_bonus, short_exact_bonus
+        short_exact_bonus = 1 if (anchor_hits or object_identification_bonus) and len(str(row.get("text") or "")) <= 120 else 0
+        return anchor_hits, object_identification_bonus, integration_title_bonus, exact_ftt_path_bonus, short_exact_bonus
 
     def _inject_integration_ftt_required_anchor_results(
         self,
@@ -432,9 +456,9 @@ class SearchService:
 
         intent = str(route["intent"])
         anchors = tuple(str(anchor) for anchor in route["anchors"])
-        existing_matching = [result for result in raw_results if self._is_ftt_row(result.metadata or {}) and self._result_has_any_anchor(result, anchors)]
+        existing_matching = [result for result in raw_results if self._is_ftt_row(result.metadata or {}) and self._result_has_any_anchor(result, anchors, intent=intent)]
 
-        candidate_rows = [row for row in rows if self._is_ftt_row(row) and self._row_has_any_anchor(row, anchors)]
+        candidate_rows = [row for row in rows if self._is_ftt_row(row) and self._row_has_any_anchor(row, anchors, intent=intent)]
         if not candidate_rows and not existing_matching:
             return raw_results, {
                 "applied": False,
@@ -518,100 +542,51 @@ class SearchService:
     @staticmethod
     def _is_soi_ad_source(source: SearchResult) -> bool:
         metadata = source.metadata or {}
-        document_type = str(metadata.get("document_type") or "")
-        path = str(metadata.get("relative_path") or metadata.get("source_path") or "").lower()
-        return document_type == "СоИ AD" or "сои_ad" in path or "active directory" in path
+        return str(metadata.get("document_type") or "") == "СоИ AD" or "сои" in str(metadata.get("relative_path") or "").lower()
 
-    @staticmethod
-    def _with_inferred_ad_cc_mapping_metadata(source: SearchResult) -> SearchResult:
-        metadata = dict(source.metadata or {})
-        path = str(metadata.get("relative_path") or metadata.get("source_path") or "")
-        text = " ".join((source.text or "").split())
-        changed = False
-        if not metadata.get("document_type") and "Описание разработок и настроек ИС" in path:
-            metadata["document_type"] = "Описание разработок ИС"
-            changed = True
-        if not metadata.get("title") and "Роли / группы AD" in text:
-            metadata["title"] = "Роли / группы AD"
-            changed = True
-        if not metadata.get("table_title") and "Роли / группы AD" in text:
-            metadata["table_title"] = "Роли / группы AD"
-            changed = True
-        if changed:
-            metadata["metadata_inference"] = "ad_cc_role_mapping_table"
-            return SearchResult(
-                source_id=source.source_id,
-                text=source.text,
-                score=source.score,
-                vector_score=source.vector_score,
-                bm25_score=source.bm25_score,
-                metadata=metadata,
-                matched_by=list(source.matched_by),
-                diagnostics=dict(source.diagnostics),
-            )
-        return source
-
-    def _promote_ad_cc_role_mapping_sources(self, query: str, built_context: Any) -> Any:
+    def _promote_ad_cc_role_mapping_sources(self, query: str, context):
         if not self._is_ad_cc_role_mapping_query(query):
-            return built_context
+            return context
+        primary = list(context.primary_sources)
+        supporting = list(context.supporting_sources)
+        promoted: list[SearchResult] = []
+        remaining_supporting: list[SearchResult] = []
+        primary_keys = {self._result_key(source) for source in primary}
 
-        primary = list(getattr(built_context, "primary_sources", []) or [])
-        supporting = list(getattr(built_context, "supporting_sources", []) or [])
-        excluded = list(getattr(built_context, "excluded_sources", []) or [])
-        candidates = primary + supporting + excluded
-        mapping_source = next((source for source in candidates if self._is_ad_cc_role_mapping_source(source)), None)
+        for source in supporting:
+            if self._is_soi_ad_source(source) and self._is_ad_cc_role_mapping_source(source) and self._result_key(source) not in primary_keys:
+                promoted.append(source)
+                primary_keys.add(self._result_key(source))
+            else:
+                remaining_supporting.append(source)
 
-        diagnostics = dict(getattr(built_context, "diagnostics", {}) or {})
-        if mapping_source is None:
-            diagnostics["ad_cc_role_mapping_promotion"] = {"applied": False, "reason": "no_mapping_source"}
-            built_context.diagnostics = diagnostics
-            return built_context
+        for source in primary:
+            if self._is_soi_ad_source(source) and self._is_ad_cc_role_mapping_source(source):
+                if self._result_key(source) not in primary_keys:
+                    promoted.append(source)
+            else:
+                remaining_supporting.append(source)
 
-        mapping_source = self._with_inferred_ad_cc_mapping_metadata(mapping_source)
-        mapping_key = self._result_key(mapping_source)
-        moved_soi_keys: list[str] = []
+        if not promoted:
+            return context
 
-        def without_mapping(items: list[SearchResult]) -> list[SearchResult]:
-            return [item for item in items if self._result_key(item) != mapping_key]
-
-        primary = without_mapping(primary)
-        supporting = without_mapping(supporting)
-        excluded = without_mapping(excluded)
-
-        soi_from_primary = [item for item in primary if self._is_soi_ad_source(item)]
-        if soi_from_primary:
-            moved_soi_keys = [self._result_key(item) for item in soi_from_primary]
-        primary = [item for item in primary if not self._is_soi_ad_source(item)]
-        supporting = soi_from_primary + supporting
-        primary = [mapping_source] + primary
-
-        primary_limit = int(getattr(self.context_builder, "primary_limit", 5) or 5)
-        supporting_limit = int(getattr(self.context_builder, "supporting_limit", 5) or 5)
-        overflow_primary = primary[primary_limit:]
-        primary = primary[:primary_limit]
-        supporting = (supporting + overflow_primary)[:supporting_limit]
-
+        new_primary = promoted + [source for source in primary if self._result_key(source) not in {self._result_key(item) for item in promoted}]
+        diagnostics = dict(context.diagnostics)
         diagnostics["ad_cc_role_mapping_promotion"] = {
             "applied": True,
-            "promoted_key": mapping_key,
-            "moved_soi_ad_from_primary_to_supporting": moved_soi_keys,
-            "reason": "project_role_group_role_mapping_query",
-            "metadata_inference": (mapping_source.metadata or {}).get("metadata_inference"),
+            "promoted": len(promoted),
+            "chunk_ids": [self._result_key(source) for source in promoted],
         }
-        built_context.primary_sources = primary
-        built_context.supporting_sources = supporting
-        built_context.excluded_sources = excluded
-        built_context.diagnostics = diagnostics
-        return built_context
+        from asu_june_bot.retrieval.context_builder import BuiltContext
+
+        return BuiltContext(primary_sources=new_primary, supporting_sources=remaining_supporting, excluded_sources=context.excluded_sources, diagnostics=diagnostics)
 
     @staticmethod
-    def _elapsed_ms(start: float) -> float:
-        return (time.perf_counter() - start) * 1000
+    def _with_diagnostics(payload: dict[str, Any], diagnostics: SearchDiagnostics, include: bool) -> SearchResponse:
+        if include:
+            payload["diagnostics"] = diagnostics.to_dict()
+        return SearchResponse(payload)
 
     @staticmethod
-    def _with_diagnostics(payload: dict[str, Any], diagnostics: SearchDiagnostics, include_diagnostics: bool) -> SearchResponse:
-        if include_diagnostics:
-            existing = dict(payload.get("diagnostics") or {})
-            existing["search_service"] = diagnostics.to_dict()
-            payload["diagnostics"] = existing
-        return SearchResponse(payload=payload)
+    def _elapsed_ms(start: float) -> int:
+        return int((time.perf_counter() - start) * 1000)
