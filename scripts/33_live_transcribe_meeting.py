@@ -12,10 +12,36 @@ from jsonschema import Draft202012Validator
 
 
 STATUS_TRANSCRIBING = "transcribing"
-STATUS_TRANSCRIBED = "transcribed"
+STATUS_PROCESSING = "processing"
 STATUS_FAILED = "failed"
 SUPPORTED_ENGINES = {"vosk"}
 VALID_SOURCES = {"MIC", "SYS", "MIX"}
+SOURCE_ARTIFACT_KEYS = {
+    "MIC": {
+        "live_segments": "live_segments_mic",
+        "live_partials": "live_partials_mic",
+        "live_transcript": "live_transcript_mic",
+        "live_srt": "live_srt_mic",
+        "live_vtt": "live_vtt_mic",
+        "live_report": "live_report_mic",
+    },
+    "SYS": {
+        "live_segments": "live_segments_sys",
+        "live_partials": "live_partials_sys",
+        "live_transcript": "live_transcript_sys",
+        "live_srt": "live_srt_sys",
+        "live_vtt": "live_vtt_sys",
+        "live_report": "live_report_sys",
+    },
+    "MIX": {
+        "live_segments": "live_segments_mix",
+        "live_partials": "live_partials_mix",
+        "live_transcript": "live_transcript_mix",
+        "live_srt": "live_srt_mix",
+        "live_vtt": "live_vtt_mix",
+        "live_report": "live_report_mix",
+    },
+}
 
 
 class LiveTranscribeError(RuntimeError):
@@ -70,11 +96,11 @@ def relative_path(meeting_dir: Path, path: Path) -> str:
     return path.resolve().relative_to(meeting_dir.resolve()).as_posix()
 
 
-def ensure_can_write(meeting_dir: Path, force: bool) -> None:
-    live_segments = meeting_dir / "transcript" / "live" / "live_segments.jsonl"
+def ensure_can_write(meeting_dir: Path, source: str, force: bool) -> None:
+    live_segments = meeting_dir / "transcript" / "live" / f"live_segments.{source}.jsonl"
     if live_segments.exists() and not force:
         raise LiveTranscribeError(
-            "Live transcript already exists. Use --force to overwrite transcript/live outputs.",
+            f"Live transcript for source {source} already exists. Use --force to overwrite that source.",
             stage="preflight",
         )
 
@@ -96,20 +122,21 @@ def update_source_tracks(meeting: dict[str, Any], source: str) -> None:
 
 def update_meeting_artifacts(meeting: dict[str, Any], meeting_dir: Path, written: dict[str, Path], source: str) -> None:
     artifacts = dict(meeting.get("artifacts", {}))
+    source_keys = SOURCE_ARTIFACT_KEYS[source]
     for key in ("live_segments", "live_partials", "live_transcript", "live_srt", "live_vtt", "live_report"):
         if key in written:
-            artifacts[key] = relative_path(meeting_dir, written[key])
+            artifacts[source_keys[key]] = relative_path(meeting_dir, written[key])
     meeting["artifacts"] = artifacts
     rag = dict(meeting.get("rag", {}))
     no_index = list(rag.get("no_index_artifacts") or [])
     for key in ("live_segments", "live_partials", "live_transcript", "live_srt", "live_vtt"):
-        value = artifacts.get(key)
+        value = artifacts.get(source_keys[key])
         if isinstance(value, str) and value not in no_index:
             no_index.append(value)
     rag["no_index_artifacts"] = no_index
     meeting["rag"] = rag
     update_source_tracks(meeting, source)
-    meeting["processing_status"] = STATUS_TRANSCRIBED
+    meeting["processing_status"] = STATUS_PROCESSING
     meeting["updated_at"] = now_iso()
     meeting.pop("last_error", None)
 
@@ -146,7 +173,7 @@ def run(args: argparse.Namespace) -> int:
 
         meeting = read_json(meeting_path)
         validate_schema(meeting)
-        ensure_can_write(meeting_dir, args.force)
+        ensure_can_write(meeting_dir, args.source, args.force)
         model_path = resolve_path(args.model_path)
         input_wav = resolve_path(args.input_wav) if args.input_wav else None
 
@@ -206,7 +233,7 @@ def run(args: argparse.Namespace) -> int:
             backend_metrics=result.metrics,
         )
         output_dir = meeting_dir / "transcript" / "live"
-        written = write_live_artifacts(output_dir, result.segments, result.partials, report)
+        written = write_live_artifacts(output_dir, result.segments, result.partials, report, source=args.source)
 
         update_meeting_artifacts(meeting, meeting_dir, written, args.source)
         validate_schema(meeting)
@@ -223,7 +250,7 @@ def run(args: argparse.Namespace) -> int:
         print(f"ERROR[{exc.stage}]: {exc}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
-        exc = LiveTranscribeError("Interrupted by user.", stage="runtime")
+        exc = LiveTranscribeError("Interrupted before live backend could finalize.", stage="runtime")
         mark_failed(meeting_path, meeting, exc, exc.stage, mutate_on_error)
         print(f"ERROR[{exc.stage}]: {exc}", file=sys.stderr)
         return 130

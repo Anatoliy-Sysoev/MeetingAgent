@@ -162,11 +162,15 @@ def transcribe_vosk_live(config: VoskLiveConfig) -> VoskLiveResult:
     partials: list[dict[str, Any]] = []
     started = time.time()
     audio_seconds = 0.0
+    interrupted = False
 
-    if config.input_wav is not None:
-        audio_seconds = _transcribe_wav(config, recognizer, model_label, segments, partials)
-    else:
-        audio_seconds = _transcribe_microphone(config, recognizer, model_label, segments, partials)
+    try:
+        if config.input_wav is not None:
+            audio_seconds = _transcribe_wav(config, recognizer, model_label, segments, partials)
+        else:
+            audio_seconds = _transcribe_microphone(config, recognizer, model_label, segments, partials)
+    except KeyboardInterrupt:
+        interrupted = True
 
     final_result = json.loads(recognizer.FinalResult())
     final_segment = _segment_from_result(
@@ -189,6 +193,7 @@ def transcribe_vosk_live(config: VoskLiveConfig) -> VoskLiveResult:
             "elapsed_seconds": round(time.time() - started, 3),
             "input_wav": str(config.input_wav) if config.input_wav else None,
             "vad": config.vad,
+            "interrupted": interrupted,
         },
     )
 
