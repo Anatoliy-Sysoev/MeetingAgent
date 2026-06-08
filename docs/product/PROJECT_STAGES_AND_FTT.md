@@ -68,7 +68,7 @@ MeetingAgent должен уметь относить документы, вст
 | `MA-02` | Качество поиска | Проверить RAG на реальных вопросах, убрать мусор, зафиксировать метрики. | `FTT-MA-07` | Работает: realistic eval pipeline, manual review, approved regression set и targeted bucket eval; продолжается улучшение по buckets |
 | `MA-03` | Карточка встречи | Описать единый формат папки встречи и артефактов. | `FTT-MA-08`, `FTT-MA-09`, `FTT-MA-20` | Контракт создан: `meeting.json`, JSON-схема, markdown template; MVP roadmap обновлен 2026-05-26 |
 | `MA-04` | Offline-транскрибация записи | Обрабатывать готовые видео/аудио из watched folder. | `FTT-MA-08`, `FTT-MA-11` | Базовый слой готов: `20_ingest_meeting.py`, `21_extract_audio.py`, `22_transcribe_meeting.py`, optional `23_diarize_meeting.py`, speaker transcript, meeting chunks, enrichment export, CLI одной встречи, GigaAM/from-segments import; watcher/queue запланированы |
-| `MA-05` | Live-транскрибация встречи | Писать черновой транскрипт в процессе встречи. | `FTT-MA-10`, `FTT-MA-11` | Начато: optional Vosk backend, `scripts/33_live_transcribe_meeting.py`, live artifacts в `transcript/live/`; microphone/system loopback и T-one evaluation запланированы |
+| `MA-05` | Live-транскрибация встречи | Писать черновой транскрипт в процессе встречи. | `FTT-MA-10`, `FTT-MA-11` | Начато: optional Vosk backend, `scripts/33_live_transcribe_meeting.py`, live artifacts в `transcript/live/`, Silero VAD для `--input-wav`; microphone/system loopback и T-one evaluation запланированы |
 | `MA-06` | Memo, протокол, задачи | Генерировать структурированные итоги встречи. | `FTT-MA-12`, `FTT-MA-20` | Скаффолд: prompt-пакет, JSON-схемы, extractive CLI; production-генератор не закрыт |
 | `MA-07` | Классификация и маршрутизация | Определять этап проекта, ФТТ, документ и задачу. | `FTT-MA-13`, `FTT-MA-15` | Начато: heuristic meeting enrichment и export meeting_chunk в RAG-compatible JSONL; project classifier запланирован |
 | `MA-08` | Генерация документов | Собирать черновики документов на основе источников. | `FTT-MA-14`, `FTT-MA-20` | Запланировано |
@@ -210,6 +210,7 @@ meetings/
 - модель `vosk-model-small-ru-0.22` или более качественная русская Vosk-модель;
 - sample rate 16000 Hz;
 - block 300 ms;
+- optional `--vad silero` для file-smoke/preprocessing;
 - `MIC`/`SYS`/`MIX` как source labels;
 - T-one как кандидат для отдельной дуэли на реальных встречах.
 

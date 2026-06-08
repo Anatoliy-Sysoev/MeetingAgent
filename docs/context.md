@@ -42,14 +42,15 @@ MeetingAgent публикуется как local-first OSS проект для �
 Добавлен первый public-safe слой live-транскрибации:
 
 - `src/meeting_agent/live_transcription/` содержит контракт `LiveSegment`/`LiveSessionReport`, exporters и optional Vosk backend;
-- `scripts/33_live_transcribe_meeting.py` запускает live draft transcription для meeting card, поддерживает `--engine vosk`, `--source MIC|SYS|MIX`, `--input-wav` для детерминированного smoke и `--dry-run`;
+- `src/meeting_agent/live_transcription/vad.py` добавляет optional Silero VAD speech-window detection для `--input-wav`;
+- `scripts/33_live_transcribe_meeting.py` запускает live draft transcription для meeting card, поддерживает `--engine vosk`, `--source MIC|SYS|MIX`, `--input-wav`, `--vad none|silero` для детерминированного smoke и `--dry-run`;
 - live outputs пишутся отдельно в `transcript/live/`: `live_segments.jsonl`, `live_partials.jsonl`, `live_transcript.txt`, `live_subtitles.srt`, `live_subtitles.vtt`, `live_report.json`;
 - live draft artifacts автоматически добавляются в `rag.no_index_artifacts`, чтобы не попасть в RAG до offline/final handoff;
 - `configs/schemas/meeting.schema.json` теперь разрешает `live_*` artifact paths;
-- optional зависимости вынесены в `requirements-live.txt` и `pyproject.toml [project.optional-dependencies].live`;
+- optional зависимости Vosk, sounddevice и Silero VAD вынесены в `requirements-live.txt` и `pyproject.toml [project.optional-dependencies].live`;
 - `README.md`, `docs/decisions.md`, `docs/operations/MEETING_PIPELINE.md`, `docs/meeting_agent_architecture.md` и `docs/product/PROJECT_STAGES_AND_FTT.md` обновлены: Vosk выбран первым live backend, T-one оставлен как будущий сравнительный эксперимент на реальных встречах, final transcript остается offline-проходом через `scripts/22_transcribe_meeting.py`.
 
-Проверки: `.\.venv\Scripts\python.exe -m pytest tests\unit\test_live_transcription_contract.py tests\unit\test_transcription_contract.py -q` - 9 passed; `py_compile` для `scripts/33_live_transcribe_meeting.py` и `compileall` для `src/meeting_agent/live_transcription` - ok.
+Проверки: `.\.venv\Scripts\python.exe -m pytest tests\unit\test_live_transcription_contract.py tests\unit\test_transcription_contract.py -q` - 12 passed; `.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot -q` - 195 passed; `py_compile` для `scripts/33_live_transcribe_meeting.py` и `compileall` для `src/meeting_agent/live_transcription` - ok.
 
 Локальный meeting smoke проверил Docker-путь на реальной записи, но runtime-артефакты и идентификаторы встречи остаются только локально:
 

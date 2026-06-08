@@ -164,3 +164,19 @@
 - `live_partials.jsonl` является черновым runtime artifact и не должен индексироваться как источник истины;
 - T-one остается кандидатом для отдельного сравнительного прогона на 2-3 реальных встречах, потому что модель ориентирована на телефонный домен;
 - Silero VAD остается будущим слоем для устойчивого endpointing/noise handling, а не обязательной зависимостью первого live MVP.
+
+## 2026-06-08 - Silero VAD Как Optional Live Preprocessing
+
+Решение: добавить Silero VAD как optional preprocessing слой для live/file-smoke ASR через `scripts/33_live_transcribe_meeting.py --vad silero`.
+
+Почему:
+
+- VAD должен быть backend-agnostic: один слой speech detection перед Vosk, T-one или будущим backend;
+- Silero VAD локальный, легкий и подходит для CPU-first speech detection;
+- optional режим позволяет сравнить baseline `--vad none` против `--vad silero` на реальных встречах без смены основного ASR-контракта.
+
+Следствия:
+
+- зависимости остаются в `requirements-live.txt`, а не в основном `requirements.txt`;
+- первый реализованный режим Silero VAD работает для `--input-wav`, где можно заранее получить speech windows;
+- microphone/system-loopback streaming VAD остается следующим шагом, потому что нужно сохранить корректные live таймкоды и endpointing.

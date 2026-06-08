@@ -9,6 +9,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from meeting_agent.live_transcription import LiveSegment, LiveSessionReport, write_live_artifacts
+from meeting_agent.live_transcription.vad import SpeechWindow, block_overlaps_speech
 
 
 def load_live_cli():
@@ -206,3 +207,60 @@ def test_live_cli_writes_artifacts_and_updates_meeting_json(tmp_path: Path, monk
     assert "transcript/live/live_partials.jsonl" in meeting["rag"]["no_index_artifacts"]
     assert "transcript/live/live_segments.jsonl" in meeting["rag"]["no_index_artifacts"]
     assert (meeting_dir / "transcript" / "live" / "live_segments.jsonl").exists()
+
+
+def test_live_cli_passes_silero_vad_config_to_backend(tmp_path: Path, monkeypatch) -> None:
+    cli = load_live_cli()
+    meeting_dir = tmp_path / "2026-06-08__live-smoke"
+    meeting_dir.mkdir()
+    meeting_path = meeting_dir / "meeting.json"
+    meeting_path.write_text(json.dumps(minimal_meeting(), ensure_ascii=False), encoding="utf-8")
+    model_dir = tmp_path / "vosk-model-small-ru-0.22"
+    model_dir.mkdir()
+    wav_path = tmp_path / "audio_16k_mono.wav"
+    wav_path.write_bytes(b"fake")
+    seen = {}
+
+    def fake_transcribe(config):
+        seen["vad"] = config.vad
+        seen["threshold"] = config.silero_vad.threshold
+        seen["min_speech_ms"] = config.silero_vad.min_speech_ms
+        seen["input_wav"] = config.input_wav
+        return type("FakeResult", (), {"segments": [], "partials": [], "metrics": {"duration": 0.0}})()
+
+    monkeypatch.setattr(cli, "transcribe_vosk_live", fake_transcribe)
+
+    exit_code = cli.main_with_argv(
+        [
+            "--meeting-dir",
+            str(meeting_dir),
+            "--model-path",
+            str(model_dir),
+            "--input-wav",
+            str(wav_path),
+            "--vad",
+            "silero",
+            "--vad-threshold",
+            "0.62",
+            "--vad-min-speech-ms",
+            "300",
+            "--force",
+        ]
+    )
+
+    assert exit_code == 0
+    assert seen == {
+        "vad": "silero",
+        "threshold": 0.62,
+        "min_speech_ms": 300,
+        "input_wav": wav_path,
+    }
+
+
+def test_speech_window_overlap_detection() -> None:
+    windows = [SpeechWindow(start=1.0, end=2.0), SpeechWindow(start=4.0, end=5.0)]
+
+    assert block_overlaps_speech(0.0, 0.5, windows) is False
+    assert block_overlaps_speech(0.5, 1.1, windows) is True
+    assert block_overlaps_speech(2.0, 3.0, windows) is False
+    assert block_overlaps_speech(4.5, 6.0, windows) is True

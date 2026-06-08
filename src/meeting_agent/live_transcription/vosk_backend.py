@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .schema import LiveSegment
+from .vad import SileroVadConfig, VadBackendError, SpeechWindow, block_overlaps_speech, detect_silero_speech_windows
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,8 @@ class VoskLiveConfig:
     duration_sec: float | None = None
     input_wav: Path | None = None
     save_partials: bool = True
+    vad: str = "none"
+    silero_vad: SileroVadConfig = SileroVadConfig()
 
 
 @dataclass(frozen=True)
@@ -58,6 +61,7 @@ def _segment_from_result(
     model: str,
     fallback_start: float,
     fallback_end: float,
+    use_word_timestamps: bool = True,
 ) -> LiveSegment | None:
     text = str(result.get("text") or "").strip()
     if not text:
@@ -67,7 +71,7 @@ def _segment_from_result(
     start = fallback_start
     end = max(fallback_end, fallback_start + 0.01)
     confidence: float | None = None
-    if isinstance(words, list) and words:
+    if use_word_timestamps and isinstance(words, list) and words:
         starts = [word.get("start") for word in words if isinstance(word, dict) and isinstance(word.get("start"), (int, float))]
         ends = [word.get("end") for word in words if isinstance(word, dict) and isinstance(word.get("end"), (int, float))]
         confs = [word.get("conf") for word in words if isinstance(word, dict) and isinstance(word.get("conf"), (int, float))]
@@ -104,6 +108,7 @@ def _accept_block(
     model_label: str,
     segments: list[LiveSegment],
     partials: list[dict[str, Any]],
+    use_word_timestamps: bool = True,
 ) -> None:
     if recognizer.AcceptWaveform(block):
         result = json.loads(recognizer.Result())
@@ -114,6 +119,7 @@ def _accept_block(
             model=model_label,
             fallback_start=cursor_start,
             fallback_end=cursor_end,
+            use_word_timestamps=use_word_timestamps,
         )
         if segment is not None:
             segments.append(segment)
@@ -142,6 +148,10 @@ def transcribe_vosk_live(config: VoskLiveConfig) -> VoskLiveResult:
         raise VoskBackendError("--sample-rate must be positive.")
     if config.block_ms <= 0:
         raise VoskBackendError("--block-ms must be positive.")
+    if config.vad not in {"none", "silero"}:
+        raise VoskBackendError(f"Unsupported VAD mode: {config.vad}")
+    if config.vad == "silero" and config.input_wav is None:
+        raise VoskBackendError("Silero VAD currently requires --input-wav. Microphone streaming VAD is planned.")
 
     KaldiRecognizer, Model = _load_vosk()
     model = Model(str(config.model_path))
@@ -166,6 +176,7 @@ def transcribe_vosk_live(config: VoskLiveConfig) -> VoskLiveResult:
         model=model_label,
         fallback_start=max(0.0, audio_seconds - (config.block_ms / 1000.0)),
         fallback_end=max(audio_seconds, 0.01),
+        use_word_timestamps=config.vad != "silero",
     )
     if final_segment is not None:
         segments.append(final_segment)
@@ -177,6 +188,7 @@ def transcribe_vosk_live(config: VoskLiveConfig) -> VoskLiveResult:
             "duration": round(audio_seconds, 3),
             "elapsed_seconds": round(time.time() - started, 3),
             "input_wav": str(config.input_wav) if config.input_wav else None,
+            "vad": config.vad,
         },
     )
 
@@ -206,6 +218,17 @@ def _transcribe_wav(
         if config.duration_sec is not None:
             frames_limit = int(config.sample_rate * config.duration_sec)
 
+        speech_windows: list[SpeechWindow] = []
+        if config.vad == "silero":
+            try:
+                speech_windows = detect_silero_speech_windows(
+                    config.input_wav,
+                    sample_rate=config.sample_rate,
+                    config=config.silero_vad,
+                )
+            except VadBackendError as exc:
+                raise VoskBackendError(str(exc)) from exc
+
         frames_read = 0
         while True:
             remaining = frames_per_block
@@ -220,6 +243,8 @@ def _transcribe_wav(
             cursor_start = frames_read / config.sample_rate
             frames_read += block_frames
             cursor_end = frames_read / config.sample_rate
+            if config.vad == "silero" and not block_overlaps_speech(cursor_start, cursor_end, speech_windows):
+                continue
             _accept_block(
                 recognizer,
                 block,
@@ -229,6 +254,7 @@ def _transcribe_wav(
                 model_label=model_label,
                 segments=segments,
                 partials=partials,
+                use_word_timestamps=config.vad != "silero",
             )
         return frames_read / config.sample_rate
 

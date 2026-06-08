@@ -34,6 +34,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from meeting_agent.live_transcription import LiveSessionReport, write_live_artifacts  # noqa: E402
+from meeting_agent.live_transcription.vad import SileroVadConfig  # noqa: E402
 from meeting_agent.live_transcription.vosk_backend import VoskBackendError, VoskLiveConfig, transcribe_vosk_live  # noqa: E402
 
 
@@ -175,6 +176,13 @@ def run(args: argparse.Namespace) -> int:
                     duration_sec=args.duration_sec,
                     input_wav=input_wav,
                     save_partials=not args.no_partials,
+                    vad=args.vad,
+                    silero_vad=SileroVadConfig(
+                        threshold=args.vad_threshold,
+                        min_speech_ms=args.vad_min_speech_ms,
+                        min_silence_ms=args.vad_min_silence_ms,
+                        speech_pad_ms=args.vad_speech_pad_ms,
+                    ),
                 )
             )
         except VoskBackendError as exc:
@@ -235,6 +243,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--duration-sec", type=float, default=None, help="Limit live capture or WAV simulation duration.")
     parser.add_argument("--sample-rate", type=int, default=16_000)
     parser.add_argument("--block-ms", type=int, default=300)
+    parser.add_argument("--vad", default="none", choices=["none", "silero"], help="Optional VAD preprocessing mode.")
+    parser.add_argument("--vad-threshold", type=float, default=0.5, help="Silero VAD speech threshold.")
+    parser.add_argument("--vad-min-speech-ms", type=int, default=250)
+    parser.add_argument("--vad-min-silence-ms", type=int, default=100)
+    parser.add_argument("--vad-speech-pad-ms", type=int, default=100)
     parser.add_argument("--no-partials", action="store_true", help="Do not write live partial hypotheses.")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--dry-run", action="store_true")

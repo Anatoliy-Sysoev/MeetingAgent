@@ -223,6 +223,7 @@ Deterministic smoke from a prepared mono 16 kHz WAV:
   --model-path models\vosk\vosk-model-small-ru-0.22 `
   --input-wav "<meeting-dir>\source\audio_16k_mono.wav" `
   --source MIX `
+  --vad silero `
   --duration-sec 30 `
   --force
 ```

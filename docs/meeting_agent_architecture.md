@@ -144,6 +144,7 @@ GigaAM не заменяет основной ASR-контракт до срав
 
 ```text
 Vosk
+optional Silero VAD для file-smoke/preprocessing
 ```
 
 Назначение:
@@ -167,6 +168,8 @@ transcript/live/live_report.json
 Ограничение: live transcript не считается финальным источником истины для протокола. После встречи нужно запускать offline ASR через `scripts/22_transcribe_meeting.py` или импортировать готовые canonical segments.
 
 T-one рассматривается как будущий экспериментальный backend для сравнительного прогона. Основной риск T-one - телефонная специализация модели; на широкополосных встречах качество нужно подтверждать отдельно.
+
+Silero VAD является общим preprocessing-кандидатом для Vosk/T-one/future backends. В текущей реализации он включается флагом `--vad silero` для `--input-wav`; streaming VAD для микрофона и loopback остается отдельным этапом.
 
 ## Diarization
 

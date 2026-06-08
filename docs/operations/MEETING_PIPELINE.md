@@ -205,6 +205,7 @@ Smoke по готовому `source/audio_16k_mono.wav`:
   --model-path models\vosk\vosk-model-small-ru-0.22 `
   --input-wav meetings\YYYY-MM-DD__slug\source\audio_16k_mono.wav `
   --source MIX `
+  --vad silero `
   --duration-sec 30 `
   --force
 ```
@@ -227,6 +228,24 @@ transcript/live/live_report.json
 - live draft artifacts автоматически добавляются в `rag.no_index_artifacts`;
 - canonical offline transcript остается в `transcript/segments.jsonl`;
 - для финального протокола после live-сессии нужно сделать offline ASR/import через `scripts/22_transcribe_meeting.py`.
+
+VAD modes:
+
+```text
+--vad none      baseline без VAD
+--vad silero    optional Silero VAD для --input-wav smoke/preprocessing
+```
+
+Параметры Silero:
+
+```powershell
+--vad-threshold 0.5 `
+--vad-min-speech-ms 250 `
+--vad-min-silence-ms 100 `
+--vad-speech-pad-ms 100
+```
+
+Ограничение текущего шага: `--vad silero` пока поддержан только вместе с `--input-wav`. Streaming VAD для микрофона и system-loopback нужно реализовывать отдельно, чтобы не сломать таймкоды.
 
 ### 5. Optional Speaker Diarization
 
