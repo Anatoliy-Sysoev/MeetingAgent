@@ -4,6 +4,11 @@
 
 ## Сейчас
 
+- Live-транскрибация начата: есть optional Vosk backend, `scripts/33_live_transcribe_meeting.py`, schema support для `live_*` artifacts и unit tests без реального ASR.
+- Скачать Vosk RU модель в ignored `models/vosk/` и выполнить локальный smoke:
+  `scripts/33_live_transcribe_meeting.py --meeting-dir <meeting> --engine vosk --model-path models/vosk/vosk-model-small-ru-0.22 --input-wav <meeting>\source\audio_16k_mono.wav --source MIX --duration-sec 30 --force`.
+- После file-smoke проверить microphone capture (`--source MIC`) и отдельно определить Windows loopback/system-audio путь для `SYS`.
+- Провести сравнительный live-ASR эксперимент Vosk vs T-one на 2-3 реальных русскоязычных встречах; не делать T-one default без проверки качества на широкополосном meeting audio.
 - Meeting smoke в Docker доведен до local indexed state: transcript import, speaker merge, chunks, enrichment, meeting chunk/artifact export и `31_meeting_search.py` прошли на локальной private встрече.
 - Перезапустить Ollama через `.\scripts\start_ollama_local.ps1 -Restart`, чтобы активный server использовал canonical `C:\ollama-models`.
 - Проверить `ollama list`, `ollama show qwen3.5:4b`, `ollama show bge-m3` и `/api/tags` из Docker.
@@ -48,6 +53,8 @@
 ## Product Backlog
 
 - UI для запуска транскрибации локального видео.
+- Live transcription UI/API: старт/стоп live session, просмотр partials/final segments, safe handoff в offline transcript pipeline.
+- Silero VAD для live endpointing/noise handling после базовой проверки Vosk/T-one.
 - Speaker diarization: проверить `sherpa-onnx` на 2-3 реальных встречах, подобрать `num_speakers`/`cluster_threshold`/`num_threads`, затем решить нужен ли optional pyannote backend.
 - Для diarization добавить CLI/config параметр `--num-threads`; текущий CPU runtime чувствителен к числу потоков.
 - Зафиксировать ограничение maximum-overlap: длинный ASR-сегмент с двумя говорящими получает одного speaker; будущий слой - re-segmentation или word-level timestamps.

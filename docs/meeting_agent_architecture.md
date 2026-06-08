@@ -138,6 +138,36 @@ docs/operations/GIGAAM_TRANSCRIPTION.md
 
 GigaAM не заменяет основной ASR-контракт до сравнения качества на 2-3 русскоязычных встречах.
 
+## Live ASR
+
+Первый live MVP:
+
+```text
+Vosk
+```
+
+Назначение:
+
+```text
+черновой live transcript;
+partial hypotheses;
+таймкоды;
+source labels MIC/SYS/MIX.
+```
+
+Live outputs пишутся отдельно:
+
+```text
+transcript/live/live_segments.jsonl
+transcript/live/live_partials.jsonl
+transcript/live/live_transcript.txt
+transcript/live/live_report.json
+```
+
+Ограничение: live transcript не считается финальным источником истины для протокола. После встречи нужно запускать offline ASR через `scripts/22_transcribe_meeting.py` или импортировать готовые canonical segments.
+
+T-one рассматривается как будущий экспериментальный backend для сравнительного прогона. Основной риск T-one - телефонная специализация модели; на широкополосных встречах качество нужно подтверждать отдельно.
+
 ## Diarization
 
 Текущий default:

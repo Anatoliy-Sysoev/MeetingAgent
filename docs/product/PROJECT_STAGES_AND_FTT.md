@@ -68,7 +68,7 @@ MeetingAgent должен уметь относить документы, вст
 | `MA-02` | Качество поиска | Проверить RAG на реальных вопросах, убрать мусор, зафиксировать метрики. | `FTT-MA-07` | Работает: realistic eval pipeline, manual review, approved regression set и targeted bucket eval; продолжается улучшение по buckets |
 | `MA-03` | Карточка встречи | Описать единый формат папки встречи и артефактов. | `FTT-MA-08`, `FTT-MA-09`, `FTT-MA-20` | Контракт создан: `meeting.json`, JSON-схема, markdown template; MVP roadmap обновлен 2026-05-26 |
 | `MA-04` | Offline-транскрибация записи | Обрабатывать готовые видео/аудио из watched folder. | `FTT-MA-08`, `FTT-MA-11` | Базовый слой готов: `20_ingest_meeting.py`, `21_extract_audio.py`, `22_transcribe_meeting.py`, optional `23_diarize_meeting.py`, speaker transcript, meeting chunks, enrichment export, CLI одной встречи, GigaAM/from-segments import; watcher/queue запланированы |
-| `MA-05` | Live-транскрибация встречи | Писать черновой транскрипт в процессе встречи. | `FTT-MA-10`, `FTT-MA-11` | Запланировано, есть эксперимент WhisperDesk |
+| `MA-05` | Live-транскрибация встречи | Писать черновой транскрипт в процессе встречи. | `FTT-MA-10`, `FTT-MA-11` | Начато: optional Vosk backend, `scripts/33_live_transcribe_meeting.py`, live artifacts в `transcript/live/`; microphone/system loopback и T-one evaluation запланированы |
 | `MA-06` | Memo, протокол, задачи | Генерировать структурированные итоги встречи. | `FTT-MA-12`, `FTT-MA-20` | Скаффолд: prompt-пакет, JSON-схемы, extractive CLI; production-генератор не закрыт |
 | `MA-07` | Классификация и маршрутизация | Определять этап проекта, ФТТ, документ и задачу. | `FTT-MA-13`, `FTT-MA-15` | Начато: heuristic meeting enrichment и export meeting_chunk в RAG-compatible JSONL; project classifier запланирован |
 | `MA-08` | Генерация документов | Собирать черновики документов на основе источников. | `FTT-MA-14`, `FTT-MA-20` | Запланировано |
@@ -206,24 +206,24 @@ meetings/
 
 **CPU-first профиль для MVP:**
 
-- faster-whisper;
-- модель `small`;
-- compute `int8`;
-- язык `ru`;
-- chunk 5 секунд;
-- beam 3;
-- VAD выключен по умолчанию для более предсказуемых live-таймкодов.
+- Vosk как первый streaming backend;
+- модель `vosk-model-small-ru-0.22` или более качественная русская Vosk-модель;
+- sample rate 16000 Hz;
+- block 300 ms;
+- `MIC`/`SYS`/`MIX` как source labels;
+- T-one как кандидат для отдельной дуэли на реальных встречах.
 
 **Выходы live-сессии:**
 
-- `live_transcript.txt` - читаемый черновик;
-- `live_segments.jsonl` - сегменты с `source`, `start`, `end`, `text`, timestamp;
-- `live_subtitles.srt` - опционально, экспериментально;
-- `session.json` - параметры сессии и источники аудио.
+- `transcript/live/live_transcript.txt` - читаемый черновик;
+- `transcript/live/live_segments.jsonl` - finalized live-сегменты с `source`, `start`, `end`, `text`, timestamp;
+- `transcript/live/live_partials.jsonl` - partial hypotheses, не индексировать;
+- `transcript/live/live_subtitles.srt` и `transcript/live/live_subtitles.vtt` - субтитры;
+- `transcript/live/live_report.json` - параметры сессии, backend и счетчики.
 
 **Критерий готовности:** можно нажать старт, получить обновляемый transcript во время встречи, остановить сессию и передать ее в обычный pipeline memo/protocol/classification.
 
-**Статус:** запланировано, есть экспериментальный референс WhisperDesk.
+**Статус:** начато. Есть `scripts/33_live_transcribe_meeting.py` с Vosk backend и file-smoke режимом через `--input-wav`; microphone/system loopback UX и T-one comparison остаются в backlog.
 
 ### `FTT-MA-11` Источники Аудио И Таймкоды
 
@@ -233,7 +233,7 @@ meetings/
 
 **Критерий готовности:** каждый сегмент transcript имеет `source`, `start`, `end`, `text`; для live MVP source должен различать минимум `MIC`, `SYS` и `MIX`.
 
-**Статус:** частично готово для offline-записей: `scripts/21_extract_audio.py` создает `source/audio_16k_mono.wav` в формате mono 16000 Hz, добавляет его в `source.media_files` и помечает как no-index artifact. `scripts/22_transcribe_meeting.py` пишет transcript с таймкодами. `scripts/23_diarize_meeting.py` добавляет optional `sherpa-onnx` speaker intervals, а `scripts/24_merge_transcript_speakers.py` назначает `SPEAKER_XX` по maximum-overlap или fallback `SPEAKER_UNKNOWN` и сохраняет `source=MIX`. `scripts/26_chunk_meeting.py` сохраняет timestamps/speakers/sources в meeting chunks. Live-источники `MIC/SYS/MIX` пока запланированы; `pyannote` оставлен как optional fallback, а не default.
+**Статус:** частично готово для offline-записей и live draft: `scripts/21_extract_audio.py` создает `source/audio_16k_mono.wav` в формате mono 16000 Hz, добавляет его в `source.media_files` и помечает как no-index artifact. `scripts/22_transcribe_meeting.py` пишет transcript с таймкодами. `scripts/23_diarize_meeting.py` добавляет optional `sherpa-onnx` speaker intervals, а `scripts/24_merge_transcript_speakers.py` назначает `SPEAKER_XX` по maximum-overlap или fallback `SPEAKER_UNKNOWN` и сохраняет `source=MIX`. `scripts/26_chunk_meeting.py` сохраняет timestamps/speakers/sources в meeting chunks. `scripts/33_live_transcribe_meeting.py` пишет live segments с `source=MIC/SYS/MIX`; полноценный system-loopback capture еще запланирован. `pyannote` оставлен как optional fallback, а не default.
 
 ### `FTT-MA-12` Memo, Протокол, Решения, Риски И Задачи
 

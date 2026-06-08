@@ -146,3 +146,21 @@
 - перед meeting analysis, API или bot smoke нужно проверять `ollama list` и `/api/tags`;
 - дубли `C:\Users\<user>\.ollama\models` и `C:\ollama_models` не удаляются автоматически;
 - очистку дублей делать только после ручного подтверждения, что `C:\ollama-models` используется активным `ollama serve`.
+
+## 2026-06-08 - Vosk Как Первый Live ASR Backend
+
+Решение: для первого локального live-transcription MVP использовать optional Vosk backend через `scripts/33_live_transcribe_meeting.py`.
+
+Почему:
+
+- Vosk поддерживает streaming/partial ASR и локальный CPU-first запуск без cloud API;
+- backend подходит для чернового live transcript с таймкодами и источником `MIC`/`SYS`/`MIX`;
+- зависимости вынесены в `requirements-live.txt`, чтобы не утяжелять основной offline/RAG runtime;
+- final transcript для протоколов и RAG остается offline-проходом через `scripts/22_transcribe_meeting.py` (`large-v3-turbo`, GigaAM или импорт готовых segments).
+
+Следствия:
+
+- live outputs пишутся отдельно в `transcript/live/` и не перезаписывают canonical `transcript/segments.jsonl`;
+- `live_partials.jsonl` является черновым runtime artifact и не должен индексироваться как источник истины;
+- T-one остается кандидатом для отдельного сравнительного прогона на 2-3 реальных встречах, потому что модель ориентирована на телефонный домен;
+- Silero VAD остается будущим слоем для устойчивого endpointing/noise handling, а не обязательной зависимостью первого live MVP.

@@ -187,6 +187,46 @@ Speaker diarization is optional and uses an isolated `sherpa-onnx` path by defau
 
 Runtime meeting outputs may contain private data and should not be committed.
 
+### Live Transcription
+
+Live transcription is an optional draft workflow. The first supported backend is local Vosk; it writes draft live artifacts into `transcript/live/` and does not replace the canonical offline transcript from `scripts/22_transcribe_meeting.py`.
+
+Install optional live dependencies:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-live.txt
+```
+
+Keep Vosk models under ignored `models/`, for example:
+
+```text
+models/vosk/vosk-model-small-ru-0.22/
+```
+
+Dry-run:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --meeting-dir "<meeting-dir>" `
+  --engine vosk `
+  --model-path models\vosk\vosk-model-small-ru-0.22 `
+  --source MIC `
+  --dry-run
+```
+
+Deterministic smoke from a prepared mono 16 kHz WAV:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --meeting-dir "<meeting-dir>" `
+  --engine vosk `
+  --model-path models\vosk\vosk-model-small-ru-0.22 `
+  --input-wav "<meeting-dir>\source\audio_16k_mono.wav" `
+  --source MIX `
+  --duration-sec 30 `
+  --force
+```
+
 ## Docker
 
 The Docker setup packages the local API, optional Telegram adapter, and an optional diarization/meeting-processing profile. GigaAM is intentionally not included in the main image.

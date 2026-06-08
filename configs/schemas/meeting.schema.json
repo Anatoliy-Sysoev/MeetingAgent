@@ -150,6 +150,24 @@
         "transcription_report": {
           "$ref": "#/$defs/relative_path"
         },
+        "live_segments": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_partials": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_transcript": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_srt": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_vtt": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_report": {
+          "$ref": "#/$defs/relative_path"
+        },
         "diarization": {
           "$ref": "#/$defs/relative_path"
         },

@@ -169,7 +169,66 @@ mono
 
 `scripts/06_transcribe_meeting.py` остается legacy compatibility entrypoint и перенаправляет старый CLI на `scripts/22_transcribe_meeting.py --engine faster-whisper`.
 
-### 4. Optional Speaker Diarization
+### 4. Live Draft Transcription
+
+Live-транскрибация отделена от offline ASR. Ее задача - черновой transcript во время разговора, а не финальный transcript для протокола.
+
+Optional dependencies:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-live.txt
+```
+
+Vosk-модель хранится локально в ignored `models/`, например:
+
+```text
+models/vosk/vosk-model-small-ru-0.22/
+```
+
+Проверка без запуска ASR:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug `
+  --engine vosk `
+  --model-path models\vosk\vosk-model-small-ru-0.22 `
+  --source MIC `
+  --dry-run
+```
+
+Smoke по готовому `source/audio_16k_mono.wav`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug `
+  --engine vosk `
+  --model-path models\vosk\vosk-model-small-ru-0.22 `
+  --input-wav meetings\YYYY-MM-DD__slug\source\audio_16k_mono.wav `
+  --source MIX `
+  --duration-sec 30 `
+  --force
+```
+
+Выходы:
+
+```text
+transcript/live/live_segments.jsonl
+transcript/live/live_partials.jsonl
+transcript/live/live_transcript.txt
+transcript/live/live_subtitles.srt
+transcript/live/live_subtitles.vtt
+transcript/live/live_report.json
+```
+
+Правила:
+
+- `live_segments.jsonl` - черновой finalized live transcript;
+- `live_partials.jsonl` - промежуточные hypotheses, не индексировать;
+- live draft artifacts автоматически добавляются в `rag.no_index_artifacts`;
+- canonical offline transcript остается в `transcript/segments.jsonl`;
+- для финального протокола после live-сессии нужно сделать offline ASR/import через `scripts/22_transcribe_meeting.py`.
+
+### 5. Optional Speaker Diarization
 
 Диаризация отделяет говорящих, но не идентифицирует реальные имена людей. Базовый контракт использует анонимные метки:
 
@@ -242,7 +301,7 @@ docker compose --profile diarization run --rm diarization `
 
 Если встреча длинная, сначала убедиться, что `source/audio_16k_mono.wav` уже создан. Для качества нужно проверить результат глазами: `sherpa-onnx` разделяет говорящих на `SPEAKER_XX`, но не определяет реальные имена.
 
-### 5. Speaker Transcript
+### 6. Speaker Transcript
 
 После ASR можно создать speaker transcript. Если `transcript/diarization.jsonl` отсутствует, все реплики получают `SPEAKER_UNKNOWN`. Если файл есть, speaker выбирается по maximum-overlap с порогом `--min-overlap-ratio`:
 
