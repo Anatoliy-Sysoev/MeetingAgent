@@ -56,12 +56,16 @@ MeetingAgent публикуется как local-first OSS проект для �
 - MIC/SYS/MIX теперь могут сосуществовать в одной карточке без перетирания результатов друг друга;
 - Ctrl+C внутри live backend считается graceful stop: накопленные segments/partials финализируются и записываются;
 - live draft completion оставляет `processing_status=processing`, чтобы финальный offline ASR через `scripts/22_transcribe_meeting.py` мог стартовать без `--force`;
+- microphone capture loop использует `audio_queue.get(timeout=0.5)`, а `live_report.<SOURCE>.json` получает `input_status_events` и `queue_timeouts` для диагностики overflow/dropout;
+- known limitation для `--vad silero`: таймкоды не компрессируются, но finalized segment может получить хвостовой fallback span блока завершения фразы; smoke должен проверять попадание в speech window, а не равенство span с `--vad none`;
 - live draft artifacts автоматически добавляются в `rag.no_index_artifacts`, чтобы не попасть в RAG до offline/final handoff;
 - `configs/schemas/meeting.schema.json` теперь разрешает `live_*` artifact paths;
 - optional зависимости Vosk, sounddevice и Silero VAD вынесены в `requirements-live.txt` и `pyproject.toml [project.optional-dependencies].live`;
 - `README.md`, `docs/decisions.md`, `docs/operations/MEETING_PIPELINE.md`, `docs/meeting_agent_architecture.md` и `docs/product/PROJECT_STAGES_AND_FTT.md` обновлены: Vosk выбран первым live backend, T-one оставлен как будущий сравнительный эксперимент на реальных встречах, final transcript остается offline-проходом через `scripts/22_transcribe_meeting.py`.
 
-Проверки: `./.venv/Scripts/python.exe -m pytest tests/unit/test_live_transcription_contract.py tests/unit/test_transcription_contract.py -q` - 14 passed; `py_compile` для `scripts/22_transcribe_meeting.py`, `scripts/33_live_transcribe_meeting.py` и `compileall` для `src/meeting_agent/live_transcription` - ok.
+Проверки live-слоя: `./.venv/Scripts/python.exe -m pytest tests/unit/test_live_transcription_contract.py tests/unit/test_transcription_contract.py -q` - 15 passed; `py_compile` для `scripts/22_transcribe_meeting.py`, `scripts/33_live_transcribe_meeting.py` и `compileall` для `src/meeting_agent/live_transcription` - ok.
+
+Текущий внешний test gap после подтягивания `origin/main`: `./.venv/Scripts/python.exe -m pytest tests/asu_june_bot -q` падает 4 тестами в `tests/asu_june_bot/search/test_search_service.py`, потому что в ответе нет `diagnostics.search_service`. Это не связано с live-транскрибацией, но требует отдельного исправления search diagnostics contract.
 
 Локальный meeting smoke проверил Docker-путь на реальной записи, но runtime-артефакты и идентификаторы встречи остаются только локально:
 

@@ -173,6 +173,8 @@ T-one рассматривается как будущий эксперимен�
 
 Silero VAD является общим preprocessing-кандидатом для Vosk/T-one/future backends. В текущей реализации он включается флагом `--vad silero` для `--input-wav`; streaming VAD для микрофона и loopback остается отдельным этапом. Ctrl+C для live backend трактуется как graceful stop с записью накопленных артефактов.
 
+Known limitation: `--vad silero` сохраняет реальное время файла, но finalized segment может получить хвостовой fallback span текущего блока, а не полный word-level span реплики. Правильное будущее решение - remap word timestamps из поданного VAD-аудио в реальное время или привязка сегмента к speech window.
+
 ## Diarization
 
 Текущий default:

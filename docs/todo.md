@@ -6,9 +6,11 @@
 
 - Live-транскрибация начата: есть optional Vosk backend, `scripts/33_live_transcribe_meeting.py`, schema support для `live_*` artifacts, optional Silero VAD для `--input-wav` и unit tests без реального ASR.
 - P0 live cleanup закрыт: Ctrl+C считается graceful stop, MIC/SYS/MIX пишутся в source-scoped files, live draft не блокирует финальный offline ASR статусом `transcribed`.
+- Исправить текущий regression gap в `tests/asu_june_bot/search/test_search_service.py`: восстановить `diagnostics.search_service.retrieval_called` в search response contract.
 - Скачать Vosk RU модель в ignored `models/vosk/` и выполнить локальный smoke:
   `scripts/33_live_transcribe_meeting.py --meeting-dir <meeting> --engine vosk --model-path models/vosk/vosk-model-small-ru-0.22 --input-wav <meeting>\source\audio_16k_mono.wav --source MIX --duration-sec 30 --force`.
 - Повторить тот же file-smoke с `--vad silero`, сравнить число сегментов, latency и пропуски коротких реплик.
+- Для `--vad silero` smoke проверять попадание сегментов в speech windows, а не равенство таймкодного span с `--vad none`; полный remap word timestamps -> real time оставить для streaming-VAD этапа.
 - После file-smoke проверить microphone capture (`--source MIC`) и отдельно определить Windows loopback/system-audio путь для `SYS`.
 - Для `SYS` реализовать или явно выбрать audio capture backend с ресэмплингом 44.1/48 кГц stereo -> 16 кГц mono.
 - Провести сравнительный live-ASR эксперимент Vosk vs T-one на 2-3 реальных русскоязычных встречах; не делать T-one default без проверки качества на широкополосном meeting audio.
