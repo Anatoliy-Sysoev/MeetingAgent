@@ -89,6 +89,51 @@ def test_integration_ftt_anchor_intents_cover_q040_q044() -> None:
         assert anchor in route["anchors"]
 
 
+def test_heldout_object_identification_query_injects_composite_evidence_chunk() -> None:
+    service = SearchService(config={"paths": {}})
+    raw = [result("format", "Формат сообщений: JSON/XML.", score=20.0)]
+    rows = [
+        row("format", "Формат сообщений: JSON/XML."),
+        row(
+            "object-id",
+            "Идентификация передаваемых объектов выполняется с использованием служебного тега в заголовке вызова.",
+        ),
+    ]
+
+    updated, diagnostics = service._inject_integration_ftt_required_anchor_results(
+        "Согласно ФТТ: Как идентифицируются передаваемые объекты в системном взаимодействии по ФТТ?",
+        raw,
+        rows,
+    )
+
+    assert diagnostics["applied"] is True
+    assert diagnostics["intent"] == "object_identification"
+    assert diagnostics["injected_chunk_id"] == "object-id"
+    assert updated[0].metadata["chunk_id"] == "object-id"
+    assert "заголовке вызова" in updated[0].text
+
+
+def test_table_row_cells_participate_in_ftt_anchor_selection() -> None:
+    service = SearchService(config={"paths": {}})
+    table_row = row("object-id-table", "")
+    table_row["block_type"] = "table_row"
+    table_row["cells"] = {
+        "Требование": "Идентификация передаваемых объектов",
+        "Значение": "тег в заголовке вызова",
+    }
+    table_row["headers"] = ["Требование", "Значение"]
+
+    updated, diagnostics = service._inject_integration_ftt_required_anchor_results(
+        "Согласно ФТТ: Как идентифицируются передаваемые объекты?",
+        [],
+        [table_row],
+    )
+
+    assert diagnostics["applied"] is True
+    assert diagnostics["injected_chunk_id"] == "object-id-table"
+    assert updated[0].metadata["cells"]["Значение"] == "тег в заголовке вызова"
+
+
 def test_non_ftt_integration_query_does_not_inject_anchor() -> None:
     service = SearchService(config={"paths": {}})
 
