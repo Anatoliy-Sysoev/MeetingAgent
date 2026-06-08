@@ -47,3 +47,27 @@ services:
     command: ["python", "scripts/asu_june_bot_telegram.py"]
     profiles:
       - bot
+
+  diarization:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        INSTALL_DIARIZATION: "true"
+    image: meetingagent:diarization
+    container_name: meetingagent-diarization
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MEETING_AGENT_CONFIG_PATH: /app/config.docker.yaml
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./meetings:/app/meetings
+      - ./models:/app/models
+      - ./config.docker.yaml:/app/config.docker.yaml:ro
+      - "${MEETINGAGENT_RECORDINGS_DIR:-./watched_folder}:/host/recordings:ro"
+    profiles:
+      - diarization
+    command: ["python", "scripts/23_diarize_meeting.py", "--help"]

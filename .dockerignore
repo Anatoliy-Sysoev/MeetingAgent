@@ -15,6 +15,7 @@ logs/
 meetings/
 vector_db/
 watched_folder/
+models/
 
 _calibration/
 .claude/
