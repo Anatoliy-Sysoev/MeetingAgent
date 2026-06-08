@@ -39,6 +39,14 @@ MeetingAgent публикуется как local-first OSS проект для �
 
 ## Последнее Изменение
 
+Добавлены public-safe quality артефакты для следующего NTK integration eval:
+
+- `docs/quality/heldout_integration_ftt_questions.jsonl` содержит синтетический held-out набор для проверки protocol / message_format / message_size / auth_type / object_identification без публикации runtime outputs;
+- `scripts/diagnostics/grade_anchor_audit.py` преобразует `audit_answer_gate.py` JSONL в pivot-ready review JSONL с `review_verdict` и `review_issue`;
+- `scripts/diagnostics/pivot_manual_review.py` теперь строит сводки не только по `review_verdict`, но и по `review_issue`, чтобы следующий bucket выбирать по типу дефекта;
+- Q040 live закрыт: deterministic FTT integration answer возвращает `HTTPS` по найденному source anchor без вызова LLM (`llm_called=false`, `pre_llm_deterministic_answer=true`, `ftt_integration_deterministic_answer=true`);
+- локальные audit/manual/pivot outputs остаются в ignored `data/diagnostics/`.
+
 Добавлен первый public-safe слой live-транскрибации:
 
 - `src/meeting_agent/live_transcription/` содержит контракт `LiveSegment`/`LiveSessionReport`, exporters и optional Vosk backend;
@@ -53,7 +61,7 @@ MeetingAgent публикуется как local-first OSS проект для �
 - optional зависимости Vosk, sounddevice и Silero VAD вынесены в `requirements-live.txt` и `pyproject.toml [project.optional-dependencies].live`;
 - `README.md`, `docs/decisions.md`, `docs/operations/MEETING_PIPELINE.md`, `docs/meeting_agent_architecture.md` и `docs/product/PROJECT_STAGES_AND_FTT.md` обновлены: Vosk выбран первым live backend, T-one оставлен как будущий сравнительный эксперимент на реальных встречах, final transcript остается offline-проходом через `scripts/22_transcribe_meeting.py`.
 
-Проверки: `.\.venv\Scripts\python.exe -m pytest tests\unit\test_live_transcription_contract.py tests\unit\test_transcription_contract.py -q` - 14 passed; `py_compile` для `scripts/22_transcribe_meeting.py`, `scripts/33_live_transcribe_meeting.py` и `compileall` для `src/meeting_agent/live_transcription` - ok.
+Проверки: `./.venv/Scripts/python.exe -m pytest tests/unit/test_live_transcription_contract.py tests/unit/test_transcription_contract.py -q` - 14 passed; `py_compile` для `scripts/22_transcribe_meeting.py`, `scripts/33_live_transcribe_meeting.py` и `compileall` для `src/meeting_agent/live_transcription` - ok.
 
 Локальный meeting smoke проверил Docker-путь на реальной записи, но runtime-артефакты и идентификаторы встречи остаются только локально:
 
@@ -102,7 +110,7 @@ MeetingAgent публикуется как local-first OSS проект для �
 Добавлены публично безопасные диагностические утилиты для локальных quality runs:
 
 - `scripts/diagnostics/check_index_coverage.py` проверяет, покрывает ли JSONL индекс ожидаемые gold anchors;
-- `scripts/diagnostics/pivot_manual_review.py` строит status/verdict pivots по локальному manual-review JSONL;
+- `scripts/diagnostics/pivot_manual_review.py` строит status/verdict/issue pivots по локальному manual-review JSONL;
 - приватные `gold.jsonl`, coverage reports и pivots остаются в ignored `data/diagnostics/`.
 
 Добавлена runtime-семантика заголовков ФТТ Table 8 в `ContextBuilder`:
@@ -127,6 +135,14 @@ MeetingAgent публикуется как local-first OSS проект для �
 - targeted проверка Q040-Q044 на локальном qwen3.5:4b: все 5 ответили, required anchors есть в corpus/context/prompt, `no_answer=0`, `validation_failed=0`;
 - Q043 подтверждает `Basic-аутентификация` как ФТТ-источник без подмены Blitz/OIDC как общего типа аутентификации.
 
+Добавлен deterministic answer layer для стабильных ФТТ-интеграционных параметров:
+
+- `src/asu_june_bot/chat/ftt_integration_answer.py` формирует ответы по protocol, message format, message size, auth type и object identification только при наличии соответствующего source anchor в выбранных источниках;
+- `ChatService` вызывает этот слой до LLM и как fallback при no-answer marker / validation failure;
+- `PromptBuilder` сохраняет поле `document` в `ChatSource.path`, чтобы source-grounded builder корректно распознавал ФТТ-источник;
+- targeted tests: `tests/asu_june_bot/chat/test_ftt_integration_answer.py` и связанные chat/guard tests прошли локально (`31 passed`);
+- live Q040 после корректного restart API на `corpus_key=ntk` отвечает `HTTPS` без вызова LLM.
+
 Штатная chat-модель переведена на `qwen3.5:4b`:
 
 - обновлены runtime fallbacks для CLI/API/Telegram и локальный ignored `config.yaml`;
@@ -148,8 +164,8 @@ MeetingAgent публикуется как local-first OSS проект для �
 - `/health` подтверждает `corpus_key=ntk` и пути `data/asu_june_bot_ntk/*`;
 - локальный Ollama runtime был переведен на ASCII model store, потому что `bge-m3` не загружался из Unicode-пути профиля Windows;
 - Q030/Q031 live отвечают `Этап 3 (ФТ3)` с `finish_reason=stop`;
+- Q040 live отвечает `HTTPS` по source anchor без вызова LLM;
 - Q041-Q044 live отвечают требуемыми ФТТ anchors с `finish_reason=stop`;
-- Q040 live остается false `no_answer`: HTTPS anchor присутствует в доступном контексте, но модель всё равно отвечает, что данных недостаточно;
 - локальный JSONL baseline сохранен в ignored `data/diagnostics/`.
 
 Закрыт targeted guard bucket для project testing/documentation queries:
