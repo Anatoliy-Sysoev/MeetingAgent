@@ -331,7 +331,7 @@ def test_vosk_backend_keyboard_interrupt_returns_partial_result(tmp_path: Path, 
         def FinalResult(self) -> str:
             return json.dumps({"text": "финальная фраза"})
 
-    def fake_transcribe_microphone(config, _recognizer, _model_label, segments, partials):
+    def fake_transcribe_microphone(config, _recognizer, _model_label, segments, partials, _runtime_metrics):
         segments.append(
             LiveSegment(
                 segment_id="live-seg-000000",
@@ -355,3 +355,37 @@ def test_vosk_backend_keyboard_interrupt_returns_partial_result(tmp_path: Path, 
     assert result.metrics["interrupted"] is True
     assert [segment.text for segment in result.segments] == ["накопленная фраза", "финальная фраза"]
     assert result.partials == [{"text": "накоп", "source": "MIC", "is_final": False}]
+
+
+def test_vosk_backend_reports_microphone_runtime_metrics(tmp_path: Path, monkeypatch) -> None:
+    import meeting_agent.live_transcription.vosk_backend as backend
+
+    model_dir = tmp_path / "vosk-model-small-ru-0.22"
+    model_dir.mkdir()
+
+    class FakeModel:
+        def __init__(self, _path: str) -> None:
+            pass
+
+    class FakeRecognizer:
+        def __init__(self, _model, _sample_rate: float) -> None:
+            pass
+
+        def SetWords(self, _enabled: bool) -> None:
+            pass
+
+        def FinalResult(self) -> str:
+            return json.dumps({"text": ""})
+
+    def fake_transcribe_microphone(_config, _recognizer, _model_label, _segments, _partials, runtime_metrics):
+        runtime_metrics["input_status_events"] = 2
+        runtime_metrics["queue_timeouts"] = 3
+        return 0.0
+
+    monkeypatch.setattr(backend, "_load_vosk", lambda: (FakeRecognizer, FakeModel))
+    monkeypatch.setattr(backend, "_transcribe_microphone", fake_transcribe_microphone)
+
+    result = transcribe_vosk_live(VoskLiveConfig(model_path=model_dir, source="MIC"))
+
+    assert result.metrics["input_status_events"] == 2
+    assert result.metrics["queue_timeouts"] == 3

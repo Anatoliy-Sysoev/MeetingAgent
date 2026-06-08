@@ -163,12 +163,13 @@ def transcribe_vosk_live(config: VoskLiveConfig) -> VoskLiveResult:
     started = time.time()
     audio_seconds = 0.0
     interrupted = False
+    runtime_metrics: dict[str, Any] = {}
 
     try:
         if config.input_wav is not None:
             audio_seconds = _transcribe_wav(config, recognizer, model_label, segments, partials)
         else:
-            audio_seconds = _transcribe_microphone(config, recognizer, model_label, segments, partials)
+            audio_seconds = _transcribe_microphone(config, recognizer, model_label, segments, partials, runtime_metrics)
     except KeyboardInterrupt:
         interrupted = True
 
@@ -194,6 +195,7 @@ def transcribe_vosk_live(config: VoskLiveConfig) -> VoskLiveResult:
             "input_wav": str(config.input_wav) if config.input_wav else None,
             "vad": config.vad,
             "interrupted": interrupted,
+            **runtime_metrics,
         },
     )
 
@@ -270,6 +272,7 @@ def _transcribe_microphone(
     model_label: str,
     segments: list[LiveSegment],
     partials: list[dict[str, Any]],
+    runtime_metrics: dict[str, Any],
 ) -> float:
     try:
         import sounddevice as sd
@@ -283,10 +286,12 @@ def _transcribe_microphone(
     frames_per_block = max(1, int(config.sample_rate * config.block_ms / 1000))
     max_frames = int(config.sample_rate * config.duration_sec) if config.duration_sec is not None else None
     frames_read = 0
+    runtime_metrics["input_status_events"] = 0
+    runtime_metrics["queue_timeouts"] = 0
 
     def callback(indata, frames, _time_info, status) -> None:
         if status:
-            audio_queue.put(b"")
+            runtime_metrics["input_status_events"] += 1
         audio_queue.put(bytes(indata))
 
     with sd.RawInputStream(
@@ -299,7 +304,11 @@ def _transcribe_microphone(
         while True:
             if max_frames is not None and frames_read >= max_frames:
                 break
-            block = audio_queue.get()
+            try:
+                block = audio_queue.get(timeout=0.5)
+            except queue.Empty:
+                runtime_metrics["queue_timeouts"] += 1
+                continue
             if not block:
                 continue
             block_frames = len(block) // 2
@@ -316,6 +325,4 @@ def _transcribe_microphone(
                 segments=segments,
                 partials=partials,
             )
-            if config.duration_sec is None:
-                continue
     return frames_read / config.sample_rate
