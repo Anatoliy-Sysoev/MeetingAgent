@@ -189,7 +189,7 @@ Runtime meeting outputs may contain private data and should not be committed.
 
 ### Live Transcription
 
-Live transcription is an optional draft workflow. The first supported backend is local Vosk; it writes draft live artifacts into `transcript/live/` and does not replace the canonical offline transcript from `scripts/22_transcribe_meeting.py`.
+Live transcription is an optional draft workflow. The first supported backend is local Vosk; it writes source-scoped draft live artifacts into `transcript/live/` and does not replace the canonical offline transcript from `scripts/22_transcribe_meeting.py`.
 
 Install optional live dependencies:
 
@@ -227,6 +227,8 @@ Deterministic smoke from a prepared mono 16 kHz WAV:
   --duration-sec 30 `
   --force
 ```
+
+For live microphone sessions, `Ctrl+C` is treated as a graceful stop: accumulated segments are finalized and written. Live draft completion leaves `processing_status=processing`, so final offline ASR can still run afterwards.
 
 ## Docker
 

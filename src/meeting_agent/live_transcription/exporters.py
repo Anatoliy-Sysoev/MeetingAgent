@@ -38,36 +38,39 @@ def write_live_artifacts(
     segments: list[LiveSegment],
     partials: list[dict],
     report: LiveSessionReport,
+    *,
+    source: str | None = None,
 ) -> dict[str, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     canonical_segments = [_canonical(segment) for segment in segments]
     written: dict[str, Path] = {}
+    suffix = f".{source}" if source else ""
 
-    live_segments = output_dir / "live_segments.jsonl"
+    live_segments = output_dir / f"live_segments{suffix}.jsonl"
     with live_segments.open("w", encoding="utf-8", newline="\n") as fh:
         for segment in segments:
             fh.write(json.dumps(segment.to_dict(), ensure_ascii=False) + "\n")
     written["live_segments"] = live_segments
 
-    live_partials = output_dir / "live_partials.jsonl"
+    live_partials = output_dir / f"live_partials{suffix}.jsonl"
     with live_partials.open("w", encoding="utf-8", newline="\n") as fh:
         for partial in partials:
             fh.write(json.dumps(partial, ensure_ascii=False) + "\n")
     written["live_partials"] = live_partials
 
-    live_transcript = output_dir / "live_transcript.txt"
+    live_transcript = output_dir / f"live_transcript{suffix}.txt"
     live_transcript.write_text(build_live_text(segments), encoding="utf-8")
     written["live_transcript"] = live_transcript
 
-    live_srt = output_dir / "live_subtitles.srt"
+    live_srt = output_dir / f"live_subtitles{suffix}.srt"
     live_srt.write_text(build_srt_transcript(canonical_segments), encoding="utf-8")
     written["live_srt"] = live_srt
 
-    live_vtt = output_dir / "live_subtitles.vtt"
+    live_vtt = output_dir / f"live_subtitles{suffix}.vtt"
     live_vtt.write_text(build_vtt_transcript(canonical_segments), encoding="utf-8")
     written["live_vtt"] = live_vtt
 
-    live_report = output_dir / "live_report.json"
+    live_report = output_dir / f"live_report{suffix}.json"
     live_report.write_text(json.dumps(report.to_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     written["live_report"] = live_report
     return written

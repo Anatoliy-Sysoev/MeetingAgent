@@ -159,17 +159,19 @@ source labels MIC/SYS/MIX.
 Live outputs пишутся отдельно:
 
 ```text
-transcript/live/live_segments.jsonl
-transcript/live/live_partials.jsonl
-transcript/live/live_transcript.txt
-transcript/live/live_report.json
+transcript/live/live_segments.<SOURCE>.jsonl
+transcript/live/live_partials.<SOURCE>.jsonl
+transcript/live/live_transcript.<SOURCE>.txt
+transcript/live/live_report.<SOURCE>.json
 ```
 
-Ограничение: live transcript не считается финальным источником истины для протокола. После встречи нужно запускать offline ASR через `scripts/22_transcribe_meeting.py` или импортировать готовые canonical segments.
+`<SOURCE>` равен `MIC`, `SYS` или `MIX`, поэтому несколько дорожек могут сосуществовать в одной карточке встречи.
+
+Ограничение: live transcript не считается финальным источником истины для протокола. После встречи нужно запускать offline ASR через `scripts/22_transcribe_meeting.py` или импортировать готовые canonical segments. Поэтому live draft completion не ставит `processing_status=transcribed`; статус остается `processing`.
 
 T-one рассматривается как будущий экспериментальный backend для сравнительного прогона. Основной риск T-one - телефонная специализация модели; на широкополосных встречах качество нужно подтверждать отдельно.
 
-Silero VAD является общим preprocessing-кандидатом для Vosk/T-one/future backends. В текущей реализации он включается флагом `--vad silero` для `--input-wav`; streaming VAD для микрофона и loopback остается отдельным этапом.
+Silero VAD является общим preprocessing-кандидатом для Vosk/T-one/future backends. В текущей реализации он включается флагом `--vad silero` для `--input-wav`; streaming VAD для микрофона и loopback остается отдельным этапом. Ctrl+C для live backend трактуется как graceful stop с записью накопленных артефактов.
 
 ## Diarization
 

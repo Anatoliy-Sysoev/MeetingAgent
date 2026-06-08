@@ -160,7 +160,9 @@
 
 Следствия:
 
-- live outputs пишутся отдельно в `transcript/live/` и не перезаписывают canonical `transcript/segments.jsonl`;
+- live outputs пишутся отдельно в source-scoped файлы `transcript/live/live_segments.MIC.jsonl`, `live_segments.SYS.jsonl` или `live_segments.MIX.jsonl` и не перезаписывают canonical `transcript/segments.jsonl`;
+- Ctrl+C в live backend считается штатным graceful stop: накопленные segments/partials финализируются и записываются;
+- завершение live draft оставляет `processing_status=processing`, чтобы финальный offline ASR мог стартовать без `--force`;
 - `live_partials.jsonl` является черновым runtime artifact и не должен индексироваться как источник истины;
 - T-one остается кандидатом для отдельного сравнительного прогона на 2-3 реальных встречах, потому что модель ориентирована на телефонный домен;
 - Silero VAD остается будущим слоем для устойчивого endpointing/noise handling, а не обязательной зависимостью первого live MVP.

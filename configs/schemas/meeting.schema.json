@@ -168,6 +168,60 @@
         "live_report": {
           "$ref": "#/$defs/relative_path"
         },
+        "live_segments_mic": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_partials_mic": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_transcript_mic": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_srt_mic": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_vtt_mic": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_report_mic": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_segments_sys": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_partials_sys": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_transcript_sys": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_srt_sys": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_vtt_sys": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_report_sys": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_segments_mix": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_partials_mix": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_transcript_mix": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_srt_mix": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_vtt_mix": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_report_mix": {
+          "$ref": "#/$defs/relative_path"
+        },
         "diarization": {
           "$ref": "#/$defs/relative_path"
         },

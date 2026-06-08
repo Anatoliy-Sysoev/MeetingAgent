@@ -213,21 +213,25 @@ Smoke по готовому `source/audio_16k_mono.wav`:
 Выходы:
 
 ```text
-transcript/live/live_segments.jsonl
-transcript/live/live_partials.jsonl
-transcript/live/live_transcript.txt
-transcript/live/live_subtitles.srt
-transcript/live/live_subtitles.vtt
-transcript/live/live_report.json
+transcript/live/live_segments.<SOURCE>.jsonl
+transcript/live/live_partials.<SOURCE>.jsonl
+transcript/live/live_transcript.<SOURCE>.txt
+transcript/live/live_subtitles.<SOURCE>.srt
+transcript/live/live_subtitles.<SOURCE>.vtt
+transcript/live/live_report.<SOURCE>.json
 ```
 
 Правила:
 
-- `live_segments.jsonl` - черновой finalized live transcript;
-- `live_partials.jsonl` - промежуточные hypotheses, не индексировать;
+- `<SOURCE>` - `MIC`, `SYS` или `MIX`;
+- source-scoped filenames позволяют хранить MIC и SYS в одной карточке без перетирания;
+- `live_segments.<SOURCE>.jsonl` - черновой finalized live transcript;
+- `live_partials.<SOURCE>.jsonl` - промежуточные hypotheses, не индексировать;
 - live draft artifacts автоматически добавляются в `rag.no_index_artifacts`;
 - canonical offline transcript остается в `transcript/segments.jsonl`;
 - для финального протокола после live-сессии нужно сделать offline ASR/import через `scripts/22_transcribe_meeting.py`.
+- Ctrl+C во время live-записи считается штатным завершением: backend финализирует накопленные segments/partials и пишет артефакты.
+- После live draft статус остается `processing`, а не `transcribed`; это не блокирует финальный offline ASR.
 
 VAD modes:
 
@@ -245,7 +249,10 @@ VAD modes:
 --vad-speech-pad-ms 100
 ```
 
-Ограничение текущего шага: `--vad silero` пока поддержан только вместе с `--input-wav`. Streaming VAD для микрофона и system-loopback нужно реализовывать отдельно, чтобы не сломать таймкоды.
+Ограничения текущего шага:
+
+- `--vad silero` пока поддержан только вместе с `--input-wav`. Streaming VAD для микрофона и system-loopback нужно реализовывать отдельно, чтобы не сломать таймкоды.
+- System-loopback capture и ресэмплинг 44.1/48 кГц stereo -> 16 кГц mono еще не реализованы в live CLI.
 
 ### 5. Optional Speaker Diarization
 

@@ -14,6 +14,7 @@ from jsonschema import Draft202012Validator
 
 
 STATUS_NEW = "new"
+STATUS_PROCESSING = "processing"
 STATUS_TRANSCRIBING = "transcribing"
 STATUS_TRANSCRIBED = "transcribed"
 STATUS_FAILED = "failed"
@@ -142,7 +143,7 @@ def transcription_config() -> dict[str, Any]:
 
 def ensure_status_allows_run(meeting: dict[str, Any], force: bool, resume: bool) -> None:
     status = meeting.get("processing_status")
-    if status in {STATUS_NEW, STATUS_FAILED, STATUS_TRANSCRIBING}:
+    if status in {STATUS_NEW, STATUS_PROCESSING, STATUS_FAILED, STATUS_TRANSCRIBING}:
         if status in {STATUS_FAILED, STATUS_TRANSCRIBING} and not (force or resume):
             raise TranscribeMeetingError(f"Meeting status is {status}. Use --force or --resume.", stage="preflight")
         return
