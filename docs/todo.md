@@ -13,19 +13,23 @@
 - Закоммитить public-safe docs/config изменения отдельным коммитом.
 - Проверить публичное дерево на приватные строки перед следующим push.
 - При каждом новом публичном артефакте сверяться с `AGENTS.md`: Git хранит только public-safe код/docs/examples/tests, приватные corpus/runtime/eval остаются локально.
-- P0: подтвердить, что live UI/API и eval используют один corpus key. При `ASU_JUNE_BOT_ACTIVE_CORPUS=ntk` `/health` должен показывать `corpus_key=ntk` и пути `data/asu_june_bot_ntk/*`.
-- После подтверждения corpus key заново проверить targeted Q030/Q031 и Q040-Q044 на live NTK corpus.
+- P0 по corpus key закрыт: live `/health` при `ASU_JUNE_BOT_ACTIVE_CORPUS=ntk` подтверждает `corpus_key=ntk` и пути `data/asu_june_bot_ntk/*`.
+- Targeted live Q030/Q031 закрыт: оба ответа дают `Этап 3 (ФТ3)` и `finish_reason=stop`.
+- Targeted live Q041-Q044 закрыт: ответы содержат требуемые ФТТ anchors и `finish_reason=stop`.
+- Открытый live дефект: Q040 про протокол передачи данных остается false `no_answer`, хотя HTTPS anchor доступен в контексте. Следующий фикс должен запрещать false no_answer при strong ФТТ evidence для protocol intent или улучшать selection/prompt для Q040.
+- Для Windows/Ollama зафиксировать local runbook: если embeddings падают на Unicode-пути профиля, использовать ASCII `OLLAMA_MODELS` model store.
 - До нового pivot собрать и проверить локальный `gold.jsonl`: manual review уже давал ошибочные метки, поэтому pivot без gold key нельзя считать надежным основанием для выбора следующего bucket.
 - Разметить generated `manual_review` файл из ignored `data/diagnostics/` и затем пересчитать pivot через `scripts/diagnostics/pivot_manual_review.py`.
 - Расширить локальный `gold.jsonl` точными `expected_answer_facts` / `negative_facts` для табличных и конфликтных вопросов.
 - Следующий retrieval bucket: table expansion для запросов вида "перечисли требования Этапа 3" без изменения persisted chunks и без реэмбеддинга.
 - `integration_ftt` required-anchor source selection закрыт на targeted Q040-Q044 для локального qwen3.5:4b.
-- Следующий quality bucket: ручная проверка ответов Q040-Q044 после source selection, затем held-out integration questions вне Q040-Q044, и только после этого пересчет pivot по 100 вопросам.
+- Следующий quality bucket: исправить Q040 false no_answer, затем ручная проверка ответов Q040-Q044 после source selection, затем held-out integration questions вне Q040-Q044, и только после этого пересчет pivot по 100 вопросам.
 - Если Q040-Q044 ручная проверка подтвердит качество, следующий retrieval bucket выбирать по обновленному pivot, а не по старой сводке.
 - При ручной разметке и eval считать `status=truncated` отдельным дефектом: это не `answered/ok`, даже если часть ответа выглядит правдоподобно.
 - Для демо через Telegram держать API на `corpus_key=ntk`, модель `qwen3.5:4b`, Telegram `max_tokens=1400`; перед показом проверять `/health`, `ollama ps` и короткий `/chat` без `finish_reason=length`.
 - Вернуть Track B в отдельный roadmap/implementation bucket: source hygiene и свежесть корпуса, исключение `Архив`/черновиков/шаблонов/temp-файлов, канонизация версий, дедупликация, инкрементальная синхронизация и политика ссылок на актуальные документы.
 - Все новые chat/eval прогоны запускать на `qwen3.5:4b`; старые model-comparison артефакты считать historical baseline.
+- Guard bucket для ПМИ/ПСИ/этапов/сервисов/out-of-scope закрыт targeted: project/testing/stage/service queries -> allow, weather/currency/drawing/coding/math -> refused, mixed project + drawing/weather/code -> refused.
 - Поддерживать tracked quality/docs только в синтетическом или обезличенном виде.
 - Не коммитить runtime outputs из `data/`, `logs/`, `vector_db/`, `watched_folder/`, `meetings/`.
 - Если потребуется полная очистка GitHub history, выполнить отдельную согласованную history purge процедуру.

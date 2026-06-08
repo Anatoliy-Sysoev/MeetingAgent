@@ -127,6 +127,23 @@ MeetingAgent публикуется как local-first OSS проект для �
 - UI показывает отдельную warning-плашку: `Ответ обрезан лимитом генерации, нужно повторить с большим лимитом.`;
 - eval checks теперь валят такие ответы через проверку `not_truncated`, чтобы `finish_reason=length` не проходил как `ok`.
 
+Проверен live baseline Project Knowledge Bot на локальном NTK corpus:
+
+- `/health` подтверждает `corpus_key=ntk` и пути `data/asu_june_bot_ntk/*`;
+- локальный Ollama runtime был переведен на ASCII model store, потому что `bge-m3` не загружался из Unicode-пути профиля Windows;
+- Q030/Q031 live отвечают `Этап 3 (ФТ3)` с `finish_reason=stop`;
+- Q041-Q044 live отвечают требуемыми ФТТ anchors с `finish_reason=stop`;
+- Q040 live остается false `no_answer`: HTTPS anchor присутствует в доступном контексте, но модель всё равно отвечает, что данных недостаточно;
+- локальный JSONL baseline сохранен в ignored `data/diagnostics/`.
+
+Закрыт targeted guard bucket для project testing/documentation queries:
+
+- добавлены project markers для `список сервисов` / `ролевая модель`;
+- добавлены out-of-project markers для рисования и простых арифметических запросов;
+- mixed project + drawing теперь отказывается до retrieval;
+- targeted guard eval по project/out-of-scope/mixed кейсам: 19/19;
+- `tests/asu_june_bot/test_project_guard_v2.py`: 13 passed.
+
 Исправлен corpus alias для NTK:
 
 - в `configs/asu_june_bot/corpus.yaml` добавлен явный key `ntk`;
