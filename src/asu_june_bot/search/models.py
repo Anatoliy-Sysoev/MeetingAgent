@@ -45,10 +45,14 @@ class SearchDiagnostics:
         self.total_elapsed_ms = round(sum(stage.elapsed_ms for stage in self.stages), 3)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        search_service = {
             "total_elapsed_ms": round(float(self.total_elapsed_ms), 3),
             "retrieval_called": self.retrieval_called,
             "stages": [stage.to_dict() for stage in self.stages],
+        }
+        return {
+            **search_service,
+            "search_service": search_service,
         }
 
 

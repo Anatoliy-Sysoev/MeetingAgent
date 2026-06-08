@@ -45,6 +45,7 @@ MeetingAgent публикуется как local-first OSS проект для �
 - `scripts/diagnostics/grade_anchor_audit.py` преобразует `audit_answer_gate.py` JSONL в pivot-ready review JSONL с `review_verdict` и `review_issue`;
 - `scripts/diagnostics/pivot_manual_review.py` теперь строит сводки не только по `review_verdict`, но и по `review_issue`, чтобы следующий bucket выбирать по типу дефекта;
 - Q040 live закрыт: deterministic FTT integration answer возвращает `HTTPS` по найденному source anchor без вызова LLM (`llm_called=false`, `pre_llm_deterministic_answer=true`, `ftt_integration_deterministic_answer=true`);
+- held-out `integration_ftt` после расширения object-identification anchor selection закрыт локально: `answered=6/6`, `correct=6/6`, required anchors есть в corpus/context/prompt, `no_answer=0`, `validation_failed=0`;
 - локальные audit/manual/pivot outputs остаются в ignored `data/diagnostics/`.
 
 Добавлен первый public-safe слой live-транскрибации:
@@ -65,7 +66,7 @@ MeetingAgent публикуется как local-first OSS проект для �
 
 Проверки live-слоя: `./.venv/Scripts/python.exe -m pytest tests/unit/test_live_transcription_contract.py tests/unit/test_transcription_contract.py -q` - 15 passed; `py_compile` для `scripts/22_transcribe_meeting.py`, `scripts/33_live_transcribe_meeting.py` и `compileall` для `src/meeting_agent/live_transcription` - ok.
 
-Текущий внешний test gap после подтягивания `origin/main`: `./.venv/Scripts/python.exe -m pytest tests/asu_june_bot -q` падает 4 тестами в `tests/asu_june_bot/search/test_search_service.py`, потому что в ответе нет `diagnostics.search_service`. Это не связано с live-транскрибацией, но требует отдельного исправления search diagnostics contract.
+Search diagnostics contract восстановлен: `SearchDiagnostics.to_dict()` снова содержит `diagnostics.search_service.retrieval_called`, сохраняя плоские поля для обратной совместимости. Это нужно для измерения pre-retrieval guard/refuse/clarify failure modes по `chat_runs.jsonl`.
 
 Локальный meeting smoke проверил Docker-путь на реальной записи, но runtime-артефакты и идентификаторы встречи остаются только локально:
 

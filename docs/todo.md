@@ -6,7 +6,7 @@
 
 - Live-транскрибация начата: есть optional Vosk backend, `scripts/33_live_transcribe_meeting.py`, schema support для `live_*` artifacts, optional Silero VAD для `--input-wav` и unit tests без реального ASR.
 - P0 live cleanup закрыт: Ctrl+C считается graceful stop, MIC/SYS/MIX пишутся в source-scoped files, live draft не блокирует финальный offline ASR статусом `transcribed`.
-- Исправить текущий regression gap в `tests/asu_june_bot/search/test_search_service.py`: восстановить `diagnostics.search_service.retrieval_called` в search response contract.
+- Search diagnostics regression закрыт: `diagnostics.search_service.retrieval_called` восстановлен; использовать его при разборе guard false-refuse/false-clarify buckets из `chat_runs.jsonl`.
 - Скачать Vosk RU модель в ignored `models/vosk/` и выполнить локальный smoke:
   `scripts/33_live_transcribe_meeting.py --meeting-dir <meeting> --engine vosk --model-path models/vosk/vosk-model-small-ru-0.22 --input-wav <meeting>\source\audio_16k_mono.wav --source MIX --duration-sec 30 --force`.
 - Повторить тот же file-smoke с `--vad silero`, сравнить число сегментов, latency и пропуски коротких реплик.
@@ -32,10 +32,10 @@
 - До нового pivot собрать и проверить локальный `gold.jsonl`: manual review уже давал ошибочные метки, поэтому pivot без gold key нельзя считать надежным основанием для выбора следующего bucket.
 - Разметить generated `manual_review` файл из ignored `data/diagnostics/` и затем пересчитать pivot через `scripts/diagnostics/pivot_manual_review.py`.
 - Расширить локальный `gold.jsonl` точными `expected_answer_facts` / `negative_facts` для табличных, integration и конфликтных вопросов.
-- Следующий quality шаг: прогнать Q040-Q044 и `docs/quality/heldout_integration_ftt_questions.jsonl` через `scripts/diagnostics/audit_answer_gate.py`, затем `scripts/diagnostics/grade_anchor_audit.py`, затем `scripts/diagnostics/pivot_manual_review.py`.
+- Quality шаг по `integration_ftt` закрыт локально: Q040-Q044 и `docs/quality/heldout_integration_ftt_questions.jsonl` прошли через `audit_answer_gate.py`, `grade_anchor_audit.py` и `pivot_manual_review.py`; held-out результат `answered=6/6`, `correct=6/6`, `no_answer=0`, `validation_failed=0`.
 - Следующий retrieval bucket после свежего pivot: table expansion для запросов вида "перечисли требования Этапа 3" без изменения persisted chunks и без реэмбеддинга.
-- `integration_ftt` required-anchor source selection закрыт на targeted Q040-Q044 для локального qwen3.5:4b и live NTK smoke.
-- Если Q040-Q044 и held-out integration manual/auto-review подтвердят качество, следующий retrieval bucket выбирать по обновленному pivot, а не по старой сводке.
+- `integration_ftt` required-anchor source selection закрыт на targeted Q040-Q044, live NTK smoke и held-out integration для локального qwen3.5:4b.
+- Следующий retrieval bucket выбирать по обновленному pivot/gold, а не по старой сводке.
 - При ручной разметке и eval считать `status=truncated` отдельным дефектом: это не `answered/ok`, даже если часть ответа выглядит правдоподобно.
 - Для демо через Telegram держать API на `corpus_key=ntk`, модель `qwen3.5:4b`, Telegram `max_tokens=1400`; перед показом проверять `/health`, `ollama ps` и короткий `/chat` без `finish_reason=length`.
 - Вернуть Track B в отдельный roadmap/implementation bucket: source hygiene и свежесть корпуса, исключение `Архив`/черновиков/шаблонов/temp-файлов, канонизация версий, дедупликация, инкрементальная синхронизация и политика ссылок на актуальные документы.
