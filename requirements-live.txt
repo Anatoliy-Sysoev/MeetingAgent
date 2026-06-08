@@ -2,3 +2,4 @@
 # Keep separate from requirements.txt because microphone/audio backends are runtime-specific.
 vosk>=0.3.45,<0.4
 sounddevice>=0.4.6,<0.5
+silero-vad>=6.0.0,<7
