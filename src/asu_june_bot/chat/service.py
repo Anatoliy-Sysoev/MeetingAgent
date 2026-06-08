@@ -9,6 +9,7 @@ from asu_june_bot.search import SearchRequest, SearchService
 from asu_june_bot.search.models import SearchStatus
 
 from .answer_validator import AnswerValidator, has_no_answer_marker
+from .ftt_integration_answer import build_ftt_integration_deterministic_answer
 from .inventory_answer import build_inventory_fallback_answer, build_pre_llm_deterministic_answer
 from .models import ChatRequest, ChatResponse, ChatStatus
 from .prompt_builder import SYSTEM_PROMPT, PromptBuilder
@@ -117,9 +118,12 @@ class ChatService:
                 )
             )
 
-        deterministic_answer = build_pre_llm_deterministic_answer(request.query, sources)
+        ftt_integration_answer = build_ftt_integration_deterministic_answer(request.query, sources)
+        deterministic_answer = ftt_integration_answer or build_pre_llm_deterministic_answer(request.query, sources)
         if deterministic_answer:
             diagnostics["pre_llm_deterministic_answer"] = True
+            if ftt_integration_answer:
+                diagnostics["ftt_integration_deterministic_answer"] = True
             ok, validation_errors = self.answer_validator.validate_answered(deterministic_answer, sources)
             diagnostics["validation_errors"] = validation_errors
             if ok:
@@ -199,10 +203,14 @@ class ChatService:
             )
 
         if has_no_answer_marker(answer):
-            inventory_fallback = build_inventory_fallback_answer(request.query, sources)
+            ftt_integration_fallback = build_ftt_integration_deterministic_answer(request.query, sources)
+            inventory_fallback = ftt_integration_fallback or build_inventory_fallback_answer(request.query, sources)
             if inventory_fallback:
                 answer = inventory_fallback
                 diagnostics["inventory_fallback_answer"] = True
+                if ftt_integration_fallback:
+                    diagnostics["ftt_integration_deterministic_answer"] = True
+                    diagnostics["inventory_fallback_reason"] = "ftt_integration_no_answer_marker"
                 ok, validation_errors = self.answer_validator.validate_answered(answer, sources)
                 diagnostics["validation_errors"] = validation_errors
                 if ok:
@@ -242,12 +250,16 @@ class ChatService:
         ok, validation_errors = self.answer_validator.validate_answered(answer, sources)
         diagnostics["validation_errors"] = validation_errors
         if not ok:
-            inventory_fallback = build_inventory_fallback_answer(request.query, sources)
+            ftt_integration_fallback = build_ftt_integration_deterministic_answer(request.query, sources)
+            inventory_fallback = ftt_integration_fallback or build_inventory_fallback_answer(request.query, sources)
             if inventory_fallback:
                 fallback_ok, fallback_validation_errors = self.answer_validator.validate_answered(inventory_fallback, sources)
                 diagnostics["inventory_fallback_answer"] = True
                 diagnostics["inventory_fallback_reason"] = "validation_failed"
                 diagnostics["llm_validation_errors"] = validation_errors
+                if ftt_integration_fallback:
+                    diagnostics["ftt_integration_deterministic_answer"] = True
+                    diagnostics["inventory_fallback_reason"] = "ftt_integration_validation_failed"
                 diagnostics["validation_errors"] = fallback_validation_errors
                 if fallback_ok:
                     return finalize(
