@@ -1,0 +1,6 @@
+# Optional isolated speaker diarization environment.
+# Do not install pyannote/GigaAM into this environment by default.
+sherpa-onnx>=1.13.2,<2.0
+onnxruntime>=1.17,<2.0
+soundfile>=0.12.1
+numpy>=1.24,<2.0

@@ -81,7 +81,7 @@ flowchart TD
     F --> G["BM25 + Vector + Hybrid"]
     G --> H["ContextBuilder"]
     H --> I["ChatService"]
-    I --> J["LLM qwen2.5:7b-instruct"]
+    I --> J["LLM qwen3.5:4b"]
     J --> K["AnswerValidator + warnings"]
     K --> L["answer with citations"]
 ```

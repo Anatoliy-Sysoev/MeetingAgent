@@ -29,7 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model", default=None)
     parser.add_argument("--llm-base-url", default=None)
     parser.add_argument("--temperature", type=float, default=0.0)
-    parser.add_argument("--max-tokens", type=int, default=900)
+    parser.add_argument("--max-tokens", type=int, default=1400)
     parser.add_argument("--timeout-sec", type=int, default=300)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--output", help="Save UTF-8 JSON to path")
@@ -42,7 +42,7 @@ def main() -> None:
     config = load_config()
     ollama_cfg = config.get("ollama", {}) if isinstance(config.get("ollama"), dict) else {}
     llm_base_url = args.llm_base_url or str(ollama_cfg.get("chat_base_url") or "http://127.0.0.1:11434/v1")
-    model = args.model or str(ollama_cfg.get("chat_model") or "qwen2.5:7b-instruct")
+    model = args.model or str(ollama_cfg.get("chat_model") or "qwen3.5:4b")
 
     chat_service = ChatService(
         search_service=SearchService(config=config),

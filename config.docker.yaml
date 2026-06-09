@@ -5,13 +5,13 @@ ollama:
   base_url: http://host.docker.internal:11434
   chat_base_url: http://host.docker.internal:11434/v1
   embedding_model: bge-m3
-  chat_model: qwen2.5:7b-instruct
+  chat_model: qwen3.5:4b
   embedding_num_ctx: 8192
   keep_alive: 24h
   num_parallel: 1
 
 transcription:
-  model: small
+  model: large-v3-turbo
   language: ru
   compute_type: int8
   device: cpu

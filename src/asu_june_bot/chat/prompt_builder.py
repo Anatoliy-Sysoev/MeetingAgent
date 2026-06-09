@@ -12,6 +12,7 @@ SYSTEM_PROMPT = """Ты — проектный ассистент системн
 Отвечай на русском языке.
 Каждое фактическое утверждение подкрепляй ссылкой на источник вида [S1], [S2].
 Не используй ссылки на источники, которых нет в контексте.
+Отвечай кратко: 5-8 пунктов максимум, без пересказа всего документа.
 """.strip()
 
 
@@ -84,13 +85,13 @@ def source_to_chat_source(source: dict[str, Any], source_ref: str, bucket: str) 
         source_id=_metadata_value(source, "source_id", "document_id"),
         chunk_id=_metadata_value(source, "chunk_id", "id"),
         title=_metadata_value(source, "title", "document_title", "file_name", "filename", "document"),
-        path=_metadata_value(source, "path", "source_path", "file_path", "relative_path"),
+        path=_metadata_value(source, "path", "source_path", "file_path", "relative_path", "document"),
         source_url=_metadata_value(source, "source_url", "cloud_url", "public_url"),
         section=_metadata_value(source, "section", "section_title", "section_path"),
         requirement_id=_metadata_value(source, "requirement_id"),
         source_type=_metadata_value(source, "source_type"),
         score=score,
-        text_preview=_truncate_on_word_boundary(text, 1200) if text else preview,
+        text_preview=_truncate_on_word_boundary(text, 1200) if text else None,
         bucket=bucket,
     )
 
@@ -172,8 +173,8 @@ class PromptBuilder:
         inventory_rule = ""
         if _is_inventory_query(query):
             inventory_rule = """
-5. Если вопрос просит перечень документов, справочников или атрибутных составов, используй названия, типы, пути и ссылки источников как допустимые факты контекста.
-6. Для таких перечней не отвечай "данных недостаточно", если релевантные источники найдены; перечисли найденные элементы и явно укажи, что это найдено в переданном контексте.
+7. Если вопрос просит перечень документов, справочников или атрибутных составов, используй названия, типы, пути и ссылки источников как допустимые факты контекста.
+8. Для таких перечней не отвечай "данных недостаточно", если релевантные источники найдены; перечисли найденные элементы и явно укажи, что это найдено в переданном контексте.
 """.rstrip()
         prompt = f"""Вопрос пользователя:
 {query}
@@ -188,6 +189,8 @@ class PromptBuilder:
 2. Каждое фактическое утверждение заверши ссылкой [Sx].
 3. Не используй excluded sources и внешние знания.
 4. Если данных недостаточно, напиши: "В переданных источниках данных недостаточно для ответа".
+5. Не пересказывай весь документ; дай краткий ответ и только нужные доказательства.
+6. В обосновании используй 2-5 пунктов, максимум 8 пунктов во всем ответе.
 {inventory_rule}
 
 Формат:

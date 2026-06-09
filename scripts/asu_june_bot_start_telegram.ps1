@@ -3,7 +3,7 @@ param(
     [string]$ChatApiUrl = "http://127.0.0.1:8000/chat",
     [string]$AllowedChatIds = $env:ASU_JUNE_BOT_ALLOWED_CHAT_IDS,
     [int]$TopK = 5,
-    [string]$Model = "qwen2.5:7b-instruct",
+    [string]$Model = "qwen3.5:4b",
     [int]$MaxTokens = 700,
     [int]$TimeoutSec = 300
 )

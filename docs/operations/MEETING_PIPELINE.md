@@ -127,7 +127,7 @@ mono
 .\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py `
   --meeting-dir meetings\YYYY-MM-DD__slug `
   --engine faster-whisper `
-  --model small `
+  --model large-v3-turbo `
   --language ru `
   --compute-type int8
 
@@ -165,11 +165,173 @@ mono
 - без `--force` не перезаписывает готовый transcript;
 - при ошибке переводит встречу в `failed` и записывает причину в `meeting.json.last_error`.
 
+Рекомендуемый offline-профиль для качественной транскрибации встреч: `faster-whisper large-v3-turbo`, `language=ru`, `compute_type=int8`. Модель `small` использовать только для быстрых черновых smoke/live-проверок, где качество transcript не является критичным.
+
 `scripts/06_transcribe_meeting.py` остается legacy compatibility entrypoint и перенаправляет старый CLI на `scripts/22_transcribe_meeting.py --engine faster-whisper`.
 
-### 4. Speaker Transcript
+### 4. Live Draft Transcription
 
-MVP пока не требует diarization. После ASR можно создать speaker transcript с `SPEAKER_UNKNOWN`:
+Live-транскрибация отделена от offline ASR. Ее задача - черновой transcript во время разговора, а не финальный transcript для протокола.
+
+Optional dependencies:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-live.txt
+```
+
+Vosk-модель хранится локально в ignored `models/`, например:
+
+```text
+models/vosk/vosk-model-small-ru-0.22/
+```
+
+Проверка без запуска ASR:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug `
+  --engine vosk `
+  --model-path models\vosk\vosk-model-small-ru-0.22 `
+  --source MIC `
+  --dry-run
+```
+
+Smoke по готовому `source/audio_16k_mono.wav`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug `
+  --engine vosk `
+  --model-path models\vosk\vosk-model-small-ru-0.22 `
+  --input-wav meetings\YYYY-MM-DD__slug\source\audio_16k_mono.wav `
+  --source MIX `
+  --vad silero `
+  --duration-sec 30 `
+  --force
+```
+
+Выходы:
+
+```text
+transcript/live/live_segments.<SOURCE>.jsonl
+transcript/live/live_partials.<SOURCE>.jsonl
+transcript/live/live_transcript.<SOURCE>.txt
+transcript/live/live_subtitles.<SOURCE>.srt
+transcript/live/live_subtitles.<SOURCE>.vtt
+transcript/live/live_report.<SOURCE>.json
+```
+
+Правила:
+
+- `<SOURCE>` - `MIC`, `SYS` или `MIX`;
+- source-scoped filenames позволяют хранить MIC и SYS в одной карточке без перетирания;
+- `live_segments.<SOURCE>.jsonl` - черновой finalized live transcript;
+- `live_partials.<SOURCE>.jsonl` - промежуточные hypotheses, не индексировать;
+- live draft artifacts автоматически добавляются в `rag.no_index_artifacts`;
+- canonical offline transcript остается в `transcript/segments.jsonl`;
+- для финального протокола после live-сессии нужно сделать offline ASR/import через `scripts/22_transcribe_meeting.py`.
+- Ctrl+C во время live-записи считается штатным завершением: backend финализирует накопленные segments/partials и пишет артефакты.
+- После live draft статус остается `processing`, а не `transcribed`; это не блокирует финальный offline ASR.
+
+VAD modes:
+
+```text
+--vad none      baseline без VAD
+--vad silero    optional Silero VAD для --input-wav smoke/preprocessing
+```
+
+Параметры Silero:
+
+```powershell
+--vad-threshold 0.5 `
+--vad-min-speech-ms 250 `
+--vad-min-silence-ms 100 `
+--vad-speech-pad-ms 100
+```
+
+Ограничения текущего шага:
+
+- `--vad silero` пока поддержан только вместе с `--input-wav`. Streaming VAD для микрофона и system-loopback нужно реализовывать отдельно, чтобы не сломать таймкоды.
+- В `--vad silero` компрессии таймкодов нет: пропущенные non-speech blocks учитываются в реальном времени файла. Но finalized segment может получать хвостовой fallback span блока, на котором Vosk завершил фразу. Для smoke сравнивать нужно попадание segment в speech window, а не равенство span с `--vad none`.
+- System-loopback capture и ресэмплинг 44.1/48 кГц stereo -> 16 кГц mono еще не реализованы в live CLI.
+- Микрофонный runtime пишет в `live_report.<SOURCE>.json` счетчики `input_status_events` и `queue_timeouts`; ненулевые значения нужно смотреть при диагностике overflow/dropout.
+
+### 5. Optional Speaker Diarization
+
+Диаризация отделяет говорящих, но не идентифицирует реальные имена людей. Базовый контракт использует анонимные метки:
+
+```text
+SPEAKER_00
+SPEAKER_01
+SPEAKER_UNKNOWN
+```
+
+Основной backend - `sherpa-onnx`. Он выбран как CPU-first путь для Windows без HuggingFace-токена и без PyTorch-конфликтов с GigaAM/faster-whisper. Зависимости ставятся отдельно:
+
+```powershell
+python -m venv .venv-diarization
+.\.venv-diarization\Scripts\python.exe -m pip install -r requirements-diarization.txt
+```
+
+ONNX-модели нужно скачать локально в ignored папку:
+
+```text
+models/diarization/
+  sherpa-onnx-pyannote-segmentation-3-0/model.onnx
+  wespeaker_en_voxceleb_resnet34_LM.onnx
+```
+
+Проверка без обработки:
+
+```powershell
+.\.venv-diarization\Scripts\python.exe scripts\23_diarize_meeting.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug `
+  --dry-run
+```
+
+Запуск:
+
+```powershell
+.\.venv-diarization\Scripts\python.exe scripts\23_diarize_meeting.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug `
+  --num-speakers 2
+```
+
+Если число участников неизвестно, `--num-speakers` не передается и используется auto-clustering. Для известных встреч явное число спикеров повышает качество.
+
+Выход:
+
+```text
+transcript/diarization.jsonl
+transcript/diarization_report.json
+```
+
+`diarization.jsonl` содержит интервалы:
+
+```json
+{"speaker":"SPEAKER_00","start":12.1,"end":20.8,"confidence":null,"backend":"sherpa-onnx/pyannote-seg-3.0+wespeaker-resnet34"}
+```
+
+`diarization_report.json` фиксирует backend, модели, параметры clustering, длительность аудио, время обработки и RTF.
+
+Контейнерный запуск:
+
+```powershell
+docker compose --profile diarization build diarization
+
+$env:MEETINGAGENT_RECORDINGS_DIR = "$env:USERPROFILE\Desktop\ProjectRecordings"
+
+docker compose --profile diarization run --rm diarization `
+  python scripts/23_diarize_meeting.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug `
+  --force
+```
+
+Если встреча длинная, сначала убедиться, что `source/audio_16k_mono.wav` уже создан. Для качества нужно проверить результат глазами: `sherpa-onnx` разделяет говорящих на `SPEAKER_XX`, но не определяет реальные имена.
+
+### 6. Speaker Transcript
+
+После ASR можно создать speaker transcript. Если `transcript/diarization.jsonl` отсутствует, все реплики получают `SPEAKER_UNKNOWN`. Если файл есть, speaker выбирается по maximum-overlap с порогом `--min-overlap-ratio`:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\24_merge_transcript_speakers.py `
@@ -194,11 +356,17 @@ source = MIX
 start
 end
 text
+speaker_overlap_seconds
+speaker_overlap_ratio
 ```
 
-Когда появится diarization, этот шаг станет местом слияния ASR segments и speaker intervals.
+Правило merge:
 
-### 5. Meeting-Aware Chunking
+- для каждого ASR segment выбирается speaker interval с максимальным временным пересечением;
+- если покрытие меньше `0.3` длительности ASR segment, используется `SPEAKER_UNKNOWN`;
+- реальная идентификация людей не выполняется; ручной speaker mapping остается отдельным будущим слоем.
+
+### 6. Meeting-Aware Chunking
 
 Для RAG и LLM analysis transcript режется на чанки с учетом времени и реплик:
 
@@ -229,7 +397,7 @@ utterance_ids
 
 По умолчанию chunk ограничен 180 секундами и 6000 символами. Скрипт не разрывает отдельную реплику; если следующая реплика превышает лимит, открывается новый chunk.
 
-### 6. Semantic Enrichment MVP
+### 7. Semantic Enrichment MVP
 
 Первый enrichment-слой работает детерминированно, без LLM:
 
@@ -261,7 +429,7 @@ needs_review = true
 
 Это MVP-слой для indexing/search и первичного отбора. Он не заменяет production LLM analysis и помечает значимые кандидаты как требующие проверки.
 
-### 7. Meeting Index Export
+### 8. Meeting Index Export
 
 Для попадания meeting chunks в общий RAG-контур используется экспорт в совместимый JSONL:
 
@@ -288,7 +456,7 @@ text
 
 `meeting_chunk` добавлен в default allowed source types для `scripts/asu_june_bot_build_index_v2.py` и retrieval source policy. Для сборки отдельного индекса по встречам можно передать `data/meeting_chunks.jsonl` как `--chunks-path` в index builder.
 
-### 8. Smoke Meeting Search
+### 9. Smoke Meeting Search
 
 Быстрый поиск по экспортированным meeting chunks работает без Ollama и без основного индекса:
 
@@ -340,7 +508,7 @@ JSON-вывод для интеграции с ботом или UI:
   --index-only
 ```
 
-### 9. LLM Map-Reduce Analysis
+### 10. LLM Map-Reduce Analysis
 
 Структурированные артефакты встречи создаются после enrichment:
 
@@ -348,7 +516,7 @@ JSON-вывод для интеграции с ботом или UI:
 .\.venv\Scripts\python.exe scripts\29_analyze_meeting.py `
   --meeting-dir meetings\YYYY-MM-DD__slug `
   --mode ollama-map-reduce `
-  --model qwen2.5:7b-instruct `
+  --model qwen3.5:4b `
   --force
 ```
 
@@ -373,7 +541,7 @@ artifacts/_partials/llm_map_reduce/
 - для строгой отладки без fallback есть флаг `--strict-llm`;
 - повторный запуск с `--force` перезаписывает итоговые артефакты, но переиспользует уже готовые partial JSON; для полного пересчета partials добавить `--recompute-partials`.
 
-### 10. Structured Artifact Indexing
+### 11. Structured Artifact Indexing
 
 После `29_analyze_meeting.py` structured JSON-артефакты можно экспортировать в общий meeting index как отдельные source types:
 
@@ -468,11 +636,11 @@ JSON-схемы структурированных артефактов:
 .\.venv\Scripts\python.exe scripts\07_generate_meeting_artifacts.py `
   --meeting-dir meetings\2026-05-08__test-meeting `
   --mode ollama `
-  --model qwen3:4b `
+  --model qwen3.5:4b `
   --max-transcript-chars 9000
 ```
 
-На текущем CPU-профиле Qwen3 может быть слишком медленной для длинных transcript. Поэтому `ollama`-режим пока считается экспериментальным, а не обязательным путем MVP.
+На текущем CPU-профиле длинные transcript могут быть медленными даже с единой локальной моделью `qwen3.5:4b`. Поэтому `ollama`-режим для больших встреч остается измеряемым runtime-путем, а не обязательным быстрым сценарием.
 
 Map-reduce dry-run:
 
@@ -494,7 +662,7 @@ Map-reduce dry-run:
 .\.venv\Scripts\python.exe scripts\08_process_meeting_pipeline.py `
   --meeting-dir meetings\2026-05-08__test-meeting `
   --asr-model small `
-  --llm-model qwen2.5:7b-instruct `
+  --llm-model qwen3.5:4b `
   --window-seconds 120 `
   --window-overlap-seconds 15 `
   --max-asr-workers 1 `
@@ -546,8 +714,9 @@ Markdown-карточка и таблицы решений, задач, риск
 
 ## Будущие Улучшения
 
-- diarization спикеров;
 - профили голосов;
+- ручной speaker mapping на реальные имена;
+- optional pyannote backend как high-quality режим после сравнения с sherpa-onnx;
 - синхронизация транскрипта с проигрывателем;
 - UI для ручной корректировки;
 - экспорт в DOCX/Markdown.

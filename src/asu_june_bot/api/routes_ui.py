@@ -395,6 +395,19 @@ HTML_TEMPLATE = """<!doctype html>
 
     .badge.ok { color: var(--ok); border-color: #cdeee0; background: #effaf5; }
     .badge.error { color: var(--danger); border-color: #ffd5dc; background: #fff3f5; }
+    .badge.warning { color: #a15c00; border-color: #ffd99b; background: #fff8e8; }
+
+    .runtime-warning {
+      display: none;
+      border: 1px solid #ffd99b;
+      border-radius: 8px;
+      background: #fff8e8;
+      color: #7a4300;
+      padding: 11px 13px;
+      line-height: 1.45;
+    }
+
+    .runtime-warning.active { display: block; }
 
     .sources-list {
       display: grid;
@@ -548,9 +561,7 @@ HTML_TEMPLATE = """<!doctype html>
               <div class="setting">
                 <label for="model">Модель ответа</label>
                 <select id="model">
-                  <option value="qwen2.5:7b-instruct" selected>Основная локальная модель</option>
-                  <option value="qwen3:4b">Быстрая проверка границы</option>
-                  <option value="qwen3:8b">Тяжёлая модель для сложного случая</option>
+                  <option value="qwen3.5:4b" selected>Единая локальная модель</option>
                 </select>
                 <div class="setting-hint" id="modelHint">Основной режим: стабильнее для проектных вопросов, но отвечает не мгновенно.</div>
               </div>
@@ -589,6 +600,7 @@ HTML_TEMPLATE = """<!doctype html>
                 <span id="sourceCount" class="badge">источники: 0</span>
               </div>
             </div>
+            <div id="runtimeWarning" class="runtime-warning"></div>
             <div id="answer" class="answer-box">Здесь появится ответ по проектным источникам.</div>
           </div>
         </section>
@@ -634,9 +646,7 @@ HTML_TEMPLATE = """<!doctype html>
         bm25: 'Полезно для номеров ФТТ, ПМИ, разделов, аббревиатур и точных терминов.'
       },
       model: {
-        'qwen2.5:7b-instruct': 'Основной режим: стабильнее для проектных вопросов, но отвечает не мгновенно.',
-        'qwen3:4b': 'Быстрее, подходит для грубой проверки границ вопроса.',
-        'qwen3:8b': 'Тяжелее и медленнее; включайте только для сложных формулировок.'
+        'qwen3.5:4b': 'Единый режим для проектного чата и проверок качества.'
       },
       topK: {
         '5': 'Быстрый режим: меньше источников, выше риск пропустить редкий документ.',
@@ -654,6 +664,7 @@ HTML_TEMPLATE = """<!doctype html>
     const send = document.getElementById('send');
     const topStatus = document.getElementById('topStatus');
     const answer = document.getElementById('answer');
+    const runtimeWarning = document.getElementById('runtimeWarning');
     const answerStatus = document.getElementById('answerStatus');
     const sourceCount = document.getElementById('sourceCount');
     const sources = document.getElementById('sources');
@@ -757,6 +768,8 @@ HTML_TEMPLATE = """<!doctype html>
       answerStatus.className = 'badge';
       answerStatus.textContent = 'в работе';
       sourceCount.textContent = 'источники: 0';
+      runtimeWarning.textContent = '';
+      runtimeWarning.classList.remove('active');
       answer.textContent = '';
       sources.innerHTML = '<div class="empty-state">Идёт поиск источников...</div>';
       diagnostics.textContent = '{}';
@@ -767,6 +780,8 @@ HTML_TEMPLATE = """<!doctype html>
       topStatus.textContent = 'Ошибка';
       answerStatus.className = 'badge error';
       answerStatus.textContent = 'ошибка';
+      runtimeWarning.textContent = '';
+      runtimeWarning.classList.remove('active');
       answer.textContent = message;
       diagnostics.textContent = '{}';
       diagnosticsSummary.textContent = 'ошибка запроса';
@@ -791,7 +806,7 @@ HTML_TEMPLATE = """<!doctype html>
             mode: document.getElementById('mode').value,
             top_k: Number(document.getElementById('topK').value || 8),
             model: document.getElementById('model').value || null,
-            max_tokens: 900,
+            max_tokens: 1400,
             timeout_sec: 300,
             include_diagnostics: includeDiagnostics
           })
@@ -805,7 +820,16 @@ HTML_TEMPLATE = """<!doctype html>
         const status = data.status || 'unknown';
         topStatus.textContent = `Статус: ${status}`;
         answerStatus.textContent = status;
-        answerStatus.className = status === 'answered' ? 'badge ok' : 'badge error';
+        answerStatus.className = status === 'answered' ? 'badge ok' : (status === 'truncated' ? 'badge warning' : 'badge error');
+        const semanticWarnings = data?.warnings?.semantic?.items || data?.diagnostics?.semantic_warnings?.items || [];
+        const truncated = status === 'truncated' || data?.diagnostics?.llm_finish_reason === 'length' || semanticWarnings.some((item) => item.code === 'truncated_answer');
+        if (truncated) {
+          runtimeWarning.textContent = 'Ответ обрезан лимитом генерации, нужно повторить с большим лимитом.';
+          runtimeWarning.classList.add('active');
+        } else {
+          runtimeWarning.textContent = '';
+          runtimeWarning.classList.remove('active');
+        }
         answer.textContent = data.answer || 'Ответ пустой.';
         renderSources(data.sources || []);
 

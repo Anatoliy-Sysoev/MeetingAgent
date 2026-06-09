@@ -21,6 +21,34 @@
 - Перед завершением каждой задачи обновляй `docs/context.md` и `docs/todo.md`.
 - В конце сессии показывай или кратко пересказывай `git status`.
 
+## Что Ведем В Git
+
+- Исходный код продукта: `src/`, публичные CLI/API/бот entrypoints, безопасные helper-скрипты.
+- Публичную документацию: `README.md`, `README.ru.md`, `AGENTS.md`, `docs/context.md`, `docs/decisions.md`, `docs/todo.md`, `docs/en/`, `docs/ru/`.
+- Публичные примеры: `examples/` и маленькие синтетические fixtures без реальных документов, клиентов, транскриптов и внутренних названий.
+- Публичные quality-шаблоны: `docs/quality/README.md`, `docs/quality/rag_eval_report_template.md`, `docs/quality/synthetic_seed_queries.jsonl`.
+- Примеры конфигурации без секретов: `.env.example`, `config.example.yaml`, Docker/example configs.
+- Тесты, которые используют синтетические или обезличенные данные.
+- Краткие public-safe итоги локальных экспериментов: что проверено, общий вывод, следующий шаг. Точные runtime outputs и приватные датасеты не переносить в публичные docs.
+
+## Что Ведем Только Локально
+
+- Секреты и machine-specific конфиги: `.env`, `.env.*`, `config.yaml`, `config.local.yaml`, токены, ключи, локальные пути.
+- Runtime outputs: `data/`, `logs/`, `vector_db/`, `watched_folder/`, содержимое `meetings/`.
+- Реальные проектные документы НТК/АСУ/клиентов, реальные транскрипты, аудио, видео, meeting cards и generated artifacts встреч.
+- Индексы и cache: embeddings cache, numpy/faiss/chroma индексы, SQLite/parquet/jsonl runtime dumps.
+- Приватные eval/runtime reports, manual-review файлы, diagnostics outputs, локальные gold datasets.
+- Рабочие заметки с приватным контекстом: `docs/private/`, `docs/internal/`, локальные runbooks подпроектов.
+- Одноразовые приватные scripts/tests для конкретного клиента или корпуса, если они раскрывают структуру, названия или содержимое приватных данных.
+
+## Проверка Перед Commit
+
+- Не используй `git add -f` для ignored-файлов без явного решения пользователя и public-safe причины.
+- Перед `git add` проверяй подозрительные пути через `git check-ignore -v <path>`.
+- Если менялись docs или fixtures, проверь, что в них нет секретов, реальных customer/corpus snippets и локальных абсолютных путей.
+- Если локальный артефакт полезен для проекта, в Git заноси только обезличенное summary или синтетический пример, а исходник оставляй в ignored runtime/private path.
+- Cleanup текущего дерева не очищает историю Git. Полная очистка уже опубликованных приватных файлов из history делается только отдельной согласованной процедурой через `git filter-repo` или BFG с force-push.
+
 ## Правила MeetingAgent
 
 - Продукт по умолчанию должен оставаться локальным.

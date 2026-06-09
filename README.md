@@ -69,6 +69,12 @@ Detailed documentation:
 
 - [Project Knowledge Bot](docs/project_knowledge_bot.md)
 
+### Package Status
+
+`src/meeting_agent/` is the planned general MeetingAgent package. Most subpackages are currently scaffolds; the implemented shared transcription layer lives in `src/meeting_agent/transcription/`.
+
+The production-ready reference runtime currently lives in `src/asu_june_bot/`. Legacy `scripts/01_*` ... `scripts/09_chat.py` are kept for compatibility and migration reference.
+
 ## Public Examples
 
 Synthetic examples are available for a safe first look at the meeting artifact format:
@@ -103,8 +109,16 @@ For local Ollama workflows, install required models:
 
 ```powershell
 ollama pull bge-m3
-ollama pull qwen2.5:7b-instruct
+ollama pull qwen3.5:4b
 ```
+
+On Windows, use a single ASCII Ollama model store before running Docker/API workflows:
+
+```powershell
+.\scripts\start_ollama_local.ps1 -Restart
+```
+
+See [Ollama local runtime](docs/operations/OLLAMA_LOCAL_RUNTIME.md).
 
 ### 3. Run The Project Knowledge Bot API
 
@@ -132,7 +146,7 @@ http://127.0.0.1:8000/ui
   "What project integrations are described?" `
   --mode hybrid `
   --top-k 5 `
-  --model qwen2.5:7b-instruct
+  --model qwen3.5:4b
 ```
 
 ### 5. Run Telegram Adapter
@@ -162,21 +176,74 @@ Important entrypoints:
 ```powershell
 .\.venv\Scripts\python.exe scripts\20_ingest_meeting.py --file "<path>" --title "<title>"
 .\.venv\Scripts\python.exe scripts\21_extract_audio.py --meeting-dir "<meeting-dir>"
-.\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py --meeting-dir "<meeting-dir>" --engine faster-whisper
+.\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py --meeting-dir "<meeting-dir>" --engine faster-whisper --model large-v3-turbo --language ru --compute-type int8
+.\.venv\Scripts\python.exe scripts\23_diarize_meeting.py --meeting-dir "<meeting-dir>" --dry-run
+.\.venv\Scripts\python.exe scripts\24_merge_transcript_speakers.py --meeting-dir "<meeting-dir>"
 .\.venv\Scripts\python.exe scripts\26_chunk_meeting.py --meeting-dir "<meeting-dir>"
 .\.venv\Scripts\python.exe scripts\29_analyze_meeting.py --meeting-dir "<meeting-dir>"
 ```
 
+Speaker diarization is optional and uses an isolated `sherpa-onnx` path by default. Install optional dependencies from `requirements-diarization.txt` and keep downloaded ONNX models under ignored `models/diarization/`.
+
 Runtime meeting outputs may contain private data and should not be committed.
+
+### Live Transcription
+
+Live transcription is an optional draft workflow. The first supported backend is local Vosk; it writes source-scoped draft live artifacts into `transcript/live/` and does not replace the canonical offline transcript from `scripts/22_transcribe_meeting.py`.
+
+Install optional live dependencies:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-live.txt
+```
+
+Keep Vosk models under ignored `models/`, for example:
+
+```text
+models/vosk/vosk-model-small-ru-0.22/
+```
+
+Dry-run:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --meeting-dir "<meeting-dir>" `
+  --engine vosk `
+  --model-path models\vosk\vosk-model-small-ru-0.22 `
+  --source MIC `
+  --dry-run
+```
+
+Deterministic smoke from a prepared mono 16 kHz WAV:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --meeting-dir "<meeting-dir>" `
+  --engine vosk `
+  --model-path models\vosk\vosk-model-small-ru-0.22 `
+  --input-wav "<meeting-dir>\source\audio_16k_mono.wav" `
+  --source MIX `
+  --vad silero `
+  --duration-sec 30 `
+  --force
+```
+
+For live microphone sessions, `Ctrl+C` is treated as a graceful stop: accumulated segments are finalized and written. Live draft completion leaves `processing_status=processing`, so final offline ASR can still run afterwards.
 
 ## Docker
 
-The Docker setup packages the local API and optional Telegram adapter. GigaAM is intentionally not included in the main image.
+The Docker setup packages the local API, optional Telegram adapter, and an optional diarization/meeting-processing profile. GigaAM is intentionally not included in the main image.
 
 ```powershell
 Copy-Item .env.example .env
 docker compose build api
 docker compose up api
+```
+
+Optional diarization image:
+
+```powershell
+docker compose --profile diarization build diarization
 ```
 
 See [Docker documentation](docs/docker.md).

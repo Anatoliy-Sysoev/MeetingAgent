@@ -9,6 +9,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from asu_june_bot.core.config import load_config  # noqa: E402
 from asu_june_bot.core.corpus import get_active_corpus_key, get_corpus_config  # noqa: E402
 
 
@@ -71,6 +72,22 @@ def test_env_override_switches_active_corpus() -> None:
         corpus = get_corpus_config(cfg)
         assert corpus.key == "private"
         assert corpus.index_dir.endswith("data/private_corpus/numpy_index_v2")
+    finally:
+        if old is None:
+            os.environ.pop("ASU_JUNE_BOT_ACTIVE_CORPUS", None)
+        else:
+            os.environ["ASU_JUNE_BOT_ACTIVE_CORPUS"] = old
+
+
+def test_ntk_corpus_alias_is_registered_in_live_config() -> None:
+    old = os.environ.get("ASU_JUNE_BOT_ACTIVE_CORPUS")
+    os.environ["ASU_JUNE_BOT_ACTIVE_CORPUS"] = "ntk"
+    try:
+        corpus = get_corpus_config(load_config())
+        assert corpus.key == "ntk"
+        assert corpus.name == "ntk_yandex_corpus"
+        assert corpus.chunks_path.endswith("data/asu_june_bot_ntk/chunks_v2.jsonl")
+        assert corpus.index_dir.endswith("data/asu_june_bot_ntk/numpy_index_v2")
     finally:
         if old is None:
             os.environ.pop("ASU_JUNE_BOT_ACTIVE_CORPUS", None)

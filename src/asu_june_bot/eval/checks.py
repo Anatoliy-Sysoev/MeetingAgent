@@ -11,6 +11,7 @@ SOURCE_REF_RE = re.compile(r"\[S\d+")
 
 def run_checks(case: EvalCase, response: ChatResponse) -> list[CheckResult]:
     return [
+        check_not_truncated(response),
         check_status(case, response),
         check_llm_called(case, response),
         check_must_include(case, response),
@@ -19,6 +20,13 @@ def run_checks(case: EvalCase, response: ChatResponse) -> list[CheckResult]:
         check_min_sources(case, response),
         check_source_titles(case, response),
     ]
+
+
+def check_not_truncated(response: ChatResponse) -> CheckResult:
+    diagnostics = response.diagnostics or {}
+    if response.status == "truncated" or diagnostics.get("llm_finish_reason") == "length":
+        return CheckResult("not_truncated", False, "finish_reason=length")
+    return CheckResult("not_truncated", True)
 
 
 def check_status(case: EvalCase, response: ChatResponse) -> CheckResult:

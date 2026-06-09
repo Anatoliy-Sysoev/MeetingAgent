@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 from typing import Any
+
+import yaml
 
 from .models import SearchResult
 from .parent_expansion import ParentExpander
 from .query_intent import QueryIntent, QueryIntentResult
 from .source_quality import is_primary_eligible, is_weak_source, source_quality, with_source_quality
+
+DEFAULT_TABLE_HEADER_MAPS_PATH = Path(__file__).resolve().parents[3] / "configs" / "asu_june_bot" / "table_header_maps.yaml"
 
 
 @dataclass(slots=True)
@@ -31,6 +36,80 @@ def doc_type(result: SearchResult) -> str:
 
 def text_lower(result: SearchResult) -> str:
     return " ".join((result.text or "").lower().split())
+
+
+def _is_marked_cell(value: Any) -> bool:
+    return str(value or "").strip().lower() in {"х", "x", "+", "да", "yes", "true", "1"}
+
+
+def _load_table_header_maps(path: Path = DEFAULT_TABLE_HEADER_MAPS_PATH) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(data, dict):
+        raise ValueError(f"YAML root must be object: {path}")
+    tables = data.get("tables") or {}
+    if not isinstance(tables, dict):
+        raise ValueError(f"table_header_maps.tables must be object: {path}")
+    return tables
+
+
+def _table_key(result: SearchResult) -> str | None:
+    table_id = str(result.metadata.get("table_id") or "").strip()
+    if not table_id:
+        return None
+    relative_path = str(result.metadata.get("relative_path") or result.metadata.get("path") or "").strip()
+    if not relative_path:
+        return None
+    document_name = Path(relative_path).name
+    return f"{document_name}::{table_id}"
+
+
+def _dative_stage(canonical: str) -> str:
+    if canonical.startswith("Этап "):
+        return "Этапу " + canonical[len("Этап ") :]
+    if canonical.startswith("Развитие ИС"):
+        return canonical.replace("Развитие ИС", "Развитию ИС", 1)
+    return canonical
+
+
+def _table_header_semantics_facts(result: SearchResult, table_header_maps: dict[str, Any]) -> list[str]:
+    key = _table_key(result)
+    if not key:
+        return []
+    table_cfg = table_header_maps.get(key) or {}
+    if not isinstance(table_cfg, dict):
+        return []
+    expected_document_type = str(table_cfg.get("document_type") or "").strip()
+    if expected_document_type and doc_type(result) != expected_document_type:
+        return []
+    repeated_headers = table_cfg.get("repeated_headers") or {}
+    if not isinstance(repeated_headers, dict):
+        return []
+
+    cells = result.metadata.get("cells") or {}
+    if not isinstance(cells, dict):
+        return []
+
+    requirement_id = str(result.metadata.get("requirement_id") or cells.get("№") or cells.get("N") or "").strip().rstrip(".")
+
+    facts: list[str] = []
+    for family_map in repeated_headers.values():
+        if not isinstance(family_map, dict):
+            continue
+        for column, canonical_raw in family_map.items():
+            if not _is_marked_cell(cells.get(column)):
+                continue
+            canonical = str(canonical_raw).strip()
+            if not canonical:
+                continue
+            phrase = _dative_stage(canonical)
+            basis = f" Основание: заполнена колонка «{column}»."
+            if requirement_id:
+                facts.append(f"Требование {requirement_id} относится к {phrase}. Каноническое значение: {canonical}.{basis}")
+            else:
+                facts.append(f"Строка таблицы относится к {phrase}. Каноническое значение: {canonical}.{basis}")
+    return facts
 
 
 def is_vector_only(result: SearchResult) -> bool:
@@ -279,12 +358,14 @@ class ContextBuilder:
         enable_source_quality_filter: bool = True,
         enable_parent_expansion: bool = True,
         parent_expander: ParentExpander | None = None,
+        table_header_maps: dict[str, Any] | None = None,
     ):
         self.primary_limit = primary_limit
         self.supporting_limit = supporting_limit
         self.enable_source_quality_filter = enable_source_quality_filter
         self.enable_parent_expansion = enable_parent_expansion
         self.parent_expander = parent_expander or ParentExpander()
+        self.table_header_maps = _load_table_header_maps() if table_header_maps is None else table_header_maps
 
     def build(self, query: str, intent: QueryIntentResult, results: list[SearchResult], excluded: list[SearchResult] | None = None) -> BuiltContext:
         assessed_results = [with_source_quality(result, intent) for result in results] if self.enable_source_quality_filter else list(results)
@@ -352,6 +433,7 @@ class ContextBuilder:
             supporting_parent_diag = {"parent_expansion": "disabled"}
 
         primary, supporting, passport_table_diag = self._expand_passport_table_context(query, primary, supporting, candidate_pool)
+        primary, supporting, table_header_semantics_diag = self._apply_table_header_semantics(primary, supporting)
 
         for result in assessed_excluded:
             key = result_key(result)
@@ -383,6 +465,7 @@ class ContextBuilder:
                     "supporting": supporting_parent_diag,
                 },
                 "passport_table_expansion": passport_table_diag,
+                "table_header_semantics": table_header_semantics_diag,
             },
         )
 
@@ -478,6 +561,48 @@ class ContextBuilder:
             "table_id": table_id,
             "expanded_count": len(parts),
             "expanded_keys": expanded_keys,
+        }
+
+    def _apply_table_header_semantics(
+        self,
+        primary: list[SearchResult],
+        supporting: list[SearchResult],
+    ) -> tuple[list[SearchResult], list[SearchResult], dict[str, Any]]:
+        applied = 0
+
+        def enrich(result: SearchResult) -> SearchResult:
+            nonlocal applied
+            facts = _table_header_semantics_facts(result, self.table_header_maps)
+            if not facts:
+                return result
+
+            normalized_block = "Нормализованная семантика таблицы:\n" + "\n".join(f"- {fact}" for fact in facts)
+            if normalized_block in result.text:
+                return result
+
+            metadata = dict(result.metadata or {})
+            metadata["table_header_semantics_applied"] = True
+            metadata["table_header_semantics_facts"] = facts
+
+            diagnostics = dict(result.diagnostics or {})
+            diagnostics["table_header_semantics"] = {
+                "applied": True,
+                "facts": facts,
+                "table_id": result.metadata.get("table_id"),
+                "requirement_id": result.metadata.get("requirement_id"),
+            }
+
+            applied += 1
+            return replace(
+                result,
+                text=f"{result.text}\n\n{normalized_block}",
+                metadata=metadata,
+                diagnostics=diagnostics,
+            )
+
+        return [enrich(item) for item in primary], [enrich(item) for item in supporting], {
+            "applied": applied > 0,
+            "enriched_count": applied,
         }
 
     def _bucket(self, query: str, intent: QueryIntentResult, result: SearchResult) -> str:

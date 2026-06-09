@@ -29,7 +29,7 @@ def build_app_state() -> AppState:
     search_service = SearchService(config=config)
     ollama_cfg = config.get("ollama", {}) if isinstance(config.get("ollama"), dict) else {}
     chat_base_url = str(ollama_cfg.get("chat_base_url") or "http://127.0.0.1:11434/v1")
-    chat_model = str(ollama_cfg.get("chat_model") or "qwen2.5:7b-instruct")
+    chat_model = str(ollama_cfg.get("chat_model") or "qwen3.5:4b")
     meetings_root = (config.get("paths") or {}).get("meetings_root") or "meetings"
     return AppState(
         config=config,

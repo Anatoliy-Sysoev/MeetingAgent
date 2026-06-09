@@ -124,8 +124,8 @@ faster-whisper
 Профили:
 
 ```text
-small/int8      быстрый черновик и live MVP
-large-v3-turbo  качественный offline-профиль
+large-v3-turbo/int8  качественный offline-профиль для готовых записей
+small/int8           быстрый черновик и live MVP
 ```
 
 GigaAM:
@@ -138,21 +138,76 @@ docs/operations/GIGAAM_TRANSCRIPTION.md
 
 GigaAM не заменяет основной ASR-контракт до сравнения качества на 2-3 русскоязычных встречах.
 
+## Live ASR
+
+Первый live MVP:
+
+```text
+Vosk
+optional Silero VAD для file-smoke/preprocessing
+```
+
+Назначение:
+
+```text
+черновой live transcript;
+partial hypotheses;
+таймкоды;
+source labels MIC/SYS/MIX.
+```
+
+Live outputs пишутся отдельно:
+
+```text
+transcript/live/live_segments.<SOURCE>.jsonl
+transcript/live/live_partials.<SOURCE>.jsonl
+transcript/live/live_transcript.<SOURCE>.txt
+transcript/live/live_report.<SOURCE>.json
+```
+
+`<SOURCE>` равен `MIC`, `SYS` или `MIX`, поэтому несколько дорожек могут сосуществовать в одной карточке встречи.
+
+Ограничение: live transcript не считается финальным источником истины для протокола. После встречи нужно запускать offline ASR через `scripts/22_transcribe_meeting.py` или импортировать готовые canonical segments. Поэтому live draft completion не ставит `processing_status=transcribed`; статус остается `processing`.
+
+T-one рассматривается как будущий экспериментальный backend для сравнительного прогона. Основной риск T-one - телефонная специализация модели; на широкополосных встречах качество нужно подтверждать отдельно.
+
+Silero VAD является общим preprocessing-кандидатом для Vosk/T-one/future backends. В текущей реализации он включается флагом `--vad silero` для `--input-wav`; streaming VAD для микрофона и loopback остается отдельным этапом. Ctrl+C для live backend трактуется как graceful stop с записью накопленных артефактов.
+
+Known limitation: `--vad silero` сохраняет реальное время файла, но finalized segment может получить хвостовой fallback span текущего блока, а не полный word-level span реплики. Правильное будущее решение - remap word timestamps из поданного VAD-аудио в реальное время или привязка сегмента к speech window.
+
 ## Diarization
 
-Целевой инструмент:
+Текущий default:
+
+```text
+sherpa-onnx
+```
+
+Модели:
+
+```text
+sherpa-onnx-pyannote-segmentation-3-0/model.onnx
+wespeaker_en_voxceleb_resnet34_LM.onnx
+```
+
+Почему так:
+
+```text
+CPU-first;
+без HuggingFace token в runtime;
+меньше риск конфликтов torch-зависимостей с GigaAM;
+можно изолировать в optional Docker profile.
+```
+
+Optional fallback/high-quality направление:
 
 ```text
 pyannote.audio 3.1+
 ```
 
-Ограничение:
+Ограничение pyannote: может потребоваться HuggingFace token, license acceptance и отдельная проверка совместимости PyTorch-зависимостей.
 
-```text
-может потребоваться HuggingFace token и принятие license
-```
-
-MVP может работать без diarization:
+MVP/product pipeline может работать без diarization:
 
 ```text
 speaker = SPEAKER_UNKNOWN

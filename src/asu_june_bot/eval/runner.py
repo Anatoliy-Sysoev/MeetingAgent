@@ -26,7 +26,7 @@ class EvalRunner:
                 top_k=top_k,
                 model=model,
                 temperature=0.0,
-                max_tokens=500,
+                max_tokens=1400,
                 timeout_sec=300,
                 include_diagnostics=True,
             )

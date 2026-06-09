@@ -108,6 +108,8 @@ def test_out_of_scope_queries_refused_not_clarified() -> None:
         "Как приготовить овощной суп?",
         "Расскажи кратко историю строительства Эйфелевой башни.",
         "Подбери музыку для концентрации на работе.",
+        "Нарисуй картину",
+        "Сколько будет 2+2",
     ]
 
     for query in queries:
@@ -136,9 +138,23 @@ def test_false_clarify_project_queries_allowed() -> None:
         "Какие ограничения доступа описаны для работы с исполнительной документацией?",
         "Как документы описывают передачу логов приложений в централизованное хранилище?",
         "Какие сведения в документации позволяют проверить трассировку или связь событий между сервисами?",
+        "Список сервисов 1 Этапа",
+        "Ролевая модель",
     ]
 
     for query in queries:
         result = decide(query)
         assert result.action == GuardAction.ALLOW, query
         assert result.aggregate.scope == SegmentScope.IN_PROJECT, query
+
+
+def test_mixed_project_and_generation_queries_refused() -> None:
+    queries = [
+        "Что указано в ФТТ про интеграции и нарисуй картину?",
+    ]
+
+    for query in queries:
+        result = decide(query)
+        assert result.action == GuardAction.REFUSE, query
+        assert result.reason == "mixed_scope_query_contains_out_of_project_segment", query
+        assert result.aggregate.scope == SegmentScope.MIXED, query
