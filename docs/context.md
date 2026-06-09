@@ -4,11 +4,12 @@
 
 ## Now
 
-- last commit: fix — security and validation hardening (MA-INGEST-DEDUP)
+- last commit: Add thin Job API with concurrency=1 (MA-JOB-API)
 - in progress: none
 
 ## Done latest
 
+- MA-JOB-API (#35): POST /meetings/{id}/jobs/{stage} → 202, GET status, POST cancel, GET /jobs/active; concurrency=1 via asyncio.Lock; subprocess dry-run preflight; merge preflight without dry-run; 14 tests pass
 - MA-INGEST-DEDUP (#34): POST /meetings/ingest — file upload, incremental sha256, dedup → 409, token guard via Depends(require_write_access), meeting.json creation + schema validation + rollback; hardening: path-traversal-safe filename, secrets.compare_digest, date.fromisoformat, zero-byte guard
 - MA-FIX-GUARD-CASES (#32): pytest.skip(allow_module_level=True) в load_cases()
 - MA-ADR-AUTH (#33): ADR 0001 MVP access control — shared/per-user token; OIDC и public links out of scope; LAN не доверенный
@@ -17,7 +18,6 @@
 
 ## Next
 
-- MA-JOB-API (#35): enforce token check через Depends(require_write_access) из api/auth.py
 - MA-REVIEW-QUEUE
 - #39/#40 (auth evolution): require_write_access — стабильный контракт на роутах; менять backing-механизм только внутри auth.py, роуты не трогать
 
