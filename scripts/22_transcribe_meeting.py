@@ -43,9 +43,11 @@ if str(SRC_ROOT) not in sys.path:
 from meeting_agent.transcription import (  # noqa: E402
     FasterWhisperConfig,
     GigaAMConfig,
+    HotwordsConfigError,
     TranscriptDocument,
     build_transcription_report,
     extract_initial_prompt as extract_glossary_initial_prompt,
+    load_hotwords_config,
     normalize_segments,
     transcribe_faster_whisper as run_faster_whisper_backend,
     transcribe_gigaam as run_gigaam_backend,
@@ -216,7 +218,27 @@ def extract_initial_prompt() -> str:
 
 
 def build_faster_whisper_config(args: argparse.Namespace) -> FasterWhisperConfig:
-    cfg = transcription_config()
+    hotwords_list: list[str] | None = None
+    initial_prompt = extract_initial_prompt()
+
+    if getattr(args, "hotwords", False):
+        hotwords_cfg_path = getattr(args, "hotwords_config", None)
+        try:
+            hw = load_hotwords_config(hotwords_cfg_path or None)
+        except HotwordsConfigError as exc:
+            raise TranscribeMeetingError(str(exc), stage="hotwords_config") from exc
+        if not hw.enabled and not hotwords_cfg_path:
+            # --hotwords flag explicitly requested; override enabled=false from config
+            hw = hw.__class__(
+                enabled=True,
+                terms=hw.terms,
+                max_terms=hw.max_terms,
+                max_prompt_chars=hw.max_prompt_chars,
+            )
+        if hw.enabled and hw.hotwords_list():
+            hotwords_list = hw.hotwords_list()
+            initial_prompt = None  # hotwords= takes priority
+
     return FasterWhisperConfig(
         model=args.model,
         language=args.language,
@@ -225,7 +247,8 @@ def build_faster_whisper_config(args: argparse.Namespace) -> FasterWhisperConfig
         beam_size=args.beam_size,
         vad_filter=args.vad_filter,
         source="MIX",
-        initial_prompt=extract_initial_prompt(),
+        initial_prompt=initial_prompt,
+        hotwords=hotwords_list,
     )
 
 
@@ -455,6 +478,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--chunk-seconds", default=24, type=int, help="GigaAM chunk size.")
     parser.add_argument("--gigaam-root", default=str(Path.home() / "GigaAM"))
     parser.add_argument("--gigaam-cache-root", default=str(Path(os.environ.get("ProgramData", r"C:\ProgramData")) / "gigaam_cache"))
+    parser.add_argument(
+        "--hotwords",
+        action="store_true",
+        default=False,
+        help="Enable custom vocabulary from configs/asr_hotwords.yaml (faster-whisper only).",
+    )
+    parser.add_argument(
+        "--hotwords-config",
+        default=None,
+        help="Path to custom hotwords YAML (default: configs/asr_hotwords.yaml).",
+    )
     args = parser.parse_args(argv)
     cfg = transcription_config()
     if args.engine == "faster-whisper" and not args.model:

@@ -10,6 +10,7 @@ from .exporters import (
 from .faster_whisper_backend import FasterWhisperConfig, FasterWhisperResult, transcribe_faster_whisper
 from .gigaam_backend import GigaAMConfig, GigaAMResult, transcribe_gigaam
 from .glossary import extract_initial_prompt
+from .hotwords import HotwordsConfig, HotwordsConfigError, load_hotwords_config
 from .normalize import NormalizationResult, normalize_segments
 from .report import build_transcription_report
 from .schema import CanonicalSegment, TranscriptDocument, TranscriptionReport
@@ -28,6 +29,9 @@ __all__ = [
     "build_srt_transcript",
     "build_transcription_report",
     "extract_initial_prompt",
+    "HotwordsConfig",
+    "HotwordsConfigError",
+    "load_hotwords_config",
     "build_vtt_transcript",
     "normalize_segments",
     "transcribe_faster_whisper",

@@ -4,20 +4,23 @@
 
 ## Now
 
-- last commit: 8ae2d98 — chore: ignore pip editable install artifacts
-- in progress: MA-API-MEETINGS fix-commit
+- last commit: b080b55 — fix(meetings-api): MeetingCardError domain exc, 422 on all routes
+- in progress: MA-ASR-HOTWORDS
 
 ## Done latest
 
-- MA-API-MEETINGS: read-only Meeting API (GET /meetings + /transcript + /artifacts + /artifacts/{name})
-- fix: modified_at → ISO-8601, allowlist вместо denylist для суффиксов, битая карточка → 422
+- MA-API-MEETINGS: read-only Meeting API (GET /meetings + /transcript + /artifacts), MeetingCardError → 422 на всех 4 роутах, allowlist суффиксов, ISO-8601 modified_at
+- MA-ASR-HOTWORDS: configs/asr_hotwords.yaml (committed), hotwords loader/normalizer, faster-whisper >= 1.0 hotwords= param, CLI --hotwords/--hotwords-config в 22_transcribe_meeting.py
 
 ## Next
 
-- MA-ASR-HOTWORDS
 - MA-ADR-AUTH
 - MA-INGEST-DEDUP
+- MA-JOB-API
 
 ## Open decisions / blockers
 
 - guard_v2_cases.jsonl отсутствует (pre-existing) → MA-FIX-GUARD-CASES, не блокирует
+- Hotwords: Vosk/live path NOT SUPPORTED (grammar = restrictive whitelist, не additive boosting)
+- Hotwords: GigaAM NOT SUPPORTED (subprocess, нет prompt API)
+- 33_live_transcribe_meeting.py не существует — live-путь hotwords out of scope
