@@ -98,3 +98,4 @@ Thumbs.db
 .claude/
 .idea/
 .vscode/
+src/*.egg-info/
