@@ -5,7 +5,7 @@
 ## Dev Roadmap
 
 - [x] MA-API-MEETINGS — read-only Meeting API — c4938cc + fix-commit
-- [x] MA-ASR-HOTWORDS — кастомный словарь для ASR (faster-whisper only; Vosk/GigaAM unsupported) — SHA pending
+- [x] MA-ASR-HOTWORDS — кастомный словарь для ASR (faster-whisper only; Vosk/GigaAM unsupported) — 8646252
 - [ ] MA-ADR-AUTH — ADR по access control (до INGEST-DEDUP и JOB-API)
 - [ ] MA-INGEST-DEDUP — upload + sha256 дедупликация при ingest
 - [ ] MA-JOB-API — очередь задач concurrency=1 поверх pipeline scripts
