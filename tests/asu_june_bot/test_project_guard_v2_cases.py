@@ -18,6 +18,11 @@ CASES_PATH = Path(__file__).with_name("guard_v2_cases.jsonl")
 
 
 def load_cases() -> list[dict]:
+    if not CASES_PATH.exists():
+        pytest.skip(
+            "guard_v2_cases.jsonl is missing; regenerate via MA-REVIEW-QUEUE",
+            allow_module_level=True,
+        )
     rows: list[dict] = []
     with CASES_PATH.open("r", encoding="utf-8") as fh:
         for line in fh:
