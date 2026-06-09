@@ -21,6 +21,7 @@ dependencies = [
   "pydantic",
   "PyMuPDF",
   "python-docx",
+  "python-multipart",
   "python-pptx",
   "PyYAML",
   "requests",
