@@ -129,14 +129,25 @@ class MeetingsService:
             raise ValueError(f"meeting_id escapes meetings root: {meeting_id!r}") from exc
 
         schema_path = schema_path or _SCHEMA_PATH
-        suffix = Path(original_filename).suffix.lower()
+
+        # Defend against path traversal via the client-supplied filename.
+        safe_name = Path(original_filename).name
+        if not safe_name or safe_name in {".", ".."} or "/" in safe_name or "\\" in safe_name:
+            raise ValueError(f"Unsafe original_filename: {original_filename!r}")
+        suffix = Path(safe_name).suffix.lower()
 
         created = False
         try:
-            (meeting_dir / "source").mkdir(parents=True, exist_ok=False)
+            source_dir = meeting_dir / "source"
+            source_dir.mkdir(parents=True, exist_ok=False)
             created = True
 
-            dest = meeting_dir / "source" / original_filename
+            dest = source_dir / safe_name
+            # Ensure the resolved destination stays inside source_dir.
+            try:
+                dest.resolve().relative_to(source_dir.resolve())
+            except ValueError as exc:
+                raise ValueError(f"original_filename escapes source dir: {original_filename!r}") from exc
             shutil.copy2(source_temp_path, dest)
 
             rel_path = dest.relative_to(meeting_dir).as_posix()

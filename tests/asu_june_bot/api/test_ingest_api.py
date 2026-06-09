@@ -111,6 +111,56 @@ def test_no_file_returns_422(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     assert resp.status_code == 422
 
 
+def test_invalid_calendar_date_returns_422(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    client = make_client(tmp_path)
+    resp = client.post(
+        "/meetings/ingest",
+        files={"file": ("a.mp3", AUDIO_BYTES, "audio/mpeg")},
+        data={"date": "2026-99-99"},
+        headers=AUTH,
+    )
+    assert resp.status_code == 422
+
+
+def test_zero_byte_file_returns_422(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    client = make_client(tmp_path)
+    resp = client.post(
+        "/meetings/ingest",
+        files={"file": ("empty.mp3", b"", "audio/mpeg")},
+        headers=AUTH,
+    )
+    assert resp.status_code == 422
+    assert [d for d in tmp_path.iterdir() if d.is_dir()] == []
+
+
+@pytest.mark.parametrize("evil_name", ["../../evil.mp3", "nested\\evil.mp3", "../evil.mp3"])
+def test_path_traversal_filename_does_not_escape(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, evil_name: str
+) -> None:
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    client = make_client(tmp_path)
+    resp = client.post(
+        "/meetings/ingest",
+        files={"file": (evil_name, b"audio bytes for traversal", "audio/mpeg")},
+        headers=AUTH,
+    )
+    # Either rejected (422) or sanitized to a safe basename within source/.
+    if resp.status_code == 201:
+        meeting_id = resp.json()["meeting_id"]
+        source_dir = (tmp_path / meeting_id / "source").resolve()
+        # No file may exist outside the meeting source dir
+        for p in source_dir.rglob("*"):
+            assert p.resolve().is_relative_to(source_dir)
+        # The basename must be the sanitized name, never a parent path
+        assert ".." not in resp.json()["source_path"]
+    else:
+        assert resp.status_code == 422
+    # Nothing should be written above tmp_path
+    assert not (tmp_path.parent / "evil.mp3").exists()
+
+
 # ------------------------------------------------------------------
 # Happy path: 201 card created
 # ------------------------------------------------------------------

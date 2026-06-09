@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import datetime
 import hashlib
-import re
 import tempfile
 from pathlib import Path
 from typing import Annotated
@@ -11,7 +10,7 @@ import jsonschema
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 
-from asu_june_bot.api.auth import require_token
+from asu_june_bot.api.auth import require_write_access
 from asu_june_bot.meetings.service import (
     SUPPORTED_MEDIA_EXTENSIONS,
     MeetingsService,
@@ -35,7 +34,7 @@ def _get_meetings_service(request: Request) -> MeetingsService:
 
 @router.post("/ingest", status_code=201)
 def ingest_meeting(
-    _token: Annotated[str, Depends(require_token)],
+    _token: Annotated[str, Depends(require_write_access)],
     file: UploadFile,
     title: Annotated[str | None, Form()] = None,
     date: Annotated[str | None, Form()] = None,
@@ -51,14 +50,16 @@ def ingest_meeting(
         )
 
     if date is not None:
-        if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
-            raise HTTPException(status_code=422, detail="date must be YYYY-MM-DD")
-        meeting_date = date
+        try:
+            meeting_date = datetime.date.fromisoformat(date).isoformat()
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="date must be a valid YYYY-MM-DD") from exc
     else:
         meeting_date = datetime.date.today().isoformat()
 
     # Stream upload to temp file, compute sha256 incrementally
     digest = hashlib.sha256()
+    total_bytes = 0
     tmp_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_fh:
@@ -67,12 +68,17 @@ def ingest_meeting(
                 chunk = file.file.read(_CHUNK_SIZE)
                 if not chunk:
                     break
+                total_bytes += len(chunk)
                 digest.update(chunk)
                 tmp_fh.write(chunk)
     except Exception as exc:
         if tmp_path is not None:
             tmp_path.unlink(missing_ok=True)
         raise HTTPException(status_code=500, detail=f"Failed to buffer upload: {exc}") from exc
+
+    if total_bytes == 0:
+        tmp_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=422, detail="Uploaded file is empty")
 
     sha256_hex = digest.hexdigest()
 
