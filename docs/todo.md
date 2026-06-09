@@ -10,7 +10,7 @@
 - [ ] MA-INGEST-DEDUP — upload + sha256 дедупликация при ingest
 - [ ] MA-JOB-API — очередь задач concurrency=1 поверх pipeline scripts
 - [ ] MA-REVIEW-QUEUE — разметка chat_runs для eval (sidecar labels.jsonl)
-- [ ] MA-FIX-GUARD-CASES — восстановить guard_v2_cases.jsonl или xfail с причиной (known-failing, не блокирует; пересекается с MA-REVIEW-QUEUE)
+- [x] MA-FIX-GUARD-CASES — pytest.skip(allow_module_level=True) на отсутствующий guard_v2_cases.jsonl (collection не падает; regenerate via MA-REVIEW-QUEUE)
 - [ ] Meeting Workspace UI — web-интерфейс карточки с аудио-синхронизацией
 
 ## Сейчас
