@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-ROOT = Path(__file__).resolve().parents[4]
+ROOT = Path(__file__).resolve().parents[3]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
@@ -163,24 +163,24 @@ def test_faster_whisper_config_hotwords_default_none() -> None:
 
 
 # ------------------------------------------------------------------
-# build_faster_whisper_config in script (no real ASR, mocked)
+# build_faster_whisper_config in script (real function, glossary patched)
 # ------------------------------------------------------------------
 
-def test_script_build_config_no_hotwords_flag(tmp_path: Path) -> None:
-    """Without --hotwords, initial_prompt comes from glossary (or empty), hotwords=None."""
-    import types
+import importlib.util  # noqa: E402
+import types  # noqa: E402
 
-    sys.path.insert(0, str(ROOT / "scripts"))
-    import importlib
 
-    script = importlib.import_module("22_transcribe_meeting") if "22_transcribe_meeting" in sys.modules else None
-    # Direct import via spec
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location("_t22", ROOT / "scripts" / "22_transcribe_meeting.py")
+def _load_script_module():
+    spec = importlib.util.spec_from_file_location(
+        "_t22_transcribe", ROOT / "scripts" / "22_transcribe_meeting.py"
+    )
     mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
 
-    args = types.SimpleNamespace(
+
+def _args(**overrides) -> types.SimpleNamespace:
+    base = dict(
         hotwords=False,
         hotwords_config=None,
         model="tiny",
@@ -190,48 +190,50 @@ def test_script_build_config_no_hotwords_flag(tmp_path: Path) -> None:
         beam_size=5,
         vad_filter=True,
     )
-    # Only test the config construction, not actual ASR
-    from meeting_agent.transcription.faster_whisper_backend import FasterWhisperConfig
+    base.update(overrides)
+    return types.SimpleNamespace(**base)
 
-    cfg = FasterWhisperConfig(
-        model=args.model,
-        language=args.language,
-        compute_type=args.compute_type,
-        device=args.device,
-        beam_size=args.beam_size,
-        vad_filter=args.vad_filter,
-        hotwords=None,
-    )
+
+def test_build_config_no_flag_disabled_config(tmp_path, monkeypatch) -> None:
+    """No --hotwords + enabled:false config → hotwords=None (glossary prompt may apply)."""
+    mod = _load_script_module()
+    monkeypatch.setattr(mod, "extract_initial_prompt", lambda: "")
+    hw = tmp_path / "hw.yaml"
+    hw.write_text("enabled: false\nterms:\n  - ПСИ\n", encoding="utf-8")
+    cfg = mod.build_faster_whisper_config(_args(hotwords_config=str(hw)))
     assert cfg.hotwords is None
+    assert cfg.initial_prompt == ""
 
 
-def test_script_build_config_with_hotwords_flag(tmp_path: Path) -> None:
-    """With --hotwords, hotwords list is passed and initial_prompt cleared."""
-    import types
-
-    hw_file = tmp_path / "hw.yaml"
-    hw_file.write_text("enabled: true\nterms:\n  - ПСИ\n  - ФТТ\n", encoding="utf-8")
-
-    from meeting_agent.transcription.hotwords import load_hotwords_config
-
-    hw = load_hotwords_config(hw_file)
-    assert hw.enabled is True
-    assert hw.hotwords_list() == ["ПСИ", "ФТТ"]
-
-    from meeting_agent.transcription.faster_whisper_backend import FasterWhisperConfig
-
-    cfg = FasterWhisperConfig(
-        model="tiny",
-        language="ru",
-        compute_type="int8",
-        device="cpu",
-        beam_size=5,
-        vad_filter=True,
-        initial_prompt=None,
-        hotwords=hw.hotwords_list(),
-    )
+def test_build_config_flag_activates(tmp_path, monkeypatch) -> None:
+    """--hotwords + terms → hotwords=[...], initial_prompt cleared."""
+    mod = _load_script_module()
+    monkeypatch.setattr(mod, "extract_initial_prompt", lambda: "glossary")
+    hw = tmp_path / "hw.yaml"
+    hw.write_text("enabled: false\nterms:\n  - ПСИ\n  - ФТТ\n", encoding="utf-8")
+    cfg = mod.build_faster_whisper_config(_args(hotwords=True, hotwords_config=str(hw)))
     assert cfg.hotwords == ["ПСИ", "ФТТ"]
     assert cfg.initial_prompt is None
+
+
+def test_build_config_enabled_true_activates_without_flag(tmp_path, monkeypatch) -> None:
+    """enabled:true in config → hotwords=[...] even without --hotwords flag."""
+    mod = _load_script_module()
+    monkeypatch.setattr(mod, "extract_initial_prompt", lambda: "glossary")
+    hw = tmp_path / "hw.yaml"
+    hw.write_text("enabled: true\nterms:\n  - ЦТА\n", encoding="utf-8")
+    cfg = mod.build_faster_whisper_config(_args(hotwords=False, hotwords_config=str(hw)))
+    assert cfg.hotwords == ["ЦТА"]
+    assert cfg.initial_prompt is None
+
+
+def test_build_config_invalid_raises(tmp_path) -> None:
+    """Invalid hotwords config → TranscribeMeetingError."""
+    mod = _load_script_module()
+    hw = tmp_path / "hw.yaml"
+    hw.write_text("enabled: true\nterms: 'not a list'\n", encoding="utf-8")
+    with pytest.raises(mod.TranscribeMeetingError):
+        mod.build_faster_whisper_config(_args(hotwords=True, hotwords_config=str(hw)))
 
 
 # ------------------------------------------------------------------
