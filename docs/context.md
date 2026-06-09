@@ -34,6 +34,29 @@ MeetingAgent публикуется как local-first OSS проект для �
 
 Локальные подробные рабочие заметки сохранены в ignored-папке `docs/private/` и не должны попадать в Git.
 
+## Meeting API (добавлено 2026-06-09)
+
+Добавлен read-only Meeting API поверх существующих `meeting.json` и артефактов.
+
+**Эндпоинты:**
+- `GET /meetings` — список встреч (пагинация offset/limit), пустой корень = пустой список
+- `GET /meetings/{meeting_id}` — полная карточка из meeting.json
+- `GET /meetings/{meeting_id}/transcript` — содержимое транскрипта (segments.jsonl / txt / json)
+- `GET /meetings/{meeting_id}/artifacts` — список артефактов с exists/size/modified_at
+- `GET /meetings/{meeting_id}/artifacts/{artifact_name}` — содержимое текстового артефакта
+
+**Гарантии:**
+- API не запускает pipeline scripts и не мутирует meeting.json
+- Path traversal заблокирован на уровне service и router
+- Бинарные артефакты (.mp4, .wav и др.) не отдаются — 415
+- Битая карточка в списке = warning, не 500
+
+**Модули:**
+- `src/asu_june_bot/meetings/service.py` — MeetingsService
+- `src/asu_june_bot/api/routes_meetings.py` — router /meetings
+- `tests/asu_june_bot/meetings/test_meetings_service.py` — 30 unit tests
+- `tests/asu_june_bot/api/test_meetings_api.py` — 14 API tests
+
 ## Последнее Изменение
 
 Выполнен cleanup публичного дерева:

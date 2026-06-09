@@ -17,6 +17,16 @@
 - Улучшить parity между English/Russian docs.
 - Рассмотреть GitHub Pages для публичной документации.
 
+## Dev Roadmap (активные карточки)
+
+- [x] MA-API-MEETINGS — read-only Meeting API (GET /meetings + /transcript + /artifacts)
+- [ ] MA-ASR-HOTWORDS — кастомный словарь для ASR (быстрая победа, не требует auth)
+- [ ] MA-ADR-AUTH — ADR по access control до MA-INGEST-DEDUP и MA-JOB-API
+- [ ] MA-INGEST-DEDUP — upload + sha256 дедупликация при создании карточки
+- [ ] MA-JOB-API — очередь задач concurrency=1 поверх pipeline scripts
+- [ ] MA-REVIEW-QUEUE — разметка chat_runs для eval (sidecar labels.jsonl)
+- [ ] Meeting Workspace UI — web-интерфейс карточки с аудио-синхронизацией
+
 ## Product Backlog
 
 - UI для запуска транскрибации локального видео.
