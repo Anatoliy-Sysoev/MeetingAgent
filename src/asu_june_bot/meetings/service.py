@@ -1,17 +1,15 @@
 from __future__ import annotations
 
+import datetime
 import json
 import os
 from pathlib import Path
 from typing import Any
 
+# Allowlist: only these suffixes are served as text content.
+# Anything not listed is treated as binary and refused (415).
 _SAFE_ARTIFACT_SUFFIXES = {
     ".md", ".txt", ".json", ".jsonl", ".srt", ".vtt", ".csv", ".yaml", ".yml"
-}
-_BINARY_SUFFIXES = {
-    ".mp3", ".mp4", ".wav", ".ogg", ".flac", ".aac", ".m4a",
-    ".mkv", ".avi", ".mov", ".webm", ".opus",
-    ".png", ".jpg", ".jpeg", ".gif", ".pdf",
 }
 
 
@@ -62,7 +60,9 @@ def _artifact_entry(meeting_dir: Path, key: str, rel_path: str) -> dict[str, Any
     if exists:
         stat = abs_path.stat()
         entry["size_bytes"] = stat.st_size
-        entry["modified_at"] = stat.st_mtime
+        entry["modified_at"] = datetime.datetime.fromtimestamp(
+            stat.st_mtime, tz=datetime.timezone.utc
+        ).isoformat()
     return entry
 
 
@@ -175,7 +175,7 @@ class MeetingsService:
             if not abs_path.exists():
                 continue
             content_type = _detect_content_type(abs_path)
-            if content_type == "binary":
+            if content_type is None:
                 continue
             text = abs_path.read_text(encoding="utf-8", errors="replace")
             if content_type == "jsonl":
@@ -211,7 +211,7 @@ class MeetingsService:
         if not abs_path.exists():
             return None
         suffix = abs_path.suffix.lower()
-        if suffix in _BINARY_SUFFIXES:
+        if suffix not in _SAFE_ARTIFACT_SUFFIXES:
             return {"error": "binary_artifact", "key": artifact_name}
         text = abs_path.read_text(encoding="utf-8", errors="replace")
         fmt = "jsonl" if suffix == ".jsonl" else ("json" if suffix == ".json" else "text")
@@ -222,10 +222,11 @@ class MeetingsService:
 # Helpers
 # ------------------------------------------------------------------
 
-def _detect_content_type(path: Path) -> str:
+def _detect_content_type(path: Path) -> str | None:
+    """Return format string for allowlisted suffixes, None for everything else."""
     suffix = path.suffix.lower()
-    if suffix in _BINARY_SUFFIXES:
-        return "binary"
+    if suffix not in _SAFE_ARTIFACT_SUFFIXES:
+        return None
     if suffix == ".jsonl":
         return "jsonl"
     if suffix == ".json":

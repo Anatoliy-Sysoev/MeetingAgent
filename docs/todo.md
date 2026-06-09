@@ -1,6 +1,17 @@
 # Todo
 
-Обновлено: 2026-06-04.
+Обновлено: 2026-06-09.
+
+## Dev Roadmap
+
+- [x] MA-API-MEETINGS — read-only Meeting API — c4938cc + fix-commit
+- [ ] MA-ASR-HOTWORDS — кастомный словарь для ASR (не требует auth)
+- [ ] MA-ADR-AUTH — ADR по access control (до INGEST-DEDUP и JOB-API)
+- [ ] MA-INGEST-DEDUP — upload + sha256 дедупликация при ingest
+- [ ] MA-JOB-API — очередь задач concurrency=1 поверх pipeline scripts
+- [ ] MA-REVIEW-QUEUE — разметка chat_runs для eval (sidecar labels.jsonl)
+- [ ] MA-FIX-GUARD-CASES — восстановить guard_v2_cases.jsonl или xfail с причиной (known-failing, не блокирует; пересекается с MA-REVIEW-QUEUE)
+- [ ] Meeting Workspace UI — web-интерфейс карточки с аудио-синхронизацией
 
 ## Сейчас
 
@@ -16,16 +27,6 @@
 - Настроить release workflow и changelog automation.
 - Улучшить parity между English/Russian docs.
 - Рассмотреть GitHub Pages для публичной документации.
-
-## Dev Roadmap (активные карточки)
-
-- [x] MA-API-MEETINGS — read-only Meeting API (GET /meetings + /transcript + /artifacts)
-- [ ] MA-ASR-HOTWORDS — кастомный словарь для ASR (быстрая победа, не требует auth)
-- [ ] MA-ADR-AUTH — ADR по access control до MA-INGEST-DEDUP и MA-JOB-API
-- [ ] MA-INGEST-DEDUP — upload + sha256 дедупликация при создании карточки
-- [ ] MA-JOB-API — очередь задач concurrency=1 поверх pipeline scripts
-- [ ] MA-REVIEW-QUEUE — разметка chat_runs для eval (sidecar labels.jsonl)
-- [ ] Meeting Workspace UI — web-интерфейс карточки с аудио-синхронизацией
 
 ## Product Backlog
 

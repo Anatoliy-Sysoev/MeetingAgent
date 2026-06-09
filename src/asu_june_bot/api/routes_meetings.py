@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from asu_june_bot.meetings.service import MeetingsService
@@ -34,7 +36,10 @@ def get_meeting(
     meeting_id: str,
     service: MeetingsService = Depends(get_meetings_service),
 ) -> dict:
-    data = service.get_meeting(meeting_id)
+    try:
+        data = service.get_meeting(meeting_id)
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid meeting card: {exc}") from exc
     if data is None:
         raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
     return data

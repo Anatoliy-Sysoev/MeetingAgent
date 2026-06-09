@@ -178,6 +178,8 @@ def test_list_artifacts_exists_and_missing(tmp_path: Path) -> None:
     by_key = {a["key"]: a for a in arts}
     assert by_key["transcript"]["exists"] is True
     assert by_key["transcript"]["size_bytes"] > 0
+    assert isinstance(by_key["transcript"]["modified_at"], str)
+    assert "T" in by_key["transcript"]["modified_at"]  # ISO-8601
     assert by_key["memo"]["exists"] is False
     assert "size_bytes" not in by_key["memo"]
 

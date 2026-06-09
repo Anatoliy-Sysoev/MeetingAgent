@@ -112,6 +112,15 @@ def test_get_missing_404(tmp_path: Path) -> None:
     assert resp.status_code == 404
 
 
+def test_get_broken_card_422(tmp_path: Path) -> None:
+    bad = tmp_path / "2026-03-01__broken"
+    bad.mkdir()
+    (bad / "meeting.json").write_text("{bad json", encoding="utf-8")
+    client = make_client(tmp_path)
+    resp = client.get("/meetings/2026-03-01__broken")
+    assert resp.status_code == 422
+
+
 # ------------------------------------------------------------------
 # Path traversal
 # ------------------------------------------------------------------
