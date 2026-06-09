@@ -40,11 +40,18 @@ def _safe_artifact_name(name: str) -> bool:
     return True
 
 
+class MeetingCardError(ValueError):
+    """Raised when meeting.json cannot be parsed or has wrong root type."""
+
+
 def _read_meeting_json(card_path: Path) -> dict[str, Any]:
-    with card_path.open("r", encoding="utf-8") as fh:
-        data = json.load(fh)
+    try:
+        with card_path.open("r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except json.JSONDecodeError as exc:
+        raise MeetingCardError(f"JSON parse error in {card_path.name}: {exc}") from exc
     if not isinstance(data, dict):
-        raise ValueError("meeting.json root must be an object")
+        raise MeetingCardError(f"meeting.json root must be an object, got {type(data).__name__}")
     return data
 
 

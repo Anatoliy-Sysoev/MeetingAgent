@@ -112,13 +112,42 @@ def test_get_missing_404(tmp_path: Path) -> None:
     assert resp.status_code == 404
 
 
+def _make_broken(tmp_path: Path, meeting_id: str = "2026-03-01__broken") -> None:
+    d = tmp_path / meeting_id
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "meeting.json").write_text("{bad json", encoding="utf-8")
+
+
 def test_get_broken_card_422(tmp_path: Path) -> None:
-    bad = tmp_path / "2026-03-01__broken"
-    bad.mkdir()
-    (bad / "meeting.json").write_text("{bad json", encoding="utf-8")
+    _make_broken(tmp_path)
     client = make_client(tmp_path)
-    resp = client.get("/meetings/2026-03-01__broken")
-    assert resp.status_code == 422
+    assert client.get("/meetings/2026-03-01__broken").status_code == 422
+
+
+def test_transcript_broken_card_422(tmp_path: Path) -> None:
+    _make_broken(tmp_path)
+    client = make_client(tmp_path)
+    assert client.get("/meetings/2026-03-01__broken/transcript").status_code == 422
+
+
+def test_artifacts_broken_card_422(tmp_path: Path) -> None:
+    _make_broken(tmp_path)
+    client = make_client(tmp_path)
+    assert client.get("/meetings/2026-03-01__broken/artifacts").status_code == 422
+
+
+def test_artifact_content_broken_card_422(tmp_path: Path) -> None:
+    _make_broken(tmp_path)
+    client = make_client(tmp_path)
+    assert client.get("/meetings/2026-03-01__broken/artifacts/memo").status_code == 422
+
+
+def test_artifact_binary_maps_to_415(tmp_path: Path) -> None:
+    d = make_meeting(tmp_path, extra={"artifacts": {"video": "rec.mp4"}})
+    (d / "rec.mp4").write_bytes(b"\x00\x01")
+    client = make_client(tmp_path)
+    resp = client.get("/meetings/2026-01-15__kickoff/artifacts/video")
+    assert resp.status_code == 415
 
 
 # ------------------------------------------------------------------
@@ -193,12 +222,6 @@ def test_artifact_content(tmp_path: Path) -> None:
     assert "Summary" in resp.json()["content"]
 
 
-def test_artifact_binary_returns_415(tmp_path: Path) -> None:
-    d = make_meeting(tmp_path, extra={"artifacts": {"video": "rec.mp4"}})
-    (d / "rec.mp4").write_bytes(b"\x00\x01")
-    client = make_client(tmp_path)
-    resp = client.get("/meetings/2026-01-15__kickoff/artifacts/video")
-    assert resp.status_code == 415
 
 
 def test_artifact_not_found(tmp_path: Path) -> None:
