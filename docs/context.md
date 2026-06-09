@@ -4,8 +4,8 @@
 
 ## Now
 
-- last commit: b080b55 — fix(meetings-api): MeetingCardError domain exc, 422 on all routes
-- in progress: MA-ASR-HOTWORDS
+- last commit: 8646252 — Add custom vocabulary hotwords for ASR
+- in progress: none
 
 ## Done latest
 
