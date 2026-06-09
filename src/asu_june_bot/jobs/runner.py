@@ -255,6 +255,4 @@ class JobRunner:
         return job
 
     def get_active(self) -> JobState | None:
-        if self.active_job and self.active_job.status in ("starting", "running"):
-            return self.active_job
-        return None
+        return self.active_job
