@@ -15,6 +15,9 @@ class FasterWhisperConfig:
     vad_filter: bool = True
     source: str = "MIX"
     initial_prompt: str | None = None
+    # faster-whisper >= 1.0 supports hotwords= directly (additive boosting).
+    # When set, hotwords takes priority over initial_prompt for term boosting.
+    hotwords: list[str] | None = None
 
 
 @dataclass(frozen=True)
@@ -31,13 +34,16 @@ def load_model(config: FasterWhisperConfig):
 
 def transcribe_faster_whisper(media_path: Path, config: FasterWhisperConfig) -> FasterWhisperResult:
     model = load_model(config)
-    segment_iter, info = model.transcribe(
-        str(media_path),
-        language=config.language,
-        initial_prompt=config.initial_prompt or None,
-        vad_filter=config.vad_filter,
-        beam_size=config.beam_size,
-    )
+    transcribe_kwargs: dict = {
+        "language": config.language,
+        "vad_filter": config.vad_filter,
+        "beam_size": config.beam_size,
+    }
+    if config.hotwords:
+        transcribe_kwargs["hotwords"] = " ".join(config.hotwords)
+    elif config.initial_prompt:
+        transcribe_kwargs["initial_prompt"] = config.initial_prompt
+    segment_iter, info = model.transcribe(str(media_path), **transcribe_kwargs)
 
     rows: list[dict[str, Any]] = []
     for segment in segment_iter:
