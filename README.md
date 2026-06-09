@@ -68,6 +68,7 @@ documents / audio / video
 Detailed documentation:
 
 - [Project Knowledge Bot](docs/project_knowledge_bot.md)
+- [Documentation Parity Guide](docs/documentation_parity.md)
 
 ### Package Status
 
