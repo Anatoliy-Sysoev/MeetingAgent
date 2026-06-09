@@ -6,7 +6,7 @@
 
 - [x] MA-API-MEETINGS — read-only Meeting API — c4938cc, fix b080b55
 - [x] MA-ASR-HOTWORDS — кастомный словарь для ASR (faster-whisper only; Vosk/GigaAM unsupported) — 8646252, fix 09dd4fb
-- [x] MA-ADR-AUTH — ADR 0001 MVP access control (#33) — SHA pending
+- [x] MA-ADR-AUTH — ADR 0001 MVP access control (#33) — 4b65a2f
 - [ ] MA-INGEST-DEDUP — upload + sha256 дедупликация при ingest
 - [ ] MA-JOB-API — очередь задач concurrency=1 поверх pipeline scripts
 - [ ] MA-REVIEW-QUEUE — разметка chat_runs для eval (sidecar labels.jsonl)
