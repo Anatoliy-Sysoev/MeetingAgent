@@ -373,6 +373,40 @@ def test_get_active_returns_empty_when_idle(
     assert resp.json() == {}
 
 
+def test_get_active_returns_cancelled_job_while_process_alive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """After cancel, /jobs/active still shows the job (slot held) until process exits."""
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    make_meeting(tmp_path)
+    client, runner = make_client(tmp_path)
+
+    async def fake_subprocess(*args, stdout, stderr):
+        if "--dry-run" in args:
+            return _ImmediateProcess(returncode=0)
+        return _HangingProcess()
+
+    import asu_june_bot.jobs.runner as runner_mod
+    monkeypatch.setattr(runner_mod, "_create_subprocess", fake_subprocess)
+
+    resp = client.post(f"/meetings/{MEETING_ID}/jobs/transcribe", headers=AUTH)
+    assert resp.status_code == 202
+    job_id = resp.json()["job_id"]
+
+    client.post(f"/meetings/{MEETING_ID}/jobs/{job_id}/cancel", headers=AUTH)
+
+    # System still busy — /jobs/active must show the cancelled job
+    resp2 = client.get("/jobs/active", headers=AUTH)
+    assert resp2.status_code == 200
+    body = resp2.json()
+    assert body["job_id"] == job_id
+    assert body["status"] == "cancelled"
+
+    # Slot still held — second start is 409
+    resp3 = client.post(f"/meetings/{MEETING_ID}/jobs/transcribe", headers=AUTH)
+    assert resp3.status_code == 409
+
+
 def test_get_active_returns_running_job(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
