@@ -417,3 +417,69 @@ def test_merge_preflight_missing_segments_returns_422(
     resp = client.post(f"/meetings/{MEETING_ID}/jobs/merge", headers=AUTH)
     assert resp.status_code == 422
     assert "segments" in resp.json()["detail"].lower()
+
+
+# ------------------------------------------------------------------
+# Cancel meeting_id guard
+# ------------------------------------------------------------------
+
+def test_cancel_wrong_meeting_id_returns_404_job_still_running(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """cancel via wrong meeting_id must 404 without touching the job."""
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    make_meeting(tmp_path)
+    client, runner = make_client(tmp_path)
+
+    async def fake_subprocess(*args, stdout, stderr):
+        if "--dry-run" in args:
+            return _ImmediateProcess(returncode=0)
+        return _HangingProcess()
+
+    import asu_june_bot.jobs.runner as runner_mod
+    monkeypatch.setattr(runner_mod, "_create_subprocess", fake_subprocess)
+
+    resp = client.post(f"/meetings/{MEETING_ID}/jobs/transcribe", headers=AUTH)
+    assert resp.status_code == 202
+    job_id = resp.json()["job_id"]
+
+    resp2 = client.post(
+        f"/meetings/2099-01-01__other/jobs/{job_id}/cancel", headers=AUTH
+    )
+    assert resp2.status_code == 404
+    # job must still be running
+    assert runner.active_job is not None
+    assert runner.active_job.status == "running"
+
+
+def test_cancel_holds_slot_until_process_exits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """After cancel, active_job slot is held until _monitor sees process exit."""
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    make_meeting(tmp_path)
+    client, runner = make_client(tmp_path)
+
+    hanging = _HangingProcess()
+
+    async def fake_subprocess(*args, stdout, stderr):
+        if "--dry-run" in args:
+            return _ImmediateProcess(returncode=0)
+        return hanging
+
+    import asu_june_bot.jobs.runner as runner_mod
+    monkeypatch.setattr(runner_mod, "_create_subprocess", fake_subprocess)
+
+    resp = client.post(f"/meetings/{MEETING_ID}/jobs/transcribe", headers=AUTH)
+    assert resp.status_code == 202
+    job_id = resp.json()["job_id"]
+
+    resp2 = client.post(
+        f"/meetings/{MEETING_ID}/jobs/{job_id}/cancel", headers=AUTH
+    )
+    assert resp2.status_code == 200
+    assert resp2.json()["status"] == "cancelled"
+
+    # Slot still occupied — second start must be 409
+    resp3 = client.post(f"/meetings/{MEETING_ID}/jobs/transcribe", headers=AUTH)
+    assert resp3.status_code == 409

@@ -12,7 +12,7 @@ from asu_june_bot.jobs.runner import (
     JobNotFound,
     JobNotRunning,
     JobRunner,
-    PrefightFailed,
+    PreflightFailed,
     _read_meeting_status,
 )
 from asu_june_bot.meetings.service import MeetingsService, _safe_meeting_id
@@ -59,7 +59,7 @@ async def start_job(
         )
     except JobAlreadyRunning as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except PrefightFailed as exc:
+    except PreflightFailed as exc:
         raise HTTPException(status_code=422, detail=f"Preflight failed: {exc.detail}") from exc
 
     return JSONResponse(status_code=202, content=job.as_dict())
@@ -101,6 +101,15 @@ async def cancel_job(
     _token: Annotated[str, Depends(require_write_access)],
     runner: JobRunner = Depends(_get_runner),
 ) -> JSONResponse:
+    try:
+        job = runner._find_job(job_id)
+    except JobNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if job.meeting_id != meeting_id:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Job {job_id!r} does not belong to meeting {meeting_id!r}",
+        )
     try:
         job = await runner.cancel(job_id)
     except JobNotFound as exc:

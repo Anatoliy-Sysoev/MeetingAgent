@@ -53,10 +53,14 @@ class JobNotRunning(JobError):
     pass
 
 
-class PrefightFailed(JobError):
+class PreflightFailed(JobError):
     def __init__(self, detail: str) -> None:
         super().__init__(detail)
         self.detail = detail
+
+
+# Backward-compat alias — remove once all callers updated
+PrefightFailed = PreflightFailed
 
 
 @dataclass
@@ -190,7 +194,7 @@ class JobRunner:
 
         # Reserve concurrency slot
         async with self._lock:
-            if self.active_job is not None and self.active_job.status in ("starting", "running"):
+            if self.active_job is not None:
                 raise JobAlreadyRunning("A job is already running. Cancel it first.")
             job = JobState(
                 job_id=str(uuid.uuid4()),
@@ -212,11 +216,11 @@ class JobRunner:
                 _, stderr_bytes = await proc.communicate()
                 if proc.returncode != 0:
                     detail = (stderr_bytes or b"").decode("utf-8", errors="replace").strip()
-                    raise PrefightFailed(detail or "dry-run failed")
+                    raise PreflightFailed(detail or "dry-run failed")
             else:
                 err = _merge_preflight(meeting_dir)
                 if err:
-                    raise PrefightFailed(err)
+                    raise PreflightFailed(err)
 
             # Launch real process
             proc = await _create_subprocess(
@@ -246,9 +250,8 @@ class JobRunner:
         job.finished_at = _now_iso()
         if job._process is not None:
             job._process.terminate()
-        async with self._lock:
-            if self.active_job is job:
-                self.active_job = None
+        # Do NOT clear active_job here — _monitor releases the slot after the
+        # process actually exits, keeping concurrency=1 intact until then.
         return job
 
     def get_active(self) -> JobState | None:
