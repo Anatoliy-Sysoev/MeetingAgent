@@ -9,6 +9,7 @@ from fastapi import Request
 from asu_june_bot.chat import ChatService
 from asu_june_bot.core.config import load_config
 from asu_june_bot.health import HealthService
+from asu_june_bot.jobs.runner import JobRunner
 from asu_june_bot.llm.ollama_openai import OllamaOpenAIClient
 from asu_june_bot.meetings.service import MeetingsService
 from asu_june_bot.observability import ChatRunsLogger
@@ -22,6 +23,7 @@ class AppState:
     health_service: HealthService
     chat_service: ChatService
     meetings_service: MeetingsService
+    job_runner: JobRunner
 
 
 def build_app_state() -> AppState:
@@ -41,6 +43,7 @@ def build_app_state() -> AppState:
             runs_logger=ChatRunsLogger(Path("data/asu_june_bot/chat_runs.jsonl")),
         ),
         meetings_service=MeetingsService(meetings_root=meetings_root),
+        job_runner=JobRunner(),
     )
 
 
