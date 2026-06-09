@@ -222,23 +222,18 @@ def build_faster_whisper_config(args: argparse.Namespace) -> FasterWhisperConfig
     hotwords_list: list[str] | None = None
     initial_prompt = extract_initial_prompt()
 
-    if getattr(args, "hotwords", False):
-        hotwords_cfg_path = getattr(args, "hotwords_config", None)
-        try:
-            hw = load_hotwords_config(hotwords_cfg_path or None)
-        except HotwordsConfigError as exc:
-            raise TranscribeMeetingError(str(exc), stage="hotwords_config") from exc
-        if not hw.enabled and not hotwords_cfg_path:
-            # --hotwords flag explicitly requested; override enabled=false from config
-            hw = hw.__class__(
-                enabled=True,
-                terms=hw.terms,
-                max_terms=hw.max_terms,
-                max_prompt_chars=hw.max_prompt_chars,
-            )
-        if hw.enabled and hw.hotwords_list():
-            hotwords_list = hw.hotwords_list()
-            initial_prompt = None  # hotwords= takes priority
+    # Always load the config (cheap, defaults to disabled when file missing).
+    # Activation is opt-in via either the --hotwords CLI flag OR enabled: true in config.
+    hotwords_cfg_path = getattr(args, "hotwords_config", None)
+    try:
+        hw = load_hotwords_config(hotwords_cfg_path or None)
+    except HotwordsConfigError as exc:
+        raise TranscribeMeetingError(str(exc), stage="hotwords_config") from exc
+
+    active = bool(getattr(args, "hotwords", False)) or hw.enabled
+    if active and hw.hotwords_list():
+        hotwords_list = hw.hotwords_list()
+        initial_prompt = None  # hotwords= takes priority over initial_prompt
 
     return FasterWhisperConfig(
         model=args.model,
