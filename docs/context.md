@@ -4,7 +4,7 @@
 
 ## Now
 
-- last commit: 8646252 — Add custom vocabulary hotwords for ASR
+- last commit: 09dd4fb — fix(hotwords): activate via config.enabled or --hotwords flag
 - in progress: none
 
 ## Done latest
