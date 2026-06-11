@@ -143,6 +143,26 @@ def require_role(role: str):
     return _dep
 
 
+def require_action_permission(permission: str):
+    """Dependency factory for action routes (resource-spending, state-changing).
+
+    Like require_permission, but cookie-authenticated principals must also supply
+    a valid session-bound X-CSRF-Token. Machine Bearer callers are exempt from
+    CSRF (no browser cookies involved).
+    """
+    def _dep(
+        request: Request,
+        principal: Principal = Depends(require_user),
+        service: LocalAuthService = Depends(_get_local_auth_service),
+    ) -> Principal:
+        if not principal.has_permission(permission):
+            raise HTTPException(status_code=403, detail=f"Permission required: {permission}")
+        if principal.principal_type != "machine":
+            _check_csrf(request, service)
+        return principal
+    return _dep
+
+
 def _check_csrf(request: Request, service: LocalAuthService) -> None:
     """Verify CSRF token for cookie-authenticated requests.
 
