@@ -187,6 +187,72 @@ def test_identity_foreign_key_enforced(repo: AuthRepository) -> None:
 
 
 # ------------------------------------------------------------------
+# Sessions
+# ------------------------------------------------------------------
+
+def test_create_and_get_session(repo: AuthRepository) -> None:
+    user = repo.create_user(email="s@example.com")
+    session = repo.create_session(
+        user_id=user.user_id, token_hash="abc123", expires_at="2999-01-01T00:00:00+00:00"
+    )
+    fetched = repo.get_session_by_token_hash("abc123")
+    assert fetched is not None
+    assert fetched.session_id == session.session_id
+    assert fetched.is_active()
+
+
+def test_session_foreign_key_enforced(repo: AuthRepository) -> None:
+    from asu_june_bot.auth.repository import AuthRepositoryError
+    with pytest.raises(AuthRepositoryError):
+        repo.create_session(
+            user_id="ghost", token_hash="x", expires_at="2999-01-01T00:00:00+00:00"
+        )
+
+
+def test_revoke_session(repo: AuthRepository) -> None:
+    user = repo.create_user(email="s2@example.com")
+    session = repo.create_session(
+        user_id=user.user_id, token_hash="t1", expires_at="2999-01-01T00:00:00+00:00"
+    )
+    repo.revoke_session(session.session_id)
+    fetched = repo.get_session_by_token_hash("t1")
+    assert fetched is not None
+    assert not fetched.is_active()
+
+
+def test_expired_session_inactive(repo: AuthRepository) -> None:
+    user = repo.create_user(email="s3@example.com")
+    repo.create_session(
+        user_id=user.user_id, token_hash="t2", expires_at="2000-01-01T00:00:00+00:00"
+    )
+    fetched = repo.get_session_by_token_hash("t2")
+    assert fetched is not None
+    assert not fetched.is_active()
+
+
+def test_revoke_all_user_sessions(repo: AuthRepository) -> None:
+    user = repo.create_user(email="s4@example.com")
+    repo.create_session(user_id=user.user_id, token_hash="a", expires_at="2999-01-01T00:00:00+00:00")
+    repo.create_session(user_id=user.user_id, token_hash="b", expires_at="2999-01-01T00:00:00+00:00")
+    assert repo.revoke_user_sessions(user.user_id) == 2
+
+
+def test_delete_expired_sessions(repo: AuthRepository) -> None:
+    user = repo.create_user(email="s5@example.com")
+    repo.create_session(user_id=user.user_id, token_hash="old", expires_at="2000-01-01T00:00:00+00:00")
+    repo.create_session(user_id=user.user_id, token_hash="new", expires_at="2999-01-01T00:00:00+00:00")
+    assert repo.delete_expired_sessions() == 1
+    assert repo.get_session_by_token_hash("old") is None
+    assert repo.get_session_by_token_hash("new") is not None
+
+
+def test_set_last_login(repo: AuthRepository) -> None:
+    user = repo.create_user(email="s6@example.com")
+    repo.set_last_login(user.user_id, "2026-06-11T00:00:00+00:00")
+    assert repo.get_user(user.user_id).last_login_at == "2026-06-11T00:00:00+00:00"
+
+
+# ------------------------------------------------------------------
 # Audit
 # ------------------------------------------------------------------
 

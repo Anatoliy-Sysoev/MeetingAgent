@@ -9,6 +9,7 @@ from asu_june_bot import __version__
 from asu_june_bot.api.dependencies import build_app_state
 from asu_june_bot.api.errors import register_error_handlers
 from asu_june_bot.api.middleware import request_context_middleware
+from asu_june_bot.api.routes_auth import router as auth_router
 from asu_june_bot.api.routes_chat import router as chat_router
 from asu_june_bot.api.routes_health import router as health_router
 from asu_june_bot.api.routes_ingest import router as ingest_router
@@ -35,6 +36,7 @@ def create_app() -> FastAPI:
     register_error_handlers(app)
     app.include_router(ui_router)
     app.include_router(health_router)
+    app.include_router(auth_router)
     app.include_router(search_router)
     app.include_router(chat_router)
     app.include_router(ingest_router)

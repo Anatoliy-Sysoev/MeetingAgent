@@ -1,5 +1,6 @@
 # Runtime and test dependencies for MeetingAgent / Project Knowledge Bot.
 # Keep secrets and machine-local model caches out of this file.
+argon2-cffi
 beautifulsoup4
 fastapi
 faster-whisper
