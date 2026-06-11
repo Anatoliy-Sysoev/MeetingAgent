@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
+from asu_june_bot.api.auth import require_permission
+from asu_june_bot.auth.models import Principal
 from asu_june_bot.meetings.service import MeetingCardError, MeetingsService
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
+
+_require_read = require_permission("meetings.read")
 
 
 def get_meetings_service(request: Request) -> MeetingsService:
@@ -20,27 +26,21 @@ def _invalid_card(exc: MeetingCardError) -> HTTPException:
     return HTTPException(status_code=422, detail=f"Invalid meeting card: {exc}")
 
 
-# ------------------------------------------------------------------
-# GET /meetings
-# ------------------------------------------------------------------
-
 @router.get("")
 def list_meetings(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
     service: MeetingsService = Depends(get_meetings_service),
+    _principal: Annotated[Principal, Depends(_require_read)] = ...,
 ) -> dict:
     return service.list_meetings(offset=offset, limit=limit)
 
-
-# ------------------------------------------------------------------
-# GET /meetings/{meeting_id}
-# ------------------------------------------------------------------
 
 @router.get("/{meeting_id}")
 def get_meeting(
     meeting_id: str,
     service: MeetingsService = Depends(get_meetings_service),
+    _principal: Annotated[Principal, Depends(_require_read)] = ...,
 ) -> dict:
     try:
         data = service.get_meeting(meeting_id)
@@ -51,14 +51,11 @@ def get_meeting(
     return data
 
 
-# ------------------------------------------------------------------
-# GET /meetings/{meeting_id}/transcript
-# ------------------------------------------------------------------
-
 @router.get("/{meeting_id}/transcript")
 def get_transcript(
     meeting_id: str,
     service: MeetingsService = Depends(get_meetings_service),
+    _principal: Annotated[Principal, Depends(require_permission("transcripts.read"))] = ...,
 ) -> dict:
     try:
         card = service.get_meeting(meeting_id)
@@ -72,14 +69,11 @@ def get_transcript(
     return result
 
 
-# ------------------------------------------------------------------
-# GET /meetings/{meeting_id}/artifacts
-# ------------------------------------------------------------------
-
 @router.get("/{meeting_id}/artifacts")
 def list_artifacts(
     meeting_id: str,
     service: MeetingsService = Depends(get_meetings_service),
+    _principal: Annotated[Principal, Depends(require_permission("artifacts.read"))] = ...,
 ) -> dict:
     try:
         artifacts = service.list_artifacts(meeting_id)
@@ -90,15 +84,12 @@ def list_artifacts(
     return {"meeting_id": meeting_id, "artifacts": artifacts}
 
 
-# ------------------------------------------------------------------
-# GET /meetings/{meeting_id}/artifacts/{artifact_name}
-# ------------------------------------------------------------------
-
 @router.get("/{meeting_id}/artifacts/{artifact_name}")
 def get_artifact_content(
     meeting_id: str,
     artifact_name: str,
     service: MeetingsService = Depends(get_meetings_service),
+    _principal: Annotated[Principal, Depends(require_permission("artifacts.read"))] = ...,
 ) -> dict:
     try:
         card = service.get_meeting(meeting_id)

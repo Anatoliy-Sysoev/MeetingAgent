@@ -9,6 +9,8 @@ from typing import Literal
 from asu_june_bot.auth.models import Principal, Session, User, now_iso
 from asu_june_bot.auth.passwords import (
     dummy_verify,
+    generate_csrf_token,
+    hash_csrf_token,
     hash_password,
     password_needs_rehash,
     verify_password,
@@ -33,6 +35,7 @@ class AuthenticatedSession:
     user: User
     principal: Principal
     session: Session
+    csrf_token: str = ""  # raw token; empty for machine principals
 
     @property
     def roles(self) -> frozenset[str]:
@@ -95,10 +98,12 @@ class LocalAuthService:
             )
 
         token = secrets.token_urlsafe(32)
+        csrf_token = generate_csrf_token()
         session = self.repository.create_session(
             user_id=user.user_id,
             token_hash=hash_session_token(token),
             expires_at=self._expires_at(),
+            csrf_token_hash=hash_csrf_token(csrf_token),
         )
         self.repository.set_last_login(user.user_id)
         principal = self._make_principal(user)
@@ -109,7 +114,9 @@ class LocalAuthService:
             target_type="session",
             target_id=session.session_id,
         )
-        return token, AuthenticatedSession(user=user, principal=principal, session=session)
+        return token, AuthenticatedSession(
+            user=user, principal=principal, session=session, csrf_token=csrf_token
+        )
 
     def resolve_session(self, token: str) -> AuthenticatedSession | None:
         """Return session info for a valid token; None if missing/expired/revoked."""

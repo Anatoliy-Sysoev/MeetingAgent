@@ -5,7 +5,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from asu_june_bot.api.auth import require_write_access
+from asu_june_bot.api.auth import require_permission, require_write_access
+from asu_june_bot.auth.models import Principal
 from asu_june_bot.jobs.runner import (
     STAGE_COMMANDS,
     JobAlreadyRunning,
@@ -38,7 +39,7 @@ def _get_meetings_service(request: Request) -> MeetingsService:
 async def start_job(
     meeting_id: str,
     stage: str,
-    _token: Annotated[str, Depends(require_write_access)],
+    _principal: Annotated[Principal, Depends(require_write_access)],
     runner: JobRunner = Depends(_get_runner),
     service: MeetingsService = Depends(_get_meetings_service),
 ) -> JSONResponse:
@@ -66,14 +67,14 @@ async def start_job(
 
 
 # ------------------------------------------------------------------
-# GET /meetings/{meeting_id}/jobs/{job_id}  — job status
+# GET /meetings/{meeting_id}/jobs/{job_id}  — job status (read)
 # ------------------------------------------------------------------
 
 @router.get("/meetings/{meeting_id}/jobs/{job_id}")
 async def get_job(
     meeting_id: str,
     job_id: str,
-    _token: Annotated[str, Depends(require_write_access)],
+    _principal: Annotated[Principal, Depends(require_permission("jobs.read"))],
     runner: JobRunner = Depends(_get_runner),
     service: MeetingsService = Depends(_get_meetings_service),
 ) -> JSONResponse:
@@ -98,7 +99,7 @@ async def get_job(
 async def cancel_job(
     meeting_id: str,
     job_id: str,
-    _token: Annotated[str, Depends(require_write_access)],
+    _principal: Annotated[Principal, Depends(require_write_access)],
     runner: JobRunner = Depends(_get_runner),
 ) -> JSONResponse:
     try:
@@ -120,12 +121,12 @@ async def cancel_job(
 
 
 # ------------------------------------------------------------------
-# GET /jobs/active  — current active job (for UI "system busy" check)
+# GET /jobs/active  — current active job (read)
 # ------------------------------------------------------------------
 
 @router.get("/jobs/active")
 async def get_active_job(
-    _token: Annotated[str, Depends(require_write_access)],
+    _principal: Annotated[Principal, Depends(require_permission("jobs.read"))],
     runner: JobRunner = Depends(_get_runner),
 ) -> JSONResponse:
     job = runner.get_active()

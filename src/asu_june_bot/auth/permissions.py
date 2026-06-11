@@ -42,6 +42,23 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
 BUILTIN_ROLES: frozenset[str] = frozenset(ROLE_PERMISSIONS)
 
 
+# Explicit, narrowly-scoped permissions for MEETINGAGENT_API_TOKEN machine callers.
+# Must not include users.manage, roles.manage, settings.manage, tokens.manage,
+# meetings.delete, or any browser admin-console access.
+MACHINE_PERMISSIONS: frozenset[str] = frozenset({
+    "meetings.upload",
+    "meetings.read",
+    "artifacts.read",
+    "transcripts.read",
+    "search.use",
+    "chat.use",
+    "jobs.start",
+    "jobs.cancel",
+    "jobs.retry",
+    "jobs.read",
+})
+
+
 def permissions_for_roles(roles: frozenset[str] | set[str]) -> frozenset[str]:
     """Union of permissions for known roles. Unknown roles grant nothing."""
     result: set[str] = set()

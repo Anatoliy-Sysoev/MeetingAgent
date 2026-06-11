@@ -118,6 +118,13 @@ class AuthRepository:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as conn:
             conn.executescript(_SCHEMA)
+            # Idempotent schema migrations for existing databases.
+            try:
+                conn.execute(
+                    "ALTER TABLE auth_sessions ADD COLUMN csrf_token_hash TEXT"
+                )
+            except sqlite3.OperationalError:
+                pass  # Column already exists
             for role in sorted(BUILTIN_ROLES):
                 conn.execute(
                     "INSERT OR IGNORE INTO auth_roles (role_name) VALUES (?)", (role,)
@@ -265,21 +272,31 @@ class AuthRepository:
     # Sessions
     # ------------------------------------------------------------------
 
-    def create_session(self, *, user_id: str, token_hash: str, expires_at: str) -> Session:
+    def create_session(
+        self,
+        *,
+        user_id: str,
+        token_hash: str,
+        expires_at: str,
+        csrf_token_hash: str | None = None,
+    ) -> Session:
         session = Session(
             session_id=new_id(),
             user_id=user_id,
             token_hash=token_hash,
             expires_at=expires_at,
+            csrf_token_hash=csrf_token_hash,
         )
         with self._connect() as conn:
             try:
                 conn.execute(
                     "INSERT INTO auth_sessions "
-                    "(session_id, user_id, token_hash, created_at, expires_at, revoked_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    "(session_id, user_id, token_hash, created_at, expires_at, revoked_at, "
+                    " csrf_token_hash) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
                     (session.session_id, session.user_id, session.token_hash,
-                     session.created_at, session.expires_at, session.revoked_at),
+                     session.created_at, session.expires_at, session.revoked_at,
+                     session.csrf_token_hash),
                 )
             except sqlite3.IntegrityError as exc:
                 raise AuthRepositoryError(
@@ -295,6 +312,7 @@ class AuthRepository:
             created_at=row["created_at"],
             expires_at=row["expires_at"],
             revoked_at=row["revoked_at"],
+            csrf_token_hash=row["csrf_token_hash"] if "csrf_token_hash" in row.keys() else None,
         )
 
     def get_session_by_token_hash(self, token_hash: str) -> Session | None:
