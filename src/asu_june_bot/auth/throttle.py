@@ -266,24 +266,31 @@ def build_login_throttle(
     """Build a limiter from ``auth.login_throttle`` config with strict validation.
 
     Raises ValueError on any invalid setting so misconfiguration fails at
-    startup rather than silently degrading protection.
+    startup rather than silently degrading protection. All fields are validated
+    even when ``enabled: false`` so a misconfigured-but-disabled section is
+    caught before the service starts.
     """
-    cfg = config or {}
-    if not isinstance(cfg, dict):
-        raise ValueError(f"auth.login_throttle must be a mapping, got {cfg!r}")
+    if config is None:
+        cfg: dict = {}
+    elif not isinstance(config, dict):
+        raise ValueError(f"auth.login_throttle must be a mapping, got {config!r}")
+    else:
+        cfg = config
 
     enabled = _require_bool(cfg.get("enabled"), "enabled", DEFAULT_ENABLED)
-    raw_cidrs = cfg.get("trusted_proxy_cidrs") or []
-    if not isinstance(raw_cidrs, (list, tuple)):
+
+    raw_cidrs = cfg.get("trusted_proxy_cidrs")
+    if raw_cidrs is None:
+        raw_cidrs = []
+    elif not isinstance(raw_cidrs, (list, tuple)):
         raise ValueError(
             f"auth.login_throttle.trusted_proxy_cidrs must be a list, got {raw_cidrs!r}"
         )
-    # Validate CIDRs eagerly so disabled mode still surfaces bad config.
+    # Validate CIDRs eagerly so any bad CIDR surfaces regardless of enabled.
     parse_trusted_proxies(list(raw_cidrs))
 
-    if not enabled:
-        return NoOpLoginThrottle()
-
+    # Validate numeric settings unconditionally — a misconfigured-but-disabled
+    # section must still fail at startup.
     max_failures = _require_positive_int(cfg.get("max_failures"), "max_failures", DEFAULT_MAX_FAILURES)
     window_seconds = _require_positive_int(cfg.get("window_seconds"), "window_seconds", DEFAULT_WINDOW_SECONDS)
     block_seconds = _require_positive_int(cfg.get("block_seconds"), "block_seconds", DEFAULT_BLOCK_SECONDS)
@@ -292,6 +299,9 @@ def build_login_throttle(
         raise ValueError(
             f"auth.login_throttle.max_entries ({max_entries}) must be >= max_failures ({max_failures})"
         )
+
+    if not enabled:
+        return NoOpLoginThrottle()
 
     return LoginThrottle(
         max_failures=max_failures,
