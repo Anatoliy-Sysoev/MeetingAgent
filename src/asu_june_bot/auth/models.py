@@ -112,6 +112,25 @@ class ExternalIdentity:
 
 
 @dataclass
+class Session:
+    """Server-side session. The browser only ever sees the opaque token;
+    the database stores its sha256 digest (token_hash)."""
+
+    session_id: str
+    user_id: str
+    token_hash: str
+    created_at: str = field(default_factory=now_iso)
+    expires_at: str = ""
+    revoked_at: str | None = None
+
+    def is_active(self, at: str | None = None) -> bool:
+        moment = at or now_iso()
+        if self.revoked_at is not None:
+            return False
+        return moment < self.expires_at
+
+
+@dataclass
 class AuditEvent:
     event_id: str
     actor_type: str

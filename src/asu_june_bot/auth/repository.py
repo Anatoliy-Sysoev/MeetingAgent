@@ -10,6 +10,7 @@ from asu_june_bot.auth.models import (
     AuditEvent,
     ExternalIdentity,
     LocalCredential,
+    Session,
     User,
     new_id,
     normalize_email,
@@ -58,6 +59,15 @@ CREATE TABLE IF NOT EXISTS auth_user_roles (
     user_id        TEXT NOT NULL REFERENCES auth_users(user_id) ON DELETE CASCADE,
     role_name      TEXT NOT NULL REFERENCES auth_roles(role_name) ON DELETE CASCADE,
     PRIMARY KEY (user_id, role_name)
+);
+
+CREATE TABLE IF NOT EXISTS auth_sessions (
+    session_id     TEXT PRIMARY KEY,
+    user_id        TEXT NOT NULL REFERENCES auth_users(user_id) ON DELETE CASCADE,
+    token_hash     TEXT NOT NULL UNIQUE,
+    created_at     TEXT NOT NULL,
+    expires_at     TEXT NOT NULL,
+    revoked_at     TEXT
 );
 
 CREATE TABLE IF NOT EXISTS auth_audit_events (
@@ -239,6 +249,81 @@ class AuthRepository:
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
+
+    # ------------------------------------------------------------------
+    # Sessions
+    # ------------------------------------------------------------------
+
+    def create_session(self, *, user_id: str, token_hash: str, expires_at: str) -> Session:
+        session = Session(
+            session_id=new_id(),
+            user_id=user_id,
+            token_hash=token_hash,
+            expires_at=expires_at,
+        )
+        with self._connect() as conn:
+            try:
+                conn.execute(
+                    "INSERT INTO auth_sessions "
+                    "(session_id, user_id, token_hash, created_at, expires_at, revoked_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (session.session_id, session.user_id, session.token_hash,
+                     session.created_at, session.expires_at, session.revoked_at),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise AuthRepositoryError(
+                    f"Cannot create session for user {user_id!r}"
+                ) from exc
+        return session
+
+    def _row_to_session(self, row: sqlite3.Row) -> Session:
+        return Session(
+            session_id=row["session_id"],
+            user_id=row["user_id"],
+            token_hash=row["token_hash"],
+            created_at=row["created_at"],
+            expires_at=row["expires_at"],
+            revoked_at=row["revoked_at"],
+        )
+
+    def get_session_by_token_hash(self, token_hash: str) -> Session | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM auth_sessions WHERE token_hash = ?", (token_hash,)
+            ).fetchone()
+        return self._row_to_session(row) if row else None
+
+    def revoke_session(self, session_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE auth_sessions SET revoked_at = ? "
+                "WHERE session_id = ? AND revoked_at IS NULL",
+                (now_iso(), session_id),
+            )
+
+    def revoke_user_sessions(self, user_id: str) -> int:
+        with self._connect() as conn:
+            cur = conn.execute(
+                "UPDATE auth_sessions SET revoked_at = ? "
+                "WHERE user_id = ? AND revoked_at IS NULL",
+                (now_iso(), user_id),
+            )
+            return cur.rowcount
+
+    def delete_expired_sessions(self) -> int:
+        with self._connect() as conn:
+            cur = conn.execute(
+                "DELETE FROM auth_sessions WHERE expires_at < ?", (now_iso(),)
+            )
+            return cur.rowcount
+
+    def set_last_login(self, user_id: str, at: str | None = None) -> None:
+        moment = at or now_iso()
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE auth_users SET last_login_at = ?, updated_at = ? WHERE user_id = ?",
+                (moment, moment, user_id),
+            )
 
     # ------------------------------------------------------------------
     # External identities

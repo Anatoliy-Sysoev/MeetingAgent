@@ -4,11 +4,12 @@
 
 ## Now
 
-- last commit: Add auth domain and SQLite persistence (MA-AUTH-CORE-1)
+- last commit: Add local login and server-side sessions (MA-AUTH-LOCAL-SESSIONS)
 - in progress: none
 
 ## Done latest
 
+- MA-AUTH-LOCAL-SESSIONS (#48): Argon2id password hashing (argon2-cffi), auth_sessions в SQLite (хранится sha256 токена, не сам токен), opaque HttpOnly SameSite=Lax cookie `ma_session` (Secure при https), POST /auth/local/login, GET /auth/me, POST /auth/logout; generic 401 (email не раскрывается), disabled user отклоняется, expiration/revocation, audit login/logout/failure, dummy_verify против timing-атак; AuthRepository+LocalAuthService в AppState; require_write_access не тронут
 - MA-AUTH-CORE-1 (#44): provider-independent auth domain — Principal/User/LocalCredential/ExternalIdentity, central RBAC (viewer/editor/admin, unknown role grants nothing), provider registry (local+machine, yandex/google/oidc/trusted_proxy reserved), SQLite repository (idempotent schema, FK on, parameterized SQL, audit events); 40 tests; no API behavior changed
 - MA-API-MEETINGS-RESTORE (#30): GET /meetings, GET /meetings/{id}, GET /meetings/{id}/transcript, GET /meetings/{id}/artifacts, GET /meetings/{id}/artifacts/{name}; read-side helpers ported into MeetingsService; 56 new tests; ingest and job API regressions pass
 - MA-JOB-API (#35): POST /meetings/{id}/jobs/{stage} → 202, GET status, POST cancel, GET /jobs/active; concurrency=1 via asyncio.Lock; subprocess dry-run preflight; merge preflight without dry-run; 17 tests pass
@@ -24,6 +25,9 @@
 - GET  /meetings/{id}/transcript                  — transcript or available:false
 - GET  /meetings/{id}/artifacts                   — artifact metadata list
 - GET  /meetings/{id}/artifacts/{name}            — text artifact content
+- POST /auth/local/login                          — login → session cookie
+- GET  /auth/me                                   — identity + roles [cookie]
+- POST /auth/logout                               — revoke session + clear cookie
 - POST /meetings/ingest                           — upload + sha256 dedup [auth]
 - POST /meetings/{id}/jobs/{stage}                — start pipeline job [auth]
 - GET  /meetings/{id}/jobs/{job_id}               — job status [auth]
@@ -33,7 +37,8 @@
 
 ## Next
 
-- MA-AUTH-LOCAL-SESSIONS (#44 AUTH-2): Argon2id, local login, server-side sessions, cookie, logout, /auth/me
+- MA-AUTH-RBAC-INTEGRATION (#44): require_user/require_role поверх существующих роутов
+- MA-AUTH-BOOTSTRAP-ADMIN (#44): first-admin bootstrap + admin user API
 - MA-REVIEW-QUEUE
 - Meeting Workspace UI
 - #39/#40 (auth evolution): require_write_access — стабильный контракт на роутах; менять backing-механизм только внутри auth.py, роуты не трогать
