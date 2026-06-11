@@ -4,11 +4,12 @@
 
 ## Now
 
-- last commit: fix CI — add python-multipart to requirements.txt
+- last commit: Restore read-only Meeting API (MA-API-MEETINGS-RESTORE)
 - in progress: none
 
 ## Done latest
 
+- MA-API-MEETINGS-RESTORE (#30): GET /meetings, GET /meetings/{id}, GET /meetings/{id}/transcript, GET /meetings/{id}/artifacts, GET /meetings/{id}/artifacts/{name}; read-side helpers ported into MeetingsService; 56 new tests; ingest and job API regressions pass
 - MA-JOB-API (#35): POST /meetings/{id}/jobs/{stage} → 202, GET status, POST cancel, GET /jobs/active; concurrency=1 via asyncio.Lock; subprocess dry-run preflight; merge preflight without dry-run; 17 tests pass
 - MA-INGEST-DEDUP (#34): POST /meetings/ingest — file upload, incremental sha256, dedup → 409, token guard via Depends(require_write_access), meeting.json creation + schema validation + rollback; hardening: path-traversal-safe filename, secrets.compare_digest, date.fromisoformat, zero-byte guard
 - MA-FIX-GUARD-CASES (#32): pytest.skip(allow_module_level=True) в load_cases()
@@ -17,17 +18,22 @@
 
 ## Actual API surface (main)
 
-- POST /meetings/ingest
-- POST /meetings/{id}/jobs/{stage}
-- GET  /meetings/{id}/jobs/{job_id}
-- POST /meetings/{id}/jobs/{job_id}/cancel
-- GET  /jobs/active
-- GET  /search, POST /chat, GET /health (pre-existing)
+- GET  /meetings                                  — list (offset, limit)
+- GET  /meetings/{id}                             — card
+- GET  /meetings/{id}/transcript                  — transcript or available:false
+- GET  /meetings/{id}/artifacts                   — artifact metadata list
+- GET  /meetings/{id}/artifacts/{name}            — text artifact content
+- POST /meetings/ingest                           — upload + sha256 dedup [auth]
+- POST /meetings/{id}/jobs/{stage}                — start pipeline job [auth]
+- GET  /meetings/{id}/jobs/{job_id}               — job status [auth]
+- POST /meetings/{id}/jobs/{job_id}/cancel        — cancel job [auth]
+- GET  /jobs/active                               — active job or {} [auth]
+- GET  /search, POST /chat, GET /health           — pre-existing
 
 ## Next
 
-- MA-API-MEETINGS: read-only Meeting API (GET /meetings, GET /meetings/{id}, GET /meetings/{id}/transcript) — не смержен, код не существует
 - MA-REVIEW-QUEUE
+- Meeting Workspace UI
 - #39/#40 (auth evolution): require_write_access — стабильный контракт на роутах; менять backing-механизм только внутри auth.py, роуты не трогать
 
 ## Open decisions / blockers
