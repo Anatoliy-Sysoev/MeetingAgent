@@ -19,6 +19,7 @@ from asu_june_bot.api.app import create_app  # noqa: E402
 from asu_june_bot.auth.passwords import hash_password  # noqa: E402
 from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
 from asu_june_bot.auth.service import LocalAuthService  # noqa: E402
+from asu_june_bot.jobs.runner import JobRunner  # noqa: E402
 from asu_june_bot.meetings.service import MeetingsService  # noqa: E402
 
 MACHINE_TOKEN = "machine-test-token"
@@ -47,6 +48,7 @@ VALID_CARD = {
 class FakeState:
     meetings_service: MeetingsService
     local_auth_service: LocalAuthService
+    job_runner: JobRunner
 
 
 @pytest.fixture()
@@ -71,6 +73,7 @@ def client(tmp_path: Path, repo: AuthRepository, service: LocalAuthService) -> T
     app.state.asu_june_bot = FakeState(
         meetings_service=MeetingsService(meetings_root),
         local_auth_service=service,
+        job_runner=JobRunner(),
     )
     return c
 
@@ -277,7 +280,7 @@ def test_logout_invalidates_csrf(
     make_user(repo, "ed4@example.com", "editor")
     cookie, csrf = browser_login(client, "ed4@example.com")
     client.cookies.set("ma_session", cookie)
-    client.post("/auth/logout")
+    client.post("/auth/logout", headers={"X-CSRF-Token": csrf})
     client.cookies.set("ma_session", cookie)
     resp = client.post(
         "/meetings/ingest",
@@ -285,6 +288,91 @@ def test_logout_invalidates_csrf(
         headers={"X-CSRF-Token": csrf},
     )
     assert resp.status_code == 401
+
+
+# ------------------------------------------------------------------
+# Malformed Authorization must not fall back to cookie
+# ------------------------------------------------------------------
+
+def test_basic_auth_with_valid_cookie_401(
+    client: TestClient, repo: AuthRepository
+) -> None:
+    make_user(repo, "basic@example.com", "viewer")
+    cookie, _ = browser_login(client, "basic@example.com")
+    client.cookies.set("ma_session", cookie)
+    resp = client.get("/meetings", headers={"Authorization": "Basic dXNlcjpwYXNz"})
+    assert resp.status_code == 401
+
+
+def test_empty_bearer_token_401(client: TestClient, repo: AuthRepository) -> None:
+    make_user(repo, "empty@example.com", "viewer")
+    cookie, _ = browser_login(client, "empty@example.com")
+    client.cookies.set("ma_session", cookie)
+    resp = client.get("/meetings", headers={"Authorization": "Bearer "})
+    assert resp.status_code == 401
+
+
+def test_malformed_auth_header_401(client: TestClient, repo: AuthRepository) -> None:
+    make_user(repo, "mal@example.com", "viewer")
+    cookie, _ = browser_login(client, "mal@example.com")
+    client.cookies.set("ma_session", cookie)
+    resp = client.get("/meetings", headers={"Authorization": "garbage-no-scheme"})
+    assert resp.status_code == 401
+
+
+# ------------------------------------------------------------------
+# jobs.read for user roles
+# ------------------------------------------------------------------
+
+@pytest.mark.parametrize("role", ["viewer", "editor", "admin"])
+def test_user_roles_can_read_job_status(
+    client: TestClient, repo: AuthRepository, role: str
+) -> None:
+    make_user(repo, f"jobs-{role}@example.com", role)
+    cookie, _ = browser_login(client, f"jobs-{role}@example.com")
+    client.cookies.set("ma_session", cookie)
+    # 404 (no such job) means auth passed; 401/403 would mean RBAC gap
+    resp = client.get("/meetings/2026-01-15__rbac-test/jobs/no-such-job")
+    assert resp.status_code == 404
+
+
+# ------------------------------------------------------------------
+# Logout CSRF protection
+# ------------------------------------------------------------------
+
+def test_logout_live_session_missing_csrf_403(
+    client: TestClient, repo: AuthRepository
+) -> None:
+    make_user(repo, "lo1@example.com", "viewer")
+    cookie, _ = browser_login(client, "lo1@example.com")
+    client.cookies.set("ma_session", cookie)
+    assert client.post("/auth/logout").status_code == 403
+    # session still alive
+    assert client.get("/auth/me").status_code == 200
+
+
+def test_logout_live_session_wrong_csrf_403(
+    client: TestClient, repo: AuthRepository
+) -> None:
+    make_user(repo, "lo2@example.com", "viewer")
+    cookie, _ = browser_login(client, "lo2@example.com")
+    client.cookies.set("ma_session", cookie)
+    assert client.post(
+        "/auth/logout", headers={"X-CSRF-Token": "bogus"}
+    ).status_code == 403
+
+
+def test_logout_valid_csrf_204(client: TestClient, repo: AuthRepository) -> None:
+    make_user(repo, "lo3@example.com", "viewer")
+    cookie, csrf = browser_login(client, "lo3@example.com")
+    client.cookies.set("ma_session", cookie)
+    assert client.post(
+        "/auth/logout", headers={"X-CSRF-Token": csrf}
+    ).status_code == 204
+
+
+def test_logout_no_session_idempotent_204(client: TestClient) -> None:
+    assert client.post("/auth/logout", headers={}).status_code == 204
 
 
 # ------------------------------------------------------------------
