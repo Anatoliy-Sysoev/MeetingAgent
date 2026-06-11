@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
@@ -16,6 +16,7 @@ if str(SRC) not in sys.path:
 from asu_june_bot.api.app import create_app  # noqa: E402
 from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
 from asu_june_bot.auth.service import LocalAuthService  # noqa: E402
+from asu_june_bot.auth.throttle import LoginThrottle  # noqa: E402
 from asu_june_bot.meetings.service import MeetingsService  # noqa: E402
 
 TOKEN = "test-meetings-token"
@@ -46,6 +47,7 @@ MEETING_ID = "2026-01-15__kickoff"
 class FakeState:
     meetings_service: MeetingsService
     local_auth_service: LocalAuthService
+    login_throttle: LoginThrottle = field(default_factory=LoginThrottle)
 
 
 def make_client(meetings_root: Path) -> TestClient:

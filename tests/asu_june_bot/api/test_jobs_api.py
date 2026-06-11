@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
@@ -17,6 +17,7 @@ from asu_june_bot.api.app import create_app  # noqa: E402
 from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
 from asu_june_bot.auth.service import LocalAuthService  # noqa: E402
 from asu_june_bot.jobs.runner import JobRunner, JobState  # noqa: E402
+from asu_june_bot.auth.throttle import LoginThrottle  # noqa: E402
 from asu_june_bot.meetings.service import MeetingsService  # noqa: E402
 
 TOKEN = "test-job-token"
@@ -92,6 +93,7 @@ class FakeState:
     meetings_service: MeetingsService
     job_runner: JobRunner
     local_auth_service: LocalAuthService
+    login_throttle: LoginThrottle = field(default_factory=LoginThrottle)
 
 
 def make_meeting(meetings_root: Path, meeting_id: str = MEETING_ID) -> None:

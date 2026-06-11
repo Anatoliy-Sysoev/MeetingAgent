@@ -4,11 +4,12 @@
 
 ## Now
 
-- last commit: Integrate session RBAC and CSRF protection (MA-AUTH-RBAC-INTEGRATION)
+- last commit: Add local login throttling (MA-AUTH-LOGIN-THROTTLE)
 - in progress: none
 
 ## Done latest
 
+- MA-AUTH-LOGIN-THROTTLE (#51): bounded in-memory brute-force protection — LoginThrottle (LRU, threading.Lock), key=sha256(email)+ip, 429+Retry-After after configurable threshold, block cleared on success, safe X-Forwarded-For via trusted_proxy_cidrs CIDR list, integrated into POST /auth/local/login, configurable via config.auth.throttle.{max_attempts,window_seconds,block_seconds,trusted_proxy_cidrs}; 22 tests
 - MA-AUTH-RBAC-INTEGRATION (#50): provider-independent auth deps in api/auth.py — get_optional_principal (Bearer→machine / cookie→user, invalid Bearer raises 401 no fallback), require_user, require_permission(perm), require_role(role), require_write_access (machine+editor+admin, viewer 403, no auth 401, CSRF guard for cookie requests); CSRF per-session hash in auth_sessions (idempotent ALTER); raw token returned in login response + non-HttpOnly cookie; X-CSRF-Token header required for browser write requests, exempt for Bearer; MACHINE_PERMISSIONS centrally defined (no users/roles/settings/delete); read routes (meetings, search, chat) require permission; job status routes use jobs.read (добавлен в viewer, наследуется editor/admin); write routes use require_write_access returning Principal; /chat — action route через require_action_permission (permission + CSRF для cookie, Bearer exempt); malformed/non-Bearer Authorization → 401 без fallback; logout требует session-bound CSRF; all existing tests adapted, 35 RBAC/CSRF tests; 403 pass
 - MA-AUTH-LOCAL-SESSIONS (#48): Argon2id password hashing (argon2-cffi), auth_sessions в SQLite (хранится sha256 токена, не сам токен), opaque HttpOnly SameSite=Lax cookie `ma_session` (Secure при https), POST /auth/local/login, GET /auth/me, POST /auth/logout; generic 401 (email не раскрывается), disabled user отклоняется, expiration/revocation, audit login/logout/failure, dummy_verify против timing-атак; AuthRepository+LocalAuthService в AppState; require_write_access не тронут
 - MA-AUTH-CORE-1 (#44): provider-independent auth domain — Principal/User/LocalCredential/ExternalIdentity, central RBAC (viewer/editor/admin, unknown role grants nothing), provider registry (local+machine, yandex/google/oidc/trusted_proxy reserved), SQLite repository (idempotent schema, FK on, parameterized SQL, audit events); 40 tests; no API behavior changed
@@ -38,7 +39,7 @@
 
 ## Next
 
-- MA-AUTH-BOOTSTRAP-ADMIN (#44): first-admin bootstrap + admin user API
+- MA-AUTH-BOOTSTRAP-ADMIN: first-admin bootstrap + admin user API
 - MA-REVIEW-QUEUE
 - Meeting Workspace UI
 - #39/#40 (auth evolution): require_write_access — стабильный контракт на роутах; менять backing-механизм только внутри auth.py, роуты не трогать

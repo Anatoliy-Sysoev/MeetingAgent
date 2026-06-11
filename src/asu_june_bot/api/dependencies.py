@@ -13,6 +13,12 @@ from asu_june_bot.auth.service import (
     DEFAULT_SESSION_TTL_SECONDS,
     LocalAuthService,
 )
+from asu_june_bot.auth.throttle import (
+    DEFAULT_BLOCK_SECONDS,
+    DEFAULT_MAX_ATTEMPTS,
+    DEFAULT_WINDOW_SECONDS,
+    LoginThrottle,
+)
 from asu_june_bot.chat import ChatService
 from asu_june_bot.core.config import load_config
 from asu_june_bot.health import HealthService
@@ -33,6 +39,7 @@ class AppState:
     job_runner: JobRunner
     auth_repository: AuthRepository
     local_auth_service: LocalAuthService
+    login_throttle: LoginThrottle
 
 
 def _normalize_cookie_secure(value: Any) -> str:
@@ -64,6 +71,13 @@ def build_app_state() -> AppState:
     session_ttl = int(auth_cfg.get("session_ttl_seconds") or DEFAULT_SESSION_TTL_SECONDS)
     cookie_name = str(auth_cfg.get("cookie_name") or DEFAULT_COOKIE_NAME)
     cookie_secure = _normalize_cookie_secure(auth_cfg.get("cookie_secure"))
+    throttle_cfg = auth_cfg.get("throttle") or {}
+    login_throttle = LoginThrottle(
+        max_attempts=int(throttle_cfg.get("max_attempts") or DEFAULT_MAX_ATTEMPTS),
+        window_seconds=int(throttle_cfg.get("window_seconds") or DEFAULT_WINDOW_SECONDS),
+        block_seconds=int(throttle_cfg.get("block_seconds") or DEFAULT_BLOCK_SECONDS),
+        trusted_proxy_cidrs=list(throttle_cfg.get("trusted_proxy_cidrs") or []),
+    )
     return AppState(
         config=config,
         search_service=search_service,
@@ -82,6 +96,7 @@ def build_app_state() -> AppState:
             cookie_name=cookie_name,
             cookie_secure=cookie_secure,  # type: ignore[arg-type]
         ),
+        login_throttle=login_throttle,
     )
 
 
@@ -103,3 +118,7 @@ def get_chat_service(request: Request) -> ChatService:
 
 def get_local_auth_service(request: Request) -> LocalAuthService:
     return get_app_state(request).local_auth_service
+
+
+def get_login_throttle(request: Request) -> LoginThrottle:
+    return get_app_state(request).login_throttle
