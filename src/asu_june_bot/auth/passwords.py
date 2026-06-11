@@ -25,6 +25,14 @@ def verify_password(password_hash: str, password: str) -> bool:
         return False
 
 
+def password_needs_rehash(password_hash: str) -> bool:
+    """True if the hash was produced with outdated parameters and should be updated."""
+    try:
+        return _hasher.check_needs_rehash(password_hash)
+    except Exception:
+        return False
+
+
 def dummy_verify(password: str) -> None:
     """Burn the same time as a real verification to hide whether the email exists."""
     try:

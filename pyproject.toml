@@ -9,6 +9,7 @@ authors = [
   { name = "Anatoliy Sysoev" }
 ]
 dependencies = [
+  "argon2-cffi>=21.3,<26",
   "beautifulsoup4",
   "fastapi",
   "faster-whisper",
