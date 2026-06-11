@@ -44,11 +44,24 @@ VALID_CARD = {
 }
 
 
+class FakeChatService:
+    def chat(self, request):
+        from asu_june_bot.chat.models import ChatResponse
+        return ChatResponse(
+            status="ok",
+            query=request.query,
+            answer="ok",
+            search={"status": "ok"},
+            diagnostics={"llm_called": True},
+        )
+
+
 @dataclass(slots=True)
 class FakeState:
     meetings_service: MeetingsService
     local_auth_service: LocalAuthService
     job_runner: JobRunner
+    chat_service: FakeChatService
 
 
 @pytest.fixture()
@@ -74,6 +87,7 @@ def client(tmp_path: Path, repo: AuthRepository, service: LocalAuthService) -> T
         meetings_service=MeetingsService(meetings_root),
         local_auth_service=service,
         job_runner=JobRunner(),
+        chat_service=FakeChatService(),
     )
     return c
 
@@ -403,3 +417,45 @@ def test_disabled_user_session_rejected(
     repo.set_user_status(user.user_id, "disabled")
     client.cookies.set("ma_session", cookie)
     assert client.get("/meetings").status_code == 401
+
+
+# ------------------------------------------------------------------
+# /chat is an action route — CSRF for cookie sessions, Bearer exempt
+# ------------------------------------------------------------------
+
+def _chat_body() -> dict:
+    return {"query": "что обсуждали на встрече?", "mode": "hybrid", "top_k": 8}
+
+
+def test_chat_browser_without_csrf_403(
+    client: TestClient, repo: AuthRepository
+) -> None:
+    make_user(repo, "chat1@example.com", "viewer")
+    cookie, _ = browser_login(client, "chat1@example.com")
+    client.cookies.set("ma_session", cookie)
+    assert client.post("/chat", json=_chat_body()).status_code == 403
+
+
+def test_chat_browser_wrong_csrf_403(
+    client: TestClient, repo: AuthRepository
+) -> None:
+    make_user(repo, "chat2@example.com", "viewer")
+    cookie, _ = browser_login(client, "chat2@example.com")
+    client.cookies.set("ma_session", cookie)
+    resp = client.post("/chat", json=_chat_body(), headers={"X-CSRF-Token": "bogus"})
+    assert resp.status_code == 403
+
+
+def test_chat_browser_valid_csrf_passes(
+    client: TestClient, repo: AuthRepository
+) -> None:
+    make_user(repo, "chat3@example.com", "viewer")
+    cookie, csrf = browser_login(client, "chat3@example.com")
+    client.cookies.set("ma_session", cookie)
+    resp = client.post("/chat", json=_chat_body(), headers={"X-CSRF-Token": csrf})
+    assert resp.status_code == 200
+
+
+def test_chat_machine_bearer_no_csrf_passes(client: TestClient) -> None:
+    resp = client.post("/chat", json=_chat_body(), headers=MACHINE_AUTH)
+    assert resp.status_code == 200
