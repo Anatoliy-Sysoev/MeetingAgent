@@ -251,6 +251,22 @@ def test_build_rejects_max_entries_below_max_failures() -> None:
         build_login_throttle({"max_failures": 100, "max_entries": 10})
 
 
+def test_build_rejects_list_as_config() -> None:
+    with pytest.raises(ValueError):
+        build_login_throttle([])  # type: ignore[arg-type]
+
+
+def test_build_rejects_false_as_cidrs() -> None:
+    with pytest.raises(ValueError):
+        build_login_throttle({"trusted_proxy_cidrs": False})
+
+
+def test_build_disabled_still_validates_numerics() -> None:
+    """enabled=false does not bypass numeric validation."""
+    with pytest.raises(ValueError):
+        build_login_throttle({"enabled": False, "max_failures": -1})
+
+
 def test_build_accepts_full_valid_config() -> None:
     limiter = build_login_throttle(
         {
