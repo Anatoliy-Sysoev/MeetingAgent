@@ -6,6 +6,13 @@ from typing import Any
 
 from fastapi import Request
 
+from asu_june_bot.auth.repository import DEFAULT_DB_PATH, AuthRepository
+from asu_june_bot.auth.service import (
+    DEFAULT_COOKIE_NAME,
+    DEFAULT_COOKIE_SECURE,
+    DEFAULT_SESSION_TTL_SECONDS,
+    LocalAuthService,
+)
 from asu_june_bot.chat import ChatService
 from asu_june_bot.core.config import load_config
 from asu_june_bot.health import HealthService
@@ -24,6 +31,23 @@ class AppState:
     chat_service: ChatService
     meetings_service: MeetingsService
     job_runner: JobRunner
+    auth_repository: AuthRepository
+    local_auth_service: LocalAuthService
+
+
+def _normalize_cookie_secure(value: Any) -> str:
+    """Accept YAML bool or string auto|true|false; reject anything else."""
+    if value is None:
+        return DEFAULT_COOKIE_SECURE
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in ("auto", "true", "false"):
+            return normalized
+    raise ValueError(
+        f"Invalid auth.cookie_secure: {value!r} (expected auto, true, or false)"
+    )
 
 
 def build_app_state() -> AppState:
@@ -33,6 +57,13 @@ def build_app_state() -> AppState:
     chat_base_url = str(ollama_cfg.get("chat_base_url") or "http://127.0.0.1:11434/v1")
     chat_model = str(ollama_cfg.get("chat_model") or "qwen3.5:4b")
     meetings_root = (config.get("paths") or {}).get("meetings_root") or "meetings"
+    auth_db_path = Path((config.get("paths") or {}).get("auth_db") or DEFAULT_DB_PATH)
+    auth_repository = AuthRepository(auth_db_path)
+    auth_repository.initialize()
+    auth_cfg = config.get("auth") or {}
+    session_ttl = int(auth_cfg.get("session_ttl_seconds") or DEFAULT_SESSION_TTL_SECONDS)
+    cookie_name = str(auth_cfg.get("cookie_name") or DEFAULT_COOKIE_NAME)
+    cookie_secure = _normalize_cookie_secure(auth_cfg.get("cookie_secure"))
     return AppState(
         config=config,
         search_service=search_service,
@@ -44,6 +75,13 @@ def build_app_state() -> AppState:
         ),
         meetings_service=MeetingsService(meetings_root=meetings_root),
         job_runner=JobRunner(),
+        auth_repository=auth_repository,
+        local_auth_service=LocalAuthService(
+            auth_repository,
+            session_ttl_seconds=session_ttl,
+            cookie_name=cookie_name,
+            cookie_secure=cookie_secure,  # type: ignore[arg-type]
+        ),
     )
 
 
@@ -61,3 +99,7 @@ def get_health_service(request: Request) -> HealthService:
 
 def get_chat_service(request: Request) -> ChatService:
     return get_app_state(request).chat_service
+
+
+def get_local_auth_service(request: Request) -> LocalAuthService:
+    return get_app_state(request).local_auth_service
