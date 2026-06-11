@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -15,6 +15,7 @@ from asu_june_bot.api.app import create_app  # noqa: E402
 from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
 from asu_june_bot.auth.service import LocalAuthService  # noqa: E402
 from asu_june_bot.chat.models import ChatResponse, ChatSource  # noqa: E402
+from asu_june_bot.auth.throttle import LoginThrottle  # noqa: E402
 from asu_june_bot.core.limits import MAX_QUERY_CHARS  # noqa: E402
 
 import os
@@ -81,6 +82,7 @@ class FakeState:
     search_service: FakeSearchService
     chat_service: FakeChatService
     local_auth_service: LocalAuthService
+    login_throttle: LoginThrottle = field(default_factory=LoginThrottle)
 
 
 def build_client():

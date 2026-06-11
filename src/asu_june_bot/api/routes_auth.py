@@ -5,13 +5,14 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from asu_june_bot.api.auth import CSRF_HEADER
-from asu_june_bot.api.dependencies import get_local_auth_service
+from asu_june_bot.api.dependencies import get_local_auth_service, get_login_throttle
 from asu_june_bot.auth.passwords import verify_csrf_token
 from asu_june_bot.auth.service import (
     AuthenticatedSession,
     InvalidCredentialsError,
     LocalAuthService,
 )
+from asu_june_bot.auth.throttle import LoginThrottle, ThrottledError
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -50,17 +51,37 @@ def _me_payload(auth: AuthenticatedSession) -> dict:
     }
 
 
+def _get_remote_addr(request: Request) -> str:
+    client = request.client
+    return client.host if client else "unknown"
+
+
 @router.post("/local/login")
 async def local_login(
     payload: LoginRequest,
     request: Request,
     response: Response,
     service: LocalAuthService = Depends(get_local_auth_service),
+    throttle: LoginThrottle = Depends(get_login_throttle),
 ) -> dict:
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    remote = _get_remote_addr(request)
+    client_ip = throttle.client_ip(forwarded_for, remote)
+    try:
+        throttle.check(payload.email, client_ip)
+    except ThrottledError as exc:
+        raise HTTPException(
+            status_code=429,
+            detail=_GENERIC_LOGIN_ERROR,
+            headers={"Retry-After": str(exc.retry_after)},
+        )
     try:
         token, auth = service.login(payload.email, payload.password)
     except InvalidCredentialsError:
+        throttle.record_failure(payload.email, client_ip)
         raise HTTPException(status_code=401, detail=_GENERIC_LOGIN_ERROR)
+    throttle.record_success(payload.email, client_ip)
+
     secure = _resolve_secure(service, request)
     # HttpOnly session cookie — JS cannot read this.
     response.set_cookie(
