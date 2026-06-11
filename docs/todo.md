@@ -12,7 +12,7 @@
 
 - [x] MA-AUTH-CORE-1: auth domain model + SQLite persistence (no API changes)
 - [x] MA-AUTH-LOCAL-SESSIONS (#48): Argon2id, local login, server-side sessions, /auth/me, logout
-- [ ] MA-AUTH-RBAC-INTEGRATION: require_user/require_role поверх существующих роутов
+- [x] MA-AUTH-RBAC-INTEGRATION (#50): session principals, RBAC на роутах, CSRF
 - [ ] MA-AUTH-BOOTSTRAP-ADMIN: first-admin bootstrap + admin user API
 - [ ] MA-AUTH-DEPLOYMENT-SAFETY: документация и safe defaults для self-hosted
 

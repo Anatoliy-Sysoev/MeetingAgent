@@ -14,6 +14,8 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from asu_june_bot.api.app import create_app  # noqa: E402
+from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
+from asu_june_bot.auth.service import LocalAuthService  # noqa: E402
 from asu_june_bot.jobs.runner import JobRunner, JobState  # noqa: E402
 from asu_june_bot.meetings.service import MeetingsService  # noqa: E402
 
@@ -89,6 +91,7 @@ class _ImmediateProcess:
 class FakeState:
     meetings_service: MeetingsService
     job_runner: JobRunner
+    local_auth_service: LocalAuthService
 
 
 def make_meeting(meetings_root: Path, meeting_id: str = MEETING_ID) -> None:
@@ -103,12 +106,17 @@ def make_client(
     meetings_root: Path,
     runner: JobRunner | None = None,
 ) -> tuple[TestClient, JobRunner]:
+    import os
+    os.environ["MEETINGAGENT_API_TOKEN"] = TOKEN
+    repo = AuthRepository(meetings_root / "_auth.db")
+    repo.initialize()
     app = create_app()
     jr = runner or JobRunner()
     client = TestClient(app, raise_server_exceptions=False)
     app.state.asu_june_bot = FakeState(
         meetings_service=MeetingsService(meetings_root),
         job_runner=jr,
+        local_auth_service=LocalAuthService(repo),
     )
     return client, jr
 

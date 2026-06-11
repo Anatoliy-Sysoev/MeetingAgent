@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import secrets
+
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
 
@@ -31,6 +34,20 @@ def password_needs_rehash(password_hash: str) -> bool:
         return _hasher.check_needs_rehash(password_hash)
     except Exception:
         return False
+
+
+def generate_csrf_token() -> str:
+    """Return a new random opaque CSRF token."""
+    return secrets.token_urlsafe(32)
+
+
+def hash_csrf_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def verify_csrf_token(csrf_token_hash: str, token: str) -> bool:
+    """Constant-time comparison of supplied token against stored hash."""
+    return secrets.compare_digest(csrf_token_hash, hash_csrf_token(token))
 
 
 def dummy_verify(password: str) -> None:

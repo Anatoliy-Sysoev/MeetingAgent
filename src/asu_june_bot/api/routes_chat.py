@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from asu_june_bot.api.auth import require_permission
 from asu_june_bot.api.dependencies import get_chat_service
+from asu_june_bot.auth.models import Principal
 from asu_june_bot.chat import ChatRequest, ChatService
 from asu_june_bot.core.limits import MAX_QUERY_CHARS
 
@@ -32,6 +34,7 @@ def chat(
     payload: ChatApiRequest,
     request: Request,
     service: ChatService = Depends(get_chat_service),
+    _principal: Annotated[Principal, Depends(require_permission("chat.use"))] = ...,
 ) -> dict:
     result = service.chat(
         ChatRequest(
