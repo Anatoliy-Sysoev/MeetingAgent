@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 
 from asu_june_bot.api.auth import require_write_access
+from asu_june_bot.auth.models import Principal
 from asu_june_bot.meetings.service import (
     SUPPORTED_MEDIA_EXTENSIONS,
     MeetingsService,
@@ -34,7 +35,7 @@ def _get_meetings_service(request: Request) -> MeetingsService:
 
 @router.post("/ingest", status_code=201)
 def ingest_meeting(
-    _token: Annotated[str, Depends(require_write_access)],
+    _principal: Annotated[Principal, Depends(require_write_access)],
     file: UploadFile,
     title: Annotated[str | None, Form()] = None,
     date: Annotated[str | None, Form()] = None,

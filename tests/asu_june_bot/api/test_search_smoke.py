@@ -12,8 +12,16 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from asu_june_bot.api.app import create_app  # noqa: E402
+from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
+from asu_june_bot.auth.service import LocalAuthService  # noqa: E402
 from asu_june_bot.core.limits import MAX_QUERY_CHARS  # noqa: E402
 from asu_june_bot.search.models import SearchResponse  # noqa: E402
+
+import os
+import tempfile
+
+TOKEN = "test-search-token"
+AUTH = {"Authorization": f"Bearer {TOKEN}"}
 
 
 class FakeHealthService:
@@ -62,14 +70,23 @@ class FakeSearchService:
 class FakeState:
     health_service: FakeHealthService
     search_service: FakeSearchService
+    local_auth_service: LocalAuthService
 
 
 def build_client():
+    os.environ["MEETINGAGENT_API_TOKEN"] = TOKEN
+    td = tempfile.mkdtemp()
+    repo = AuthRepository(Path(td) / "auth.db")
+    repo.initialize()
     app = create_app()
-    client = TestClient(app)
+    client = TestClient(app, headers=AUTH)
     client.__enter__()
     fake_search = FakeSearchService()
-    app.state.asu_june_bot = FakeState(health_service=FakeHealthService(), search_service=fake_search)
+    app.state.asu_june_bot = FakeState(
+        health_service=FakeHealthService(),
+        search_service=fake_search,
+        local_auth_service=LocalAuthService(repo),
+    )
     return client, fake_search
 
 

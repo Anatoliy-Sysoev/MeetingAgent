@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+
 from pydantic import BaseModel
 
+from asu_june_bot.api.auth import CSRF_HEADER
 from asu_june_bot.api.dependencies import get_local_auth_service
+from asu_june_bot.auth.passwords import verify_csrf_token
 from asu_june_bot.auth.service import (
     AuthenticatedSession,
     InvalidCredentialsError,
@@ -13,6 +16,7 @@ from asu_june_bot.auth.service import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 _GENERIC_LOGIN_ERROR = "Invalid email or password"
+_CSRF_COOKIE_SUFFIX = "_csrf"
 
 
 class LoginRequest(BaseModel):
@@ -26,10 +30,13 @@ def _resolve_secure(service: LocalAuthService, request: Request) -> bool:
         return True
     if mode == "false":
         return False
-    # auto: detect from incoming scheme / reverse-proxy header
     if request.url.scheme == "https":
         return True
     return request.headers.get("x-forwarded-proto", "").lower() == "https"
+
+
+def _csrf_cookie_name(service: LocalAuthService) -> str:
+    return service.cookie_name + _CSRF_COOKIE_SUFFIX
 
 
 def _me_payload(auth: AuthenticatedSession) -> dict:
@@ -54,16 +61,32 @@ async def local_login(
         token, auth = service.login(payload.email, payload.password)
     except InvalidCredentialsError:
         raise HTTPException(status_code=401, detail=_GENERIC_LOGIN_ERROR)
+    secure = _resolve_secure(service, request)
+    # HttpOnly session cookie — JS cannot read this.
     response.set_cookie(
         key=service.cookie_name,
         value=token,
         httponly=True,
         samesite="lax",
-        secure=_resolve_secure(service, request),
+        secure=secure,
         max_age=service.session_ttl_seconds,
         path="/",
     )
-    return {**_me_payload(auth), "expires_at": auth.session.expires_at}
+    # Non-HttpOnly CSRF cookie — JS must read this and send as X-CSRF-Token.
+    response.set_cookie(
+        key=_csrf_cookie_name(service),
+        value=auth.csrf_token,
+        httponly=False,
+        samesite="lax",
+        secure=secure,
+        max_age=service.session_ttl_seconds,
+        path="/",
+    )
+    return {
+        **_me_payload(auth),
+        "expires_at": auth.session.expires_at,
+        "csrf_token": auth.csrf_token,
+    }
 
 
 @router.get("/me")
@@ -84,13 +107,31 @@ async def logout(
     service: LocalAuthService = Depends(get_local_auth_service),
 ) -> Response:
     token = request.cookies.get(service.cookie_name, "")
+    auth = service.resolve_session(token) if token else None
+    if auth is not None:
+        # State-changing cookie request on a live session — require session-bound CSRF.
+        csrf_value = request.headers.get(CSRF_HEADER, "")
+        if not csrf_value:
+            raise HTTPException(status_code=403, detail="CSRF token required")
+        if auth.session.csrf_token_hash is None or not verify_csrf_token(
+            auth.session.csrf_token_hash, csrf_value
+        ):
+            raise HTTPException(status_code=403, detail="Invalid CSRF token")
     service.logout(token)
     response = Response(status_code=204)
+    secure = _resolve_secure(service, request)
     response.delete_cookie(
         key=service.cookie_name,
         httponly=True,
         samesite="lax",
-        secure=_resolve_secure(service, request),
+        secure=secure,
+        path="/",
+    )
+    response.delete_cookie(
+        key=_csrf_cookie_name(service),
+        httponly=False,
+        samesite="lax",
+        secure=secure,
         path="/",
     )
     return response
