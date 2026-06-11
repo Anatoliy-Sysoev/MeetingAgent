@@ -167,3 +167,18 @@ exclude_extensions:
   - ".har"
   - ".tmp"
   - ".temp"
+
+# Authentication / local login brute-force protection.
+auth:
+  login_throttle:
+    enabled: true            # set false to disable throttling (NoOp limiter)
+    max_failures: 5          # failures (per email+IP) before blocking; the
+                             # attempt that reaches this count gets 429 itself
+    window_seconds: 300      # rolling window over which failures are counted
+    block_seconds: 900       # block duration once the threshold is reached
+    max_entries: 10000       # bounded in-memory state; LRU + stale eviction
+    # X-Forwarded-For is only honored when the direct peer is one of these
+    # CIDRs; the real client IP is then resolved right-to-left, skipping
+    # trusted hops. Leave empty (default) to always use the direct peer IP
+    # and ignore X-Forwarded-For — safe default for a directly-exposed host.
+    trusted_proxy_cidrs: []
