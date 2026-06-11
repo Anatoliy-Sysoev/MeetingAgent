@@ -70,6 +70,9 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
     revoked_at     TEXT
 );
 
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth_sessions (user_id);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires_at ON auth_sessions (expires_at);
+
 CREATE TABLE IF NOT EXISTS auth_audit_events (
     event_id       TEXT PRIMARY KEY,
     actor_type     TEXT NOT NULL,
@@ -250,6 +253,14 @@ class AuthRepository:
             updated_at=row["updated_at"],
         )
 
+    def update_local_credential_hash(self, user_id: str, password_hash: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE auth_local_credentials SET password_hash = ?, updated_at = ? "
+                "WHERE user_id = ?",
+                (password_hash, now_iso(), user_id),
+            )
+
     # ------------------------------------------------------------------
     # Sessions
     # ------------------------------------------------------------------
@@ -313,7 +324,7 @@ class AuthRepository:
     def delete_expired_sessions(self) -> int:
         with self._connect() as conn:
             cur = conn.execute(
-                "DELETE FROM auth_sessions WHERE expires_at < ?", (now_iso(),)
+                "DELETE FROM auth_sessions WHERE expires_at <= ?", (now_iso(),)
             )
             return cur.rowcount
 

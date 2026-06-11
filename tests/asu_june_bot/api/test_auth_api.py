@@ -63,8 +63,11 @@ def test_login_success_sets_cookie(client: TestClient, repo: AuthRepository) -> 
     make_user(repo)
     resp = login(client)
     assert resp.status_code == 200
-    assert resp.json()["email"] == "alice@example.com"
-    assert resp.json()["roles"] == ["editor"]
+    body = resp.json()
+    assert body["email"] == "alice@example.com"
+    assert body["roles"] == ["editor"]
+    assert "jobs.start" in body["permissions"]
+    assert "expires_at" in body
     assert "ma_session" in resp.cookies
     set_cookie = resp.headers["set-cookie"].lower()
     assert "httponly" in set_cookie
@@ -107,6 +110,7 @@ def test_me_with_valid_session(client: TestClient, repo: AuthRepository) -> None
     assert body["user_id"] == user.user_id
     assert body["email"] == "alice@example.com"
     assert body["roles"] == ["editor"]
+    assert "jobs.start" in body["permissions"]
 
 
 def test_me_without_cookie_401(client: TestClient) -> None:
@@ -143,6 +147,18 @@ def test_logout_clears_cookie(client: TestClient, repo: AuthRepository) -> None:
 
 def test_logout_without_session_idempotent(client: TestClient) -> None:
     assert client.post("/auth/logout").status_code == 204
+
+
+def test_configurable_cookie_name(repo: AuthRepository) -> None:
+    from asu_june_bot.api.app import create_app
+    app = create_app()
+    custom_service = LocalAuthService(repo, cookie_name="custom_cookie")
+    app.state.asu_june_bot = FakeState(auth_repository=repo, local_auth_service=custom_service)
+    c = TestClient(app, raise_server_exceptions=False)
+    make_user(repo, email="custom@example.com")
+    resp = c.post("/auth/local/login", json={"email": "custom@example.com", "password": PASSWORD})
+    assert resp.status_code == 200
+    assert "custom_cookie" in resp.cookies
 
 
 def test_revoked_token_rejected_even_if_cookie_kept(

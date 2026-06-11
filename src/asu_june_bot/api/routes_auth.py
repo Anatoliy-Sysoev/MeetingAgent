@@ -12,8 +12,6 @@ from asu_june_bot.auth.service import (
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-SESSION_COOKIE_NAME = "ma_session"
-
 _GENERIC_LOGIN_ERROR = "Invalid email or password"
 
 
@@ -22,11 +20,16 @@ class LoginRequest(BaseModel):
     password: str
 
 
-def _cookie_secure(request: Request) -> bool:
+def _resolve_secure(service: LocalAuthService, request: Request) -> bool:
+    mode = service.cookie_secure
+    if mode == "true":
+        return True
+    if mode == "false":
+        return False
+    # auto: detect from incoming scheme / reverse-proxy header
     if request.url.scheme == "https":
         return True
-    forwarded = request.headers.get("x-forwarded-proto", "")
-    return forwarded.lower() == "https"
+    return request.headers.get("x-forwarded-proto", "").lower() == "https"
 
 
 def _me_payload(auth: AuthenticatedSession) -> dict:
@@ -34,7 +37,8 @@ def _me_payload(auth: AuthenticatedSession) -> dict:
         "user_id": auth.user.user_id,
         "email": auth.user.email,
         "display_name": auth.user.display_name,
-        "roles": sorted(auth.roles),
+        "roles": sorted(auth.principal.roles),
+        "permissions": sorted(auth.principal.permissions),
         "provider": "local",
     }
 
@@ -51,15 +55,15 @@ async def local_login(
     except InvalidCredentialsError:
         raise HTTPException(status_code=401, detail=_GENERIC_LOGIN_ERROR)
     response.set_cookie(
-        key=SESSION_COOKIE_NAME,
+        key=service.cookie_name,
         value=token,
         httponly=True,
         samesite="lax",
-        secure=_cookie_secure(request),
+        secure=_resolve_secure(service, request),
         max_age=service.session_ttl_seconds,
         path="/",
     )
-    return _me_payload(auth)
+    return {**_me_payload(auth), "expires_at": auth.session.expires_at}
 
 
 @router.get("/me")
@@ -67,7 +71,7 @@ async def auth_me(
     request: Request,
     service: LocalAuthService = Depends(get_local_auth_service),
 ) -> dict:
-    token = request.cookies.get(SESSION_COOKIE_NAME, "")
+    token = request.cookies.get(service.cookie_name, "")
     auth = service.resolve_session(token)
     if auth is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -79,14 +83,14 @@ async def logout(
     request: Request,
     service: LocalAuthService = Depends(get_local_auth_service),
 ) -> Response:
-    token = request.cookies.get(SESSION_COOKIE_NAME, "")
+    token = request.cookies.get(service.cookie_name, "")
     service.logout(token)
     response = Response(status_code=204)
     response.delete_cookie(
-        key=SESSION_COOKIE_NAME,
+        key=service.cookie_name,
         httponly=True,
         samesite="lax",
-        secure=_cookie_secure(request),
+        secure=_resolve_secure(service, request),
         path="/",
     )
     return response

@@ -119,6 +119,42 @@ def test_token_not_stored_in_plaintext(repo: AuthRepository, service: LocalAuthS
     assert repo.get_session_by_token_hash(token) is None
 
 
+def test_login_returns_principal(repo: AuthRepository, service: LocalAuthService) -> None:
+    make_user(repo)
+    _, auth = service.login("alice@example.com", PASSWORD)
+    assert auth.principal.principal_type == "user"
+    assert auth.principal.provider == "local"
+    assert auth.principal.roles == frozenset({"editor"})
+    assert "jobs.start" in auth.principal.permissions
+
+
+def test_resolve_session_principal(repo: AuthRepository, service: LocalAuthService) -> None:
+    make_user(repo)
+    token, _ = service.login("alice@example.com", PASSWORD)
+    auth = service.resolve_session(token)
+    assert auth is not None
+    assert auth.principal.principal_type == "user"
+    assert "jobs.start" in auth.principal.permissions
+
+
+def test_transparent_rehash_on_login(repo: AuthRepository) -> None:
+    from argon2 import PasswordHasher
+    from argon2.profiles import RFC_9106_LOW_MEMORY
+    old_hasher = PasswordHasher.from_parameters(RFC_9106_LOW_MEMORY)
+    user = repo.create_user(email="rehash@example.com")
+    # Store hash with outdated (but valid) params — using weak time_cost=1 iteration
+    weak = PasswordHasher(time_cost=1, memory_cost=8, parallelism=1)
+    old_hash = weak.hash(PASSWORD)
+    repo.create_local_credential(user.user_id, old_hash)
+    repo.set_user_roles(user.user_id, {"viewer"})
+
+    svc = LocalAuthService(repo)
+    svc.login("rehash@example.com", PASSWORD)
+
+    new_cred = repo.get_local_credential(user.user_id)
+    assert new_cred.password_hash != old_hash
+
+
 def test_audit_events_for_login_logout_failure(
     repo: AuthRepository, service: LocalAuthService
 ) -> None:

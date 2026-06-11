@@ -4,12 +4,20 @@ import datetime
 import hashlib
 import secrets
 from dataclasses import dataclass
+from typing import Literal
 
-from asu_june_bot.auth.models import Session, User, now_iso
-from asu_june_bot.auth.passwords import dummy_verify, verify_password
+from asu_june_bot.auth.models import Principal, Session, User, now_iso
+from asu_june_bot.auth.passwords import (
+    dummy_verify,
+    hash_password,
+    password_needs_rehash,
+    verify_password,
+)
 from asu_june_bot.auth.repository import AuthRepository
 
-DEFAULT_SESSION_TTL_SECONDS = 7 * 24 * 3600
+DEFAULT_SESSION_TTL_SECONDS = 24 * 3600
+DEFAULT_COOKIE_NAME = "ma_session"
+DEFAULT_COOKIE_SECURE: Literal["auto", "true", "false"] = "auto"
 
 
 class InvalidCredentialsError(Exception):
@@ -23,8 +31,12 @@ class InvalidCredentialsError(Exception):
 @dataclass(frozen=True)
 class AuthenticatedSession:
     user: User
-    roles: frozenset[str]
+    principal: Principal
     session: Session
+
+    @property
+    def roles(self) -> frozenset[str]:
+        return self.principal.roles
 
 
 def hash_session_token(token: str) -> str:
@@ -38,15 +50,23 @@ class LocalAuthService:
         self,
         repository: AuthRepository,
         session_ttl_seconds: int = DEFAULT_SESSION_TTL_SECONDS,
+        cookie_name: str = DEFAULT_COOKIE_NAME,
+        cookie_secure: Literal["auto", "true", "false"] = DEFAULT_COOKIE_SECURE,
     ) -> None:
         self.repository = repository
         self.session_ttl_seconds = session_ttl_seconds
+        self.cookie_name = cookie_name
+        self.cookie_secure = cookie_secure
 
     def _expires_at(self) -> str:
         moment = datetime.datetime.now(tz=datetime.timezone.utc) + datetime.timedelta(
             seconds=self.session_ttl_seconds
         )
         return moment.isoformat(timespec="seconds")
+
+    def _make_principal(self, user: User) -> Principal:
+        roles = self.repository.get_user_roles(user.user_id)
+        return Principal.for_user(user.user_id, "local", roles)
 
     def login(self, email: str, password: str) -> tuple[str, AuthenticatedSession]:
         """Return (opaque_token, session info) or raise InvalidCredentialsError."""
@@ -68,6 +88,12 @@ class LocalAuthService:
             self._audit_failure(email, "user_disabled", user_id=user.user_id)
             raise InvalidCredentialsError()
 
+        # Transparent rehash if parameters are outdated.
+        if password_needs_rehash(credential.password_hash):
+            self.repository.update_local_credential_hash(
+                user.user_id, hash_password(password)
+            )
+
         token = secrets.token_urlsafe(32)
         session = self.repository.create_session(
             user_id=user.user_id,
@@ -75,7 +101,7 @@ class LocalAuthService:
             expires_at=self._expires_at(),
         )
         self.repository.set_last_login(user.user_id)
-        roles = self.repository.get_user_roles(user.user_id)
+        principal = self._make_principal(user)
         self.repository.append_audit_event(
             actor_type="user",
             actor_id=user.user_id,
@@ -83,7 +109,7 @@ class LocalAuthService:
             target_type="session",
             target_id=session.session_id,
         )
-        return token, AuthenticatedSession(user=user, roles=roles, session=session)
+        return token, AuthenticatedSession(user=user, principal=principal, session=session)
 
     def resolve_session(self, token: str) -> AuthenticatedSession | None:
         """Return session info for a valid token; None if missing/expired/revoked."""
@@ -95,8 +121,8 @@ class LocalAuthService:
         user = self.repository.get_user(session.user_id)
         if user is None or user.status != "active":
             return None
-        roles = self.repository.get_user_roles(user.user_id)
-        return AuthenticatedSession(user=user, roles=roles, session=session)
+        principal = self._make_principal(user)
+        return AuthenticatedSession(user=user, principal=principal, session=session)
 
     def logout(self, token: str) -> bool:
         """Revoke the session behind the token. Idempotent; True if revoked."""
