@@ -122,6 +122,7 @@ class Session:
     created_at: str = field(default_factory=now_iso)
     expires_at: str = ""
     revoked_at: str | None = None
+    csrf_token_hash: str | None = None
 
     def is_active(self, at: str | None = None) -> bool:
         moment = at or now_iso()

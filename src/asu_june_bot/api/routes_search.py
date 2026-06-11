@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from asu_june_bot.api.auth import require_permission
 from asu_june_bot.api.dependencies import get_search_service
+from asu_june_bot.auth.models import Principal
 from asu_june_bot.core.limits import MAX_QUERY_CHARS
 from asu_june_bot.search import SearchRequest, SearchService
 
@@ -28,6 +30,7 @@ def search(
     payload: SearchApiRequest,
     request: Request,
     service: SearchService = Depends(get_search_service),
+    _principal: Annotated[Principal, Depends(require_permission("search.use"))] = ...,
 ) -> dict:
     result = service.search(
         SearchRequest(

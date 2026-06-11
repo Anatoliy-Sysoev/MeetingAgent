@@ -14,7 +14,12 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from asu_june_bot.api.app import create_app  # noqa: E402
+from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
+from asu_june_bot.auth.service import LocalAuthService  # noqa: E402
 from asu_june_bot.meetings.service import MeetingsService  # noqa: E402
+
+TOKEN = "test-meetings-token"
+AUTH = {"Authorization": f"Bearer {TOKEN}"}
 
 
 VALID_CARD = {
@@ -40,12 +45,20 @@ MEETING_ID = "2026-01-15__kickoff"
 @dataclass(slots=True)
 class FakeState:
     meetings_service: MeetingsService
+    local_auth_service: LocalAuthService
 
 
 def make_client(meetings_root: Path) -> TestClient:
+    import os
+    os.environ["MEETINGAGENT_API_TOKEN"] = TOKEN
+    repo = AuthRepository(meetings_root / "_auth.db")
+    repo.initialize()
     app = create_app()
-    client = TestClient(app, raise_server_exceptions=False)
-    app.state.asu_june_bot = FakeState(meetings_service=MeetingsService(meetings_root))
+    client = TestClient(app, raise_server_exceptions=False, headers=AUTH)
+    app.state.asu_june_bot = FakeState(
+        meetings_service=MeetingsService(meetings_root),
+        local_auth_service=LocalAuthService(repo),
+    )
     return client
 
 

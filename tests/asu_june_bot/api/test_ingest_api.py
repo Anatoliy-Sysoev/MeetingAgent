@@ -15,6 +15,8 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from asu_june_bot.api.app import create_app  # noqa: E402
+from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
+from asu_june_bot.auth.service import LocalAuthService  # noqa: E402
 from asu_june_bot.meetings.service import MeetingsService  # noqa: E402
 
 TOKEN = "test-secret-token"
@@ -25,12 +27,18 @@ AUDIO_BYTES = b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00"  # fake WAV header
 @dataclass(slots=True)
 class FakeState:
     meetings_service: MeetingsService
+    local_auth_service: LocalAuthService
 
 
 def make_client(meetings_root: Path) -> TestClient:
+    repo = AuthRepository(meetings_root / "_auth.db")
+    repo.initialize()
     app = create_app()
     client = TestClient(app, raise_server_exceptions=False)
-    app.state.asu_june_bot = FakeState(meetings_service=MeetingsService(meetings_root))
+    app.state.asu_june_bot = FakeState(
+        meetings_service=MeetingsService(meetings_root),
+        local_auth_service=LocalAuthService(repo),
+    )
     return client
 
 
@@ -342,7 +350,14 @@ def test_rollback_on_schema_failure_removes_directory(
 
     app = _create_app()
     client = TestClient(app, raise_server_exceptions=False)
-    app.state.asu_june_bot = FakeState(meetings_service=svc)
+    from asu_june_bot.auth.repository import AuthRepository as _AuthRepository
+    from asu_june_bot.auth.service import LocalAuthService as _LocalAuthService
+    _repo = _AuthRepository(tmp_path / "_auth2.db")
+    _repo.initialize()
+    app.state.asu_june_bot = FakeState(
+        meetings_service=svc,
+        local_auth_service=_LocalAuthService(_repo),
+    )
 
     # Patch the module-level schema path
     monkeypatch.setattr(ingest_mod, "_SCHEMA_PATH", bad_schema_path)
