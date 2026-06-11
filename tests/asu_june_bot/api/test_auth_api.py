@@ -149,6 +149,66 @@ def test_logout_without_session_idempotent(client: TestClient) -> None:
     assert client.post("/auth/logout").status_code == 204
 
 
+def make_client_with_service(repo: AuthRepository, service: LocalAuthService) -> TestClient:
+    from asu_june_bot.api.app import create_app
+    app = create_app()
+    app.state.asu_june_bot = FakeState(auth_repository=repo, local_auth_service=service)
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def test_login_cookie_path_and_max_age(client: TestClient, repo: AuthRepository) -> None:
+    make_user(repo)
+    set_cookie = login(client).headers["set-cookie"].lower()
+    assert "path=/" in set_cookie
+    assert "max-age=86400" in set_cookie  # default TTL 24h
+
+
+def test_cookie_secure_auto_http_not_secure(client: TestClient, repo: AuthRepository) -> None:
+    make_user(repo)
+    assert "secure" not in login(client).headers["set-cookie"].lower()
+
+
+def test_cookie_secure_auto_forwarded_https(client: TestClient, repo: AuthRepository) -> None:
+    make_user(repo)
+    resp = client.post(
+        "/auth/local/login",
+        json={"email": "alice@example.com", "password": PASSWORD},
+        headers={"x-forwarded-proto": "https"},
+    )
+    assert "secure" in resp.headers["set-cookie"].lower()
+
+
+def test_cookie_secure_true_forces_secure(repo: AuthRepository) -> None:
+    c = make_client_with_service(repo, LocalAuthService(repo, cookie_secure="true"))
+    make_user(repo, email="sec@example.com")
+    resp = c.post("/auth/local/login", json={"email": "sec@example.com", "password": PASSWORD})
+    assert "secure" in resp.headers["set-cookie"].lower()
+
+
+def test_cookie_secure_false_never_secure(repo: AuthRepository) -> None:
+    c = make_client_with_service(repo, LocalAuthService(repo, cookie_secure="false"))
+    make_user(repo, email="nosec@example.com")
+    resp = c.post(
+        "/auth/local/login",
+        json={"email": "nosec@example.com", "password": PASSWORD},
+        headers={"x-forwarded-proto": "https"},
+    )
+    assert "secure" not in resp.headers["set-cookie"].lower()
+
+
+def test_normalize_cookie_secure_values() -> None:
+    from asu_june_bot.api.dependencies import _normalize_cookie_secure
+    assert _normalize_cookie_secure(None) == "auto"
+    assert _normalize_cookie_secure(True) == "true"
+    assert _normalize_cookie_secure(False) == "false"
+    assert _normalize_cookie_secure("  True ") == "true"
+    assert _normalize_cookie_secure("AUTO") == "auto"
+    with pytest.raises(ValueError):
+        _normalize_cookie_secure("yes")
+    with pytest.raises(ValueError):
+        _normalize_cookie_secure(1)
+
+
 def test_configurable_cookie_name(repo: AuthRepository) -> None:
     from asu_june_bot.api.app import create_app
     app = create_app()

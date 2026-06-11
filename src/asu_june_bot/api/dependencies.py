@@ -35,6 +35,21 @@ class AppState:
     local_auth_service: LocalAuthService
 
 
+def _normalize_cookie_secure(value: Any) -> str:
+    """Accept YAML bool or string auto|true|false; reject anything else."""
+    if value is None:
+        return DEFAULT_COOKIE_SECURE
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in ("auto", "true", "false"):
+            return normalized
+    raise ValueError(
+        f"Invalid auth.cookie_secure: {value!r} (expected auto, true, or false)"
+    )
+
+
 def build_app_state() -> AppState:
     config = load_config()
     search_service = SearchService(config=config)
@@ -48,9 +63,7 @@ def build_app_state() -> AppState:
     auth_cfg = config.get("auth") or {}
     session_ttl = int(auth_cfg.get("session_ttl_seconds") or DEFAULT_SESSION_TTL_SECONDS)
     cookie_name = str(auth_cfg.get("cookie_name") or DEFAULT_COOKIE_NAME)
-    cookie_secure = str(auth_cfg.get("cookie_secure") or DEFAULT_COOKIE_SECURE)
-    if cookie_secure not in ("auto", "true", "false"):
-        cookie_secure = DEFAULT_COOKIE_SECURE
+    cookie_secure = _normalize_cookie_secure(auth_cfg.get("cookie_secure"))
     return AppState(
         config=config,
         search_service=search_service,
