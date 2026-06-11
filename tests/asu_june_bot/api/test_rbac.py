@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
@@ -20,6 +20,7 @@ from asu_june_bot.auth.passwords import hash_password  # noqa: E402
 from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
 from asu_june_bot.auth.service import LocalAuthService  # noqa: E402
 from asu_june_bot.jobs.runner import JobRunner  # noqa: E402
+from asu_june_bot.auth.throttle import LoginThrottle  # noqa: E402
 from asu_june_bot.meetings.service import MeetingsService  # noqa: E402
 
 MACHINE_TOKEN = "machine-test-token"
@@ -62,6 +63,7 @@ class FakeState:
     local_auth_service: LocalAuthService
     job_runner: JobRunner
     chat_service: FakeChatService
+    login_throttle: LoginThrottle = field(default_factory=LoginThrottle)
 
 
 @pytest.fixture()

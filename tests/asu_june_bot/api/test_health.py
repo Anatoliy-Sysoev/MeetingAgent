@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -12,6 +12,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from asu_june_bot.api.app import create_app  # noqa: E402
+from asu_june_bot.auth.throttle import LoginThrottle  # noqa: E402
 
 
 class FakeHealthService:
@@ -34,6 +35,7 @@ class FakeSearchService:
 class FakeState:
     health_service: FakeHealthService
     search_service: FakeSearchService
+    login_throttle: LoginThrottle = field(default_factory=LoginThrottle)
 
 
 def test_health_endpoint_returns_payload_and_request_id_header() -> None:
