@@ -148,6 +148,15 @@ class LocalAuthService:
         )
         return True
 
+    def audit_login_throttled(self, email: str) -> None:
+        """Record a throttled login attempt. Never stores password/session/CSRF."""
+        self.repository.append_audit_event(
+            actor_type="user",
+            actor_id="anonymous",
+            action="auth.login.throttled",
+            metadata={"email": email.strip().lower()},
+        )
+
     def _audit_failure(self, email: str, reason: str, user_id: str | None = None) -> None:
         self.repository.append_audit_event(
             actor_type="user",
