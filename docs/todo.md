@@ -4,7 +4,7 @@
 
 ## Done
 
-- [x] MA-API-MEETINGS-RESTORE (#30): read-only Meeting API restored — GET /meetings, /{id}, /{id}/transcript, /{id}/artifacts, /{id}/artifacts/{name}
+- [x] MA-API-MEETINGS-RESTORE (#30): read-only Meeting API restored — GET /meetings, /{id}, /{id}/transcript, /{id}/artifacts, /{id}/artifacts/{name} — `9de28301`
 - [x] MA-JOB-API (#35): concurrency=1 job runner, 4 endpoints
 - [x] MA-INGEST-DEDUP (#34): POST /meetings/ingest, sha256 dedup, auth guard
 
