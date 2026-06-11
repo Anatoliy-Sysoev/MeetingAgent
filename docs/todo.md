@@ -8,6 +8,14 @@
 - [x] MA-JOB-API (#35): concurrency=1 job runner, 4 endpoints
 - [x] MA-INGEST-DEDUP (#34): POST /meetings/ingest, sha256 dedup, auth guard
 
+## Epic #44 MA-AUTH-FOUNDATION-MVP
+
+- [x] MA-AUTH-CORE-1: auth domain model + SQLite persistence (no API changes)
+- [ ] MA-AUTH-LOCAL-SESSIONS: Argon2id, local login, server-side sessions, /auth/me
+- [ ] MA-AUTH-RBAC-INTEGRATION: require_user/require_role поверх существующих роутов
+- [ ] MA-AUTH-BOOTSTRAP-ADMIN: first-admin bootstrap + admin user API
+- [ ] MA-AUTH-DEPLOYMENT-SAFETY: документация и safe defaults для self-hosted
+
 ## Backlog (приоритет сверху вниз)
 
 - MA-REVIEW-QUEUE: разметка chat_runs.jsonl для eval, генерация guard_v2_cases.jsonl
@@ -17,4 +25,4 @@
 ## Dev Roadmap
 
 - После Meeting Workspace UI: замкнутый цикл ingest → transcribe → diarize → merge через браузер
-- После #39/#40: multi-user / публичный деплой без шаринга одного токена
+- После Epic #44: multi-user / публичный деплой без шаринга одного токена
