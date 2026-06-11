@@ -105,3 +105,45 @@ def test_user_normalizes_email_on_init() -> None:
 def test_user_invalid_status_rejected() -> None:
     with pytest.raises(ValueError):
         User(user_id="u-1", email="a@b.com", status="banned")
+
+
+# ------------------------------------------------------------------
+# Principal RBAC invariants
+# ------------------------------------------------------------------
+
+def test_user_principal_unknown_role_raises() -> None:
+    with pytest.raises(ValueError):
+        Principal.for_user("u-1", "local", frozenset({"superuser"}))
+
+
+def test_user_principal_mixed_known_unknown_raises() -> None:
+    with pytest.raises(ValueError):
+        Principal.for_user("u-1", "local", frozenset({"viewer", "hacker"}))
+
+
+def test_user_principal_injected_permission_raises() -> None:
+    with pytest.raises(ValueError):
+        Principal(
+            principal_type="user",
+            principal_id="u-1",
+            provider="local",
+            roles=frozenset({"viewer"}),
+            permissions=frozenset({"users.manage"}),
+        )
+
+
+def test_valid_principal_for_user_all_roles() -> None:
+    for role in ("viewer", "editor", "admin"):
+        p = Principal.for_user("u-1", "local", frozenset({role}))
+        assert p.has_role(role)
+
+
+def test_machine_principal_explicit_permissions_allowed() -> None:
+    p = Principal(
+        principal_type="machine",
+        principal_id="cli",
+        provider="machine",
+        permissions=frozenset({"meetings.upload", "jobs.start"}),
+    )
+    assert p.has_permission("meetings.upload")
+    assert not p.has_permission("users.manage")

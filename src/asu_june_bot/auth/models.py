@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from asu_june_bot.auth.permissions import permissions_for_roles
+from asu_june_bot.auth.permissions import BUILTIN_ROLES, permissions_for_roles
 
 USER_STATUSES: frozenset[str] = frozenset({"active", "disabled"})
 PRINCIPAL_TYPES: frozenset[str] = frozenset({"user", "machine"})
@@ -39,6 +39,18 @@ class Principal:
     def __post_init__(self) -> None:
         if self.principal_type not in PRINCIPAL_TYPES:
             raise ValueError(f"Invalid principal_type: {self.principal_type!r}")
+        object.__setattr__(self, "roles", frozenset(self.roles))
+        object.__setattr__(self, "permissions", frozenset(self.permissions))
+        if self.principal_type == "user":
+            unknown = self.roles - BUILTIN_ROLES
+            if unknown:
+                raise ValueError(f"Unknown roles for user principal: {sorted(unknown)}")
+            expected = permissions_for_roles(self.roles)
+            if self.permissions != expected:
+                raise ValueError(
+                    "User principal permissions must equal permissions_for_roles(roles); "
+                    "use Principal.for_user() to construct correctly"
+                )
 
     def has_permission(self, permission: str) -> bool:
         return permission in self.permissions
