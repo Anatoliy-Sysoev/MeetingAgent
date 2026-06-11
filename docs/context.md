@@ -4,11 +4,12 @@
 
 ## Now
 
-- last commit: Restore read-only Meeting API (MA-API-MEETINGS-RESTORE)
+- last commit: Add auth domain and SQLite persistence (MA-AUTH-CORE-1)
 - in progress: none
 
 ## Done latest
 
+- MA-AUTH-CORE-1 (#44): provider-independent auth domain — Principal/User/LocalCredential/ExternalIdentity, central RBAC (viewer/editor/admin, unknown role grants nothing), provider registry (local+machine, yandex/google/oidc/trusted_proxy reserved), SQLite repository (idempotent schema, FK on, parameterized SQL, audit events); 40 tests; no API behavior changed
 - MA-API-MEETINGS-RESTORE (#30): GET /meetings, GET /meetings/{id}, GET /meetings/{id}/transcript, GET /meetings/{id}/artifacts, GET /meetings/{id}/artifacts/{name}; read-side helpers ported into MeetingsService; 56 new tests; ingest and job API regressions pass
 - MA-JOB-API (#35): POST /meetings/{id}/jobs/{stage} → 202, GET status, POST cancel, GET /jobs/active; concurrency=1 via asyncio.Lock; subprocess dry-run preflight; merge preflight without dry-run; 17 tests pass
 - MA-INGEST-DEDUP (#34): POST /meetings/ingest — file upload, incremental sha256, dedup → 409, token guard via Depends(require_write_access), meeting.json creation + schema validation + rollback; hardening: path-traversal-safe filename, secrets.compare_digest, date.fromisoformat, zero-byte guard
@@ -32,6 +33,7 @@
 
 ## Next
 
+- MA-AUTH-LOCAL-SESSIONS (#44 AUTH-2): Argon2id, local login, server-side sessions, cookie, logout, /auth/me
 - MA-REVIEW-QUEUE
 - Meeting Workspace UI
 - #39/#40 (auth evolution): require_write_access — стабильный контракт на роутах; менять backing-механизм только внутри auth.py, роуты не трогать
