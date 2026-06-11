@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from asu_june_bot.api.auth import CSRF_HEADER
 from asu_june_bot.api.dependencies import get_local_auth_service
+from asu_june_bot.auth.passwords import verify_csrf_token
 from asu_june_bot.auth.service import (
     AuthenticatedSession,
     InvalidCredentialsError,
@@ -106,6 +107,16 @@ async def logout(
     service: LocalAuthService = Depends(get_local_auth_service),
 ) -> Response:
     token = request.cookies.get(service.cookie_name, "")
+    auth = service.resolve_session(token) if token else None
+    if auth is not None:
+        # State-changing cookie request on a live session — require session-bound CSRF.
+        csrf_value = request.headers.get(CSRF_HEADER, "")
+        if not csrf_value:
+            raise HTTPException(status_code=403, detail="CSRF token required")
+        if auth.session.csrf_token_hash is None or not verify_csrf_token(
+            auth.session.csrf_token_hash, csrf_value
+        ):
+            raise HTTPException(status_code=403, detail="Invalid CSRF token")
     service.logout(token)
     response = Response(status_code=204)
     secure = _resolve_secure(service, request)

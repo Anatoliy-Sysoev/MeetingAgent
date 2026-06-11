@@ -128,9 +128,9 @@ def test_me_with_garbage_cookie_401(client: TestClient) -> None:
 
 def test_logout_revokes_session(client: TestClient, repo: AuthRepository) -> None:
     make_user(repo)
-    login(client)
+    csrf = login(client).json()["csrf_token"]
     assert client.get("/auth/me").status_code == 200
-    resp = client.post("/auth/logout")
+    resp = client.post("/auth/logout", headers={"X-CSRF-Token": csrf})
     assert resp.status_code == 204
     client.cookies.clear()
     # session is revoked server-side, not just cookie-cleared
@@ -139,14 +139,35 @@ def test_logout_revokes_session(client: TestClient, repo: AuthRepository) -> Non
 
 def test_logout_clears_cookie(client: TestClient, repo: AuthRepository) -> None:
     make_user(repo)
-    login(client)
-    resp = client.post("/auth/logout")
+    csrf = login(client).json()["csrf_token"]
+    resp = client.post("/auth/logout", headers={"X-CSRF-Token": csrf})
     set_cookie = resp.headers.get("set-cookie", "")
     assert "ma_session" in set_cookie
 
 
 def test_logout_without_session_idempotent(client: TestClient) -> None:
     assert client.post("/auth/logout").status_code == 204
+
+
+def test_logout_with_live_session_requires_csrf(
+    client: TestClient, repo: AuthRepository
+) -> None:
+    make_user(repo)
+    login(client)
+    # No X-CSRF-Token on a live cookie session → 403, session stays valid
+    assert client.post("/auth/logout").status_code == 403
+    assert client.get("/auth/me").status_code == 200
+
+
+def test_logout_with_wrong_csrf_rejected(
+    client: TestClient, repo: AuthRepository
+) -> None:
+    make_user(repo)
+    login(client)
+    assert client.post(
+        "/auth/logout", headers={"X-CSRF-Token": "wrong"}
+    ).status_code == 403
+    assert client.get("/auth/me").status_code == 200
 
 
 def make_client_with_service(repo: AuthRepository, service: LocalAuthService) -> TestClient:
@@ -227,6 +248,7 @@ def test_revoked_token_rejected_even_if_cookie_kept(
     make_user(repo)
     resp = login(client)
     token = resp.cookies["ma_session"]
-    client.post("/auth/logout")
+    csrf = resp.json()["csrf_token"]
+    client.post("/auth/logout", headers={"X-CSRF-Token": csrf})
     client.cookies.set("ma_session", token)
     assert client.get("/auth/me").status_code == 401

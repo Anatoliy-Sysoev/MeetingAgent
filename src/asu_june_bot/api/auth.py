@@ -59,13 +59,22 @@ def _get_local_auth_service(request: Request) -> LocalAuthService:
 
 
 def _bearer_header(request: Request) -> str | None:
+    """Return the Bearer token, None if no Authorization header at all.
+
+    Any present-but-malformed Authorization (non-Bearer scheme, missing token)
+    raises 401 — supplied credentials must never silently downgrade to
+    anonymous/cookie access.
+    """
     auth = request.headers.get("Authorization", "")
     if not auth:
         return None
-    lower = auth.strip().lower()
-    if lower.startswith(_BEARER_PREFIX):
-        return auth.strip()[len(_BEARER_PREFIX):]
-    return None
+    stripped = auth.strip()
+    if stripped.lower().startswith(_BEARER_PREFIX):
+        token = stripped[len(_BEARER_PREFIX):].strip()
+        if not token:
+            raise HTTPException(status_code=401, detail="Empty Bearer token")
+        return token
+    raise HTTPException(status_code=401, detail="Invalid Authorization header format")
 
 
 def _resolve_machine_principal(token: str) -> Principal:

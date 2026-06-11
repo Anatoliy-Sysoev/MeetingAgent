@@ -11,6 +11,7 @@ VIEWER_PERMISSIONS: frozenset[str] = frozenset({
     "meetings.read",
     "artifacts.read",
     "transcripts.read",
+    "jobs.read",
     "search.use",
     "chat.use",
 })
