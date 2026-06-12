@@ -11,7 +11,13 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from asu_june_bot.meetings.service import MeetingCardError, MeetingsService  # noqa: E402
+from asu_june_bot.meetings.service import (  # noqa: E402
+    DEFAULT_MAX_TEXT_ARTIFACT_BYTES,
+    ArtifactTooLargeError,
+    MeetingCardError,
+    MeetingsService,
+    parse_max_text_artifact_bytes,
+)
 
 
 VALID_CARD = {
@@ -279,3 +285,204 @@ def test_unique_meeting_id_generates_candidate(tmp_path: Path) -> None:
     svc = MeetingsService(tmp_path)
     mid = svc.unique_meeting_id("2026-01-01", "test")
     assert mid == "2026-01-01__test"
+
+
+# ------------------------------------------------------------------
+# parse_max_text_artifact_bytes — config validation
+# ------------------------------------------------------------------
+
+def test_parse_limit_absent_returns_default() -> None:
+    assert parse_max_text_artifact_bytes({}) == DEFAULT_MAX_TEXT_ARTIFACT_BYTES
+    assert parse_max_text_artifact_bytes(None) == DEFAULT_MAX_TEXT_ARTIFACT_BYTES
+    assert DEFAULT_MAX_TEXT_ARTIFACT_BYTES == 10 * 1024 * 1024
+
+
+def test_parse_limit_absent_key_returns_default() -> None:
+    assert parse_max_text_artifact_bytes({"meetings": {}}) == DEFAULT_MAX_TEXT_ARTIFACT_BYTES
+
+
+def test_parse_limit_valid_positive_int() -> None:
+    assert parse_max_text_artifact_bytes({"meetings": {"max_text_artifact_bytes": 4096}}) == 4096
+
+
+def test_parse_limit_rejects_bool() -> None:
+    with pytest.raises(ValueError):
+        parse_max_text_artifact_bytes({"meetings": {"max_text_artifact_bytes": True}})
+
+
+def test_parse_limit_rejects_zero() -> None:
+    with pytest.raises(ValueError):
+        parse_max_text_artifact_bytes({"meetings": {"max_text_artifact_bytes": 0}})
+
+
+def test_parse_limit_rejects_negative() -> None:
+    with pytest.raises(ValueError):
+        parse_max_text_artifact_bytes({"meetings": {"max_text_artifact_bytes": -1}})
+
+
+def test_parse_limit_rejects_float() -> None:
+    with pytest.raises(ValueError):
+        parse_max_text_artifact_bytes({"meetings": {"max_text_artifact_bytes": 1.5}})
+
+
+def test_parse_limit_rejects_string() -> None:
+    with pytest.raises(ValueError):
+        parse_max_text_artifact_bytes({"meetings": {"max_text_artifact_bytes": "10485760"}})
+
+
+def test_parse_limit_rejects_non_mapping_meetings() -> None:
+    with pytest.raises(ValueError):
+        parse_max_text_artifact_bytes({"meetings": ["not", "a", "map"]})
+
+
+def test_build_app_state_passes_limit_into_service(monkeypatch) -> None:
+    import asu_june_bot.api.dependencies as deps
+
+    captured = {}
+    real_service = deps.MeetingsService
+
+    def spy(*args, **kwargs):
+        captured.update(kwargs)
+        return real_service(*args, **kwargs)
+
+    monkeypatch.setattr(
+        deps, "load_config", lambda: {"meetings": {"max_text_artifact_bytes": 2048}}
+    )
+    monkeypatch.setattr(deps, "MeetingsService", spy)
+    state = deps.build_app_state()
+    assert captured.get("max_text_artifact_bytes") == 2048
+    assert state.meetings_service.max_text_artifact_bytes == 2048
+
+
+# ------------------------------------------------------------------
+# Bounded text artifact reads
+# ------------------------------------------------------------------
+
+def test_artifact_below_limit_succeeds(tmp_path: Path) -> None:
+    meeting_dir = make_card(tmp_path, data={"artifacts": {"memo": "memo.md"}})
+    (meeting_dir / "memo.md").write_text("hello", encoding="utf-8")
+    svc = MeetingsService(tmp_path, max_text_artifact_bytes=100)
+    result = svc.get_artifact_content("2026-01-15__kickoff", "memo")
+    assert result is not None
+    assert result["content"] == "hello"
+
+
+def test_artifact_exactly_at_limit_succeeds(tmp_path: Path) -> None:
+    meeting_dir = make_card(tmp_path, data={"artifacts": {"memo": "memo.md"}})
+    payload = "a" * 32
+    (meeting_dir / "memo.md").write_text(payload, encoding="utf-8")
+    svc = MeetingsService(tmp_path, max_text_artifact_bytes=32)
+    result = svc.get_artifact_content("2026-01-15__kickoff", "memo")
+    assert result is not None
+    assert result["content"] == payload
+
+
+def test_artifact_one_byte_above_limit_raises(tmp_path: Path) -> None:
+    meeting_dir = make_card(tmp_path, data={"artifacts": {"memo": "memo.md"}})
+    (meeting_dir / "memo.md").write_text("a" * 33, encoding="utf-8")
+    svc = MeetingsService(tmp_path, max_text_artifact_bytes=32)
+    with pytest.raises(ArtifactTooLargeError) as exc_info:
+        svc.get_artifact_content("2026-01-15__kickoff", "memo")
+    exc = exc_info.value
+    assert exc.artifact == "memo"
+    assert exc.size_bytes == 33
+    assert exc.max_bytes == 32
+    # No local filesystem path leaks into the public error surface.
+    assert str(tmp_path) not in str(exc)
+
+
+def test_transcript_json_below_limit_parses(tmp_path: Path) -> None:
+    meeting_dir = make_card(tmp_path, data={"artifacts": {"transcript_json": "t.json"}})
+    (meeting_dir / "t.json").write_text(json.dumps({"ok": True}), encoding="utf-8")
+    svc = MeetingsService(tmp_path, max_text_artifact_bytes=10_000)
+    result = svc.get_transcript("2026-01-15__kickoff")
+    assert result is not None
+    assert result["format"] == "json"
+    assert result["content"] == {"ok": True}
+
+
+def test_transcript_jsonl_below_limit_parses(tmp_path: Path) -> None:
+    meeting_dir = make_card(tmp_path, data={"artifacts": {"segments": "s.jsonl"}})
+    (meeting_dir / "s.jsonl").write_text(
+        json.dumps({"text": "hi"}), encoding="utf-8"
+    )
+    svc = MeetingsService(tmp_path, max_text_artifact_bytes=10_000)
+    result = svc.get_transcript("2026-01-15__kickoff")
+    assert result is not None
+    assert result["format"] == "jsonl"
+    assert result["segments"][0]["text"] == "hi"
+
+
+def test_oversized_malformed_json_raises_size_error_first(tmp_path: Path) -> None:
+    meeting_dir = make_card(tmp_path, data={"artifacts": {"transcript_json": "t.json"}})
+    # Invalid JSON and oversized — size error must win over parse error.
+    (meeting_dir / "t.json").write_text("{not valid json " + "x" * 100, encoding="utf-8")
+    svc = MeetingsService(tmp_path, max_text_artifact_bytes=16)
+    with pytest.raises(ArtifactTooLargeError):
+        svc.get_transcript("2026-01-15__kickoff")
+
+
+def test_oversized_malformed_jsonl_raises_size_error_first(tmp_path: Path) -> None:
+    meeting_dir = make_card(tmp_path, data={"artifacts": {"segments": "s.jsonl"}})
+    (meeting_dir / "s.jsonl").write_text("not json line " + "y" * 100, encoding="utf-8")
+    svc = MeetingsService(tmp_path, max_text_artifact_bytes=16)
+    with pytest.raises(ArtifactTooLargeError):
+        svc.get_transcript("2026-01-15__kickoff")
+
+
+def test_oversized_primary_candidate_not_skipped_for_fallback(tmp_path: Path) -> None:
+    meeting_dir = make_card(tmp_path, data={
+        "artifacts": {"segments": "segments.jsonl", "transcript_txt": "t.txt"}
+    })
+    # Primary (segments) is oversized; fallback is small. Must NOT fall through.
+    (meeting_dir / "segments.jsonl").write_text("x" * 200, encoding="utf-8")
+    (meeting_dir / "t.txt").write_text("small", encoding="utf-8")
+    svc = MeetingsService(tmp_path, max_text_artifact_bytes=32)
+    with pytest.raises(ArtifactTooLargeError) as exc_info:
+        svc.get_transcript("2026-01-15__kickoff")
+    assert exc_info.value.artifact == "segments"
+
+
+def test_multibyte_utf8_enforced_on_bytes(tmp_path: Path) -> None:
+    meeting_dir = make_card(tmp_path, data={"artifacts": {"memo": "memo.md"}})
+    # 20 cyrillic chars = 40 bytes in UTF-8; limit of 32 bytes must reject.
+    (meeting_dir / "memo.md").write_text("я" * 20, encoding="utf-8")
+    svc = MeetingsService(tmp_path, max_text_artifact_bytes=32)
+    with pytest.raises(ArtifactTooLargeError) as exc_info:
+        svc.get_artifact_content("2026-01-15__kickoff", "memo")
+    assert exc_info.value.size_bytes == 40
+
+
+def test_bounded_read_catches_stale_stat(tmp_path: Path, monkeypatch) -> None:
+    meeting_dir = make_card(tmp_path, data={"artifacts": {"memo": "memo.md"}})
+    real_size = 33
+    (meeting_dir / "memo.md").write_text("a" * real_size, encoding="utf-8")
+    svc = MeetingsService(tmp_path, max_text_artifact_bytes=32)
+
+    # Simulate a stale/under-reported stat that passes the first check.
+    import os
+    real_stat = os.stat_result
+
+    class FakeStat:
+        st_size = 10  # lies: claims file is within the limit
+
+    orig_stat = Path.stat
+
+    def fake_stat(self, *a, **k):
+        if self.name == "memo.md":
+            return FakeStat()
+        return orig_stat(self, *a, **k)
+
+    monkeypatch.setattr(Path, "stat", fake_stat)
+    with pytest.raises(ArtifactTooLargeError) as exc_info:
+        svc.get_artifact_content("2026-01-15__kickoff", "memo")
+    # Bounded max+1 read detects the real oversize; reports max+1.
+    assert exc_info.value.size_bytes == 33
+
+
+def test_no_partial_content_returned_when_oversized(tmp_path: Path) -> None:
+    meeting_dir = make_card(tmp_path, data={"artifacts": {"memo": "memo.md"}})
+    (meeting_dir / "memo.md").write_text("a" * 100, encoding="utf-8")
+    svc = MeetingsService(tmp_path, max_text_artifact_bytes=32)
+    with pytest.raises(ArtifactTooLargeError):
+        svc.get_artifact_content("2026-01-15__kickoff", "memo")

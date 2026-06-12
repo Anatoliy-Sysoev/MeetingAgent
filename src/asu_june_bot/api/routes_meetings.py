@@ -6,7 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from asu_june_bot.api.auth import require_permission
 from asu_june_bot.auth.models import Principal
-from asu_june_bot.meetings.service import MeetingCardError, MeetingsService
+from asu_june_bot.meetings.service import (
+    ArtifactTooLargeError,
+    MeetingCardError,
+    MeetingsService,
+)
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
 
@@ -24,6 +28,18 @@ def _not_found(meeting_id: str) -> HTTPException:
 
 def _invalid_card(exc: MeetingCardError) -> HTTPException:
     return HTTPException(status_code=422, detail=f"Invalid meeting card: {exc}")
+
+
+def _too_large(exc: ArtifactTooLargeError) -> HTTPException:
+    return HTTPException(
+        status_code=413,
+        detail={
+            "error": "artifact_too_large",
+            "artifact": exc.artifact,
+            "size_bytes": exc.size_bytes,
+            "max_bytes": exc.max_bytes,
+        },
+    )
 
 
 @router.get("")
@@ -63,7 +79,10 @@ def get_transcript(
         raise _invalid_card(exc) from exc
     if card is None:
         raise _not_found(meeting_id)
-    result = service.get_transcript(meeting_id)
+    try:
+        result = service.get_transcript(meeting_id)
+    except ArtifactTooLargeError as exc:
+        raise _too_large(exc) from exc
     if result is None:
         raise _not_found(meeting_id)
     return result
@@ -97,7 +116,10 @@ def get_artifact_content(
         raise _invalid_card(exc) from exc
     if card is None:
         raise _not_found(meeting_id)
-    result = service.get_artifact_content(meeting_id, artifact_name)
+    try:
+        result = service.get_artifact_content(meeting_id, artifact_name)
+    except ArtifactTooLargeError as exc:
+        raise _too_large(exc) from exc
     if result is None:
         raise HTTPException(status_code=404, detail=f"Artifact not found: {artifact_name!r}")
     if result.get("error") == "binary_artifact":

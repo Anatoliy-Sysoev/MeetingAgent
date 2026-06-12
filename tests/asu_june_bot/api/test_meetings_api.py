@@ -50,15 +50,18 @@ class FakeState:
     login_throttle: LoginThrottle = field(default_factory=LoginThrottle)
 
 
-def make_client(meetings_root: Path) -> TestClient:
+def make_client(meetings_root: Path, max_text_artifact_bytes: int | None = None) -> TestClient:
     import os
     os.environ["MEETINGAGENT_API_TOKEN"] = TOKEN
     repo = AuthRepository(meetings_root / "_auth.db")
     repo.initialize()
     app = create_app()
     client = TestClient(app, raise_server_exceptions=False, headers=AUTH)
+    svc_kwargs = {}
+    if max_text_artifact_bytes is not None:
+        svc_kwargs["max_text_artifact_bytes"] = max_text_artifact_bytes
     app.state.asu_june_bot = FakeState(
-        meetings_service=MeetingsService(meetings_root),
+        meetings_service=MeetingsService(meetings_root, **svc_kwargs),
         local_auth_service=LocalAuthService(repo),
     )
     return client
@@ -219,6 +222,73 @@ def test_artifact_binary_415(tmp_path: Path) -> None:
 def test_artifact_not_found(tmp_path: Path) -> None:
     make_meeting(tmp_path)
     assert make_client(tmp_path).get(f"/meetings/{MEETING_ID}/artifacts/phantom").status_code == 404
+
+
+# ------------------------------------------------------------------
+# Size limits → 413
+# ------------------------------------------------------------------
+
+def test_oversized_transcript_returns_413(tmp_path: Path) -> None:
+    d = make_meeting(tmp_path, extra={"artifacts": {"segments": "s.jsonl"}})
+    (d / "s.jsonl").write_text("x" * 200, encoding="utf-8")
+    resp = make_client(tmp_path, max_text_artifact_bytes=32).get(
+        f"/meetings/{MEETING_ID}/transcript"
+    )
+    assert resp.status_code == 413
+    detail = resp.json()["detail"]
+    assert detail["error"] == "artifact_too_large"
+    assert detail["artifact"] == "segments"
+    assert detail["max_bytes"] == 32
+    assert detail["size_bytes"] >= 33
+
+
+def test_oversized_artifact_returns_413(tmp_path: Path) -> None:
+    d = make_meeting(tmp_path, extra={"artifacts": {"memo": "memo.md"}})
+    (d / "memo.md").write_text("a" * 200, encoding="utf-8")
+    resp = make_client(tmp_path, max_text_artifact_bytes=32).get(
+        f"/meetings/{MEETING_ID}/artifacts/memo"
+    )
+    assert resp.status_code == 413
+    detail = resp.json()["detail"]
+    assert detail["error"] == "artifact_too_large"
+    assert detail["artifact"] == "memo"
+    assert detail["size_bytes"] >= 33
+    assert detail["max_bytes"] == 32
+
+
+def test_413_detail_has_no_path_or_content(tmp_path: Path) -> None:
+    d = make_meeting(tmp_path, extra={"artifacts": {"memo": "memo.md"}})
+    (d / "memo.md").write_text("SECRETCONTENT" * 50, encoding="utf-8")
+    resp = make_client(tmp_path, max_text_artifact_bytes=32).get(
+        f"/meetings/{MEETING_ID}/artifacts/memo"
+    )
+    assert resp.status_code == 413
+    body = resp.text
+    assert str(tmp_path) not in body
+    assert "SECRETCONTENT" not in body
+    assert "memo.md" not in body  # local path/filename, only the API key is exposed
+
+
+def test_exact_limit_artifact_returns_200(tmp_path: Path) -> None:
+    d = make_meeting(tmp_path, extra={"artifacts": {"memo": "memo.md"}})
+    (d / "memo.md").write_text("a" * 32, encoding="utf-8")
+    resp = make_client(tmp_path, max_text_artifact_bytes=32).get(
+        f"/meetings/{MEETING_ID}/artifacts/memo"
+    )
+    assert resp.status_code == 200
+    assert resp.json()["content"] == "a" * 32
+
+
+def test_unauthorized_oversized_artifact_fails_auth_not_size(tmp_path: Path) -> None:
+    d = make_meeting(tmp_path, extra={"artifacts": {"memo": "memo.md"}})
+    (d / "memo.md").write_text("a" * 200, encoding="utf-8")
+    client = make_client(tmp_path, max_text_artifact_bytes=32)
+    resp = client.get(
+        f"/meetings/{MEETING_ID}/artifacts/memo", headers={"Authorization": ""}
+    )
+    assert resp.status_code == 401
+    # No size metadata leaked to an unauthenticated caller.
+    assert "artifact_too_large" not in resp.text
 
 
 # ------------------------------------------------------------------
