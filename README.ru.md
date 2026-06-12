@@ -66,6 +66,8 @@ python -m venv .venv
 Copy-Item .env.example .env
 ```
 
+Откройте `.env` и задайте `MEETINGAGENT_API_TOKEN` — длинную случайную строку (не менее 32 символов) — перед первым запуском API.
+
 Для локальных Ollama workflows:
 
 ```powershell
@@ -133,8 +135,15 @@ Runtime meeting outputs могут содержать приватные дан�
 - [Sample summary](examples/ru/sample_summary.md)
 - [Sample action items](examples/ru/sample_action_items.json)
 
+## Аутентификация
+
+API использует machine Bearer token (`MEETINGAGENT_API_TOKEN`) для скриптов и сервисных вызовов, и опциональные локальные cookie-сессии для браузера.
+
+Полный справочник: [Настройка API и авторизации](docs/ru/API_AUTH_SETUP.md) — настройка токена, RBAC, CSRF, все эндпоинты, коды ошибок, reverse proxy и безопасное хранение.
+
 ## Документация
 
+- [Настройка API и авторизации](docs/ru/API_AUTH_SETUP.md)
 - [Текущий контекст](docs/context.md)
 - [Решения](docs/decisions.md)
 - [Todo](docs/todo.md)
