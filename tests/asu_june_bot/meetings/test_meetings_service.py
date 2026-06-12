@@ -463,8 +463,11 @@ def test_bounded_read_catches_stale_stat(tmp_path: Path, monkeypatch) -> None:
     import os
     real_stat = os.stat_result
 
+    import stat as stat_module
+
     class FakeStat:
         st_size = 10  # lies: claims file is within the limit
+        st_mode = stat_module.S_IFREG | 0o644  # regular file
 
     orig_stat = Path.stat
 
@@ -486,3 +489,87 @@ def test_no_partial_content_returned_when_oversized(tmp_path: Path) -> None:
     svc = MeetingsService(tmp_path, max_text_artifact_bytes=32)
     with pytest.raises(ArtifactTooLargeError):
         svc.get_artifact_content("2026-01-15__kickoff", "memo")
+
+
+# ------------------------------------------------------------------
+# is_file() guard — non-regular filesystem objects treated as absent
+# ------------------------------------------------------------------
+
+def test_artifact_directory_with_allowed_suffix_treated_as_absent(tmp_path: Path) -> None:
+    meeting_dir = make_card(tmp_path, data={"artifacts": {"memo": "memo.md"}})
+    # Create a directory where the artifact file is expected.
+    (meeting_dir / "memo.md").mkdir()
+    svc = MeetingsService(tmp_path)
+    result = svc.get_artifact_content("2026-01-15__kickoff", "memo")
+    assert result is None
+
+
+def test_transcript_directory_with_allowed_suffix_treated_as_absent(tmp_path: Path) -> None:
+    meeting_dir = make_card(tmp_path, data={"artifacts": {"transcript_txt": "t.txt"}})
+    (meeting_dir / "t.txt").mkdir()
+    svc = MeetingsService(tmp_path)
+    result = svc.get_transcript("2026-01-15__kickoff")
+    assert result == {"artifact": None, "format": None, "content": None, "available": False}
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="FIFOs not available on Windows")
+def test_artifact_fifo_with_allowed_suffix_treated_as_absent(tmp_path: Path) -> None:
+    import os
+    meeting_dir = make_card(tmp_path, data={"artifacts": {"memo": "memo.md"}})
+    fifo_path = meeting_dir / "memo.md"
+    os.mkfifo(fifo_path)
+    svc = MeetingsService(tmp_path)
+    result = svc.get_artifact_content("2026-01-15__kickoff", "memo")
+    assert result is None
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="FIFOs not available on Windows")
+def test_transcript_fifo_with_allowed_suffix_treated_as_absent(tmp_path: Path) -> None:
+    import os
+    meeting_dir = make_card(tmp_path, data={"artifacts": {"transcript_txt": "t.txt"}})
+    fifo_path = meeting_dir / "t.txt"
+    os.mkfifo(fifo_path)
+    svc = MeetingsService(tmp_path)
+    result = svc.get_transcript("2026-01-15__kickoff")
+    assert result == {"artifact": None, "format": None, "content": None, "available": False}
+
+
+# ------------------------------------------------------------------
+# MeetingsService constructor validation for max_text_artifact_bytes
+# ------------------------------------------------------------------
+
+def test_constructor_rejects_bool_true(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="bool"):
+        MeetingsService(tmp_path, max_text_artifact_bytes=True)
+
+
+def test_constructor_rejects_bool_false(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="bool"):
+        MeetingsService(tmp_path, max_text_artifact_bytes=False)
+
+
+def test_constructor_rejects_zero(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
+        MeetingsService(tmp_path, max_text_artifact_bytes=0)
+
+
+def test_constructor_rejects_negative(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
+        MeetingsService(tmp_path, max_text_artifact_bytes=-1)
+
+
+def test_constructor_rejects_float(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
+        MeetingsService(tmp_path, max_text_artifact_bytes=1.5)  # type: ignore[arg-type]
+
+
+def test_constructor_rejects_string(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
+        MeetingsService(tmp_path, max_text_artifact_bytes="1048576")  # type: ignore[arg-type]
+
+
+def test_max_text_artifact_bytes_property_is_read_only(tmp_path: Path) -> None:
+    svc = MeetingsService(tmp_path, max_text_artifact_bytes=1024)
+    assert svc.max_text_artifact_bytes == 1024
+    with pytest.raises(AttributeError):
+        svc.max_text_artifact_bytes = 99  # type: ignore[misc]
