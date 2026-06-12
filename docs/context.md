@@ -1,14 +1,16 @@
 # Текущий Контекст
 
-Обновлено: 2026-06-11.
+Обновлено: 2026-06-12.
 
 ## Now
 
-- last commit: Add local login throttling (MA-AUTH-LOGIN-THROTTLE)
-- in progress: none
+- last commit: Add artifact and transcript size limits (MA-ARTIFACT-SIZE-LIMITS)
+- in progress: MA-ARTIFACT-SIZE-LIMITS (#52)
+- #51 merged at 567f043a
 
 ## Done latest
 
+- MA-ARTIFACT-SIZE-LIMITS (#52): text transcript/artifact reads bounded by configurable bytes (meetings.max_text_artifact_bytes, default 10 MiB). parse_max_text_artifact_bytes() strict startup validation (positive int only; reject bool/zero/negative/float/string/non-mapping meetings; no silent default fallback). MeetingsService gains immutable max_text_artifact_bytes; single _read_text_bounded() helper used by get_transcript + get_artifact_content: stat() pre-check then bounded binary read of max+1 bytes (closes TOCTOU/stale-stat), decode only after, never partial. No Path.read_text() for content endpoints. ArtifactTooLargeError(artifact, size_bytes, max_bytes) — no path/content in public fields. Routes map it to 413 with structured detail {error, artifact, size_bytes, max_bytes}; no path/content/traceback. Oversized canonical transcript candidate raises immediately (not skipped for smaller fallback); size error wins over JSON/JSONL parse error. Preserved: 404, 415 binary, RBAC (auth before content), traversal + suffix allowlist. Streaming/pagination/range remain out of scope. 32 new tests
 - MA-AUTH-LOGIN-THROTTLE (#51): bounded in-memory brute-force protection — LoginThrottle (LRU + stale-purge, threading.Lock, injectable monotonic clock), key=sha256(email)+client_ip; threshold-reaching failure itself returns 429 + Retry-After (not the next request); body "Too many login attempts"; block cleared on success; safe X-Forwarded-For resolved right-to-left skipping trusted_proxy_cidrs, returns canonical IP, never trusts client-prepended hops; auth.login.throttled audit event (email only, no password/session/CSRF); LoginRequest bounded (email 1..320, password 1..1024); disabled mode via NoOpLoginThrottle; strict startup validation (bool enabled, positive ints, no bool-as-int, max_entries>=max_failures, invalid CIDR→ValueError). Config: auth.login_throttle.{enabled, max_failures, window_seconds, block_seconds=900, max_entries=10000, trusted_proxy_cidrs}; 37 tests
 - MA-AUTH-RBAC-INTEGRATION (#50): provider-independent auth deps in api/auth.py — get_optional_principal (Bearer→machine / cookie→user, invalid Bearer raises 401 no fallback), require_user, require_permission(perm), require_role(role), require_write_access (machine+editor+admin, viewer 403, no auth 401, CSRF guard for cookie requests); CSRF per-session hash in auth_sessions (idempotent ALTER); raw token returned in login response + non-HttpOnly cookie; X-CSRF-Token header required for browser write requests, exempt for Bearer; MACHINE_PERMISSIONS centrally defined (no users/roles/settings/delete); read routes (meetings, search, chat) require permission; job status routes use jobs.read (добавлен в viewer, наследуется editor/admin); write routes use require_write_access returning Principal; /chat — action route через require_action_permission (permission + CSRF для cookie, Bearer exempt); malformed/non-Bearer Authorization → 401 без fallback; logout требует session-bound CSRF; all existing tests adapted, 35 RBAC/CSRF tests; 403 pass
 - MA-AUTH-LOCAL-SESSIONS (#48): Argon2id password hashing (argon2-cffi), auth_sessions в SQLite (хранится sha256 токена, не сам токен), opaque HttpOnly SameSite=Lax cookie `ma_session` (Secure при https), POST /auth/local/login, GET /auth/me, POST /auth/logout; generic 401 (email не раскрывается), disabled user отклоняется, expiration/revocation, audit login/logout/failure, dummy_verify против timing-атак; AuthRepository+LocalAuthService в AppState; require_write_access не тронут
@@ -39,6 +41,7 @@
 
 ## Next
 
+- DOC-API-AUTH-SETUP (#53): auth setup documentation
 - MA-AUTH-BOOTSTRAP-ADMIN: first-admin bootstrap + admin user API
 - MA-REVIEW-QUEUE
 - Meeting Workspace UI
