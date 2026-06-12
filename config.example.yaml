@@ -54,6 +54,8 @@ paths:
   vector_db: "vector_db"
   logs: "logs"
   watched_folder: "watched_folder"
+  # SQLite database for auth (users, sessions, audit log). Local runtime, never commit.
+  auth_db: "data/meetingagent/auth.db"
 
 include_extensions:
   - ".docx"
@@ -168,8 +170,20 @@ exclude_extensions:
   - ".tmp"
   - ".temp"
 
-# Authentication / local login brute-force protection.
+# Authentication settings.
 auth:
+  # Server-side session lifetime in seconds. Default: 86400 (24 h).
+  session_ttl_seconds: 86400
+
+  # Name of the HttpOnly session cookie. Default: ma_session.
+  cookie_name: "ma_session"
+
+  # Whether to set the Secure flag on session cookies.
+  #   auto  — set Secure only when the request arrives over HTTPS (default, recommended)
+  #   true  — always set Secure (use when behind a TLS-terminating reverse proxy)
+  #   false — never set Secure (development only, not safe for production)
+  cookie_secure: "auto"
+
   login_throttle:
     enabled: true            # set false to disable throttling (NoOp limiter)
     max_failures: 5          # failures (per email+IP) before blocking; the
