@@ -29,9 +29,61 @@ _CYRILLIC_TRANSLIT: dict[str, str] = {
 
 _SCHEMA_PATH = Path(__file__).resolve().parents[3] / "configs" / "schemas" / "meeting.schema.json"
 
+# Default upper bound on text transcript/artifact reads (bytes, not characters).
+DEFAULT_MAX_TEXT_ARTIFACT_BYTES = 10 * 1024 * 1024  # 10 MiB
+
 
 class MeetingCardError(ValueError):
     """Raised when meeting.json cannot be parsed or has wrong root type."""
+
+
+class ArtifactTooLargeError(ValueError):
+    """Raised when a text transcript/artifact exceeds the configured byte limit.
+
+    Public fields carry only the artifact key/name and byte counts — never a
+    local filesystem path or file content — so they are safe to surface in an
+    HTTP response.
+    """
+
+    def __init__(self, artifact: str, size_bytes: int, max_bytes: int) -> None:
+        self.artifact = artifact
+        self.size_bytes = size_bytes
+        self.max_bytes = max_bytes
+        super().__init__(
+            f"Artifact {artifact!r} is too large: {size_bytes} bytes exceeds limit of {max_bytes} bytes"
+        )
+
+
+def parse_max_text_artifact_bytes(config: dict[str, Any] | None) -> int:
+    """Resolve and strictly validate ``meetings.max_text_artifact_bytes``.
+
+    Returns the configured byte limit, or the default when unset. Raises
+    ``ValueError`` on any invalid configuration so misconfiguration fails at
+    startup instead of silently falling back to the default.
+    """
+    cfg = config or {}
+    meetings_cfg = cfg.get("meetings")
+    if meetings_cfg is None:
+        return DEFAULT_MAX_TEXT_ARTIFACT_BYTES
+    if not isinstance(meetings_cfg, dict):
+        raise ValueError(
+            f"meetings config must be a mapping, got {type(meetings_cfg).__name__}"
+        )
+    value = meetings_cfg.get("max_text_artifact_bytes")
+    if value is None:
+        return DEFAULT_MAX_TEXT_ARTIFACT_BYTES
+    if isinstance(value, bool):
+        raise ValueError("meetings.max_text_artifact_bytes must be an integer, not bool")
+    if not isinstance(value, int):
+        raise ValueError(
+            f"meetings.max_text_artifact_bytes must be an integer, got {type(value).__name__}"
+        )
+    if value <= 0:
+        raise ValueError(
+            f"meetings.max_text_artifact_bytes must be a positive integer, got {value}"
+        )
+    return value
+
 
 
 def _safe_meeting_id(meeting_id: str) -> bool:
@@ -137,14 +189,53 @@ def _summary(data: dict[str, Any]) -> dict[str, Any]:
 
 
 class MeetingsService:
-    def __init__(self, meetings_root: Path | str = "meetings") -> None:
+    def __init__(
+        self,
+        meetings_root: Path | str = "meetings",
+        max_text_artifact_bytes: int = DEFAULT_MAX_TEXT_ARTIFACT_BYTES,
+    ) -> None:
         self.root = Path(meetings_root)
+        if isinstance(max_text_artifact_bytes, bool):
+            raise ValueError("max_text_artifact_bytes must be an int, not bool")
+        if not isinstance(max_text_artifact_bytes, int):
+            raise ValueError(
+                f"max_text_artifact_bytes must be an int, got {type(max_text_artifact_bytes).__name__}"
+            )
+        if max_text_artifact_bytes <= 0:
+            raise ValueError(
+                f"max_text_artifact_bytes must be a positive integer, got {max_text_artifact_bytes}"
+            )
+        self._max_text_artifact_bytes = max_text_artifact_bytes
+
+    @property
+    def max_text_artifact_bytes(self) -> int:
+        return self._max_text_artifact_bytes
 
     def _meeting_dir(self, meeting_id: str) -> Path:
         return self.root / meeting_id
 
     def _card_path(self, meeting_id: str) -> Path:
         return self._meeting_dir(meeting_id) / "meeting.json"
+
+    def _read_text_bounded(self, abs_path: Path, artifact_key: str) -> str:
+        """Read a text artifact, rejecting anything over the byte limit.
+
+        Defends against both oversized files and TOCTOU growth between the
+        ``stat()`` check and the actual read: the file is opened in binary mode
+        and at most ``max + 1`` bytes are read, so a file that grows after the
+        stat check still cannot bypass the limit. Decoding happens only after
+        the bounded byte read; partial content is never returned.
+        """
+        max_bytes = self._max_text_artifact_bytes
+        size = abs_path.stat().st_size
+        if size > max_bytes:
+            raise ArtifactTooLargeError(artifact_key, size, max_bytes)
+        with abs_path.open("rb") as fh:
+            raw = fh.read(max_bytes + 1)
+        if len(raw) > max_bytes:
+            # File grew after stat(); report the bounded observed count.
+            raise ArtifactTooLargeError(artifact_key, len(raw), max_bytes)
+        return raw.decode("utf-8", errors="replace")
 
     # ------------------------------------------------------------------
     # Read-only API
@@ -221,12 +312,12 @@ class MeetingsService:
                 abs_path.relative_to(meeting_dir.resolve())
             except ValueError:
                 continue
-            if not abs_path.exists():
+            if not abs_path.exists() or not abs_path.is_file():
                 continue
             content_type = _detect_content_type(abs_path)
             if content_type is None:
                 continue
-            text = abs_path.read_text(encoding="utf-8", errors="replace")
+            text = self._read_text_bounded(abs_path, key)
             if content_type == "jsonl":
                 lines = [json.loads(ln) for ln in text.splitlines() if ln.strip()]
                 return {"artifact": key, "format": "jsonl", "segments": lines}
@@ -252,12 +343,12 @@ class MeetingsService:
             abs_path.relative_to(meeting_dir.resolve())
         except ValueError:
             return None
-        if not abs_path.exists():
+        if not abs_path.exists() or not abs_path.is_file():
             return None
         suffix = abs_path.suffix.lower()
         if suffix not in _SAFE_ARTIFACT_SUFFIXES:
             return {"error": "binary_artifact", "key": artifact_name}
-        text = abs_path.read_text(encoding="utf-8", errors="replace")
+        text = self._read_text_bounded(abs_path, artifact_name)
         fmt = "jsonl" if suffix == ".jsonl" else ("json" if suffix == ".json" else "text")
         return {"artifact": artifact_name, "format": fmt, "content": text}
 
