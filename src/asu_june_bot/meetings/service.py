@@ -195,7 +195,21 @@ class MeetingsService:
         max_text_artifact_bytes: int = DEFAULT_MAX_TEXT_ARTIFACT_BYTES,
     ) -> None:
         self.root = Path(meetings_root)
-        self.max_text_artifact_bytes = max_text_artifact_bytes
+        if isinstance(max_text_artifact_bytes, bool):
+            raise ValueError("max_text_artifact_bytes must be an int, not bool")
+        if not isinstance(max_text_artifact_bytes, int):
+            raise ValueError(
+                f"max_text_artifact_bytes must be an int, got {type(max_text_artifact_bytes).__name__}"
+            )
+        if max_text_artifact_bytes <= 0:
+            raise ValueError(
+                f"max_text_artifact_bytes must be a positive integer, got {max_text_artifact_bytes}"
+            )
+        self._max_text_artifact_bytes = max_text_artifact_bytes
+
+    @property
+    def max_text_artifact_bytes(self) -> int:
+        return self._max_text_artifact_bytes
 
     def _meeting_dir(self, meeting_id: str) -> Path:
         return self.root / meeting_id
@@ -212,7 +226,7 @@ class MeetingsService:
         stat check still cannot bypass the limit. Decoding happens only after
         the bounded byte read; partial content is never returned.
         """
-        max_bytes = self.max_text_artifact_bytes
+        max_bytes = self._max_text_artifact_bytes
         size = abs_path.stat().st_size
         if size > max_bytes:
             raise ArtifactTooLargeError(artifact_key, size, max_bytes)
@@ -298,7 +312,7 @@ class MeetingsService:
                 abs_path.relative_to(meeting_dir.resolve())
             except ValueError:
                 continue
-            if not abs_path.exists():
+            if not abs_path.exists() or not abs_path.is_file():
                 continue
             content_type = _detect_content_type(abs_path)
             if content_type is None:
@@ -329,7 +343,7 @@ class MeetingsService:
             abs_path.relative_to(meeting_dir.resolve())
         except ValueError:
             return None
-        if not abs_path.exists():
+        if not abs_path.exists() or not abs_path.is_file():
             return None
         suffix = abs_path.suffix.lower()
         if suffix not in _SAFE_ARTIFACT_SUFFIXES:
