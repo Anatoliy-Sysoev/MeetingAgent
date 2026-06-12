@@ -10,13 +10,17 @@
 
 **Единственный полностью рабочий способ доступа — machine Bearer token (`MEETINGAGENT_API_TOKEN`).**
 
-Локальный логин (`POST /auth/local/login`) работает, но только если пользовательский аккаунт уже существует в базе данных. Первичная регистрация администратора **не реализована** — создать первого пользователя через API или UI пока невозможно. Admin API и admin UI не реализованы. Внешние провайдеры (Yandex ID, Google, OIDC) не реализованы.
+Локальный логин (`POST /auth/local/login`) работает, но требует заранее созданного активного пользователя с local credential. Поддерживаемого способа создать первого пользователя нет: first-admin bootstrap **не реализован**. Admin API и admin UI не реализованы. Внешние провайдеры (Yandex ID, Google, OIDC) не реализованы.
 
 Это означает:
 
 - Для скриптов, CI, автоматизации и межсервисных вызовов: используйте Bearer token.
-- Для браузерных сессий: локальный логин доступен только после того, как запись пользователя добавлена напрямую в SQLite базу данных авторизации. Это сценарий для разработчика/администратора.
+- Для браузерных сессий: локальный логин доступен только если активный пользователь с local credential уже есть в базе данных авторизации. Поддерживаемого bootstrap-пути нет — этот пробел закроет MA-AUTH-BOOTSTRAP-ADMIN.
 - Публичная регистрация отсутствует и не планируется в MVP.
+
+### Замечание о встроенном Web UI
+
+Встроенный web UI (`/` и `/ui`) отправляет запросы `/chat` без каких-либо учётных данных и без CSRF-токена. После включения RBAC функция чата в UI возвращает ошибку авторизации (`401`). UI не интегрирован с логином или Bearer auth. Используйте machine Bearer token напрямую (curl / PowerShell / скрипты), пока не будет реализована auth-интеграция в UI.
 
 ---
 
@@ -24,7 +28,7 @@
 
 API использует два типа принципалов:
 
-| Тип принципала | Способ аутентификации | CSRF для write-запросов |
+| Тип принципала | Способ аутентификации | CSRF для write/action запросов |
 |---|---|---|
 | **machine** | `Authorization: Bearer <token>` | Нет |
 | **user** (браузер) | Session cookie `ma_session` | Да (заголовок `X-CSRF-Token`) |
@@ -37,7 +41,9 @@ API использует два типа принципалов:
 Authorization: Bearer <token>
 ```
 
-Если заголовок присутствует, но токен не совпадает — сервер вернёт `401`. Если заголовок отсутствует — запрос считается неаутентифицированным (большинство защищённых маршрутов вернут `401`).
+Если заголовок присутствует, но токен не совпадает — сервер вернёт `401`. Если заголовок `Authorization` отсутствует полностью — сервер проверяет наличие session cookie; если и его нет, запрос считается неаутентифицированным (большинство защищённых маршрутов вернут `401`).
+
+**Важно**: любой присутствующий заголовок `Authorization`, который имеет неверный формат или содержит неправильный токен, сразу возвращает `401` — тихого fallback на cookie в этом случае нет.
 
 Machine principal имеет фиксированный узкий набор прав: чтение встреч, загрузка, запуск/отмена/чтение jobs, поиск и чат. Управление пользователями, ролями, настройками и удаление встреч недоступны.
 
@@ -50,7 +56,7 @@ Content-Type: application/json
 {"email": "user@example.com", "password": "secret"}
 ```
 
-При успехе ответ устанавливает два cookie:
+Требует заранее созданного активного пользователя с local credential и назначенными ролями. При успехе ответ устанавливает два cookie:
 - `ma_session` — HttpOnly, SameSite=Lax, Secure при HTTPS. JavaScript не может читать это cookie.
 - `ma_session_csrf` — non-HttpOnly. JavaScript должен читать это значение и передавать его как `X-CSRF-Token` для всех write и action запросов.
 
@@ -59,17 +65,25 @@ Content-Type: application/json
 
 При ошибке: `401 Unauthorized` с общим сообщением, независимо от того, существует email или нет.
 
-После логина вызовите `GET /auth/me`, чтобы подтвердить сессию и получить identity и роли.
+После логина вызовите `GET /auth/me`, чтобы подтвердить сессию и получить identity и роли. Реальный уровень доступа зависит от назначенных пользователю ролей.
 
 ### CSRF
 
-Все write и action запросы, аутентифицированные через cookie (POST/PUT/DELETE и `/chat`), должны включать:
+Cookie-аутентифицированные запросы к следующим write и action эндпоинтам требуют заголовок `X-CSRF-Token`:
+
+- `POST /meetings/ingest`
+- `POST /meetings/{id}/jobs/{stage}`
+- `POST /meetings/{id}/jobs/{job_id}/cancel`
+- `POST /chat`
+- `POST /auth/logout`
 
 ```
 X-CSRF-Token: <csrf_token>
 ```
 
-Machine Bearer запросы освобождены от CSRF.
+Read-эндпоинты (все `GET`-маршруты, `POST /search`, `POST /auth/local/login`) CSRF **не требуют**.
+
+Machine Bearer запросы освобождены от CSRF на всех маршрутах.
 
 Отсутствующий или неверный CSRF token возвращает `403 Forbidden`.
 
@@ -106,45 +120,45 @@ Machine principal имеет: `meetings.upload`, `meetings.read`, `artifacts.rea
 
 ### Auth
 
-| Метод | Путь | Авторизация | Примечания |
-|---|---|---|---|
-| POST | `/auth/local/login` | Нет | Возвращает session cookie + csrf_token |
-| GET | `/auth/me` | Cookie-сессия | Identity, роли |
-| POST | `/auth/logout` | Cookie + CSRF | Отзывает сессию |
+| Метод | Путь | Авторизация | CSRF | Примечания |
+|---|---|---|---|---|
+| POST | `/auth/local/login` | Нет | Нет | Возвращает session cookie + csrf_token |
+| GET | `/auth/me` | Cookie-сессия | Нет | Identity, роли |
+| POST | `/auth/logout` | Cookie + CSRF | **Да** | Отзывает сессию |
 
 ### Meetings (только чтение)
 
-| Метод | Путь | Право | Примечания |
-|---|---|---|---|
-| GET | `/meetings` | meetings.read | Постраничный список. Query params: `offset`, `limit` |
-| GET | `/meetings/{id}` | meetings.read | Карточка встречи |
-| GET | `/meetings/{id}/transcript` | transcripts.read | Транскрипт или `{"available": false}` |
-| GET | `/meetings/{id}/artifacts` | artifacts.read | Список метаданных артефактов |
-| GET | `/meetings/{id}/artifacts/{name}` | artifacts.read | Содержимое текстового артефакта. 413 при превышении лимита. 415 для бинарных артефактов. |
+| Метод | Путь | Право | CSRF | Примечания |
+|---|---|---|---|---|
+| GET | `/meetings` | meetings.read | Нет | Постраничный список. Query params: `offset`, `limit` |
+| GET | `/meetings/{id}` | meetings.read | Нет | Карточка встречи |
+| GET | `/meetings/{id}/transcript` | transcripts.read | Нет | Транскрипт или `{"available": false}` |
+| GET | `/meetings/{id}/artifacts` | artifacts.read | Нет | Список метаданных артефактов |
+| GET | `/meetings/{id}/artifacts/{name}` | artifacts.read | Нет | Текстовый артефакт. 413 при превышении лимита. 415 для бинарных. |
 
 Лимит текстового артефакта: **10 МиБ** (настраивается через `meetings.max_text_artifact_bytes`). Бинарные артефакты возвращают `415 Unsupported Media Type`.
 
 ### Ingest
 
-| Метод | Путь | Право | Примечания |
-|---|---|---|---|
-| POST | `/meetings/ingest` | meetings.upload (write access) | Multipart-загрузка. 201 при успехе, 409 при дубликате по sha256. |
+| Метод | Путь | Право | CSRF | Примечания |
+|---|---|---|---|---|
+| POST | `/meetings/ingest` | meetings.upload | **Да** (cookie) | Multipart-загрузка. 201 или 409 при дубликате. |
 
 ### Job Pipeline
 
-| Метод | Путь | Право | Примечания |
-|---|---|---|---|
-| POST | `/meetings/{id}/jobs/{stage}` | write access | Запустить стадию pipeline. Возвращает 202. |
-| GET | `/meetings/{id}/jobs/{job_id}` | jobs.read | Статус задачи |
-| POST | `/meetings/{id}/jobs/{job_id}/cancel` | write access | Отменить задачу |
-| GET | `/jobs/active` | jobs.read | Текущая активная задача или `{}` |
+| Метод | Путь | Право | CSRF | Примечания |
+|---|---|---|---|---|
+| POST | `/meetings/{id}/jobs/{stage}` | write access | **Да** (cookie) | Запустить стадию pipeline. Возвращает 202. |
+| GET | `/meetings/{id}/jobs/{job_id}` | jobs.read | Нет | Статус задачи |
+| POST | `/meetings/{id}/jobs/{job_id}/cancel` | write access | **Да** (cookie) | Отменить задачу |
+| GET | `/jobs/active` | jobs.read | Нет | Текущая активная задача или `{}` |
 
 ### Поиск и чат
 
-| Метод | Путь | Право | Примечания |
-|---|---|---|---|
-| POST | `/search` | search.use | RAG-поиск |
-| POST | `/chat` | chat.use | Ответ с citations. Для cookie-клиентов требуется CSRF. |
+| Метод | Путь | Право | CSRF | Примечания |
+|---|---|---|---|---|
+| POST | `/search` | search.use | Нет | RAG-поиск. CSRF не требуется даже для cookie-клиентов. |
+| POST | `/chat` | chat.use | **Да** (cookie) | Ответ с citations. Machine Bearer освобождён. |
 
 ### Здоровье сервиса
 
@@ -163,7 +177,7 @@ Machine principal имеет: `meetings.upload`, `meetings.read`, `artifacts.rea
 | 202 | Accepted (задача запущена) |
 | 204 | No Content (logout) |
 | 400 | Bad Request (ошибка валидации) |
-| 401 | Unauthorized — нет учётных данных или неверный Bearer token |
+| 401 | Unauthorized — нет учётных данных, неверный Bearer token или истёкшая сессия |
 | 403 | Forbidden — аутентифицирован, но прав недостаточно; или CSRF отсутствует/неверен |
 | 404 | Not Found |
 | 409 | Conflict — дублирующийся файл при ingest (совпадение sha256) |
@@ -221,6 +235,11 @@ Invoke-RestMethod http://127.0.0.1:8000/meetings/2026-01-15__kickoff -Headers $h
 # Транскрипт
 Invoke-RestMethod http://127.0.0.1:8000/meetings/2026-01-15__kickoff/transcript -Headers $headers
 
+# Артефакт
+Invoke-RestMethod `
+  http://127.0.0.1:8000/meetings/2026-01-15__kickoff/artifacts/memo `
+  -Headers $headers
+
 # Загрузка файла встречи
 $form = @{
   file  = Get-Item "C:\recordings\meeting.mp4"
@@ -231,14 +250,73 @@ Invoke-RestMethod http://127.0.0.1:8000/meetings/ingest `
   -Method Post -Headers $headers -Form $form
 
 # Запуск транскрибации
-Invoke-RestMethod http://127.0.0.1:8000/meetings/2026-01-15__kickoff/jobs/transcribe `
+Invoke-RestMethod `
+  http://127.0.0.1:8000/meetings/2026-01-15__kickoff/jobs/transcribe `
   -Method Post -Headers $headers
+
+# Статус задачи
+Invoke-RestMethod `
+  http://127.0.0.1:8000/meetings/2026-01-15__kickoff/jobs/<job_id> `
+  -Headers $headers
+
+# Отмена задачи
+Invoke-RestMethod `
+  http://127.0.0.1:8000/meetings/2026-01-15__kickoff/jobs/<job_id>/cancel `
+  -Method Post -Headers $headers
+
+# Активная задача
+Invoke-RestMethod http://127.0.0.1:8000/jobs/active -Headers $headers
 
 # Поиск
 $body = @{ query = "риски проекта" } | ConvertTo-Json
 Invoke-RestMethod http://127.0.0.1:8000/search `
   -Method Post -Headers $headers `
   -ContentType "application/json" -Body $body
+
+# Чат
+$body = @{ query = "итоги встречи" } | ConvertTo-Json
+Invoke-RestMethod http://127.0.0.1:8000/chat `
+  -Method Post -Headers $headers `
+  -ContentType "application/json" -Body $body
+```
+
+### PowerShell — Браузерная сессия (Cookie + CSRF)
+
+```powershell
+$base = "http://127.0.0.1:8000"
+$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+
+# Логин
+$loginBody = @{ email = "user@example.com"; password = "secret" } | ConvertTo-Json
+$loginResp = Invoke-RestMethod "$base/auth/local/login" `
+  -Method Post -WebSession $session `
+  -ContentType "application/json" -Body $loginBody
+$csrf = $loginResp.csrf_token
+
+# Чтение (CSRF не нужен для GET)
+Invoke-RestMethod "$base/meetings" -WebSession $session
+
+# Запись (нужен CSRF)
+$form = @{
+  file  = Get-Item "C:\recordings\meeting.mp4"
+  title = "Стартовая встреча"
+  date  = "2026-01-15"
+}
+Invoke-RestMethod "$base/meetings/ingest" `
+  -Method Post -WebSession $session `
+  -Headers @{ "X-CSRF-Token" = $csrf } -Form $form
+
+# Чат (нужен CSRF для cookie-клиентов)
+$body = @{ query = "итоги встречи" } | ConvertTo-Json
+Invoke-RestMethod "$base/chat" `
+  -Method Post -WebSession $session `
+  -Headers @{ "X-CSRF-Token" = $csrf } `
+  -ContentType "application/json" -Body $body
+
+# Выход
+Invoke-RestMethod "$base/auth/logout" `
+  -Method Post -WebSession $session `
+  -Headers @{ "X-CSRF-Token" = $csrf }
 ```
 
 ### curl — Machine Bearer
@@ -253,6 +331,10 @@ curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8000/meetings
 curl -H "Authorization: Bearer $TOKEN" \
   http://127.0.0.1:8000/meetings/2026-01-15__kickoff/transcript
 
+# Артефакт
+curl -H "Authorization: Bearer $TOKEN" \
+  http://127.0.0.1:8000/meetings/2026-01-15__kickoff/artifacts/memo
+
 # Загрузка
 curl -X POST http://127.0.0.1:8000/meetings/ingest \
   -H "Authorization: Bearer $TOKEN" \
@@ -264,11 +346,26 @@ curl -X POST http://127.0.0.1:8000/meetings/ingest \
 curl -X POST http://127.0.0.1:8000/meetings/2026-01-15__kickoff/jobs/transcribe \
   -H "Authorization: Bearer $TOKEN"
 
+# Статус задачи
+curl -H "Authorization: Bearer $TOKEN" \
+  http://127.0.0.1:8000/meetings/2026-01-15__kickoff/jobs/<job_id>
+
+# Отмена задачи
+curl -X POST \
+  http://127.0.0.1:8000/meetings/2026-01-15__kickoff/jobs/<job_id>/cancel \
+  -H "Authorization: Bearer $TOKEN"
+
 # Поиск
 curl -X POST http://127.0.0.1:8000/search \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"query": "риски проекта"}'
+
+# Чат
+curl -X POST http://127.0.0.1:8000/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "итоги встречи"}'
 ```
 
 ### curl — Браузерная сессия (Cookie + CSRF)
@@ -276,13 +373,11 @@ curl -X POST http://127.0.0.1:8000/search \
 ```bash
 BASE=http://127.0.0.1:8000
 
-# Логин — сохраняем cookies
-curl -c cookies.txt -X POST "$BASE/auth/local/login" \
+# Логин — сохраняем cookies; получаем csrf_token из ответа
+RESP=$(curl -s -c cookies.txt -X POST "$BASE/auth/local/login" \
   -H "Content-Type: application/json" \
-  -d '{"email":"user@example.com","password":"secret"}'
-# В ответе есть csrf_token; сохраните его.
-
-CSRF="<csrf_token из ответа>"
+  -d '{"email":"user@example.com","password":"secret"}')
+CSRF=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['csrf_token'])")
 
 # Чтение (CSRF не нужен для GET)
 curl -b cookies.txt "$BASE/meetings"
@@ -291,6 +386,12 @@ curl -b cookies.txt "$BASE/meetings"
 curl -b cookies.txt -X POST "$BASE/meetings/ingest" \
   -H "X-CSRF-Token: $CSRF" \
   -F "file=@meeting.mp4" -F "title=Тест" -F "date=2026-01-15"
+
+# Чат (нужен CSRF для cookie-клиентов)
+curl -b cookies.txt -X POST "$BASE/chat" \
+  -H "X-CSRF-Token: $CSRF" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "итоги встречи"}'
 
 # Выход
 curl -b cookies.txt -X POST "$BASE/auth/logout" \
@@ -314,7 +415,14 @@ MEETINGAGENT_API_PORT=8000
 `config.yaml` (скопируйте из `config.example.yaml`):
 
 ```yaml
+paths:
+  auth_db: "data/meetingagent/auth.db"   # по умолчанию; можно переопределить
+
 auth:
+  session_ttl_seconds: 86400             # 24 ч по умолчанию
+  cookie_name: "ma_session"              # по умолчанию
+  cookie_secure: "auto"                  # auto|true|false; auto=Secure при HTTPS
+
   login_throttle:
     enabled: true
     max_failures: 5
@@ -324,7 +432,7 @@ auth:
     trusted_proxy_cidrs: []
 
 meetings:
-  max_text_artifact_bytes: 10485760   # 10 МиБ
+  max_text_artifact_bytes: 10485760      # 10 МиБ
 ```
 
 ---
@@ -345,7 +453,7 @@ auth:
 
 API определяет реальный IP, обходя `X-Forwarded-For` справа налево и пропуская IP из доверенных подсетей. Используется первый недоверенный hop. Без `trusted_proxy_cidrs` (пустой список по умолчанию) всегда используется IP прямого пира, а `X-Forwarded-For` игнорируется — это безопасный дефолт для хоста, напрямую открытого в интернет.
 
-Cookies устанавливаются с атрибутом `Secure` только если запрос пришёл по HTTPS. В продакшене используйте HTTPS.
+Cookies устанавливаются с атрибутом `Secure` только если запрос пришёл по HTTPS (`cookie_secure: auto`). Задайте `cookie_secure: true`, чтобы принудительно включить `Secure`, или `false` для отключения (только разработка). В продакшене используйте HTTPS.
 
 ---
 
@@ -355,7 +463,7 @@ Cookies устанавливаются с атрибутом `Secure` тольк
 |---|---|---|
 | `MEETINGAGENT_API_TOKEN` | `.env` (не коммитить) или системное окружение | Коммитить в Git |
 | `config.yaml` | Только локально, в gitignore | Коммитить в Git |
-| `data/auth.db` (SQLite авторизация) | Только локально, в gitignore | Коммитить в Git |
+| `data/meetingagent/auth.db` (SQLite авторизация) | Только локально, в gitignore | Коммитить в Git |
 | `meetings/` | Только локально, в gitignore | Коммитить в Git |
 | `logs/` | Только локально, в gitignore | Коммитить в Git |
 | `data/` (индексы, чанки) | Только локально, в gitignore | Коммитить в Git |
@@ -363,14 +471,14 @@ Cookies устанавливаются с атрибутом `Secure` тольк
 Генерация сильного токена:
 
 ```powershell
-# PowerShell
-[System.Web.Security.Membership]::GeneratePassword(48, 8)
-# или
--join ((48..122) | Get-Random -Count 48 | % {[char]$_})
+# PowerShell (кроссплатформенный вариант через Python — без проблем со спецсимволами)
+python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
 ```bash
-# bash / Linux
+# bash / Linux / macOS
+python3 -c "import secrets; print(secrets.token_urlsafe(48))"
+# или
 openssl rand -hex 32
 ```
 
@@ -381,10 +489,11 @@ openssl rand -hex 32
 | Функция | Статус |
 |---|---|
 | Machine Bearer token | **Работает** |
-| Локальный логин (cookie-сессия) | **Работает** — требует существующей записи пользователя |
+| Локальный логин (cookie-сессия) | **Работает** — требует заранее созданного активного пользователя с local credential |
 | Первичная регистрация администратора | **Не реализована** |
 | Admin user API | **Не реализован** |
 | Admin UI | **Не реализован** |
+| Чат в Web UI (браузер) | **Не работает** — UI не передаёт credentials; возвращает 401 после включения RBAC |
 | Yandex ID / Google / OIDC | **Не реализованы** |
 | Публичная регистрация | **Не планируется в MVP** |
 

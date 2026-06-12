@@ -94,6 +94,8 @@ http://127.0.0.1:8000/
 http://127.0.0.1:8000/ui
 ```
 
+> **Внимание:** встроенный web UI отправляет `/chat` без учётных данных. После включения RBAC чат в UI возвращает `401`. Используйте machine Bearer token напрямую (curl / PowerShell) до появления auth-интеграции в UI. См. [Настройка API и авторизации](docs/ru/API_AUTH_SETUP.md).
+
 ## Telegram Adapter
 
 ```powershell

@@ -139,6 +139,8 @@ http://127.0.0.1:8000/
 http://127.0.0.1:8000/ui
 ```
 
+> **Note:** The built-in web UI sends `/chat` without credentials. After RBAC was enabled, the UI chat returns `401`. Use the machine Bearer token directly (curl / PowerShell) until UI auth integration is implemented. See [API and Auth Setup](docs/en/API_AUTH_SETUP.md).
+
 ### 4. Ask A CLI Question
 
 ```powershell
