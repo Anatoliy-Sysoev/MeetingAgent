@@ -182,3 +182,11 @@ auth:
     # trusted hops. Leave empty (default) to always use the direct peer IP
     # and ignore X-Forwarded-For — safe default for a directly-exposed host.
     trusted_proxy_cidrs: []
+
+# Read-only Meeting API limits.
+meetings:
+  # Maximum size (in bytes, not characters) of a transcript or text artifact
+  # the API will read into memory. Files above this limit are rejected before
+  # any decode/JSON parse and the endpoint returns 413 Payload Too Large.
+  # Protects the API process from unbounded memory use. Default: 10 MiB.
+  max_text_artifact_bytes: 10485760
