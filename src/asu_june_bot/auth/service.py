@@ -20,6 +20,7 @@ from asu_june_bot.auth.repository import (
     AuthRepository,
     DuplicateEmailError,
     FirstAdminExistsError,
+    LastActiveAdminError,
     UserNotFoundError as RepoUserNotFoundError,
 )
 
@@ -312,11 +313,10 @@ class AdminService:
             unknown = role_set - BUILTIN_ROLES
             if unknown:
                 raise InvalidRolesError(f"Unknown roles: {sorted(unknown)}")
-            current_roles = self.repository.get_user_roles(user_id)
-            if "admin" in current_roles and "admin" not in role_set:
-                if self.repository.count_active_admin_users() <= 1:
-                    raise LastAdminError("Cannot demote the last active admin")
-            self.repository.set_user_roles(user_id, role_set)
+            try:
+                self.repository.set_user_roles_atomic(user_id, role_set)
+            except LastActiveAdminError as exc:
+                raise LastAdminError(str(exc)) from exc
             self.repository.append_audit_event(
                 actor_type="user",
                 actor_id=actor_id,
@@ -333,10 +333,10 @@ class AdminService:
         user = self.repository.get_user(user_id)
         if user is None:
             raise AdminUserNotFoundError(f"User not found: {user_id!r}")
-        roles = self.repository.get_user_roles(user_id)
-        if "admin" in roles and self.repository.count_active_admin_users() <= 1:
-            raise LastAdminError("Cannot disable the last active admin")
-        self.repository.set_user_status(user_id, "disabled")
+        try:
+            self.repository.disable_user_atomic(user_id)
+        except LastActiveAdminError as exc:
+            raise LastAdminError(str(exc)) from exc
         self.repository.revoke_user_sessions(user_id)
         self.repository.append_audit_event(
             actor_type="user",

@@ -38,7 +38,7 @@
 - GET  /meetings/{id}/jobs/{job_id}               — job status [auth]
 - POST /meetings/{id}/jobs/{job_id}/cancel        — cancel job [auth]
 - GET  /jobs/active                               — active job or {} [auth]
-- GET  /search, POST /chat, GET /health           — pre-existing
+- POST /search, POST /chat, GET /health           — pre-existing
 - POST /admin/bootstrap                           — create first admin [no auth]
 - GET  /admin/users                               — list users [users.manage]
 - GET  /admin/users/{id}                          — get user [users.manage]

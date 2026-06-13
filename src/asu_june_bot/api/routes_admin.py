@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from asu_june_bot.api.auth import require_action_permission, require_permission
+from asu_june_bot.api.auth import require_admin_action_permission, require_admin_user_permission
 from asu_june_bot.auth.models import Principal
 from asu_june_bot.auth.service import (
     AdminService,
@@ -18,8 +18,8 @@ from asu_june_bot.auth.service import (
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
-_require_admin_read = require_permission("users.manage")
-_require_admin_write = require_action_permission("users.manage")
+_require_admin_read = require_admin_user_permission("users.manage")
+_require_admin_write = require_admin_action_permission("users.manage")
 
 
 def _get_admin_service(request: Request) -> AdminService:

@@ -171,7 +171,7 @@ Bootstrap (no auth required — first-user path only):
 |---|---|---|---|---|
 | POST | `/admin/bootstrap` | None | No | Create first admin. 409 if any user exists. |
 
-User management (requires `users.manage` — admin cookie or Bearer with that permission):
+User management (requires `users.manage` — admin browser cookie session only):
 
 | Method | Path | Auth | CSRF | Notes |
 |---|---|---|---|---|
