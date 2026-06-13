@@ -187,6 +187,50 @@ def _check_csrf(request: Request, service: LocalAuthService) -> None:
         raise HTTPException(status_code=403, detail="Invalid CSRF token")
 
 
+def require_admin_user_permission(permission: str):
+    """Dependency factory for admin user-management read routes.
+
+    Requires:
+    - principal_type == "user"  (machine principals receive 403 explicitly)
+    - principal has the given permission
+
+    Machine Bearer tokens do not have users.manage and are blocked here with 403.
+    """
+    def _dep(principal: Principal = Depends(require_user)) -> Principal:
+        if principal.principal_type != "user":
+            raise HTTPException(
+                status_code=403,
+                detail="Machine tokens cannot manage browser users",
+            )
+        if not principal.has_permission(permission):
+            raise HTTPException(status_code=403, detail=f"Permission required: {permission}")
+        return principal
+    return _dep
+
+
+def require_admin_action_permission(permission: str):
+    """Dependency factory for admin user-management write/action routes.
+
+    Like require_admin_user_permission, plus CSRF check for cookie callers.
+    Machine Bearer tokens are blocked with 403 (no CSRF exemption for this scope).
+    """
+    def _dep(
+        request: Request,
+        principal: Principal = Depends(require_user),
+        service: LocalAuthService = Depends(_get_local_auth_service),
+    ) -> Principal:
+        if principal.principal_type != "user":
+            raise HTTPException(
+                status_code=403,
+                detail="Machine tokens cannot manage browser users",
+            )
+        if not principal.has_permission(permission):
+            raise HTTPException(status_code=403, detail=f"Permission required: {permission}")
+        _check_csrf(request, service)
+        return principal
+    return _dep
+
+
 def require_write_access(
     request: Request,
     service: LocalAuthService = Depends(_get_local_auth_service),
