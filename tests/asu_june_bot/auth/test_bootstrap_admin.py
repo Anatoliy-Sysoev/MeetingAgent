@@ -289,3 +289,74 @@ def test_create_user_response_excludes_password_hash(svc: AdminService) -> None:
     )
     assert "password_hash" not in user
     assert "password" not in user
+
+
+# ------------------------------------------------------------------
+# Concurrent last-admin protection — disable
+# ------------------------------------------------------------------
+
+def test_concurrent_disable_preserves_last_admin(tmp_path: Path) -> None:
+    repo = AuthRepository(tmp_path / "auth.db")
+    repo.initialize()
+    svc = AdminService(repo)
+    admin = svc.bootstrap_admin("admin@example.com", "strongpass")
+    admin_id = admin["user_id"]
+
+    errors: list[LastAdminError] = []
+    successes: list[dict] = []
+    lock = threading.Lock()
+
+    def try_disable() -> None:
+        try:
+            result = svc.disable_user(admin_id, actor_id="tester")
+            with lock:
+                successes.append(result)
+        except LastAdminError as exc:
+            with lock:
+                errors.append(exc)
+
+    threads = [threading.Thread(target=try_disable) for _ in range(10)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert len(successes) == 0
+    assert len(errors) == 10
+    assert repo.get_user(admin_id).status == "active"
+
+
+# ------------------------------------------------------------------
+# Concurrent last-admin protection — demotion
+# ------------------------------------------------------------------
+
+def test_concurrent_demotion_preserves_last_admin(tmp_path: Path) -> None:
+    repo = AuthRepository(tmp_path / "auth.db")
+    repo.initialize()
+    svc = AdminService(repo)
+    admin = svc.bootstrap_admin("admin@example.com", "strongpass")
+    admin_id = admin["user_id"]
+
+    errors: list[LastAdminError] = []
+    successes: list[dict] = []
+    lock = threading.Lock()
+
+    def try_demote() -> None:
+        try:
+            result = svc.update_user(admin_id, actor_id="tester", roles=["viewer"])
+            with lock:
+                successes.append(result)
+        except LastAdminError as exc:
+            with lock:
+                errors.append(exc)
+
+    threads = [threading.Thread(target=try_demote) for _ in range(10)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert len(successes) == 0
+    assert len(errors) == 10
+    roles = repo.get_user_roles(admin_id)
+    assert "admin" in roles

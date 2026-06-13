@@ -373,3 +373,18 @@ def test_patch_user_display_name(client: TestClient) -> None:
     )
     assert resp.status_code == 200
     assert resp.json()["display_name"] == "Main Admin"
+
+
+# ------------------------------------------------------------------
+# Machine bearer explicitly forbidden on all user-management routes
+# ------------------------------------------------------------------
+
+def test_machine_bearer_cannot_list_users(client: TestClient) -> None:
+    resp = client.get("/admin/users", headers=MACHINE_AUTH)
+    assert resp.status_code == 403
+
+
+def test_machine_bearer_cannot_get_user(client: TestClient) -> None:
+    bootstrap(client)
+    resp = client.get("/admin/users/some-id", headers=MACHINE_AUTH)
+    assert resp.status_code == 403
