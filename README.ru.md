@@ -66,6 +66,8 @@ python -m venv .venv
 Copy-Item .env.example .env
 ```
 
+Откройте `.env` и задайте `MEETINGAGENT_API_TOKEN` — длинную случайную строку (не менее 32 символов) — перед первым запуском API.
+
 Для локальных Ollama workflows:
 
 ```powershell
@@ -91,6 +93,8 @@ UI:
 http://127.0.0.1:8000/
 http://127.0.0.1:8000/ui
 ```
+
+> **Внимание:** встроенный web UI отправляет `/chat` без учётных данных. После включения RBAC чат в UI возвращает `401`. Используйте machine Bearer token напрямую (curl / PowerShell) до появления auth-интеграции в UI. См. [Настройка API и авторизации](docs/ru/API_AUTH_SETUP.md).
 
 ## Telegram Adapter
 
@@ -133,8 +137,15 @@ Runtime meeting outputs могут содержать приватные дан�
 - [Sample summary](examples/ru/sample_summary.md)
 - [Sample action items](examples/ru/sample_action_items.json)
 
+## Аутентификация
+
+API использует machine Bearer token (`MEETINGAGENT_API_TOKEN`) для скриптов и сервисных вызовов, и опциональные локальные cookie-сессии для браузера.
+
+Полный справочник: [Настройка API и авторизации](docs/ru/API_AUTH_SETUP.md) — настройка токена, RBAC, CSRF, все эндпоинты, коды ошибок, reverse proxy и безопасное хранение.
+
 ## Документация
 
+- [Настройка API и авторизации](docs/ru/API_AUTH_SETUP.md)
 - [Текущий контекст](docs/context.md)
 - [Решения](docs/decisions.md)
 - [Todo](docs/todo.md)

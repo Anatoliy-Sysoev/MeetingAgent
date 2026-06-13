@@ -103,7 +103,7 @@ python -m venv .venv
 Copy-Item .env.example .env
 ```
 
-Do not commit `.env`, tokens, private corpora, meeting files, logs, or local indexes.
+Edit `.env` and set `MEETINGAGENT_API_TOKEN` to a strong random secret before starting the API. Do not commit `.env`, tokens, private corpora, meeting files, logs, or local indexes.
 
 For local Ollama workflows, install required models:
 
@@ -138,6 +138,8 @@ Open the local UI:
 http://127.0.0.1:8000/
 http://127.0.0.1:8000/ui
 ```
+
+> **Note:** The built-in web UI sends `/chat` without credentials. After RBAC was enabled, the UI chat returns `401`. Use the machine Bearer token directly (curl / PowerShell) until UI auth integration is implemented. See [API and Auth Setup](docs/en/API_AUTH_SETUP.md).
 
 ### 4. Ask A CLI Question
 
@@ -248,9 +250,16 @@ docker compose --profile diarization build diarization
 
 See [Docker documentation](docs/docker.md).
 
+## Authentication
+
+The API uses a machine Bearer token (`MEETINGAGENT_API_TOKEN`) for script and service-to-service access, and optional local cookie sessions for browser use.
+
+See [API and Auth Setup](docs/en/API_AUTH_SETUP.md) for the full reference: token setup, RBAC, CSRF, all endpoints, error codes, reverse proxy, and secure storage.
+
 ## Documentation
 
 - [Russian README](README.ru.md)
+- [API and Auth Setup](docs/en/API_AUTH_SETUP.md)
 - [Security policy](SECURITY.md)
 - [Contributing guide](CONTRIBUTING.md)
 - [Architecture index](docs/architecture/ARCHITECTURE.md)
