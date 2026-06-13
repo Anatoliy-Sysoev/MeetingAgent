@@ -1,15 +1,15 @@
 # Текущий Контекст
 
-Обновлено: 2026-06-12.
+Обновлено: 2026-06-13.
 
 ## Now
 
-- last commit: Document API and auth setup (DOC-API-AUTH-SETUP #53)
-- in progress: DOC-API-AUTH-SETUP (#53)
-- #52 merged at ef5a2a44
+- last commit: Add first-admin bootstrap and admin user API (MA-AUTH-BOOTSTRAP-ADMIN #58)
+- in progress: —
 
 ## Done latest
 
+- MA-AUTH-BOOTSTRAP-ADMIN (#58): POST /admin/bootstrap (atomic, no-auth, 409 if any user exists), GET/POST /admin/users, GET/PATCH /admin/users/{id}, POST /admin/users/{id}/disable, POST /admin/users/{id}/enable. AdminService class: bootstrap_admin, create_user, list_users, get_user, update_user, disable_user, enable_user. Last-active-admin protection (409 on disable/demotion). AuthRepository: count_users(), count_active_admin_users(), bootstrap_first_admin() (SQLite BEGIN EXCLUSIVE), set_user_display_name(). Machine token cannot manage users (users.manage not in MACHINE_PERMISSIONS → 403). Cookie writes require CSRF (require_action_permission). 40 new tests. Docs updated: API_AUTH_SETUP.md (en+ru), context.md, todo.md.
 - DOC-API-AUTH-SETUP (#53): docs/en/API_AUTH_SETUP.md + docs/ru/API_AUTH_SETUP.md — полный справочник API и auth: MEETINGAGENT_API_TOKEN, machine/browser principals, cookie-сессия, RBAC viewer/editor/admin, CSRF, все эндпоинты (meetings, ingest, jobs, search, chat), HTTP-коды (401/403/409/413/415/422/429), лимит 10 МиБ, login throttle, HTTPS/reverse proxy, безопасное хранение. .env.example обновлён (MEETINGAGENT_API_TOKEN). README.md и README.ru.md — добавлен раздел Authentication и ссылки. Явно задокументированы отсутствующие функции: bootstrap admin, admin API/UI, Yandex/Google/OIDC, публичная регистрация.
 - MA-ARTIFACT-SIZE-LIMITS (#52): text transcript/artifact reads bounded by configurable bytes (meetings.max_text_artifact_bytes, default 10 MiB). parse_max_text_artifact_bytes() strict startup validation (positive int only; reject bool/zero/negative/float/string/non-mapping meetings; no silent default fallback). MeetingsService gains immutable max_text_artifact_bytes; single _read_text_bounded() helper used by get_transcript + get_artifact_content: stat() pre-check then bounded binary read of max+1 bytes (closes TOCTOU/stale-stat), decode only after, never partial. No Path.read_text() for content endpoints. ArtifactTooLargeError(artifact, size_bytes, max_bytes) — no path/content in public fields. Routes map it to 413 with structured detail {error, artifact, size_bytes, max_bytes}; no path/content/traceback. Oversized canonical transcript candidate raises immediately (not skipped for smaller fallback); size error wins over JSON/JSONL parse error. Preserved: 404, 415 binary, RBAC (auth before content), traversal + suffix allowlist. Streaming/pagination/range remain out of scope. 32 new tests
 - MA-AUTH-LOGIN-THROTTLE (#51): bounded in-memory brute-force protection — LoginThrottle (LRU + stale-purge, threading.Lock, injectable monotonic clock), key=sha256(email)+client_ip; threshold-reaching failure itself returns 429 + Retry-After (not the next request); body "Too many login attempts"; block cleared on success; safe X-Forwarded-For resolved right-to-left skipping trusted_proxy_cidrs, returns canonical IP, never trusts client-prepended hops; auth.login.throttled audit event (email only, no password/session/CSRF); LoginRequest bounded (email 1..320, password 1..1024); disabled mode via NoOpLoginThrottle; strict startup validation (bool enabled, positive ints, no bool-as-int, max_entries>=max_failures, invalid CIDR→ValueError). Config: auth.login_throttle.{enabled, max_failures, window_seconds, block_seconds=900, max_entries=10000, trusted_proxy_cidrs}; 37 tests
@@ -39,10 +39,17 @@
 - POST /meetings/{id}/jobs/{job_id}/cancel        — cancel job [auth]
 - GET  /jobs/active                               — active job or {} [auth]
 - GET  /search, POST /chat, GET /health           — pre-existing
+- POST /admin/bootstrap                           — create first admin [no auth]
+- GET  /admin/users                               — list users [users.manage]
+- GET  /admin/users/{id}                          — get user [users.manage]
+- POST /admin/users                               — create user [users.manage + CSRF]
+- PATCH /admin/users/{id}                         — update user [users.manage + CSRF]
+- POST /admin/users/{id}/disable                  — disable user [users.manage + CSRF]
+- POST /admin/users/{id}/enable                   — enable user [users.manage + CSRF]
 
 ## Next
 
-- MA-AUTH-BOOTSTRAP-ADMIN: first-admin bootstrap + admin user API
+- MA-AUTH-DEPLOYMENT-SAFETY: safe defaults для self-hosted
 - MA-REVIEW-QUEUE
 - Meeting Workspace UI
 - #39/#40 (auth evolution): require_write_access — стабильный контракт на роутах; менять backing-механизм только внутри auth.py, роуты не трогать

@@ -1,0 +1,181 @@
+from __future__ import annotations
+
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
+
+from asu_june_bot.api.auth import require_action_permission, require_permission
+from asu_june_bot.auth.models import Principal
+from asu_june_bot.auth.service import (
+    AdminService,
+    AdminUserNotFoundError,
+    BootstrapConflictError,
+    DuplicateUserError,
+    InvalidRolesError,
+    LastAdminError,
+)
+
+router = APIRouter(prefix="/admin", tags=["admin"])
+
+_require_admin_read = require_permission("users.manage")
+_require_admin_write = require_action_permission("users.manage")
+
+
+def _get_admin_service(request: Request) -> AdminService:
+    return request.app.state.asu_june_bot.admin_service
+
+
+# ------------------------------------------------------------------
+# Request / response schemas
+# ------------------------------------------------------------------
+
+class BootstrapRequest(BaseModel):
+    email: str = Field(..., min_length=1, max_length=320)
+    password: str = Field(..., min_length=8, max_length=1024)
+    display_name: str | None = Field(None, max_length=200)
+
+
+class CreateUserRequest(BaseModel):
+    email: str = Field(..., min_length=1, max_length=320)
+    password: str = Field(..., min_length=8, max_length=1024)
+    display_name: str | None = Field(None, max_length=200)
+    roles: list[str] = Field(default_factory=list)
+
+
+class UpdateUserRequest(BaseModel):
+    display_name: str | None = None
+    roles: list[str] | None = None
+
+
+# ------------------------------------------------------------------
+# Bootstrap (no auth — first-user path)
+# ------------------------------------------------------------------
+
+@router.post("/bootstrap", status_code=201)
+def bootstrap_admin(
+    payload: BootstrapRequest,
+    request: Request,
+) -> dict:
+    """Create the first admin user. Returns 409 if any user already exists."""
+    admin_service: AdminService = _get_admin_service(request)
+    try:
+        user = admin_service.bootstrap_admin(
+            payload.email,
+            payload.password,
+            payload.display_name,
+        )
+    except BootstrapConflictError:
+        raise HTTPException(status_code=409, detail="Bootstrap rejected: users already exist")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return user
+
+
+# ------------------------------------------------------------------
+# Admin user management (require users.manage — admin browser session)
+# ------------------------------------------------------------------
+
+@router.get("/users")
+def list_users(
+    request: Request,
+    _principal: Annotated[Principal, Depends(_require_admin_read)],
+    offset: int = 0,
+    limit: int = 100,
+) -> dict:
+    admin_service: AdminService = _get_admin_service(request)
+    users = admin_service.list_users(offset=offset, limit=limit)
+    return {"users": users, "total": len(users), "offset": offset, "limit": limit}
+
+
+@router.get("/users/{user_id}")
+def get_user(
+    user_id: str,
+    request: Request,
+    _principal: Annotated[Principal, Depends(_require_admin_read)],
+) -> dict:
+    admin_service: AdminService = _get_admin_service(request)
+    user = admin_service.get_user(user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
+@router.post("/users", status_code=201)
+def create_user(
+    payload: CreateUserRequest,
+    request: Request,
+    principal: Annotated[Principal, Depends(_require_admin_write)],
+) -> dict:
+    admin_service: AdminService = _get_admin_service(request)
+    try:
+        user = admin_service.create_user(
+            email=payload.email,
+            password=payload.password,
+            display_name=payload.display_name,
+            roles=payload.roles,
+            actor_id=principal.principal_id,
+        )
+    except InvalidRolesError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except DuplicateUserError:
+        raise HTTPException(status_code=409, detail="Email already registered")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return user
+
+
+@router.patch("/users/{user_id}")
+def update_user(
+    user_id: str,
+    payload: UpdateUserRequest,
+    request: Request,
+    principal: Annotated[Principal, Depends(_require_admin_write)],
+) -> dict:
+    admin_service: AdminService = _get_admin_service(request)
+    kw: dict = {}
+    if "display_name" in payload.model_fields_set:
+        kw["display_name"] = payload.display_name
+    if "roles" in payload.model_fields_set:
+        if payload.roles is None:
+            raise HTTPException(status_code=422, detail="roles cannot be null")
+        kw["roles"] = payload.roles
+    try:
+        user = admin_service.update_user(user_id, principal.principal_id, **kw)
+    except AdminUserNotFoundError:
+        raise HTTPException(status_code=404, detail="User not found")
+    except InvalidRolesError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except LastAdminError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return user
+
+
+@router.post("/users/{user_id}/disable")
+def disable_user(
+    user_id: str,
+    request: Request,
+    principal: Annotated[Principal, Depends(_require_admin_write)],
+) -> dict:
+    admin_service: AdminService = _get_admin_service(request)
+    try:
+        user = admin_service.disable_user(user_id, principal.principal_id)
+    except AdminUserNotFoundError:
+        raise HTTPException(status_code=404, detail="User not found")
+    except LastAdminError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return user
+
+
+@router.post("/users/{user_id}/enable")
+def enable_user(
+    user_id: str,
+    request: Request,
+    principal: Annotated[Principal, Depends(_require_admin_write)],
+) -> dict:
+    admin_service: AdminService = _get_admin_service(request)
+    try:
+        user = admin_service.enable_user(user_id, principal.principal_id)
+    except AdminUserNotFoundError:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user

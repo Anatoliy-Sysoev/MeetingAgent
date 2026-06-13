@@ -8,15 +8,14 @@ This document covers authentication, authorization, and API usage for the Meetin
 
 ## Current State
 
-**The only fully operational access method is the machine Bearer token (`MEETINGAGENT_API_TOKEN`).**
-
-Local login (`POST /auth/local/login`) works, but requires a pre-provisioned active user with a local credential. There is no supported way to create the first user: first-admin bootstrap is **not yet implemented**. Admin API and admin UI are not implemented. External providers (Yandex ID, Google, OIDC) are not implemented.
+**The machine Bearer token (`MEETINGAGENT_API_TOKEN`) is the primary access method for scripts and automation. Local login with cookie sessions is fully operational; first-admin bootstrap and admin user management are now implemented.**
 
 This means:
 
 - For scripts, CI, automation, and service-to-service calls: use the Bearer token.
-- For browser sessions: local login is available only if an active user with the `local` credential already exists in the auth database. There is no supported bootstrap path — this is a gap that will be closed by MA-AUTH-BOOTSTRAP-ADMIN.
+- For browser sessions: use `POST /admin/bootstrap` to create the first admin, then `POST /auth/local/login`.
 - Public registration does not exist and is not planned for the MVP.
+- Admin UI is not implemented — manage users via the admin API.
 
 ### Web UI note
 
@@ -76,6 +75,10 @@ Cookie-authenticated requests to the following write and action endpoints requir
 - `POST /meetings/{id}/jobs/{job_id}/cancel`
 - `POST /chat`
 - `POST /auth/logout`
+- `POST /admin/users`
+- `PATCH /admin/users/{user_id}`
+- `POST /admin/users/{user_id}/disable`
+- `POST /admin/users/{user_id}/enable`
 
 ```
 X-CSRF-Token: <csrf_token>
@@ -160,6 +163,27 @@ Text artifact size limit: **10 MiB** (configurable via `meetings.max_text_artifa
 | POST | `/search` | search.use | No | RAG retrieval. No CSRF even for cookie callers. |
 | POST | `/chat` | chat.use | **Yes** (cookie) | Grounded answer with citations. Machine Bearer exempt. |
 
+### Admin
+
+Bootstrap (no auth required — first-user path only):
+
+| Method | Path | Auth | CSRF | Notes |
+|---|---|---|---|---|
+| POST | `/admin/bootstrap` | None | No | Create first admin. 409 if any user exists. |
+
+User management (requires `users.manage` — admin cookie or Bearer with that permission):
+
+| Method | Path | Auth | CSRF | Notes |
+|---|---|---|---|---|
+| GET | `/admin/users` | users.manage | No | List users. Query: `offset`, `limit`. |
+| GET | `/admin/users/{user_id}` | users.manage | No | Get user. |
+| POST | `/admin/users` | users.manage | **Yes** (cookie) | Create user. 409 on duplicate email. 422 on unknown role. |
+| PATCH | `/admin/users/{user_id}` | users.manage | **Yes** (cookie) | Update display name and/or roles. 409 if last admin demoted. |
+| POST | `/admin/users/{user_id}/disable` | users.manage | **Yes** (cookie) | Disable user. 409 if last active admin. |
+| POST | `/admin/users/{user_id}/enable` | users.manage | **Yes** (cookie) | Re-enable disabled user. |
+
+Machine Bearer tokens do **not** have `users.manage` and receive `403` on all user-management routes.
+
 ### Health
 
 | Method | Path | Auth | Notes |
@@ -180,7 +204,7 @@ Text artifact size limit: **10 MiB** (configurable via `meetings.max_text_artifa
 | 401 | Unauthorized — no credentials, invalid Bearer token, or expired session |
 | 403 | Forbidden — authenticated but insufficient permissions, or missing/invalid CSRF |
 | 404 | Not Found |
-| 409 | Conflict — duplicate file on ingest (sha256 match) |
+| 409 | Conflict — duplicate file on ingest (sha256 match); bootstrap rejected (users exist); last-admin protection |
 | 413 | Payload Too Large — transcript or artifact exceeds byte limit |
 | 415 | Unsupported Media Type — binary artifact requested as text |
 | 422 | Unprocessable Entity — request body schema error |
@@ -488,12 +512,12 @@ openssl rand -hex 32
 | Feature | Status |
 |---|---|
 | Machine Bearer token | **Working** |
-| Local login (cookie session) | **Working** — requires pre-provisioned active user with local credential |
-| First-admin bootstrap | **Not implemented** |
-| Admin user API | **Not implemented** |
-| Admin UI | **Not implemented** |
+| Local login (cookie session) | **Working** |
+| First-admin bootstrap (`POST /admin/bootstrap`) | **Working** |
+| Admin user API (`/admin/users`) | **Working** |
+| Admin UI | **Not implemented** — use the admin API directly |
 | Web UI chat (browser) | **Broken** — UI sends no credentials; returns 401 after RBAC enabled |
 | Yandex ID / Google / OIDC | **Not implemented** |
 | Public registration | **Not planned for MVP** |
-
-Next planned step: **MA-AUTH-BOOTSTRAP-ADMIN** — first-admin bootstrap and admin user API.
+| Per-user API tokens | **Not implemented** |
+| Password reset | **Not implemented** |

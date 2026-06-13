@@ -8,15 +8,14 @@
 
 ## Текущее состояние
 
-**Единственный полностью рабочий способ доступа — machine Bearer token (`MEETINGAGENT_API_TOKEN`).**
-
-Локальный логин (`POST /auth/local/login`) работает, но требует заранее созданного активного пользователя с local credential. Поддерживаемого способа создать первого пользователя нет: first-admin bootstrap **не реализован**. Admin API и admin UI не реализованы. Внешние провайдеры (Yandex ID, Google, OIDC) не реализованы.
+**Machine Bearer token (`MEETINGAGENT_API_TOKEN`) — основной способ доступа для скриптов и автоматизации. Локальный логин с cookie-сессиями полностью работает; первичная регистрация администратора и управление пользователями теперь реализованы.**
 
 Это означает:
 
 - Для скриптов, CI, автоматизации и межсервисных вызовов: используйте Bearer token.
-- Для браузерных сессий: локальный логин доступен только если активный пользователь с local credential уже есть в базе данных авторизации. Поддерживаемого bootstrap-пути нет — этот пробел закроет MA-AUTH-BOOTSTRAP-ADMIN.
+- Для браузерных сессий: используйте `POST /admin/bootstrap`, чтобы создать первого администратора, затем `POST /auth/local/login`.
 - Публичная регистрация отсутствует и не планируется в MVP.
+- Admin UI не реализован — управляйте пользователями через admin API.
 
 ### Замечание о встроенном Web UI
 
@@ -76,6 +75,10 @@ Cookie-аутентифицированные запросы к следующи
 - `POST /meetings/{id}/jobs/{job_id}/cancel`
 - `POST /chat`
 - `POST /auth/logout`
+- `POST /admin/users`
+- `PATCH /admin/users/{user_id}`
+- `POST /admin/users/{user_id}/disable`
+- `POST /admin/users/{user_id}/enable`
 
 ```
 X-CSRF-Token: <csrf_token>
@@ -160,6 +163,27 @@ Machine principal имеет: `meetings.upload`, `meetings.read`, `artifacts.rea
 | POST | `/search` | search.use | Нет | RAG-поиск. CSRF не требуется даже для cookie-клиентов. |
 | POST | `/chat` | chat.use | **Да** (cookie) | Ответ с citations. Machine Bearer освобождён. |
 
+### Admin
+
+Bootstrap (авторизация не требуется — только путь первого пользователя):
+
+| Метод | Путь | Auth | CSRF | Примечания |
+|---|---|---|---|---|
+| POST | `/admin/bootstrap` | Нет | Нет | Создать первого администратора. 409 если уже есть пользователи. |
+
+Управление пользователями (требует `users.manage` — cookie администратора):
+
+| Метод | Путь | Auth | CSRF | Примечания |
+|---|---|---|---|---|
+| GET | `/admin/users` | users.manage | Нет | Список пользователей. Query: `offset`, `limit`. |
+| GET | `/admin/users/{user_id}` | users.manage | Нет | Получить пользователя. |
+| POST | `/admin/users` | users.manage | **Да** (cookie) | Создать пользователя. 409 при дублировании email. 422 при неизвестной роли. |
+| PATCH | `/admin/users/{user_id}` | users.manage | **Да** (cookie) | Обновить имя и/или роли. 409 если последний admin понижен. |
+| POST | `/admin/users/{user_id}/disable` | users.manage | **Да** (cookie) | Отключить пользователя. 409 если последний активный admin. |
+| POST | `/admin/users/{user_id}/enable` | users.manage | **Да** (cookie) | Включить отключённого пользователя. |
+
+Machine Bearer tokens не имеют `users.manage` и получают `403` на всех маршрутах управления пользователями.
+
 ### Здоровье сервиса
 
 | Метод | Путь | Auth | Примечания |
@@ -180,7 +204,7 @@ Machine principal имеет: `meetings.upload`, `meetings.read`, `artifacts.rea
 | 401 | Unauthorized — нет учётных данных, неверный Bearer token или истёкшая сессия |
 | 403 | Forbidden — аутентифицирован, но прав недостаточно; или CSRF отсутствует/неверен |
 | 404 | Not Found |
-| 409 | Conflict — дублирующийся файл при ingest (совпадение sha256) |
+| 409 | Conflict — дублирующийся файл при ingest (sha256); bootstrap отклонён (пользователи уже есть); защита последнего admin |
 | 413 | Payload Too Large — транскрипт или артефакт превышает лимит байт |
 | 415 | Unsupported Media Type — бинарный артефакт запрошен как текст |
 | 422 | Unprocessable Entity — ошибка схемы тела запроса |
@@ -489,12 +513,12 @@ openssl rand -hex 32
 | Функция | Статус |
 |---|---|
 | Machine Bearer token | **Работает** |
-| Локальный логин (cookie-сессия) | **Работает** — требует заранее созданного активного пользователя с local credential |
-| Первичная регистрация администратора | **Не реализована** |
-| Admin user API | **Не реализован** |
-| Admin UI | **Не реализован** |
+| Локальный логин (cookie-сессия) | **Работает** |
+| Первичная регистрация администратора (`POST /admin/bootstrap`) | **Работает** |
+| Admin user API (`/admin/users`) | **Работает** |
+| Admin UI | **Не реализован** — используйте admin API напрямую |
 | Чат в Web UI (браузер) | **Не работает** — UI не передаёт credentials; возвращает 401 после включения RBAC |
 | Yandex ID / Google / OIDC | **Не реализованы** |
 | Публичная регистрация | **Не планируется в MVP** |
-
-Следующий запланированный шаг: **MA-AUTH-BOOTSTRAP-ADMIN** — первичная регистрация администратора и admin user API.
+| Per-user API tokens | **Не реализованы** |
+| Сброс пароля | **Не реализован** |

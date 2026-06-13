@@ -11,6 +11,7 @@ from asu_june_bot.auth.service import (
     DEFAULT_COOKIE_NAME,
     DEFAULT_COOKIE_SECURE,
     DEFAULT_SESSION_TTL_SECONDS,
+    AdminService,
     LocalAuthService,
 )
 from asu_june_bot.auth.throttle import LoginLimiter, build_login_throttle
@@ -34,6 +35,7 @@ class AppState:
     job_runner: JobRunner
     auth_repository: AuthRepository
     local_auth_service: LocalAuthService
+    admin_service: AdminService
     login_throttle: LoginLimiter
 
 
@@ -89,6 +91,7 @@ def build_app_state() -> AppState:
             cookie_name=cookie_name,
             cookie_secure=cookie_secure,  # type: ignore[arg-type]
         ),
+        admin_service=AdminService(auth_repository),
         login_throttle=login_throttle,
     )
 
@@ -115,3 +118,7 @@ def get_local_auth_service(request: Request) -> LocalAuthService:
 
 def get_login_throttle(request: Request) -> LoginLimiter:
     return get_app_state(request).login_throttle
+
+
+def get_admin_service(request: Request) -> AdminService:
+    return get_app_state(request).admin_service
