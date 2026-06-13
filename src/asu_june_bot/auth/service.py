@@ -227,6 +227,8 @@ class AdminService:
         display_name: str | None = None,
     ) -> dict:
         """Create the first admin. Raises BootstrapConflictError if any user exists."""
+        if self.repository.count_users() > 0:
+            raise BootstrapConflictError("Bootstrap rejected: users already exist")
         try:
             normalized = normalize_email(email)
         except ValueError as exc:
@@ -306,8 +308,8 @@ class AdminService:
         user = self.repository.get_user(user_id)
         if user is None:
             raise AdminUserNotFoundError(f"User not found: {user_id!r}")
-        if display_name is not _UNSET:
-            self.repository.set_user_display_name(user_id, display_name)  # type: ignore[arg-type]
+        # Validate and apply roles first so a last-admin 409 never leaves
+        # a partial update (display_name already changed, roles not).
         if roles is not _UNSET:
             role_set = set(roles)  # type: ignore[arg-type]
             unknown = role_set - BUILTIN_ROLES
@@ -325,6 +327,8 @@ class AdminService:
                 target_id=user_id,
                 metadata={"roles": sorted(role_set)},
             )
+        if display_name is not _UNSET:
+            self.repository.set_user_display_name(user_id, display_name)  # type: ignore[arg-type]
         updated = self.repository.get_user(user_id)
         assert updated is not None
         return self._user_payload(updated)
