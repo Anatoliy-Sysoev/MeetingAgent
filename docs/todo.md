@@ -1,6 +1,6 @@
 # Todo
 
-Обновлено: 2026-06-12.
+Обновлено: 2026-06-13.
 
 ## Done
 
@@ -16,7 +16,7 @@
 - [x] MA-AUTH-LOCAL-SESSIONS (#48): Argon2id, local login, server-side sessions, /auth/me, logout
 - [x] MA-AUTH-RBAC-INTEGRATION (#50): session principals, RBAC на роутах, CSRF
 - [x] MA-AUTH-LOGIN-THROTTLE (#51): in-memory brute-force protection, 429+Retry-After, trusted proxy CIDR — merged `567f043a`
-- [ ] MA-AUTH-BOOTSTRAP-ADMIN: first-admin bootstrap + admin user API
+- [x] MA-AUTH-BOOTSTRAP-ADMIN (#58): first-admin bootstrap + admin user API — `04b7af4`
 - [ ] MA-AUTH-DEPLOYMENT-SAFETY: safe defaults для self-hosted
 
 ## Backlog (приоритет сверху вниз)

@@ -102,6 +102,14 @@ class UserNotFoundError(AuthRepositoryError):
     pass
 
 
+class FirstAdminExistsError(AuthRepositoryError):
+    pass
+
+
+class LastActiveAdminError(AuthRepositoryError):
+    """Raised when an operation would leave zero active admins."""
+
+
 class AuthRepository:
     """SQLite persistence for the auth domain. Schema setup is idempotent."""
 
@@ -189,6 +197,18 @@ class AuthRepository:
             ).fetchall()
         return [self._row_to_user(r) for r in rows]
 
+    def count_users(self) -> int:
+        with self._connect() as conn:
+            return conn.execute("SELECT COUNT(*) FROM auth_users").fetchone()[0]
+
+    def count_active_admin_users(self) -> int:
+        with self._connect() as conn:
+            return conn.execute(
+                "SELECT COUNT(DISTINCT u.user_id) FROM auth_users u "
+                "JOIN auth_user_roles r ON r.user_id = u.user_id "
+                "WHERE r.role_name = 'admin' AND u.status = 'active'"
+            ).fetchone()[0]
+
     def set_user_status(self, user_id: str, status: str) -> None:
         if status not in USER_STATUSES:
             raise ValueError(f"Invalid user status: {status!r}")
@@ -199,6 +219,177 @@ class AuthRepository:
             )
             if cur.rowcount == 0:
                 raise UserNotFoundError(f"User not found: {user_id!r}")
+
+    def set_user_display_name(self, user_id: str, display_name: str | None) -> None:
+        with self._connect() as conn:
+            cur = conn.execute(
+                "UPDATE auth_users SET display_name = ?, updated_at = ? WHERE user_id = ?",
+                (display_name, now_iso(), user_id),
+            )
+            if cur.rowcount == 0:
+                raise UserNotFoundError(f"User not found: {user_id!r}")
+
+    def bootstrap_first_admin(
+        self,
+        *,
+        email: str,
+        password_hash: str,
+        display_name: str | None = None,
+    ) -> User:
+        """Create the first admin user atomically using an exclusive transaction.
+
+        Two concurrent callers both see an empty table; the exclusive lock ensures
+        exactly one INSERT succeeds and the other gets FirstAdminExistsError.
+        """
+        user = User(user_id=new_id(), email=email, display_name=display_name)
+        cred_now = now_iso()
+        # Use isolation_level=None (autocommit) so we can issue BEGIN EXCLUSIVE manually.
+        conn = sqlite3.connect(str(self.db_path), isolation_level=None)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
+        try:
+            conn.execute("BEGIN EXCLUSIVE")
+            count = conn.execute("SELECT COUNT(*) FROM auth_users").fetchone()[0]
+            if count > 0:
+                conn.execute("ROLLBACK")
+                raise FirstAdminExistsError("Bootstrap rejected: users already exist")
+            try:
+                conn.execute(
+                    "INSERT INTO auth_users "
+                    "(user_id, email, display_name, status, created_at, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (user.user_id, user.email, user.display_name, user.status,
+                     user.created_at, user.updated_at),
+                )
+            except sqlite3.IntegrityError as exc:
+                conn.execute("ROLLBACK")
+                raise DuplicateEmailError(f"Email already registered: {user.email}") from exc
+            conn.execute(
+                "INSERT INTO auth_local_credentials "
+                "(user_id, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                (user.user_id, password_hash, cred_now, cred_now),
+            )
+            conn.execute(
+                "INSERT INTO auth_user_roles (user_id, role_name) VALUES (?, ?)",
+                (user.user_id, "admin"),
+            )
+            conn.execute("COMMIT")
+        except (FirstAdminExistsError, DuplicateEmailError):
+            raise
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        finally:
+            conn.close()
+        return user
+
+    def disable_user_atomic(self, user_id: str) -> None:
+        """Disable user atomically, guarding against removing the last active admin.
+
+        Uses BEGIN EXCLUSIVE so two concurrent callers cannot both pass the
+        active-admin count check and both proceed to disable.
+
+        Raises:
+            UserNotFoundError: if user_id does not exist.
+            LastActiveAdminError: if this is the last active admin.
+        """
+        conn = sqlite3.connect(str(self.db_path), isolation_level=None)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
+        try:
+            conn.execute("BEGIN EXCLUSIVE")
+            row = conn.execute(
+                "SELECT 1 FROM auth_users WHERE user_id = ?", (user_id,)
+            ).fetchone()
+            if row is None:
+                conn.execute("ROLLBACK")
+                raise UserNotFoundError(f"User not found: {user_id!r}")
+            is_admin = conn.execute(
+                "SELECT 1 FROM auth_user_roles WHERE user_id = ? AND role_name = 'admin'",
+                (user_id,),
+            ).fetchone() is not None
+            if is_admin:
+                count = conn.execute(
+                    "SELECT COUNT(DISTINCT u.user_id) FROM auth_users u "
+                    "JOIN auth_user_roles r ON r.user_id = u.user_id "
+                    "WHERE r.role_name = 'admin' AND u.status = 'active'",
+                ).fetchone()[0]
+                if count <= 1:
+                    conn.execute("ROLLBACK")
+                    raise LastActiveAdminError("Cannot disable the last active admin")
+            conn.execute(
+                "UPDATE auth_users SET status = 'disabled', updated_at = ? WHERE user_id = ?",
+                (now_iso(), user_id),
+            )
+            conn.execute("COMMIT")
+        except (UserNotFoundError, LastActiveAdminError):
+            raise
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        finally:
+            conn.close()
+
+    def set_user_roles_atomic(self, user_id: str, roles: set[str] | frozenset[str]) -> None:
+        """Replace user roles atomically, guarding against demoting the last active admin.
+
+        Uses BEGIN EXCLUSIVE so two concurrent callers cannot both pass the
+        active-admin count check and both proceed to demote.
+
+        Raises:
+            UserNotFoundError: if user_id does not exist.
+            LastActiveAdminError: if demotion would leave zero active admins.
+            ValueError: if unknown roles are provided.
+        """
+        unknown = set(roles) - BUILTIN_ROLES
+        if unknown:
+            raise ValueError(f"Unknown roles: {sorted(unknown)}")
+        conn = sqlite3.connect(str(self.db_path), isolation_level=None)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
+        try:
+            conn.execute("BEGIN EXCLUSIVE")
+            row = conn.execute(
+                "SELECT 1 FROM auth_users WHERE user_id = ?", (user_id,)
+            ).fetchone()
+            if row is None:
+                conn.execute("ROLLBACK")
+                raise UserNotFoundError(f"User not found: {user_id!r}")
+            is_admin = conn.execute(
+                "SELECT 1 FROM auth_user_roles WHERE user_id = ? AND role_name = 'admin'",
+                (user_id,),
+            ).fetchone() is not None
+            if is_admin and "admin" not in roles:
+                count = conn.execute(
+                    "SELECT COUNT(DISTINCT u.user_id) FROM auth_users u "
+                    "JOIN auth_user_roles r ON r.user_id = u.user_id "
+                    "WHERE r.role_name = 'admin' AND u.status = 'active'",
+                ).fetchone()[0]
+                if count <= 1:
+                    conn.execute("ROLLBACK")
+                    raise LastActiveAdminError("Cannot demote the last active admin")
+            conn.execute("DELETE FROM auth_user_roles WHERE user_id = ?", (user_id,))
+            conn.executemany(
+                "INSERT INTO auth_user_roles (user_id, role_name) VALUES (?, ?)",
+                [(user_id, role) for role in sorted(roles)],
+            )
+            conn.execute("COMMIT")
+        except (UserNotFoundError, LastActiveAdminError):
+            raise
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        finally:
+            conn.close()
 
     # ------------------------------------------------------------------
     # Roles
