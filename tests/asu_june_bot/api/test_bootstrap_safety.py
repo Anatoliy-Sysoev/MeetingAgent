@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from asu_june_bot.api.app import create_app  # noqa: E402
 from asu_june_bot.api.bootstrap_policy import (  # noqa: E402
     BOOTSTRAP_TOKEN_HEADER,
+    MIN_BOOTSTRAP_SECRET_LENGTH,
     BootstrapPolicy,
     build_bootstrap_policy,
     is_local_request,
@@ -27,7 +28,8 @@ from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
 from asu_june_bot.auth.service import AdminService, LocalAuthService  # noqa: E402
 from asu_june_bot.auth.throttle import LoginThrottle  # noqa: E402
 
-_BOOTSTRAP_SECRET = "safety-test-bootstrap-secret"
+_BOOTSTRAP_SECRET = "safety-test-bootstrap-secret-that-is-long-enough-abcdefgh"
+_STRONG_SECRET = "a" * MIN_BOOTSTRAP_SECRET_LENGTH
 _ADMIN_EMAIL = "admin@example.com"
 _ADMIN_PASS = "adminpassword1"
 _PAYLOAD = {"email": _ADMIN_EMAIL, "password": _ADMIN_PASS}
@@ -93,17 +95,18 @@ def test_build_bootstrap_policy_defaults() -> None:
 
 
 def test_build_bootstrap_policy_allow_remote_from_config() -> None:
-    pol = build_bootstrap_policy({"bootstrap": {"allow_remote": True, "secret": "s3cr3t"}})
+    pol = build_bootstrap_policy({"bootstrap": {"allow_remote": True, "secret": _STRONG_SECRET}})
     assert pol.allow_remote is True
-    assert pol.secret == "s3cr3t"
+    assert pol.secret == _STRONG_SECRET
 
 
 def test_build_bootstrap_policy_env_overrides_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    env_secret = "env-secret-value-that-is-long-enough-abcdefghij"
     monkeypatch.setenv("MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE", "true")
-    monkeypatch.setenv("MEETINGAGENT_BOOTSTRAP_SECRET", "env-secret")
-    pol = build_bootstrap_policy({"bootstrap": {"allow_remote": False, "secret": "config-secret"}})
+    monkeypatch.setenv("MEETINGAGENT_BOOTSTRAP_SECRET", env_secret)
+    pol = build_bootstrap_policy({"bootstrap": {"allow_remote": False, "secret": _STRONG_SECRET}})
     assert pol.allow_remote is True
-    assert pol.secret == "env-secret"
+    assert pol.secret == env_secret
 
 
 def test_build_bootstrap_policy_allow_remote_without_secret_raises() -> None:
@@ -252,11 +255,137 @@ def test_nonlocal_peer_with_allow_remote_false_raises(repo: AuthRepository) -> N
 
 
 def test_nonlocal_loopback_variants_also_local() -> None:
-    """All loopback variants are treated as local."""
+    """All loopback variants are treated as local (no forwarded headers)."""
     from asu_june_bot.api.routes_admin import _enforce_bootstrap_policy
 
     policy = BootstrapPolicy(allow_remote=False)
     for local_host in ("127.0.0.1", "::1", "::ffff:127.0.0.1"):
         mock_request = MagicMock()
         mock_request.client.host = local_host
+        mock_request.headers.get = MagicMock(return_value="")
         _enforce_bootstrap_policy(mock_request, policy)  # must not raise
+
+
+# ------------------------------------------------------------------
+# Regression tests: loopback peer behind reverse proxy
+# ------------------------------------------------------------------
+
+def _make_proxy_request(peer_host: str, forwarded_header: str, forwarded_value: str) -> MagicMock:
+    """Build a mock request that looks like it came through a reverse proxy."""
+    mock_request = MagicMock()
+    mock_request.client.host = peer_host
+
+    def headers_get(key: str, default: str = "") -> str:
+        if key.lower() == forwarded_header.lower():
+            return forwarded_value
+        return default
+
+    mock_request.headers.get = headers_get
+    return mock_request
+
+
+def test_loopback_peer_with_x_forwarded_for_is_not_local() -> None:
+    """Loopback peer + X-Forwarded-For → proxy detected; local bypass suppressed."""
+    from asu_june_bot.api.routes_admin import _enforce_bootstrap_policy
+    from fastapi import HTTPException
+
+    request = _make_proxy_request("127.0.0.1", "x-forwarded-for", "203.0.113.10")
+    policy = BootstrapPolicy(allow_remote=False)
+    with pytest.raises(HTTPException) as exc_info:
+        _enforce_bootstrap_policy(request, policy)
+    assert exc_info.value.status_code == 403
+    assert "remote" in exc_info.value.detail.lower()
+
+
+def test_loopback_peer_with_forwarded_header_is_not_local() -> None:
+    """Loopback peer + Forwarded header → proxy detected; local bypass suppressed."""
+    from asu_june_bot.api.routes_admin import _enforce_bootstrap_policy
+    from fastapi import HTTPException
+
+    request = _make_proxy_request("127.0.0.1", "forwarded", "for=203.0.113.10")
+    policy = BootstrapPolicy(allow_remote=False)
+    with pytest.raises(HTTPException) as exc_info:
+        _enforce_bootstrap_policy(request, policy)
+    assert exc_info.value.status_code == 403
+
+
+def test_loopback_behind_proxy_allow_remote_valid_secret_passes() -> None:
+    """Loopback peer + X-Forwarded-For + valid secret → allowed."""
+    from asu_june_bot.api.routes_admin import _enforce_bootstrap_policy
+
+    mock_request = MagicMock()
+    mock_request.client.host = "127.0.0.1"
+
+    def headers_get(key: str, default: str = "") -> str:
+        if key.lower() == "x-forwarded-for":
+            return "203.0.113.10"
+        if key == BOOTSTRAP_TOKEN_HEADER:
+            return _BOOTSTRAP_SECRET
+        return default
+
+    mock_request.headers.get = headers_get
+    policy = BootstrapPolicy(allow_remote=True, secret=_BOOTSTRAP_SECRET)
+    _enforce_bootstrap_policy(mock_request, policy)  # must not raise
+
+
+def test_loopback_behind_proxy_allow_remote_missing_secret_returns_403() -> None:
+    """Loopback peer + X-Forwarded-For + allow_remote=True but no token → 403."""
+    from asu_june_bot.api.routes_admin import _enforce_bootstrap_policy
+    from fastapi import HTTPException
+
+    mock_request = MagicMock()
+    mock_request.client.host = "127.0.0.1"
+
+    def headers_get(key: str, default: str = "") -> str:
+        if key.lower() == "x-forwarded-for":
+            return "203.0.113.10"
+        return default
+
+    mock_request.headers.get = headers_get
+    policy = BootstrapPolicy(allow_remote=True, secret=_BOOTSTRAP_SECRET)
+    with pytest.raises(HTTPException) as exc_info:
+        _enforce_bootstrap_policy(mock_request, policy)
+    assert exc_info.value.status_code == 403
+
+
+# ------------------------------------------------------------------
+# build_bootstrap_policy: secret validation
+# ------------------------------------------------------------------
+
+def test_build_bootstrap_policy_secret_non_string_raises() -> None:
+    """auth.bootstrap.secret must be a str, not bool or int."""
+    with pytest.raises(ValueError, match="string"):
+        build_bootstrap_policy({"bootstrap": {"allow_remote": True, "secret": True}})
+
+    with pytest.raises(ValueError, match="string"):
+        build_bootstrap_policy({"bootstrap": {"allow_remote": True, "secret": 1}})
+
+
+def test_build_bootstrap_policy_secret_too_short_raises() -> None:
+    """Secret shorter than MIN_BOOTSTRAP_SECRET_LENGTH raises ValueError."""
+    with pytest.raises(ValueError, match="too short"):
+        build_bootstrap_policy({"bootstrap": {"allow_remote": True, "secret": "short"}})
+
+
+def test_build_bootstrap_policy_well_known_short_secrets_rejected() -> None:
+    """Well-known short strings ('password', 'secret', 'true') fail the length check."""
+    for weak in ("password", "secret", "changeme", "true", "false", "1"):
+        with pytest.raises(ValueError, match="too short"):
+            build_bootstrap_policy({"bootstrap": {"allow_remote": True, "secret": weak}})
+
+
+def test_build_bootstrap_policy_env_secret_too_short_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """MEETINGAGENT_BOOTSTRAP_SECRET shorter than minimum raises ValueError."""
+    monkeypatch.setenv("MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE", "true")
+    monkeypatch.setenv("MEETINGAGENT_BOOTSTRAP_SECRET", "short")
+    with pytest.raises(ValueError, match="too short"):
+        build_bootstrap_policy({})
+
+
+def test_build_bootstrap_policy_strong_secret_ok() -> None:
+    """A strong secret of sufficient length is accepted."""
+    pol = build_bootstrap_policy({"bootstrap": {"allow_remote": True, "secret": _STRONG_SECRET}})
+    assert pol.allow_remote is True
+    assert pol.secret == _STRONG_SECRET
