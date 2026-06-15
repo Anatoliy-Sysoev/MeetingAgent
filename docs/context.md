@@ -1,13 +1,17 @@
 # Текущий Контекст
 
-Обновлено: 2026-06-13.
+Обновлено: 2026-06-15.
 
 ## Now
 
-- last commit: Add first-admin bootstrap and admin user API (MA-AUTH-BOOTSTRAP-ADMIN #58)
+- last commit: Document MeetingAgent and bot product boundaries (MA-PRODUCT-SPLIT-PREP #63)
 - in progress: —
 
 ## Done latest
+
+- MA-API-RBAC-HARDENING (#62): job start uses `jobs.start`, cancel uses `jobs.cancel` (replaced generic write guard); admin user list bounded pagination `offset ge=0, limit ge=1 le=200`; regression test for upload-only role without job permissions.
+- MA-AUTH-DEPLOYMENT-SAFETY (#61): `POST /admin/bootstrap` locality policy — loopback allowed, non-local blocked; `MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE` + `MEETINGAGENT_BOOTSTRAP_SECRET` (min 32 chars) opt-in; proxy detection via X-Forwarded-For/Forwarded/X-Real-IP suppresses loopback bypass; constant-time secret compare; secret not logged/returned/persisted. Docs updated en+ru.
+- MA-PRODUCT-SPLIT-PREP (#63): `docs/architecture/PRODUCT_BOUNDARIES.md` — product split plan: MeetingAgent Core vs. Project Knowledge Bot vs. Shared/Common; full file ownership matrix; adapter contract (Section E); 6-phase migration plan; no code moved.
 
 - MA-AUTH-BOOTSTRAP-ADMIN (#58): POST /admin/bootstrap (atomic, no-auth, 409 if any user exists), GET/POST /admin/users, GET/PATCH /admin/users/{id}, POST /admin/users/{id}/disable, POST /admin/users/{id}/enable. AdminService class: bootstrap_admin, create_user, list_users, get_user, update_user, disable_user, enable_user. Last-active-admin protection (409 on disable/demotion). AuthRepository: count_users(), count_active_admin_users(), bootstrap_first_admin() (SQLite BEGIN EXCLUSIVE), set_user_display_name(). Machine token cannot manage users (users.manage not in MACHINE_PERMISSIONS → 403). Cookie writes require CSRF (require_action_permission). 40 new tests. Docs updated: API_AUTH_SETUP.md (en+ru), context.md, todo.md.
 - DOC-API-AUTH-SETUP (#53): docs/en/API_AUTH_SETUP.md + docs/ru/API_AUTH_SETUP.md — полный справочник API и auth: MEETINGAGENT_API_TOKEN, machine/browser principals, cookie-сессия, RBAC viewer/editor/admin, CSRF, все эндпоинты (meetings, ingest, jobs, search, chat), HTTP-коды (401/403/409/413/415/422/429), лимит 10 МиБ, login throttle, HTTPS/reverse proxy, безопасное хранение. .env.example обновлён (MEETINGAGENT_API_TOKEN). README.md и README.ru.md — добавлен раздел Authentication и ссылки. Явно задокументированы отсутствующие функции: bootstrap admin, admin API/UI, Yandex/Google/OIDC, публичная регистрация.

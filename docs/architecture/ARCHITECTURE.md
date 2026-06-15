@@ -17,6 +17,7 @@ MeetingAgent — локальный репозиторий проектной п
 
 | Документ | Что описывает |
 | --- | --- |
+| `docs/architecture/PRODUCT_BOUNDARIES.md` | Границы продуктов, ownership-матрица, план разделения MeetingAgent и Project Knowledge Bot |
 | `docs/architecture/TECHNICAL_FILE_RELATIONSHIPS.md` | Диаграммы технических файлов, вызовов, структур и данных MeetingAgent |
 | `docs/architecture/MEETING_ARTIFACTS_PIPELINE.md` | Архитектура генерации итогов встречи MAP -> REDUCE -> RENDER |
 | `docs/architecture/FOLDER_STRUCTURE.md` | Базовая структура папок встреч |
