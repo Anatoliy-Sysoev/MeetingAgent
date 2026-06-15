@@ -133,6 +133,35 @@ async def auth_me(
     return _me_payload(auth)
 
 
+@router.get("/csrf")
+async def auth_csrf(
+    request: Request,
+    service: LocalAuthService = Depends(get_local_auth_service),
+) -> dict:
+    """Return the current session's CSRF token to an authenticated browser user.
+
+    The raw token is never stored server-side (only its hash), so this reads
+    the non-HttpOnly CSRF cookie set at login, verifies it matches the active
+    session, and echoes it back. This gives browser JS a single, explicit place
+    to obtain the token to send as X-CSRF-Token on write/action routes.
+
+    - Requires a valid cookie session (401 otherwise).
+    - Does not create or rotate a session.
+    - Never exposes the session token, password hash, or CSRF hash.
+    - Machine Bearer callers do not need this endpoint (they are CSRF-exempt).
+    """
+    token = request.cookies.get(service.cookie_name, "")
+    auth = service.resolve_session(token)
+    if auth is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if auth.session.csrf_token_hash is None:
+        raise HTTPException(status_code=409, detail="Session has no CSRF token")
+    csrf_cookie = request.cookies.get(_csrf_cookie_name(service), "")
+    if not csrf_cookie or not verify_csrf_token(auth.session.csrf_token_hash, csrf_cookie):
+        raise HTTPException(status_code=403, detail="CSRF cookie missing or invalid")
+    return {"csrf_token": csrf_cookie}
+
+
 @router.post("/logout", status_code=204)
 async def logout(
     request: Request,

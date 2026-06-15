@@ -15,6 +15,7 @@ from asu_june_bot.jobs.runner import (
     JobRunner,
     PreflightFailed,
     _read_meeting_status,
+    stage_catalog,
 )
 from asu_june_bot.meetings.service import MeetingsService, _safe_meeting_id
 
@@ -29,6 +30,23 @@ def _get_meetings_service(request: Request) -> MeetingsService:
     state = request.app.state.asu_june_bot
     svc = getattr(state, "meetings_service", None)
     return svc if svc is not None else MeetingsService()
+
+
+# ------------------------------------------------------------------
+# GET /meetings/{meeting_id}/jobs/stages  — available pipeline stages (read)
+# ------------------------------------------------------------------
+
+@router.get("/meetings/{meeting_id}/jobs/stages")
+async def list_job_stages(
+    meeting_id: str,
+    _principal: Annotated[Principal, Depends(require_permission("jobs.read"))],
+    service: MeetingsService = Depends(_get_meetings_service),
+) -> JSONResponse:
+    if not _safe_meeting_id(meeting_id):
+        raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
+    if not (service.root / meeting_id / "meeting.json").exists():
+        raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
+    return JSONResponse(content={"meeting_id": meeting_id, "stages": stage_catalog()})
 
 
 # ------------------------------------------------------------------
