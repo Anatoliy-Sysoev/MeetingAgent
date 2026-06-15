@@ -29,6 +29,58 @@ STAGE_COMMANDS: dict[str, dict[str, Any]] = {
     },
 }
 
+# UI-facing metadata for each runnable stage. Keys MUST be a subset of
+# STAGE_COMMANDS — only stages the runner can actually execute are surfaced,
+# so the workspace never offers a button for an unimplemented stage.
+# No filesystem paths are described here; `requires`/`outputs` are abstract
+# capability tokens, not paths.
+STAGE_METADATA: dict[str, dict[str, Any]] = {
+    "transcribe": {
+        "label": "Transcribe",
+        "description": "Offline ASR of the meeting audio into transcript segments.",
+        "requires": ["source_media"],
+        "outputs": ["transcript_segments"],
+    },
+    "diarize": {
+        "label": "Diarize",
+        "description": "Detect and label distinct speakers in the audio.",
+        "requires": ["source_media"],
+        "outputs": ["speaker_segments"],
+    },
+    "merge": {
+        "label": "Merge transcript and speakers",
+        "description": "Combine transcript segments with speaker labels.",
+        "requires": ["transcript_segments", "speaker_segments"],
+        "outputs": ["merged_transcript"],
+    },
+}
+
+
+def stage_catalog() -> list[dict[str, Any]]:
+    """Return the ordered, UI-safe list of runnable pipeline stages.
+
+    Only stages present in both STAGE_COMMANDS and STAGE_METADATA are
+    returned, in STAGE_COMMANDS insertion order. Each entry carries the
+    permissions a caller needs to start/cancel the stage. Contains no
+    filesystem paths or command details.
+    """
+    catalog: list[dict[str, Any]] = []
+    for stage in STAGE_COMMANDS:
+        meta = STAGE_METADATA.get(stage)
+        if meta is None:
+            continue
+        catalog.append({
+            "stage": stage,
+            "label": meta["label"],
+            "description": meta["description"],
+            "start_permission": "jobs.start",
+            "cancel_permission": "jobs.cancel",
+            "requires": list(meta["requires"]),
+            "outputs": list(meta["outputs"]),
+        })
+    return catalog
+
+
 _STDERR_TAIL = 20
 _HISTORY_MAX = 20
 
