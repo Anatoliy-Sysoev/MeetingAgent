@@ -503,7 +503,7 @@ Bootstrap environment variables (override config.yaml):
 | Variable | Values | Notes |
 |---|---|---|
 | `MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE` | `true` / `false` | Default: `false`. Set `true` to allow non-local bootstrap. |
-| `MEETINGAGENT_BOOTSTRAP_SECRET` | any string | Required when `allow_remote` is `true`. Never commit. |
+| `MEETINGAGENT_BOOTSTRAP_SECRET` | string, min 32 chars | Required when `allow_remote` is `true`. Never commit. |
 
 ---
 

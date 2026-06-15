@@ -504,7 +504,7 @@ meetings:
 | Переменная | Значения | Примечания |
 |---|---|---|
 | `MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE` | `true` / `false` | По умолчанию: `false`. Установите `true`, чтобы разрешить не-локальный bootstrap. |
-| `MEETINGAGENT_BOOTSTRAP_SECRET` | любая строка | Обязательно при `allow_remote: true`. Не коммитить. |
+| `MEETINGAGENT_BOOTSTRAP_SECRET` | строка, мин. 32 символа | Обязательно при `allow_remote: true`. Не коммитить. |
 
 ---
 
