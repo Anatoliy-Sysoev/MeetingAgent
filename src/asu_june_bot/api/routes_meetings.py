@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from starlette.responses import FileResponse
 
 from asu_june_bot.api.auth import require_permission
 from asu_june_bot.auth.models import Principal
@@ -101,6 +102,57 @@ def list_artifacts(
     if artifacts is None:
         raise _not_found(meeting_id)
     return {"meeting_id": meeting_id, "artifacts": artifacts}
+
+
+@router.get("/{meeting_id}/transcript/segments")
+def get_transcript_segments(
+    meeting_id: str,
+    service: MeetingsService = Depends(get_meetings_service),
+    _principal: Annotated[Principal, Depends(require_permission("transcripts.read"))] = ...,
+) -> dict:
+    try:
+        result = service.get_transcript_segments(meeting_id)
+    except ArtifactTooLargeError as exc:
+        raise _too_large(exc) from exc
+    if result is None:
+        raise _not_found(meeting_id)
+    return result
+
+
+@router.get("/{meeting_id}/media")
+def list_media(
+    meeting_id: str,
+    service: MeetingsService = Depends(get_meetings_service),
+    _principal: Annotated[Principal, Depends(_require_read)] = ...,
+) -> dict:
+    try:
+        media = service.list_media(meeting_id)
+    except MeetingCardError as exc:
+        raise _invalid_card(exc) from exc
+    if media is None:
+        raise _not_found(meeting_id)
+    return {"meeting_id": meeting_id, "media": media}
+
+
+@router.get("/{meeting_id}/media/{media_id}")
+def get_media(
+    meeting_id: str,
+    media_id: str,
+    service: MeetingsService = Depends(get_meetings_service),
+    _principal: Annotated[Principal, Depends(_require_read)] = ...,
+) -> FileResponse:
+    try:
+        result = service.get_media_path(meeting_id, media_id)
+    except MeetingCardError as exc:
+        raise _invalid_card(exc) from exc
+    if result is None:
+        # 404 for both missing meeting and missing/unsupported media file.
+        raise HTTPException(
+            status_code=404,
+            detail=f"Media not found: meeting={meeting_id!r} media_id={media_id!r}",
+        )
+    abs_path, mime_type = result
+    return FileResponse(str(abs_path), media_type=mime_type)
 
 
 @router.get("/{meeting_id}/artifacts/{artifact_name}")
