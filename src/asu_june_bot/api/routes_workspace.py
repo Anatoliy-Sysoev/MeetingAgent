@@ -219,6 +219,28 @@ _WORKSPACE_HTML = """\
       font-size: 13px;
     }
     .jobs-label { color: var(--muted); }
+    .jobs-stages { margin-top: 10px; }
+    .stage-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .stage-row:last-child { border-bottom: none; }
+    .stage-info { min-width: 0; }
+    .stage-label { font-weight: bold; }
+    .stage-desc { font-size: 11px; color: var(--muted); }
+    .stage-actions { flex-shrink: 0; }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      background: var(--surface);
+    }
+    button:disabled:hover { background: var(--surface); border-color: var(--line); }
+    .cancel-btn { border-color: var(--danger); color: var(--danger); }
+    .cancel-btn:hover:not(:disabled) { background: #fdeaed; }
 
     /* ---- Q&A placeholder ---- */
     .qa-placeholder {
@@ -310,11 +332,18 @@ _WORKSPACE_HTML = """\
       </div>
     </div>
 
-    <!-- Jobs / status -->
+    <!-- Pipeline controls / status -->
     <div class="panel">
-      <div class="panel-header">Processing Status</div>
-      <div class="panel-body" id="jobs-panel">
-        <div class="empty">Loading&hellip;</div>
+      <div class="panel-header">
+        Pipeline
+        <button id="jobs-refresh-btn" style="font-size:11px;padding:2px 8px">&#8635; Refresh</button>
+      </div>
+      <div class="panel-body">
+        <div id="jobs-status" class="jobs-status">
+          <div class="empty">Loading&hellip;</div>
+        </div>
+        <div id="jobs-error" class="err-msg" style="display:none"></div>
+        <div id="jobs-stages" class="jobs-stages"></div>
       </div>
     </div>
 
@@ -341,6 +370,14 @@ const MEETING_ID = "__MEETING_ID__";
 // ---- state ----
 let _player = null;
 let _segments = [];
+// CSRF token is held in this in-memory variable only — never written to the
+// DOM or to any persistent browser storage.
+let _csrfToken = null;
+let _permissions = new Set();
+let _stages = [];
+let _activeJob = null;
+let _pollTimer = null;
+let _actionInProgress = false;
 
 // ---- auth ----
 function show401() {
@@ -563,31 +600,227 @@ function closeArtifact() {
   document.getElementById("close-artifact-btn").style.display = "none";
 }
 
-// ---- jobs / status ----
-async function loadJobs() {
-  const panel = document.getElementById("jobs-panel");
-  const [meetResp, jobResp] = await Promise.all([
-    apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}`),
-    apiFetch("/jobs/active"),
+// ---- jobs / pipeline controls ----
+
+function setJobsError(msg) {
+  const box = document.getElementById("jobs-error");
+  if (!box) return;
+  if (!msg) {
+    box.style.display = "none";
+    box.textContent = "";
+  } else {
+    box.style.display = "";
+    box.textContent = msg;  // textContent: never interprets HTML
+  }
+}
+
+// Map an API error response to a controlled, user-facing message. Never
+// renders raw backend HTML or stack traces.
+async function describeError(resp, fallback) {
+  if (resp.status === 403) return "Permission required for this action.";
+  if (resp.status === 409) {
+    const d = await safeDetail(resp);
+    return d || "Another job is already running.";
+  }
+  if (resp.status === 404) return "Meeting or job not found.";
+  if (resp.status === 422) {
+    const d = await safeDetail(resp);
+    return d || "Request was rejected (invalid stage or preconditions).";
+  }
+  return fallback || "Request failed.";
+}
+
+async function safeDetail(resp) {
+  try {
+    const d = await resp.json();
+    if (typeof d.detail === "string") return d.detail;
+    if (d.detail && typeof d.detail === "object") return null;
+  } catch (e) { /* not JSON */ }
+  return null;
+}
+
+async function loadPermissions() {
+  const resp = await fetch("/auth/me");
+  if (resp.status === 401) { show401(); _permissions = new Set(); return; }
+  if (!resp.ok) { _permissions = new Set(); return; }
+  const d = await resp.json();
+  _permissions = new Set(Array.isArray(d.permissions) ? d.permissions : []);
+}
+
+async function ensureCsrf() {
+  if (_csrfToken) return _csrfToken;
+  const resp = await fetch("/auth/csrf");
+  if (resp.status === 401) { show401(); return null; }
+  if (!resp.ok) return null;
+  const d = await resp.json();
+  _csrfToken = d.csrf_token || null;
+  return _csrfToken;
+}
+
+async function loadStages() {
+  const resp = await apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}/jobs/stages`);
+  if (!resp || !resp.ok) { _stages = []; return; }
+  const d = await resp.json();
+  _stages = Array.isArray(d.stages) ? d.stages : [];
+}
+
+async function loadActiveJob() {
+  const resp = await apiFetch("/jobs/active");
+  if (!resp || !resp.ok) { _activeJob = null; return; }
+  const j = await resp.json();
+  _activeJob = (j && j.job_id && j.meeting_id === MEETING_ID) ? j : null;
+}
+
+async function loadMeetingStatus() {
+  const resp = await apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}`);
+  if (!resp || !resp.ok) return "—";
+  const d = await resp.json();
+  return d.processing_status || "—";
+}
+
+// Render the status + stage controls. Uses DOM APIs / textContent / dataset for
+// all dynamic values — no innerHTML interpolation of stage labels or job fields.
+function renderJobs(status) {
+  const statusEl = document.getElementById("jobs-status");
+  statusEl.textContent = "";
+  const grid = document.createElement("div");
+  grid.className = "jobs-grid";
+
+  const sLabel = document.createElement("span");
+  sLabel.className = "jobs-label";
+  sLabel.textContent = "Status";
+  const sVal = document.createElement("span");
+  const sBadge = document.createElement("span");
+  sBadge.className = "badge " + statusBadgeClass(status);
+  sBadge.textContent = status;
+  sVal.appendChild(sBadge);
+
+  const aLabel = document.createElement("span");
+  aLabel.className = "jobs-label";
+  aLabel.textContent = "Active job";
+  const aVal = document.createElement("span");
+  if (_activeJob) {
+    const jBadge = document.createElement("span");
+    jBadge.className = "badge " + (_activeJob.status === "running" ? "warn" : "");
+    jBadge.textContent = _activeJob.status || "";
+    aVal.textContent = (_activeJob.stage || "") + " ";
+    aVal.appendChild(jBadge);
+  } else {
+    aVal.textContent = "None";
+  }
+  grid.append(sLabel, sVal, aLabel, aVal);
+  statusEl.appendChild(grid);
+
+  // Cancel control for the active job
+  if (_activeJob) {
+    const cancelBtn = document.createElement("button");
+    cancelBtn.className = "cancel-btn";
+    cancelBtn.textContent = "Cancel active job";
+    cancelBtn.style.marginTop = "8px";
+    const canCancel = _permissions.has("jobs.cancel");
+    const cancellable = _activeJob.status === "running" || _activeJob.status === "starting";
+    cancelBtn.disabled = !canCancel || !cancellable || _actionInProgress;
+    if (!canCancel) cancelBtn.title = "Permission required: jobs.cancel";
+    cancelBtn.addEventListener("click", () => cancelActiveJob(_activeJob.job_id));
+    statusEl.appendChild(cancelBtn);
+  }
+
+  // Stage list with Start buttons
+  const stagesEl = document.getElementById("jobs-stages");
+  stagesEl.textContent = "";
+  const canStart = _permissions.has("jobs.start");
+  for (const st of _stages) {
+    const row = document.createElement("div");
+    row.className = "stage-row";
+
+    const info = document.createElement("div");
+    info.className = "stage-info";
+    const label = document.createElement("div");
+    label.className = "stage-label";
+    label.textContent = st.label || st.stage;
+    const desc = document.createElement("div");
+    desc.className = "stage-desc";
+    desc.textContent = st.description || "";
+    info.append(label, desc);
+
+    const actions = document.createElement("div");
+    actions.className = "stage-actions";
+    const startBtn = document.createElement("button");
+    startBtn.className = "primary";
+    startBtn.textContent = "Start";
+    startBtn.dataset.stage = st.stage;
+    startBtn.disabled = !canStart || _activeJob !== null || _actionInProgress;
+    if (!canStart) startBtn.title = "Permission required: jobs.start";
+    else if (_activeJob !== null) startBtn.title = "Another job is already running";
+    startBtn.addEventListener("click", () => startStage(startBtn.dataset.stage));
+    actions.appendChild(startBtn);
+
+    row.append(info, actions);
+    stagesEl.appendChild(row);
+  }
+}
+
+async function startStage(stage) {
+  if (_actionInProgress) return;
+  setJobsError("");
+  const csrf = await ensureCsrf();
+  if (!csrf) { setJobsError("Could not obtain CSRF token. Please log in again."); return; }
+  _actionInProgress = true;
+  try {
+    const resp = await apiFetch(
+      `/meetings/${encodeURIComponent(MEETING_ID)}/jobs/${encodeURIComponent(stage)}`,
+      { method: "POST", headers: { "X-CSRF-Token": csrf } }
+    );
+    if (!resp) return;  // 401 handled
+    if (!resp.ok) { setJobsError(await describeError(resp, "Could not start job.")); return; }
+  } finally {
+    _actionInProgress = false;
+  }
+  await refreshJobs();
+  startPolling();
+}
+
+async function cancelActiveJob(jobId) {
+  if (_actionInProgress) return;
+  setJobsError("");
+  const csrf = await ensureCsrf();
+  if (!csrf) { setJobsError("Could not obtain CSRF token. Please log in again."); return; }
+  _actionInProgress = true;
+  try {
+    const resp = await apiFetch(
+      `/meetings/${encodeURIComponent(MEETING_ID)}/jobs/${encodeURIComponent(jobId)}/cancel`,
+      { method: "POST", headers: { "X-CSRF-Token": csrf } }
+    );
+    if (!resp) return;
+    if (!resp.ok) { setJobsError(await describeError(resp, "Could not cancel job.")); return; }
+  } finally {
+    _actionInProgress = false;
+  }
+  await refreshJobs();
+}
+
+async function refreshJobs() {
+  const [status] = await Promise.all([
+    loadMeetingStatus(),
+    loadActiveJob(),
   ]);
-  let status = "—";
-  if (meetResp && meetResp.ok) {
-    const d = await meetResp.json();
-    status = d.processing_status || "—";
+  renderJobs(status);
+  // Stop polling once no job is active.
+  if (!_activeJob && _pollTimer) {
+    clearInterval(_pollTimer);
+    _pollTimer = null;
   }
-  let activeJobHtml = "None";
-  if (jobResp && jobResp.ok) {
-    const j = await jobResp.json();
-    if (j && j.job_id && j.meeting_id === MEETING_ID) {
-      activeJobHtml = `${esc(j.stage || "")} — <span class="badge ${j.status === "running" ? "warn" : ""}">${esc(j.status || "")}</span>`;
-    }
-  }
-  panel.innerHTML = `<div class="jobs-grid">
-    <span class="jobs-label">Status</span>
-    <span><span class="badge ${statusBadgeClass(status)}">${esc(status)}</span></span>
-    <span class="jobs-label">Active job</span>
-    <span>${activeJobHtml}</span>
-  </div>`;
+}
+
+function startPolling() {
+  if (_pollTimer) return;
+  _pollTimer = setInterval(refreshJobs, 3000);
+}
+
+async function loadJobs() {
+  await Promise.all([loadPermissions(), loadStages()]);
+  await refreshJobs();
+  if (_activeJob) startPolling();
 }
 
 // ---- helpers ----
@@ -609,6 +842,11 @@ async function reloadAll() {
     loadArtifacts(),
     loadJobs(),
   ]);
+}
+
+const _jobsRefreshBtn = document.getElementById("jobs-refresh-btn");
+if (_jobsRefreshBtn) {
+  _jobsRefreshBtn.addEventListener("click", () => { setJobsError(""); refreshJobs(); });
 }
 
 reloadAll();

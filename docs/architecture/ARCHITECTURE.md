@@ -1,6 +1,6 @@
 # Архитектура MeetingAgent
 
-Обновлено: 2026-05-19.
+Обновлено: 2026-06-15.
 
 ## Назначение
 
@@ -68,6 +68,19 @@ flowchart TD
 ```
 
 `07_generate_meeting_artifacts.py` остаётся ранним генератором `summarized`-состояния. Его `extractive`-режим — скаффолд контракта, не финальный продуктовый генератор memo/protocol.
+
+### Meeting Workspace UI
+
+`GET /meetings/{id}/workspace` отдаёт single-page UI встречи: медиаплеер, кликабельный транскрипт (seek по сегментам), просмотр текстовых артефактов, панель Pipeline.
+
+Pipeline-панель управляет job runner-ом из браузера:
+
+- `GET /meetings/{id}/jobs/stages` — список запускаемых стадий (`jobs.read`); отдаёт только стадии, которые реально умеет runner (`transcribe`, `diarize`, `merge`), без путей ФС;
+- Start/Cancel вызывают существующие `POST /meetings/{id}/jobs/{stage}` (`jobs.start`) и `.../cancel` (`jobs.cancel`).
+
+CSRF-поток для браузерных write-действий: при login выставляется non-HttpOnly cookie `ma_session_csrf`; JS получает токен через `GET /auth/csrf` (валидирует cookie против session hash, не создаёт сессию, не раскрывает hash) и шлёт его как `X-CSRF-Token`. Machine Bearer-вызовы CSRF-exempt. CSRF-токен в JS живёт только в памяти, не пишется в DOM/persistent storage. Все динамические значения job/stage рендерятся через DOM API + `textContent`/`dataset` + `addEventListener` (без inline-интерполяции).
+
+Известные ограничения: meeting-scoped search/chat и стадии вне transcribe/diarize/merge пока не реализованы (нужна поддержка в job runner).
 
 ## Контур 3. Project Knowledge Bot
 

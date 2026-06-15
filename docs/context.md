@@ -4,11 +4,13 @@
 
 ## Now
 
-- last commit: Document MeetingAgent and bot product boundaries (MA-PRODUCT-SPLIT-PREP #63)
+- last commit: Add workspace job controls (MA-WORKSPACE-JOB-CONTROLS #70)
 - in progress: —
 
 ## Done latest
 
+- MA-WORKSPACE-JOB-CONTROLS (#70): pipeline controls panel in Meeting Workspace — per-stage Start, Cancel active job, Refresh, auto-poll (3s) while running. `GET /auth/csrf` (cookie-session only; validates non-HttpOnly CSRF cookie against session csrf_token_hash, echoes raw token; no new session, no hash/session exposure; 401 unauth / 409 no-csrf / 403 mismatch). `GET /meetings/{id}/jobs/stages` (`jobs.read`; allowlisted runnable stages only — transcribe/diarize/merge; no fs paths). `stage_catalog()` in jobs/runner.py (subset of STAGE_COMMANDS ∩ STAGE_METADATA). Job start/cancel unchanged — already enforce `jobs.start`/`jobs.cancel` + CSRF for cookie callers, Bearer exempt. Workspace JS: CSRF in-memory only (no DOM/persistent storage), all dynamic job/stage values via DOM APIs + textContent/dataset + addEventListener (no inline interpolation), controlled 401/403/409/422/500 states. 22 new tests.
+- MA-MEETING-WORKSPACE (#68): workspace UI page `GET /meetings/{id}/workspace`; media endpoints `GET /meetings/{id}/media` + `/media/{media_id}` (streaming, Range, path-safe, audio/video MIME only); normalized `GET /meetings/{id}/transcript/segments` (stable seg-NNNNNN ids, malformed JSONL skipped); artifact viewer; XSS-safe (json.dumps id embed, data-attr + addEventListener); meeting-scoped search/chat deferred.
 - MA-API-RBAC-HARDENING (#62): job start uses `jobs.start`, cancel uses `jobs.cancel` (replaced generic write guard); admin user list bounded pagination `offset ge=0, limit ge=1 le=200`; regression test for upload-only role without job permissions.
 - MA-AUTH-DEPLOYMENT-SAFETY (#61): `POST /admin/bootstrap` locality policy — loopback allowed, non-local blocked; `MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE` + `MEETINGAGENT_BOOTSTRAP_SECRET` (min 32 chars) opt-in; proxy detection via X-Forwarded-For/Forwarded/X-Real-IP suppresses loopback bypass; constant-time secret compare; secret not logged/returned/persisted. Docs updated en+ru.
 - MA-PRODUCT-SPLIT-PREP (#63): `docs/architecture/PRODUCT_BOUNDARIES.md` — product split plan: MeetingAgent Core vs. Project Knowledge Bot vs. Shared/Common; full file ownership matrix; adapter contract (Section E); 6-phase migration plan; no code moved.
@@ -34,14 +36,20 @@
 - GET  /meetings/{id}/transcript                  — transcript or available:false
 - GET  /meetings/{id}/artifacts                   — artifact metadata list
 - GET  /meetings/{id}/artifacts/{name}            — text artifact content
+- GET  /meetings/{id}/transcript/segments         — normalized transcript segments [transcripts.read]
+- GET  /meetings/{id}/media                        — media metadata list [meetings.read]
+- GET  /meetings/{id}/media/{media_id}             — stream media (Range) [meetings.read]
+- GET  /meetings/{id}/workspace                    — Meeting Workspace UI page
 - POST /auth/local/login                          — login → session cookie
 - GET  /auth/me                                   — identity + roles [cookie]
+- GET  /auth/csrf                                  — current session CSRF token [cookie]
 - POST /auth/logout                               — revoke session + clear cookie
 - POST /meetings/ingest                           — upload + sha256 dedup [auth]
-- POST /meetings/{id}/jobs/{stage}                — start pipeline job [auth]
-- GET  /meetings/{id}/jobs/{job_id}               — job status [auth]
-- POST /meetings/{id}/jobs/{job_id}/cancel        — cancel job [auth]
-- GET  /jobs/active                               — active job or {} [auth]
+- GET  /meetings/{id}/jobs/stages                  — runnable pipeline stages [jobs.read]
+- POST /meetings/{id}/jobs/{stage}                — start pipeline job [jobs.start +CSRF]
+- GET  /meetings/{id}/jobs/{job_id}               — job status [jobs.read]
+- POST /meetings/{id}/jobs/{job_id}/cancel        — cancel job [jobs.cancel +CSRF]
+- GET  /jobs/active                               — active job or {} [jobs.read]
 - POST /search, POST /chat, GET /health           — pre-existing
 - POST /admin/bootstrap                           — create first admin [no auth]
 - GET  /admin/users                               — list users [users.manage]
