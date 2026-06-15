@@ -159,6 +159,14 @@ def _artifact_entry(meeting_dir: Path, key: str, rel_path: str) -> dict[str, Any
     return entry
 
 
+def _first_present(mapping: dict[str, Any], *keys: str) -> Any:
+    """Return the value of the first key that exists in mapping, or None."""
+    for key in keys:
+        if key in mapping:
+            return mapping[key]
+    return None
+
+
 def _coerce_float(value: Any) -> float | None:
     if value is None:
         return None
@@ -345,7 +353,10 @@ class MeetingsService:
                         continue  # skip malformed lines; do not surface parse details
                 return {"artifact": key, "format": "jsonl", "segments": lines}
             if content_type == "json":
-                return {"artifact": key, "format": "json", "content": json.loads(text)}
+                try:
+                    return {"artifact": key, "format": "json", "content": json.loads(text)}
+                except json.JSONDecodeError:
+                    continue  # skip malformed JSON transcript, try next candidate
             return {"artifact": key, "format": "text", "content": text}
         return {"artifact": None, "format": None, "content": None, "available": False}
 
@@ -488,8 +499,8 @@ class MeetingsService:
         for i, seg in enumerate(raw.get("segments") or []):
             normalized.append({
                 "segment_id": f"seg-{i + 1:06d}",
-                "start_sec": _coerce_float(seg.get("start_sec") or seg.get("start")),
-                "end_sec": _coerce_float(seg.get("end_sec") or seg.get("end")),
+                "start_sec": _coerce_float(_first_present(seg, "start_sec", "start")),
+                "end_sec": _coerce_float(_first_present(seg, "end_sec", "end")),
                 "speaker": (
                     seg.get("speaker")
                     or seg.get("speaker_id")
