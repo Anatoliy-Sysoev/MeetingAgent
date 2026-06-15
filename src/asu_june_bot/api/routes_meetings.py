@@ -1,12 +1,16 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import FileResponse
 
-from asu_june_bot.api.auth import require_permission
+from asu_june_bot.api.auth import require_action_permission, require_permission
+from asu_june_bot.api.dependencies import get_meeting_qa_service
 from asu_june_bot.auth.models import Principal
+from asu_june_bot.core.limits import MAX_QUERY_CHARS
+from asu_june_bot.meetings.qa import MeetingQAService
 from asu_june_bot.meetings.service import (
     ArtifactTooLargeError,
     MeetingCardError,
@@ -176,4 +180,43 @@ def get_artifact_content(
         raise HTTPException(status_code=404, detail=f"Artifact not found: {artifact_name!r}")
     if result.get("error") == "binary_artifact":
         raise HTTPException(status_code=415, detail="Binary artifacts cannot be served as text")
+    return result
+
+
+class MeetingQARequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(..., min_length=1, max_length=MAX_QUERY_CHARS, description="Meeting-scoped query")
+    top_k: int = Field(default=5, ge=1, le=20)
+
+
+@router.post("/{meeting_id}/search")
+def meeting_search(
+    meeting_id: str,
+    payload: MeetingQARequest,
+    service: MeetingQAService = Depends(get_meeting_qa_service),
+    _principal: Annotated[Principal, Depends(require_permission("search.use"))] = ...,
+) -> dict:
+    try:
+        result = service.search(meeting_id, payload.query, top_k=payload.top_k)
+    except MeetingCardError as exc:
+        raise _invalid_card(exc) from exc
+    if result is None:
+        raise _not_found(meeting_id)
+    return result
+
+
+@router.post("/{meeting_id}/chat")
+def meeting_chat(
+    meeting_id: str,
+    payload: MeetingQARequest,
+    service: MeetingQAService = Depends(get_meeting_qa_service),
+    _principal: Annotated[Principal, Depends(require_action_permission("chat.use"))] = ...,
+) -> dict:
+    try:
+        result = service.chat(meeting_id, payload.query, top_k=payload.top_k)
+    except MeetingCardError as exc:
+        raise _invalid_card(exc) from exc
+    if result is None:
+        raise _not_found(meeting_id)
     return result

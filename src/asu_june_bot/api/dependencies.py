@@ -21,6 +21,7 @@ from asu_june_bot.core.config import load_config
 from asu_june_bot.health import HealthService
 from asu_june_bot.jobs.runner import JobRunner
 from asu_june_bot.llm.ollama_openai import OllamaOpenAIClient
+from asu_june_bot.meetings.qa import MeetingQAService
 from asu_june_bot.meetings.service import MeetingsService, parse_max_text_artifact_bytes
 from asu_june_bot.observability import ChatRunsLogger
 from asu_june_bot.search import SearchService
@@ -33,6 +34,7 @@ class AppState:
     health_service: HealthService
     chat_service: ChatService
     meetings_service: MeetingsService
+    meeting_qa_service: MeetingQAService
     job_runner: JobRunner
     auth_repository: AuthRepository
     local_auth_service: LocalAuthService
@@ -73,6 +75,10 @@ def build_app_state() -> AppState:
     cookie_secure = _normalize_cookie_secure(auth_cfg.get("cookie_secure"))
     login_throttle = build_login_throttle(auth_cfg.get("login_throttle"))
     bootstrap_policy = build_bootstrap_policy(auth_cfg)
+    meetings_service = MeetingsService(
+        meetings_root=meetings_root,
+        max_text_artifact_bytes=max_text_artifact_bytes,
+    )
     return AppState(
         config=config,
         search_service=search_service,
@@ -82,9 +88,11 @@ def build_app_state() -> AppState:
             llm_client=OllamaOpenAIClient(base_url=chat_base_url, model=chat_model),
             runs_logger=ChatRunsLogger(Path("data/asu_june_bot/chat_runs.jsonl")),
         ),
-        meetings_service=MeetingsService(
-            meetings_root=meetings_root,
-            max_text_artifact_bytes=max_text_artifact_bytes,
+        meetings_service=meetings_service,
+        meeting_qa_service=MeetingQAService(
+            config=config,
+            meetings_service=meetings_service,
+            llm_client=OllamaOpenAIClient(base_url=chat_base_url, model=chat_model),
         ),
         job_runner=JobRunner(),
         auth_repository=auth_repository,
@@ -114,6 +122,10 @@ def get_health_service(request: Request) -> HealthService:
 
 def get_chat_service(request: Request) -> ChatService:
     return get_app_state(request).chat_service
+
+
+def get_meeting_qa_service(request: Request) -> MeetingQAService:
+    return get_app_state(request).meeting_qa_service
 
 
 def get_local_auth_service(request: Request) -> LocalAuthService:

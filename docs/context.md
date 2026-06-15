@@ -4,11 +4,12 @@
 
 ## Now
 
-- last commit: Add workspace job controls (MA-WORKSPACE-JOB-CONTROLS #70)
+- last commit: Add meeting-scoped workspace search and chat (MA-MEETING-SCOPED-QA #74)
 - in progress: —
 
 ## Done latest
 
+- MA-MEETING-SCOPED-QA (#74): meeting-scoped search + Q&A in Meeting Workspace. `POST /meetings/{id}/search` (`search.use`) and `POST /meetings/{id}/chat` (`chat.use` + CSRF for cookie callers, Bearer exempt). New self-contained `MeetingQAService` (meetings/qa.py) — independent of project SearchService/ChatService to avoid ProjectGuard rejection and project/global chunk leakage. Lexical MVP over `data/meeting_chunks.jsonl`, strictly filtered to one `meeting_id` ∩ meeting source types; unknown/unsafe meeting → 404; no chunks file → controlled `available:false` + empty results (no 500); no fs paths in responses. Chat grounds answer only on retrieved meeting chunks, controlled refusal when no context / no-answer / LLM unavailable; citations only from returned sources (chunk_id, excerpt, artifact, segment_id, speaker, start_sec, end_sec) — no hallucinated citations. Workspace Q&A panel replaces placeholder: Ask + answer/refusal/citations, "Search in meeting" + results; all dynamic text via `textContent`, citations/results via `dataset` + `addEventListener` (no inline handlers, no innerHTML interpolation), citation/result click seeks media player via `start_sec`; no localStorage/sessionStorage. 19 new tests. MVP limits: lexical (not vector) retrieval; `segment_id` null (chunks are windows, not transcript segments).
 - MA-WORKSPACE-JOB-CONTROLS (#70): pipeline controls panel in Meeting Workspace — per-stage Start, Cancel active job, Refresh, auto-poll (3s) while running. `GET /auth/csrf` (cookie-session only; validates non-HttpOnly CSRF cookie against session csrf_token_hash, echoes raw token; no new session, no hash/session exposure; 401 unauth / 409 no-csrf / 403 mismatch). `GET /meetings/{id}/jobs/stages` (`jobs.read`; allowlisted runnable stages only — transcribe/diarize/merge; no fs paths). `stage_catalog()` in jobs/runner.py (subset of STAGE_COMMANDS ∩ STAGE_METADATA). Job start/cancel unchanged — already enforce `jobs.start`/`jobs.cancel` + CSRF for cookie callers, Bearer exempt. Workspace JS: CSRF in-memory only (no DOM/persistent storage), all dynamic job/stage values via DOM APIs + textContent/dataset + addEventListener (no inline interpolation), controlled 401/403/409/422/500 states. 22 new tests.
 - MA-MEETING-WORKSPACE (#68): workspace UI page `GET /meetings/{id}/workspace`; media endpoints `GET /meetings/{id}/media` + `/media/{media_id}` (streaming, Range, path-safe, audio/video MIME only); normalized `GET /meetings/{id}/transcript/segments` (stable seg-NNNNNN ids, malformed JSONL skipped); artifact viewer; XSS-safe (json.dumps id embed, data-attr + addEventListener); meeting-scoped search/chat deferred.
 - MA-API-RBAC-HARDENING (#62): job start uses `jobs.start`, cancel uses `jobs.cancel` (replaced generic write guard); admin user list bounded pagination `offset ge=0, limit ge=1 le=200`; regression test for upload-only role without job permissions.
@@ -40,6 +41,8 @@
 - GET  /meetings/{id}/media                        — media metadata list [meetings.read]
 - GET  /meetings/{id}/media/{media_id}             — stream media (Range) [meetings.read]
 - GET  /meetings/{id}/workspace                    — Meeting Workspace UI page
+- POST /meetings/{id}/search                        — meeting-scoped lexical search [search.use]
+- POST /meetings/{id}/chat                          — meeting-scoped grounded Q&A [chat.use +CSRF]
 - POST /auth/local/login                          — login → session cookie
 - GET  /auth/me                                   — identity + roles [cookie]
 - GET  /auth/csrf                                  — current session CSRF token [cookie]
