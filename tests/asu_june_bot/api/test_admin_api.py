@@ -15,6 +15,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from asu_june_bot.api.app import create_app  # noqa: E402
+from asu_june_bot.api.bootstrap_policy import BootstrapPolicy  # noqa: E402
 from asu_june_bot.auth.passwords import hash_password  # noqa: E402
 from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
 from asu_june_bot.auth.service import AdminService, LocalAuthService  # noqa: E402
@@ -26,6 +27,10 @@ ADMIN_EMAIL = "admin@example.com"
 ADMIN_PASS = "adminpassword1"
 VIEWER_EMAIL = "viewer@example.com"
 VIEWER_PASS = "viewerpassword1"
+# Bootstrap secret used by all test_admin_api tests; TestClient host is "testclient"
+# (non-local), so allow_remote=True + secret is required.
+_TEST_BOOTSTRAP_SECRET = "test-bootstrap-secret-for-admin-api"
+_TEST_BOOTSTRAP_POLICY = BootstrapPolicy(allow_remote=True, secret=_TEST_BOOTSTRAP_SECRET)
 
 
 @dataclass(slots=True)
@@ -34,6 +39,9 @@ class FakeState:
     local_auth_service: LocalAuthService
     admin_service: AdminService
     login_throttle: LoginThrottle = field(default_factory=LoginThrottle)
+    bootstrap_policy: BootstrapPolicy = field(
+        default_factory=lambda: _TEST_BOOTSTRAP_POLICY
+    )
 
 
 @pytest.fixture()
@@ -57,7 +65,11 @@ def client(repo: AuthRepository) -> TestClient:
 
 
 def bootstrap(client: TestClient, email: str = ADMIN_EMAIL, password: str = ADMIN_PASS) -> dict:
-    resp = client.post("/admin/bootstrap", json={"email": email, "password": password})
+    resp = client.post(
+        "/admin/bootstrap",
+        json={"email": email, "password": password},
+        headers={"X-Bootstrap-Token": _TEST_BOOTSTRAP_SECRET},
+    )
     assert resp.status_code == 201, resp.json()
     return resp.json()
 
@@ -92,6 +104,7 @@ def test_bootstrap_succeeds_on_empty_db(client: TestClient) -> None:
     resp = client.post(
         "/admin/bootstrap",
         json={"email": ADMIN_EMAIL, "password": ADMIN_PASS},
+        headers={"X-Bootstrap-Token": _TEST_BOOTSTRAP_SECRET},
     )
     assert resp.status_code == 201
     body = resp.json()
@@ -109,6 +122,7 @@ def test_bootstrap_second_call_returns_409(client: TestClient) -> None:
     resp = client.post(
         "/admin/bootstrap",
         json={"email": "other@example.com", "password": ADMIN_PASS},
+        headers={"X-Bootstrap-Token": _TEST_BOOTSTRAP_SECRET},
     )
     assert resp.status_code == 409
 
@@ -121,6 +135,7 @@ def test_bootstrap_response_excludes_password_hash(client: TestClient) -> None:
     resp = client.post(
         "/admin/bootstrap",
         json={"email": ADMIN_EMAIL, "password": ADMIN_PASS},
+        headers={"X-Bootstrap-Token": _TEST_BOOTSTRAP_SECRET},
     )
     assert resp.status_code == 201
     body = resp.json()
