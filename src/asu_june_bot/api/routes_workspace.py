@@ -457,7 +457,7 @@ async function loadMedia() {
   if (items.length > 1) {
     selectorHtml = `<div class="media-selector" id="media-sel">` +
       items.map((m, i) =>
-        `<button class="${i===0?"active":""}" data-media-id="${esc(m.media_id)}" onclick="switchMedia('${esc(m.media_id)}')">`
+        `<button class="media-switch-btn ${i===0?"active":""}" data-media-id="${esc(m.media_id)}">`
         + `${esc(m.filename)} (${fmtBytes(m.size_bytes)})</button>`
       ).join("") + `</div>`;
   }
@@ -471,6 +471,10 @@ async function loadMedia() {
     </div>` +
     (items[0].duration_sec ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">Duration: ${fmtSec(items[0].duration_sec)}</div>` : "");
 
+  panel.querySelectorAll(".media-switch-btn").forEach(btn => {
+    btn.addEventListener("click", () => switchMedia(btn.dataset.mediaId));
+  });
+
   _player = document.getElementById("media-player");
   _player.addEventListener("timeupdate", onTimeUpdate);
 }
@@ -482,7 +486,7 @@ function switchMedia(mediaId) {
   _player.src = src;
   _player.load();
   _player.currentTime = t;
-  document.querySelectorAll("#media-sel button").forEach((b) => {
+  document.querySelectorAll(".media-switch-btn").forEach((b) => {
     b.classList.toggle("active", b.dataset.mediaId === String(mediaId));
   });
 }
