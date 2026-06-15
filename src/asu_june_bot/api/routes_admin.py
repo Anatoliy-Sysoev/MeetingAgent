@@ -60,11 +60,19 @@ class UpdateUserRequest(BaseModel):
 def _enforce_bootstrap_policy(request: Request, policy: BootstrapPolicy) -> None:
     """Reject non-local bootstrap requests that lack operator authorisation.
 
-    Uses the direct peer address only — never trusts X-Forwarded-For for this
-    security decision since it can be spoofed by the client.
+    The local bypass (loopback peer → no secret required) applies only when
+    there are no forwarded proxy headers.  If X-Forwarded-For or Forwarded is
+    present the direct peer is a reverse proxy, not the real client, so the
+    local bypass is suppressed and the normal policy is enforced.
+
+    Forwarded headers are intentionally NOT used to identify the real client
+    IP — they are only examined to detect proxy presence.
     """
     peer_host = request.client.host if request.client else None
-    if is_local_request(peer_host):
+    has_forwarded = bool(
+        request.headers.get("x-forwarded-for") or request.headers.get("forwarded")
+    )
+    if is_local_request(peer_host) and not has_forwarded:
         return
     if not policy.allow_remote:
         raise HTTPException(

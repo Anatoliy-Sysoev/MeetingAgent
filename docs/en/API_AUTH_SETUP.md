@@ -183,7 +183,8 @@ For non-local bootstrap, the operator must explicitly enable it and provide a st
    MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE=true
    MEETINGAGENT_BOOTSTRAP_SECRET=<strong-random-value>
    ```
-   Generate: `python -c "import secrets; print(secrets.token_urlsafe(48))"`
+   The secret must be at least 32 characters. Generate one:
+   `python -c "import secrets; print(secrets.token_urlsafe(48))"`
 
 2. Send the secret in the `X-Bootstrap-Token` header:
    ```
@@ -196,7 +197,7 @@ For non-local bootstrap, the operator must explicitly enable it and provide a st
 
 3. After the first admin is created, **remove or unset** `MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE` and `MEETINGAGENT_BOOTSTRAP_SECRET`. The secret is not needed again.
 
-The secret is never logged, audited, returned, or stored. IP detection uses the direct peer address only — `X-Forwarded-For` is not trusted for this decision.
+The secret is never logged, audited, returned, or stored. IP detection uses the direct peer address only — `X-Forwarded-For` is not trusted for client IP identification. If any forwarded proxy headers are present the local bypass is suppressed: the request must provide a valid `X-Bootstrap-Token`.
 
 Bootstrap endpoints:
 

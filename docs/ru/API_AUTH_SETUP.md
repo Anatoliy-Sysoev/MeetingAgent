@@ -183,7 +183,8 @@ Machine principal имеет: `meetings.upload`, `meetings.read`, `artifacts.rea
    MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE=true
    MEETINGAGENT_BOOTSTRAP_SECRET=<сильный-случайный-секрет>
    ```
-   Генерация: `python -c "import secrets; print(secrets.token_urlsafe(48))"`
+   Секрет должен быть не короче 32 символов. Генерация:
+   `python -c "import secrets; print(secrets.token_urlsafe(48))"`
 
 2. Передайте секрет в заголовке `X-Bootstrap-Token`:
    ```
@@ -196,7 +197,7 @@ Machine principal имеет: `meetings.upload`, `meetings.read`, `artifacts.rea
 
 3. После создания первого администратора **удалите или сбросьте** `MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE` и `MEETINGAGENT_BOOTSTRAP_SECRET`. Секрет больше не нужен.
 
-Секрет никогда не записывается в логи, аудит, не возвращается в ответах и не сохраняется. Определение IP использует адрес прямого пира — `X-Forwarded-For` не доверяется для этого решения.
+Секрет никогда не записывается в логи, аудит, не возвращается в ответах и не сохраняется. Определение IP использует адрес прямого пира — `X-Forwarded-For` не используется для идентификации клиента. Если в запросе присутствуют заголовки прокси (Forwarded, X-Forwarded-For), локальный bypass подавляется: запрос должен предоставить корректный `X-Bootstrap-Token`.
 
 Bootstrap-эндпоинт:
 
