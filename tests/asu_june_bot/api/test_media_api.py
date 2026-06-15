@@ -472,4 +472,115 @@ def test_workspace_template_uses_data_attribute_not_onclick_for_artifact_key(tmp
     # The safe pattern (data attribute + listener) must be present in the JS template
     assert "data-artifact-key" in body
     assert "view-artifact-btn" in body
+
+
+# ------------------------------------------------------------------
+# Hardening regression tests (#72 MA-WORKSPACE-HARDENING)
+# ------------------------------------------------------------------
+
+def _make_segments_meeting(tmp_path: Path, segments: list[dict]) -> None:
+    """Write a meeting with a JSONL transcript containing the given segments."""
+    meeting_dir = make_meeting(tmp_path)
+    transcript_dir = meeting_dir / "transcript"
+    transcript_dir.mkdir()
+    lines = "\n".join(json.dumps(s) for s in segments)
+    (transcript_dir / "segments.jsonl").write_text(lines, encoding="utf-8")
+    card = json.loads((meeting_dir / "meeting.json").read_text())
+    # Artifact key must be one of the canonical transcript keys the service resolves.
+    card["artifacts"] = {"segments": "transcript/segments.jsonl"}
+    (meeting_dir / "meeting.json").write_text(json.dumps(card))
+
+
+def test_transcript_segments_start_sec_zero_preserved(tmp_path: Path) -> None:
+    """start_sec=0.0 must not be silently dropped by the 'or' fallback."""
+    _make_segments_meeting(tmp_path, [{"start_sec": 0.0, "end_sec": 1.5, "text": "hello"}])
+    resp = make_client(tmp_path).get(f"/meetings/{MEETING_ID}/transcript/segments")
+    assert resp.status_code == 200
+    seg = resp.json()["segments"][0]
+    assert seg["start_sec"] == 0.0
+
+
+def test_transcript_segments_start_key_zero_preserved(tmp_path: Path) -> None:
+    """start=0.0 (legacy key) must not be silently dropped by the 'or' fallback."""
+    _make_segments_meeting(tmp_path, [{"start": 0.0, "end": 2.0, "text": "hi"}])
+    resp = make_client(tmp_path).get(f"/meetings/{MEETING_ID}/transcript/segments")
+    assert resp.status_code == 200
+    seg = resp.json()["segments"][0]
+    assert seg["start_sec"] == 0.0
+
+
+def test_transcript_segments_start_sec_wins_over_start(tmp_path: Path) -> None:
+    """start_sec takes priority over start when both keys are present."""
+    _make_segments_meeting(tmp_path, [{"start_sec": 5.0, "start": 999.0, "end_sec": 6.0, "text": "hi"}])
+    resp = make_client(tmp_path).get(f"/meetings/{MEETING_ID}/transcript/segments")
+    assert resp.status_code == 200
+    seg = resp.json()["segments"][0]
+    assert seg["start_sec"] == 5.0
+
+
+def test_transcript_malformed_json_artifact_no_500(tmp_path: Path) -> None:
+    """A malformed JSON transcript artifact must not cause a 500; return available:false."""
+    meeting_dir = make_meeting(tmp_path)
+    transcript_dir = meeting_dir / "transcript"
+    transcript_dir.mkdir()
+    (transcript_dir / "transcript.json").write_text("{broken json", encoding="utf-8")
+    card = json.loads((meeting_dir / "meeting.json").read_text())
+    card["artifacts"] = {"transcript_json": "transcript/transcript.json"}
+    (meeting_dir / "meeting.json").write_text(json.dumps(card))
+
+    resp = make_client(tmp_path).get(f"/meetings/{MEETING_ID}/transcript")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body.get("available") is False
+
+
+def test_transcript_malformed_json_with_fallback_jsonl(tmp_path: Path) -> None:
+    """Malformed JSON transcript is skipped; a later valid candidate is returned.
+
+    Candidate resolution order is ("segments", "transcript_json",
+    "transcript_txt", "transcript").  To genuinely exercise the
+    skip-and-continue path, the malformed JSON must sit at an *earlier*
+    candidate than the valid fallback — here malformed at "transcript_json"
+    and a valid JSONL at the later "transcript" key.
+    """
+    meeting_dir = make_meeting(tmp_path)
+    transcript_dir = meeting_dir / "transcript"
+    transcript_dir.mkdir()
+    (transcript_dir / "transcript.json").write_text("{broken json", encoding="utf-8")
+    (transcript_dir / "segments.jsonl").write_text(
+        json.dumps({"start_sec": 0.0, "end_sec": 1.0, "text": "ok"}), encoding="utf-8"
+    )
+    card = json.loads((meeting_dir / "meeting.json").read_text())
+    card["artifacts"] = {
+        "transcript_json": "transcript/transcript.json",
+        "transcript": "transcript/segments.jsonl",
+    }
+    (meeting_dir / "meeting.json").write_text(json.dumps(card))
+
+    resp = make_client(tmp_path).get(f"/meetings/{MEETING_ID}/transcript")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body.get("format") == "jsonl"
+    assert len(body["segments"]) == 1
+
+
+def test_workspace_media_switcher_no_inline_onclick(tmp_path: Path) -> None:
+    """Media switcher buttons must not use inline onclick with switchMedia interpolation."""
+    make_meeting(tmp_path)
+    resp = make_client(tmp_path).get(f"/meetings/{MEETING_ID}/workspace")
+    assert resp.status_code == 200
+    body = resp.text
+    assert "onclick=\"switchMedia(" not in body
+    assert "onclick='switchMedia(" not in body
+
+
+def test_workspace_media_switcher_uses_data_attribute(tmp_path: Path) -> None:
+    """Media switcher JS template must use data-media-id + addEventListener."""
+    make_meeting(tmp_path)
+    resp = make_client(tmp_path).get(f"/meetings/{MEETING_ID}/workspace")
+    assert resp.status_code == 200
+    body = resp.text
+    assert "media-switch-btn" in body
+    assert "data-media-id" in body
+    assert "dataset.mediaId" in body
     assert "dataset.artifactKey" in body
