@@ -535,7 +535,14 @@ def test_transcript_malformed_json_artifact_no_500(tmp_path: Path) -> None:
 
 
 def test_transcript_malformed_json_with_fallback_jsonl(tmp_path: Path) -> None:
-    """Malformed JSON transcript is skipped; valid JSONL fallback is returned."""
+    """Malformed JSON transcript is skipped; a later valid candidate is returned.
+
+    Candidate resolution order is ("segments", "transcript_json",
+    "transcript_txt", "transcript").  To genuinely exercise the
+    skip-and-continue path, the malformed JSON must sit at an *earlier*
+    candidate than the valid fallback — here malformed at "transcript_json"
+    and a valid JSONL at the later "transcript" key.
+    """
     meeting_dir = make_meeting(tmp_path)
     transcript_dir = meeting_dir / "transcript"
     transcript_dir.mkdir()
@@ -546,7 +553,7 @@ def test_transcript_malformed_json_with_fallback_jsonl(tmp_path: Path) -> None:
     card = json.loads((meeting_dir / "meeting.json").read_text())
     card["artifacts"] = {
         "transcript_json": "transcript/transcript.json",
-        "segments": "transcript/segments.jsonl",
+        "transcript": "transcript/segments.jsonl",
     }
     (meeting_dir / "meeting.json").write_text(json.dumps(card))
 
