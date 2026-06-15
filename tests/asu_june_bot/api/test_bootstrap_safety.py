@@ -309,6 +309,18 @@ def test_loopback_peer_with_forwarded_header_is_not_local() -> None:
     assert exc_info.value.status_code == 403
 
 
+def test_loopback_peer_with_x_real_ip_is_not_local() -> None:
+    """Loopback peer + X-Real-IP → proxy detected; local bypass suppressed."""
+    from asu_june_bot.api.routes_admin import _enforce_bootstrap_policy
+    from fastapi import HTTPException
+
+    request = _make_proxy_request("127.0.0.1", "x-real-ip", "203.0.113.10")
+    policy = BootstrapPolicy(allow_remote=False)
+    with pytest.raises(HTTPException) as exc_info:
+        _enforce_bootstrap_policy(request, policy)
+    assert exc_info.value.status_code == 403
+
+
 def test_loopback_behind_proxy_allow_remote_valid_secret_passes() -> None:
     """Loopback peer + X-Forwarded-For + valid secret → allowed."""
     from asu_june_bot.api.routes_admin import _enforce_bootstrap_policy

@@ -66,11 +66,14 @@ def _enforce_bootstrap_policy(request: Request, policy: BootstrapPolicy) -> None
     local bypass is suppressed and the normal policy is enforced.
 
     Forwarded headers are intentionally NOT used to identify the real client
-    IP — they are only examined to detect proxy presence.
+    IP — they are only examined to detect proxy presence (X-Forwarded-For,
+    Forwarded, X-Real-IP).
     """
     peer_host = request.client.host if request.client else None
     has_forwarded = bool(
-        request.headers.get("x-forwarded-for") or request.headers.get("forwarded")
+        request.headers.get("x-forwarded-for")
+        or request.headers.get("forwarded")
+        or request.headers.get("x-real-ip")
     )
     if is_local_request(peer_host) and not has_forwarded:
         return
