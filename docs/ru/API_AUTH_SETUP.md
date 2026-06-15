@@ -165,11 +165,45 @@ Machine principal имеет: `meetings.upload`, `meetings.read`, `artifacts.rea
 
 ### Admin
 
-Bootstrap (авторизация не требуется — только путь первого пользователя):
+#### Bootstrap
+
+`POST /admin/bootstrap` создаёт первого администратора. Возвращает `409`, если пользователи уже существуют.
+
+**Политика безопасности bootstrap** — эндпоинт применяет политику локальности, чтобы защитить пустые развёртывания:
+
+| Источник запроса | Поведение по умолчанию | Как переопределить |
+|---|---|---|
+| **Localhost** (127.0.0.1, ::1) | Разрешён без секрета | Настройка не нужна |
+| **Не-локальный** (LAN, контейнер, удалённо) | **Заблокирован** (возвращает 403) | Установите `allow_remote=true` + `secret` (см. ниже) |
+
+Для не-локального bootstrap оператор должен явно включить его и предоставить одноразовый секрет:
+
+1. Задайте переменные окружения (рекомендуется) или `auth.bootstrap` в `config.yaml`:
+   ```
+   MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE=true
+   MEETINGAGENT_BOOTSTRAP_SECRET=<сильный-случайный-секрет>
+   ```
+   Секрет должен быть не короче 32 символов. Генерация:
+   `python -c "import secrets; print(secrets.token_urlsafe(48))"`
+
+2. Передайте секрет в заголовке `X-Bootstrap-Token`:
+   ```
+   POST /admin/bootstrap
+   X-Bootstrap-Token: <секрет>
+   Content-Type: application/json
+
+   {"email": "admin@example.com", "password": "..."}
+   ```
+
+3. После создания первого администратора **удалите или сбросьте** `MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE` и `MEETINGAGENT_BOOTSTRAP_SECRET`. Секрет больше не нужен.
+
+Секрет никогда не записывается в логи, аудит, не возвращается в ответах и не сохраняется. Определение IP использует адрес прямого пира — `X-Forwarded-For` не используется для идентификации клиента. Если в запросе присутствуют заголовки прокси (Forwarded, X-Forwarded-For), локальный bypass подавляется: запрос должен предоставить корректный `X-Bootstrap-Token`.
+
+Bootstrap-эндпоинт:
 
 | Метод | Путь | Auth | CSRF | Примечания |
 |---|---|---|---|---|
-| POST | `/admin/bootstrap` | Нет | Нет | Создать первого администратора. 409 если уже есть пользователи. |
+| POST | `/admin/bootstrap` | Нет (+ проверка локальности) | Нет | Создать первого администратора. 409 если уже есть пользователи. 403 если заблокирован политикой. |
 
 Управление пользователями (требует `users.manage` — cookie администратора):
 
@@ -205,6 +239,7 @@ Machine Bearer tokens не имеют `users.manage` и получают `403` �
 | 403 | Forbidden — аутентифицирован, но прав недостаточно; или CSRF отсутствует/неверен |
 | 404 | Not Found |
 | 409 | Conflict — дублирующийся файл при ingest (sha256); bootstrap отклонён (пользователи уже есть); защита последнего admin |
+| 403 | Также: bootstrap заблокирован для не-локального запроса без `allow_remote`; bootstrap-токен отсутствует или неверен |
 | 413 | Payload Too Large — транскрипт или артефакт превышает лимит байт |
 | 415 | Unsupported Media Type — бинарный артефакт запрошен как текст |
 | 422 | Unprocessable Entity — ошибка схемы тела запроса |
@@ -447,6 +482,11 @@ auth:
   cookie_name: "ma_session"              # по умолчанию
   cookie_secure: "auto"                  # auto|true|false; auto=Secure при HTTPS
 
+  # Безопасность bootstrap (опционально — нужно только для не-локального первого запуска).
+  # bootstrap:
+  #   allow_remote: false                # по умолчанию; true только для не-локального bootstrap
+  #   secret: ""                         # обязательно при allow_remote: true
+
   login_throttle:
     enabled: true
     max_failures: 5
@@ -458,6 +498,13 @@ auth:
 meetings:
   max_text_artifact_bytes: 10485760      # 10 МиБ
 ```
+
+Переменные окружения для bootstrap (переопределяют config.yaml):
+
+| Переменная | Значения | Примечания |
+|---|---|---|
+| `MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE` | `true` / `false` | По умолчанию: `false`. Установите `true`, чтобы разрешить не-локальный bootstrap. |
+| `MEETINGAGENT_BOOTSTRAP_SECRET` | строка, мин. 32 символа | Обязательно при `allow_remote: true`. Не коммитить. |
 
 ---
 
