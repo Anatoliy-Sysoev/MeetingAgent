@@ -165,11 +165,44 @@ Text artifact size limit: **10 MiB** (configurable via `meetings.max_text_artifa
 
 ### Admin
 
-Bootstrap (no auth required — first-user path only):
+#### Bootstrap
+
+`POST /admin/bootstrap` creates the first admin user. It returns `409` if any user already exists.
+
+**Bootstrap safety** — the endpoint enforces a locality policy to protect empty deployments:
+
+| Request origin | Default behavior | How to override |
+|---|---|---|
+| **Localhost** (127.0.0.1, ::1) | Allowed without any secret | No configuration needed |
+| **Non-local** (LAN, container, remote) | **Blocked** (returns 403) | Set `allow_remote=true` + `secret` (see below) |
+
+For non-local bootstrap, the operator must explicitly enable it and provide a strong one-time secret:
+
+1. Set environment variables (recommended) or `auth.bootstrap` in `config.yaml`:
+   ```
+   MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE=true
+   MEETINGAGENT_BOOTSTRAP_SECRET=<strong-random-value>
+   ```
+   Generate: `python -c "import secrets; print(secrets.token_urlsafe(48))"`
+
+2. Send the secret in the `X-Bootstrap-Token` header:
+   ```
+   POST /admin/bootstrap
+   X-Bootstrap-Token: <secret>
+   Content-Type: application/json
+
+   {"email": "admin@example.com", "password": "..."}
+   ```
+
+3. After the first admin is created, **remove or unset** `MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE` and `MEETINGAGENT_BOOTSTRAP_SECRET`. The secret is not needed again.
+
+The secret is never logged, audited, returned, or stored. IP detection uses the direct peer address only — `X-Forwarded-For` is not trusted for this decision.
+
+Bootstrap endpoints:
 
 | Method | Path | Auth | CSRF | Notes |
 |---|---|---|---|---|
-| POST | `/admin/bootstrap` | None | No | Create first admin. 409 if any user exists. |
+| POST | `/admin/bootstrap` | None (+ locality check) | No | Create first admin. 409 if users exist. 403 if blocked by policy. |
 
 User management (requires `users.manage` — admin browser cookie session only):
 
@@ -205,6 +238,7 @@ Machine Bearer tokens do **not** have `users.manage` and receive `403` on all us
 | 403 | Forbidden — authenticated but insufficient permissions, or missing/invalid CSRF |
 | 404 | Not Found |
 | 409 | Conflict — duplicate file on ingest (sha256 match); bootstrap rejected (users exist); last-admin protection |
+| 403 | Also: bootstrap blocked for non-local request without `allow_remote`; bootstrap token missing or invalid |
 | 413 | Payload Too Large — transcript or artifact exceeds byte limit |
 | 415 | Unsupported Media Type — binary artifact requested as text |
 | 422 | Unprocessable Entity — request body schema error |
@@ -446,6 +480,11 @@ auth:
   cookie_name: "ma_session"              # default
   cookie_secure: "auto"                  # auto|true|false; auto=Secure when HTTPS
 
+  # Bootstrap safety (optional — only needed for non-local first-run).
+  # bootstrap:
+  #   allow_remote: false                # default; set true only for non-local bootstrap
+  #   secret: ""                         # required when allow_remote: true
+
   login_throttle:
     enabled: true
     max_failures: 5
@@ -457,6 +496,13 @@ auth:
 meetings:
   max_text_artifact_bytes: 10485760      # 10 MiB
 ```
+
+Bootstrap environment variables (override config.yaml):
+
+| Variable | Values | Notes |
+|---|---|---|
+| `MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE` | `true` / `false` | Default: `false`. Set `true` to allow non-local bootstrap. |
+| `MEETINGAGENT_BOOTSTRAP_SECRET` | any string | Required when `allow_remote` is `true`. Never commit. |
 
 ---
 
