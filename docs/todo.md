@@ -19,10 +19,16 @@
 - [x] MA-AUTH-BOOTSTRAP-ADMIN (#58): first-admin bootstrap + admin user API — `04b7af4`
 - [ ] MA-AUTH-DEPLOYMENT-SAFETY: safe defaults для self-hosted
 
+## Done (Meeting Workspace)
+
+- [x] MA-MEETING-WORKSPACE (#68, PR #69): workspace page, media streaming, normalized transcript segments, artifact viewer, read-only status
+- [x] MA-WORKSPACE-JOB-CONTROLS (#70): pipeline controls panel (start/cancel/refresh + polling), `GET /auth/csrf`, `GET /meetings/{id}/jobs/stages`, CSRF-safe browser actions
+
 ## Backlog (приоритет сверху вниз)
 
 - MA-REVIEW-QUEUE: разметка chat_runs.jsonl для eval, генерация guard_v2_cases.jsonl
-- Meeting Workspace UI: страница встречи с кнопками запуска pipeline-стадий, статус job-а в реальном времени
+- Meeting-scoped search/chat: `POST /meetings/{id}/search`, `POST /meetings/{id}/chat` + workspace Q&A panel (deferred from #68)
+- Pipeline stages beyond transcribe/diarize/merge (extract audio, chunk, enrich, index, analyze) — требуют поддержки в job runner
 - #39/#40 auth evolution: per-user tokens или OIDC; require_write_access() — стабильный контракт роутов, менять только внутри auth.py
 
 ## Dev Roadmap
