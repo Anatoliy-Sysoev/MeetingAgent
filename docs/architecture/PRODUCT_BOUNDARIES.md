@@ -128,7 +128,7 @@ Utilities consumed by both products. No dedicated process or public API — dist
 | `api/routes_admin.py` | MA | User management — belongs to MeetingAgent platform |
 | `api/routes_auth.py` | MA | Session auth — belongs to MeetingAgent platform |
 | `api/routes_chat.py` | PKB | Chat endpoint |
-| `api/routes_health.py` | SH | Health check (both products can expose it) |
+| `api/routes_health.py` | BR | Single-process compatibility endpoint; currently delegates to PKB-specific health service |
 | `api/routes_ingest.py` | MA | Meeting ingest |
 | `api/routes_jobs.py` | MA | Job pipeline |
 | `api/routes_meetings.py` | MA | Meeting reads |
@@ -144,7 +144,6 @@ Utilities consumed by both products. No dedicated process or public API — dist
 | `core/path_filters.py` | SH | File exclusion patterns (used by corpus build) |
 | `eval/` (entire directory) | PKB | Bot-specific eval framework and quality pipeline |
 | `guardrails/` (entire directory) | PKB | Scope classifier, project guard, output policy |
-| `api/routes_health.py` | BR | Single-process compatibility endpoint; delegates to PKB health service |
 | `health/service.py` | PKB | PKB-specific health: checks corpus indices, Ollama, chunks/cache |
 | `ingestion/models.py` | PKB | Project/corpus document ingestion models |
 | `ingestion/utils.py` | PKB | Project/corpus document ingestion utilities |
@@ -332,7 +331,9 @@ Response:
 
 ### Phase 2 — Move MeetingAgent Routes and Services Out of Bot Package
 
-**Goal:** Relocate MeetingAgent-owned API routes and services (`routes_meetings.py`, `routes_ingest.py`, `routes_jobs.py`, `routes_admin.py`, `routes_auth.py`, `meetings/service.py`, `jobs/runner.py`, `ingestion/`) into `meeting_agent/` sub-packages.
+**Goal:** Relocate MeetingAgent-owned API routes and services (`routes_meetings.py`, `routes_ingest.py`, `routes_jobs.py`, `routes_admin.py`, `routes_auth.py`, `meetings/service.py`, `jobs/runner.py`) into `meeting_agent/` sub-packages.
+
+Do not move current `asu_june_bot/ingestion/` in Phase 2; it is PKB corpus/document ingestion and will move with PKB in Phase 4. Future MeetingAgent meeting-ingest domain lives in `meeting_agent/ingest/`.
 
 **Allowed changes:**
 - Create `src/meeting_agent/api/routes_*.py` for MA-owned routes
