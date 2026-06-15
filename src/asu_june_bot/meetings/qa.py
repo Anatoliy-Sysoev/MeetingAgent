@@ -167,12 +167,19 @@ class MeetingQAService:
         explicit = row.get("artifact_id") or row.get("artifact_type")
         if explicit:
             return str(explicit)
-        rel = row.get("relative_path")
-        if not rel:
+        rel_raw = row.get("relative_path")
+        if not rel_raw:
+            return None
+        rel = str(rel_raw).replace("\\", "/")
+        p = Path(rel)
+        if p.is_absolute() or ".." in p.parts:
             return None
         prefix = f"meetings/{meeting_id}/"
-        rel = str(rel)
-        return rel[len(prefix):] if rel.startswith(prefix) else rel
+        if rel.startswith(prefix):
+            rel = rel[len(prefix):]
+        if rel.startswith(("transcript/", "artifacts/")):
+            return rel
+        return None
 
     @staticmethod
     def _speaker(row: dict[str, Any]) -> str | None:

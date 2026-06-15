@@ -383,3 +383,26 @@ def test_workspace_qa_no_browser_storage_for_answers(tmp_path: Path) -> None:
     body = client.get(f"/meetings/{MEETING_ID}/workspace").text
     assert "localStorage" not in body
     assert "sessionStorage" not in body
+
+
+# ------------------------------------------------------------------
+# _artifact_ref safety — path traversal / absolute path regression
+# ------------------------------------------------------------------
+
+def test_search_does_not_expose_absolute_relative_path(tmp_path: Path) -> None:
+    rows = [dict(CHUNK_ROWS[0], relative_path="/abs/local/path/secret.jsonl")]
+    client, _repo, _llm = make_client(tmp_path, chunks_rows=rows)
+    resp = client.post(f"/meetings/{MEETING_ID}/search", json={"query": "бюджет"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["results"]
+    assert body["results"][0]["source"]["artifact"] is None
+    assert "/abs/local/path" not in resp.text
+
+
+def test_chat_does_not_expose_traversal_relative_path(tmp_path: Path) -> None:
+    rows = [dict(CHUNK_ROWS[0], relative_path="../secret.jsonl")]
+    client, _repo, _llm = make_client(tmp_path, chunks_rows=rows)
+    resp = client.post(f"/meetings/{MEETING_ID}/chat", json={"query": "бюджет"})
+    assert resp.status_code == 200
+    assert "../secret" not in resp.text
