@@ -30,6 +30,27 @@ ASU_JUNE_BOT_TELEGRAM_TOKEN=...
 ASU_JUNE_BOT_ALLOWED_CHAT_IDS=...
 ```
 
+## API и auth
+
+Контейнерный запуск ожидает эти базовые значения:
+
+- `MEETING_AGENT_CONFIG_PATH=/app/config.docker.yaml`
+- `OLLAMA_BASE_URL=http://host.docker.internal:11434`
+- `OLLAMA_OPENAI_BASE_URL=http://host.docker.internal:11434/v1`
+
+HTTP endpoints:
+
+- `GET /health` — health check
+- `POST /search` — поиск по knowledge base
+- `POST /chat` — chat endpoint для UI и agent flows
+- `GET /ui` — web UI
+
+Если auth или Telegram не работают:
+
+- проверьте, что токен и allowed chat ids реально лежат в `.env`
+- проверьте, что контейнер видит Ollama по указанному URL
+- проверьте, что `config.docker.yaml` совпадает с контейнерной файловой системой
+
 ## Запуск API
 
 ```powershell
