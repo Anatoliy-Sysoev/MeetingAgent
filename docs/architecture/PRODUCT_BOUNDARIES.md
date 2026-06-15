@@ -20,7 +20,7 @@ src/
 │   ├── eval/              # Evaluation framework
 │   ├── guardrails/        # Scope classification, project guard, output policy
 │   ├── health/            # Health check service
-│   ├── ingestion/         # Meeting ingest models and utils
+│   ├── ingestion/         # Project/corpus document ingestion models and utils
 │   ├── jobs/              # Async job runner (transcription, diarization, …)
 │   ├── llm/               # LLM client abstractions (Ollama OpenAI-compat)
 │   ├── meetings/          # Meeting card service
@@ -144,9 +144,10 @@ Utilities consumed by both products. No dedicated process or public API — dist
 | `core/path_filters.py` | SH | File exclusion patterns (used by corpus build) |
 | `eval/` (entire directory) | PKB | Bot-specific eval framework and quality pipeline |
 | `guardrails/` (entire directory) | PKB | Scope classifier, project guard, output policy |
-| `health/service.py` | SH | Health service (both products can include it) |
-| `ingestion/models.py` | MA | Meeting ingest models |
-| `ingestion/utils.py` | MA | Ingest file utilities |
+| `api/routes_health.py` | BR | Single-process compatibility endpoint; delegates to PKB health service |
+| `health/service.py` | PKB | PKB-specific health: checks corpus indices, Ollama, chunks/cache |
+| `ingestion/models.py` | PKB | Project/corpus document ingestion models |
+| `ingestion/utils.py` | PKB | Project/corpus document ingestion utilities |
 | `jobs/runner.py` | MA | Async subprocess job runner |
 | `llm/client.py` | SH | LLM client interface |
 | `llm/ollama_common.py` | SH | Ollama common utilities |
@@ -218,6 +219,8 @@ The following groups should move into a shared package (recommended name: `meeti
 | **Schema / size limits** | `asu_june_bot/core/limits.py` | `parse_max_text_artifact_bytes`, limit constants |
 | **Auth / security contracts** | `asu_june_bot/auth/` | `Principal`, `ROLE_PERMISSIONS`, `permissions_for_roles`, session models — shared security layer used by both products; do NOT classify as bot-only |
 | **Logging / audit primitives** | `asu_june_bot/auth/repository.py` (audit events) | Audit event schema if consumed by both products post-split |
+
+**Health note:** `asu_june_bot/health/service.py` is PKB-specific (checks corpus indices, Ollama, chunks) and should move with PKB in Phase 4. A future `meeting_agent/shared/health.py` may define a minimal shared health contract if MeetingAgent Core requires its own health checks.
 
 **Package name constraint:** do not name this package `platform` — it conflicts conceptually with the Python standard library `platform` module. Use `meeting_agent/shared`, `meeting_agent/common`, or `meeting_agent/security` for the auth sub-group.
 
@@ -354,7 +357,8 @@ Response:
 **Allowed changes:**
 - Create `src/meeting_agent/integrations/pkb_client.py` — HTTP adapter implementing the Section E contract
 - Add `integration.mode: inprocess | http` to config schema
-- MA routes `POST /search` and `POST /chat` use the adapter rather than importing PKB modules directly
+- In the combined single-process deployment, `/search` and `/chat` continue to be served by PKB code directly; compatibility/proxy routes in the combined app call the PKB adapter in `http` mode when `integration.mode: http`
+- MeetingAgent internal workflows (e.g., meeting-scoped search) call the PKB adapter, not PKB modules directly
 - Tests stub the adapter; existing behavior preserved in `inprocess` mode
 
 **Non-goals:** Do not actually split the process yet. Do not change PKB internal logic. Do not expose the PKB adapter API to end users directly.
@@ -412,7 +416,8 @@ The following constraints are firm for all phases unless explicitly overridden b
 - **No route path changes** — all HTTP paths (`/meetings/*`, `/auth/*`, `/admin/*`, `/search`, `/chat`) remain stable across all phases.
 - **No rename of `asu_june_bot` to `project_knowledge_bot`** — deferred to Phase 4 or later.
 - **Auth/admin/security are not bot-only** — `auth/`, `api/routes_admin.py`, `api/routes_auth.py`, and `api/bootstrap_policy.py` are shared security infrastructure, not PKB product code. They belong in the shared layer or MeetingAgent Core, not in the bot package.
-- **Ingest/jobs/meetings are MeetingAgent Core** — `routes_ingest.py`, `routes_jobs.py`, `routes_meetings.py`, `meetings/service.py`, `jobs/runner.py`, `ingestion/` all belong to MA.
+- **Ingest/jobs/meetings are MeetingAgent Core** — `routes_ingest.py`, `routes_jobs.py`, `routes_meetings.py`, `meetings/service.py`, `jobs/runner.py` belong to MA. Current `asu_june_bot/ingestion/` is PKB corpus/document ingestion, not meeting ingest; future MeetingAgent meeting-ingest domain lives at `meeting_agent/ingest/` (placeholder).
+- **`/search` and `/chat` path stability** — these HTTP paths remain unchanged across all phases. During and after migration they are served by PKB code (directly in `inprocess` mode, or via compatibility/proxy routes in `http` mode); no user-visible path change occurs.
 - **Search/chat/retrieval/guardrails/Telegram/corpus are Project Knowledge Bot** — `routes_search.py`, `routes_chat.py`, `chat/`, `search/`, `retrieval/`, `guardrails/`, `telegram_bot.py`, `core/corpus.py`.
 - **Shared layer must not be named `platform`** — use `meeting_agent/shared`, `meeting_agent/common`, or `meeting_agent/security`.
 - **Config and LLM client are shared** — `core/config.py` and `llm/` must not be owned by either product; they are shared infrastructure.
