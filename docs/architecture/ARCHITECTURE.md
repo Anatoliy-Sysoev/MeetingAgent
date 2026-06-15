@@ -80,7 +80,18 @@ Pipeline-панель управляет job runner-ом из браузера:
 
 CSRF-поток для браузерных write-действий: при login выставляется non-HttpOnly cookie `ma_session_csrf`; JS получает токен через `GET /auth/csrf` (валидирует cookie против session hash, не создаёт сессию, не раскрывает hash) и шлёт его как `X-CSRF-Token`. Machine Bearer-вызовы CSRF-exempt. CSRF-токен в JS живёт только в памяти, не пишется в DOM/persistent storage. Все динамические значения job/stage рендерятся через DOM API + `textContent`/`dataset` + `addEventListener` (без inline-интерполяции).
 
-Известные ограничения: meeting-scoped search/chat и стадии вне transcribe/diarize/merge пока не реализованы (нужна поддержка в job runner).
+#### Meeting-scoped search & Q&A
+
+Панель Q&A workspace-а обращается к meeting-scoped эндпоинтам:
+
+- `POST /meetings/{id}/search` (`search.use`) — лексический поиск по чанкам ОДНОЙ встречи;
+- `POST /meetings/{id}/chat` (`chat.use` + CSRF для cookie, Bearer exempt) — grounded-ответ только по этой встрече, с цитатами.
+
+Реализованы через отдельный `MeetingQAService` (`meetings/qa.py`), сознательно НЕ переиспользующий project `SearchService`/`ChatService`: те запускают project-only `ProjectGuard` (отклонил бы вопросы о встрече) и ищут по проектному корпусу (риск утечки project/global чанков). MeetingQAService читает `data/meeting_chunks.jsonl`, жёстко фильтрует по `meeting_id` ∩ meeting-типам источников (`meeting_chunk`/`meeting_decision`/`meeting_action_item`/`meeting_risk`/`meeting_open_question`), лексически ранжирует (MVP, как `scripts/31_meeting_search.py`) и формирует ответ только по найденным чанкам.
+
+Изоляция и безопасность: неизвестная/небезопасная встреча → 404; отсутствует индекс/файл чанков → 200 с `available:false` и пустыми результатами (не 500); в ответах нет путей ФС и сырых ошибок бэкенда; цитаты только из возвращённых meeting-источников (без галлюцинаций). Форма цитаты: `chunk_id`, `excerpt`, `artifact`, `segment_id`, `speaker`, `start_sec`, `end_sec`. По клику на цитату/результат с `start_sec` плеер перематывается на таймкод. Это контур MeetingAgent Core, изолированный от Project Knowledge Bot.
+
+Известные ограничения: retrieval лексический (не векторный); `segment_id` пока `null` (чанки — это окна, а не сегменты транскрипта); стадии вне transcribe/diarize/merge пока не реализованы (нужна поддержка в job runner).
 
 ## Контур 3. Project Knowledge Bot
 

@@ -23,11 +23,12 @@
 
 - [x] MA-MEETING-WORKSPACE (#68, PR #69): workspace page, media streaming, normalized transcript segments, artifact viewer, read-only status
 - [x] MA-WORKSPACE-JOB-CONTROLS (#70): pipeline controls panel (start/cancel/refresh + polling), `GET /auth/csrf`, `GET /meetings/{id}/jobs/stages`, CSRF-safe browser actions
+- [x] MA-MEETING-SCOPED-QA (#74): `POST /meetings/{id}/search` + `POST /meetings/{id}/chat`, self-contained `MeetingQAService` (lexical MVP over meeting_chunks.jsonl, strict meeting scoping, no project/global leakage), workspace Q&A panel (answer/citations/search, seek-on-click)
 
 ## Backlog (приоритет сверху вниз)
 
 - MA-REVIEW-QUEUE: разметка chat_runs.jsonl для eval, генерация guard_v2_cases.jsonl
-- Meeting-scoped search/chat: `POST /meetings/{id}/search`, `POST /meetings/{id}/chat` + workspace Q&A panel (deferred from #68)
+- Meeting-scoped Q&A v2: vector retrieval over meeting chunks (current MVP is lexical), transcript-segment-level citations (`segment_id`)
 - Pipeline stages beyond transcribe/diarize/merge (extract audio, chunk, enrich, index, analyze) — требуют поддержки в job runner
 - #39/#40 auth evolution: per-user tokens или OIDC; require_write_access() — стабильный контракт роутов, менять только внутри auth.py
 

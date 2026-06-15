@@ -242,13 +242,23 @@ _WORKSPACE_HTML = """\
     .cancel-btn { border-color: var(--danger); color: var(--danger); }
     .cancel-btn:hover:not(:disabled) { background: #fdeaed; }
 
-    /* ---- Q&A placeholder ---- */
-    .qa-placeholder {
-      color: var(--muted);
-      text-align: center;
-      padding: 20px;
-      font-size: 13px;
+    /* ---- Q&A panel ---- */
+    .qa-section { display: flex; flex-direction: column; gap: 6px; }
+    .qa-section + .qa-section { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+    .qa-section h4 { margin: 0; font-size: 12px; color: var(--muted); font-weight: 600; }
+    .qa-input { width: 100%; box-sizing: border-box; resize: vertical; min-height: 38px;
+      font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
+    .qa-row { display: flex; gap: 6px; }
+    .qa-status { font-size: 12px; color: var(--muted); }
+    .qa-error { font-size: 12px; color: var(--danger); }
+    .qa-answer { font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+    .qa-refusal { font-size: 13px; color: var(--muted); font-style: italic; }
+    .qa-citation, .qa-result {
+      border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; margin-top: 6px;
+      cursor: pointer; font-size: 12px; background: var(--surface);
     }
+    .qa-citation:hover, .qa-result:hover { border-color: var(--accent); }
+    .qa-cite-meta, .qa-result-meta { color: var(--muted); font-size: 11px; margin-bottom: 2px; }
 
     /* ---- auth overlay ---- */
     #auth-overlay {
@@ -347,13 +357,34 @@ _WORKSPACE_HTML = """\
       </div>
     </div>
 
-    <!-- Q&A placeholder -->
+    <!-- Q&A -->
     <div class="panel">
       <div class="panel-header">Q&amp;A</div>
       <div class="panel-body">
-        <div class="qa-placeholder">
-          Meeting-scoped Q&amp;A is coming soon.<br />
-          Use the <a href="/">main chat</a> for project-level questions.
+        <div class="qa-section">
+          <h4>Ask about this meeting</h4>
+          <textarea id="qa-question" class="qa-input"
+                    placeholder="Ask a question about this meeting&hellip;"></textarea>
+          <div class="qa-row">
+            <button id="qa-ask-btn">Ask</button>
+          </div>
+          <div id="qa-chat-status" class="qa-status"></div>
+          <div id="qa-chat-error" class="qa-error"></div>
+          <div id="qa-answer" class="qa-answer"></div>
+          <div id="qa-refusal" class="qa-refusal"></div>
+          <div id="qa-citations"></div>
+        </div>
+
+        <div class="qa-section">
+          <h4>Search in meeting</h4>
+          <div class="qa-row">
+            <input id="qa-search-input" class="qa-input" type="text"
+                   placeholder="Search transcript &amp; artifacts&hellip;" />
+            <button id="qa-search-btn">Search</button>
+          </div>
+          <div id="qa-search-status" class="qa-status"></div>
+          <div id="qa-search-error" class="qa-error"></div>
+          <div id="qa-search-results"></div>
         </div>
       </div>
     </div>
@@ -837,6 +868,127 @@ function esc(s) {
     .replace(/"/g, "&quot;");
 }
 
+// ---- Q&A: meeting-scoped search ----
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value || "";
+}
+
+function qaCiteLine(src) {
+  const parts = [];
+  if (src && src.start_sec != null) parts.push(fmtSec(src.start_sec));
+  if (src && src.speaker) parts.push(src.speaker);
+  if (src && src.artifact) parts.push(src.artifact);
+  return parts.join(" · ");
+}
+
+async function meetingSearch() {
+  const input = document.getElementById("qa-search-input");
+  const query = (input.value || "").trim();
+  setText("qa-search-error", "");
+  setText("qa-search-status", "");
+  const container = document.getElementById("qa-search-results");
+  container.replaceChildren();
+  if (!query) return;
+  setText("qa-search-status", "Searching…");
+  let resp;
+  try {
+    resp = await apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: query, top_k: 5 }),
+    });
+  } catch (e) {
+    setText("qa-search-status", "");
+    setText("qa-search-error", "Search request failed. Please try again.");
+    return;
+  }
+  if (!resp) return;  // 401 handled by overlay
+  if (!resp.ok) {
+    setText("qa-search-status", "");
+    setText("qa-search-error", await describeError(resp, "Search failed."));
+    return;
+  }
+  const data = await resp.json();
+  const results = Array.isArray(data.results) ? data.results : [];
+  setText("qa-search-status", results.length ? "" : "No matches in this meeting.");
+  for (const r of results) {
+    const src = r.source || {};
+    const card = document.createElement("div");
+    card.className = "qa-result";
+    const meta = document.createElement("div");
+    meta.className = "qa-result-meta";
+    meta.textContent = qaCiteLine(src) || "meeting";
+    const body = document.createElement("div");
+    body.textContent = r.text || "";
+    card.appendChild(meta);
+    card.appendChild(body);
+    if (src.start_sec != null) {
+      card.dataset.startSec = String(src.start_sec);
+      card.addEventListener("click", () => seekTo(Number(card.dataset.startSec)));
+    }
+    container.appendChild(card);
+  }
+}
+
+async function askQuestion() {
+  if (_actionInProgress) return;
+  const textarea = document.getElementById("qa-question");
+  const query = (textarea.value || "").trim();
+  setText("qa-chat-error", "");
+  setText("qa-answer", "");
+  setText("qa-refusal", "");
+  document.getElementById("qa-citations").replaceChildren();
+  if (!query) return;
+  setText("qa-chat-status", "Thinking…");
+  const csrf = await ensureCsrf();
+  if (!csrf) { setText("qa-chat-status", ""); setText("qa-chat-error", "Could not obtain CSRF token. Please log in again."); return; }
+  _actionInProgress = true;
+  let resp;
+  try {
+    resp = await apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ query: query, top_k: 5 }),
+    });
+  } catch (e) {
+    setText("qa-chat-status", "");
+    setText("qa-chat-error", "Chat request failed. Please try again.");
+    return;
+  } finally {
+    _actionInProgress = false;
+  }
+  setText("qa-chat-status", "");
+  if (!resp) return;  // 401 handled
+  if (!resp.ok) { setText("qa-chat-error", await describeError(resp, "Could not get an answer.")); return; }
+  const data = await resp.json();
+  if (data.answer) {
+    setText("qa-answer", data.answer);
+  } else if (data.refusal) {
+    setText("qa-refusal", data.refusal);
+  } else {
+    setText("qa-refusal", "No answer was produced for this meeting.");
+  }
+  const citations = Array.isArray(data.citations) ? data.citations : [];
+  const container = document.getElementById("qa-citations");
+  for (const c of citations) {
+    const card = document.createElement("div");
+    card.className = "qa-citation";
+    const meta = document.createElement("div");
+    meta.className = "qa-cite-meta";
+    meta.textContent = qaCiteLine(c) || "source";
+    const body = document.createElement("div");
+    body.textContent = c.excerpt || "";
+    card.appendChild(meta);
+    card.appendChild(body);
+    if (c.start_sec != null) {
+      card.dataset.startSec = String(c.start_sec);
+      card.addEventListener("click", () => seekTo(Number(card.dataset.startSec)));
+    }
+    container.appendChild(card);
+  }
+}
+
 // ---- init ----
 async function reloadAll() {
   await Promise.all([
@@ -851,6 +1003,15 @@ async function reloadAll() {
 const _jobsRefreshBtn = document.getElementById("jobs-refresh-btn");
 if (_jobsRefreshBtn) {
   _jobsRefreshBtn.addEventListener("click", () => { setJobsError(""); refreshJobs(); });
+}
+
+const _qaAskBtn = document.getElementById("qa-ask-btn");
+if (_qaAskBtn) _qaAskBtn.addEventListener("click", askQuestion);
+const _qaSearchBtn = document.getElementById("qa-search-btn");
+if (_qaSearchBtn) _qaSearchBtn.addEventListener("click", meetingSearch);
+const _qaSearchInput = document.getElementById("qa-search-input");
+if (_qaSearchInput) {
+  _qaSearchInput.addEventListener("keydown", (e) => { if (e.key === "Enter") meetingSearch(); });
 }
 
 reloadAll();
