@@ -15,7 +15,7 @@ if str(SRC) not in sys.path:
 
 from asu_june_bot.api.app import create_app  # noqa: E402
 from asu_june_bot.auth.models import Principal  # noqa: E402
-from asu_june_bot.auth.permissions import EDITOR_PERMISSIONS, VIEWER_PERMISSIONS  # noqa: E402
+from asu_june_bot.auth.permissions import EDITOR_PERMISSIONS, ROLE_PERMISSIONS, VIEWER_PERMISSIONS  # noqa: E402
 from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
 from asu_june_bot.auth.service import AdminService, LocalAuthService  # noqa: E402
 from asu_june_bot.jobs.runner import JobRunner, JobState  # noqa: E402
@@ -722,5 +722,75 @@ def test_start_job_requires_csrf_for_cookie_user(
         f"/meetings/{MEETING_ID}/jobs/transcribe",
         cookies={"ma_session": cookie},
         # no X-CSRF-Token
+    )
+    assert resp.status_code == 403
+
+
+# ------------------------------------------------------------------
+# Least-privilege regression: upload-only role cannot start/cancel jobs
+# ------------------------------------------------------------------
+
+def _make_upload_only_client(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[TestClient, JobRunner, AdminService]:
+    """Set up a client where the only cookie user has meetings.upload but NOT jobs.start/cancel."""
+    import asu_june_bot.auth.models as models_mod
+    import asu_june_bot.auth.permissions as perms_mod
+    import asu_june_bot.auth.repository as repo_mod
+    import asu_june_bot.auth.service as svc_mod
+
+    upload_only_perms = VIEWER_PERMISSIONS | frozenset({"meetings.upload"})
+    patched_perms = {**ROLE_PERMISSIONS, "upload_only": upload_only_perms}
+    patched_builtin = frozenset(patched_perms)
+
+    # permissions_for_roles() reads ROLE_PERMISSIONS from the permissions module at call time
+    monkeypatch.setattr(perms_mod, "ROLE_PERMISSIONS", patched_perms)
+    # BUILTIN_ROLES is imported by name into each module — patch every copy
+    monkeypatch.setattr(perms_mod, "BUILTIN_ROLES", patched_builtin)
+    monkeypatch.setattr(models_mod, "BUILTIN_ROLES", patched_builtin)
+    monkeypatch.setattr(repo_mod, "BUILTIN_ROLES", patched_builtin)
+    monkeypatch.setattr(svc_mod, "BUILTIN_ROLES", patched_builtin)
+
+    return _rbac_client(tmp_path)
+
+
+def test_upload_only_role_cannot_start_job(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """meetings.upload without jobs.start must not allow starting a job (regression)."""
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    client, _, admin_svc = _make_upload_only_client(tmp_path, monkeypatch)
+    cookie, csrf = _cookie_session(
+        client, admin_svc, "uploader@example.com", "uploaderpass1", ["upload_only"]
+    )
+    resp = client.post(
+        f"/meetings/{MEETING_ID}/jobs/transcribe",
+        cookies={"ma_session": cookie},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert resp.status_code == 403
+
+
+def test_upload_only_role_cannot_cancel_job(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """meetings.upload without jobs.cancel must not allow cancelling a job (regression)."""
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    client, runner, admin_svc = _make_upload_only_client(tmp_path, monkeypatch)
+    done = JobState(
+        job_id="done-upload-001",
+        meeting_id=MEETING_ID,
+        stage="transcribe",
+        status="running",
+        started_at="2026-01-10T10:00:00+00:00",
+    )
+    runner.history.append(done)
+    cookie, csrf = _cookie_session(
+        client, admin_svc, "uploader2@example.com", "uploaderpass2", ["upload_only"]
+    )
+    resp = client.post(
+        f"/meetings/{MEETING_ID}/jobs/done-upload-001/cancel",
+        cookies={"ma_session": cookie},
+        headers={"X-CSRF-Token": csrf},
     )
     assert resp.status_code == 403
