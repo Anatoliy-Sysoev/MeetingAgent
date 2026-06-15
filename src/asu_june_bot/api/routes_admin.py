@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from asu_june_bot.api.auth import require_admin_action_permission, require_admin_user_permission
@@ -120,8 +120,8 @@ def bootstrap_admin(
 def list_users(
     request: Request,
     _principal: Annotated[Principal, Depends(_require_admin_read)],
-    offset: int = 0,
-    limit: int = 100,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=200),
 ) -> dict:
     admin_service: AdminService = _get_admin_service(request)
     users = admin_service.list_users(offset=offset, limit=limit)

@@ -14,8 +14,10 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from asu_june_bot.api.app import create_app  # noqa: E402
+from asu_june_bot.auth.models import Principal  # noqa: E402
+from asu_june_bot.auth.permissions import EDITOR_PERMISSIONS, VIEWER_PERMISSIONS  # noqa: E402
 from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
-from asu_june_bot.auth.service import LocalAuthService  # noqa: E402
+from asu_june_bot.auth.service import AdminService, LocalAuthService  # noqa: E402
 from asu_june_bot.jobs.runner import JobRunner, JobState  # noqa: E402
 from asu_june_bot.auth.throttle import LoginThrottle  # noqa: E402
 from asu_june_bot.meetings.service import MeetingsService  # noqa: E402
@@ -93,6 +95,7 @@ class FakeState:
     meetings_service: MeetingsService
     job_runner: JobRunner
     local_auth_service: LocalAuthService
+    admin_service: AdminService = field(default=None)  # type: ignore[assignment]
     login_throttle: LoginThrottle = field(default_factory=LoginThrottle)
 
 
@@ -115,12 +118,30 @@ def make_client(
     app = create_app()
     jr = runner or JobRunner()
     client = TestClient(app, raise_server_exceptions=False)
+    svc = LocalAuthService(repo)
     app.state.asu_june_bot = FakeState(
         meetings_service=MeetingsService(meetings_root),
         job_runner=jr,
-        local_auth_service=LocalAuthService(repo),
+        local_auth_service=svc,
+        admin_service=AdminService(repo),
     )
     return client, jr
+
+
+def _cookie_session(
+    client: TestClient,
+    admin_svc: "AdminService",
+    email: str,
+    password: str,
+    roles: list[str],
+) -> tuple[str, str]:
+    """Create a user with given roles, log in, return (session_cookie, csrf_token)."""
+    admin_svc.create_user(
+        email=email, password=password, roles=roles, actor_id="system"
+    )
+    resp = client.post("/auth/local/login", json={"email": email, "password": password})
+    assert resp.status_code == 200, resp.json()
+    return resp.cookies["ma_session"], resp.json()["csrf_token"]
 
 
 # ------------------------------------------------------------------
@@ -527,3 +548,179 @@ def test_cancel_holds_slot_until_process_exits(
     # Slot still occupied — second start must be 409
     resp3 = client.post(f"/meetings/{MEETING_ID}/jobs/transcribe", headers=AUTH)
     assert resp3.status_code == 409
+
+
+# ------------------------------------------------------------------
+# Jobs RBAC: cookie-user permission enforcement
+# ------------------------------------------------------------------
+
+def _rbac_client(tmp_path: Path, token: str = TOKEN) -> tuple[TestClient, JobRunner, AdminService]:
+    import os
+    os.environ["MEETINGAGENT_API_TOKEN"] = token
+    repo = AuthRepository(tmp_path / "_auth.db")
+    repo.initialize()
+    app = create_app()
+    jr = JobRunner()
+    client = TestClient(app, raise_server_exceptions=False)
+    admin_svc = AdminService(repo)
+    app.state.asu_june_bot = FakeState(
+        meetings_service=MeetingsService(tmp_path),
+        job_runner=jr,
+        local_auth_service=LocalAuthService(repo),
+        admin_service=admin_svc,
+    )
+    make_meeting(tmp_path)
+    return client, jr, admin_svc
+
+
+def test_viewer_cannot_start_job(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Viewer role has jobs.read but not jobs.start — start returns 403."""
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    client, _, admin_svc = _rbac_client(tmp_path)
+    cookie, csrf = _cookie_session(client, admin_svc, "viewer1@example.com", "viewerpass1", ["viewer"])
+    resp = client.post(
+        f"/meetings/{MEETING_ID}/jobs/transcribe",
+        cookies={"ma_session": cookie},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert resp.status_code == 403
+
+
+def test_viewer_cannot_cancel_job(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Viewer role has jobs.read but not jobs.cancel — cancel returns 403."""
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    client, runner, admin_svc = _rbac_client(tmp_path)
+    done = JobState(
+        job_id="done-rbac-001",
+        meeting_id=MEETING_ID,
+        stage="transcribe",
+        status="running",
+        started_at="2026-01-10T10:00:00+00:00",
+    )
+    runner.history.append(done)
+    cookie, csrf = _cookie_session(client, admin_svc, "viewer2@example.com", "viewerpass2", ["viewer"])
+    resp = client.post(
+        f"/meetings/{MEETING_ID}/jobs/done-rbac-001/cancel",
+        cookies={"ma_session": cookie},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert resp.status_code == 403
+
+
+def test_viewer_can_read_job_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Viewer has jobs.read — job status GET returns 200."""
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    client, runner, admin_svc = _rbac_client(tmp_path)
+    done = JobState(
+        job_id="done-rbac-002",
+        meeting_id=MEETING_ID,
+        stage="transcribe",
+        status="completed",
+        started_at="2026-01-10T10:00:00+00:00",
+        exit_code=0,
+    )
+    runner.history.append(done)
+    cookie, _ = _cookie_session(client, admin_svc, "viewer3@example.com", "viewerpass3", ["viewer"])
+    resp = client.get(
+        f"/meetings/{MEETING_ID}/jobs/done-rbac-002",
+        cookies={"ma_session": cookie},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "completed"
+
+
+def test_editor_can_start_job(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Editor role has jobs.start — start returns 202."""
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    client, _, admin_svc = _rbac_client(tmp_path)
+
+    async def fake_subprocess(*args, stdout, stderr):
+        return _ImmediateProcess(returncode=0)
+
+    import asu_june_bot.jobs.runner as runner_mod
+    monkeypatch.setattr(runner_mod, "_create_subprocess", fake_subprocess)
+
+    cookie, csrf = _cookie_session(client, admin_svc, "editor1@example.com", "editorpass1", ["editor"])
+    resp = client.post(
+        f"/meetings/{MEETING_ID}/jobs/transcribe",
+        cookies={"ma_session": cookie},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert resp.status_code == 202
+
+
+def test_editor_can_cancel_job(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Editor role has jobs.cancel — cancel returns 200."""
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    client, runner, admin_svc = _rbac_client(tmp_path)
+
+    hanging = _HangingProcess()
+
+    async def fake_subprocess(*args, stdout, stderr):
+        if "--dry-run" in args:
+            return _ImmediateProcess(returncode=0)
+        return hanging
+
+    import asu_june_bot.jobs.runner as runner_mod
+    monkeypatch.setattr(runner_mod, "_create_subprocess", fake_subprocess)
+
+    # Start via machine token
+    start_resp = client.post(f"/meetings/{MEETING_ID}/jobs/transcribe", headers=AUTH)
+    assert start_resp.status_code == 202
+    job_id = start_resp.json()["job_id"]
+
+    # Cancel via editor cookie
+    cookie, csrf = _cookie_session(client, admin_svc, "editor2@example.com", "editorpass2", ["editor"])
+    resp = client.post(
+        f"/meetings/{MEETING_ID}/jobs/{job_id}/cancel",
+        cookies={"ma_session": cookie},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "cancelled"
+
+
+def test_machine_token_can_start_and_read_job(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Machine token retains jobs.start and jobs.read permissions."""
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    client, runner, _ = _rbac_client(tmp_path)
+
+    async def fake_subprocess(*args, stdout, stderr):
+        return _ImmediateProcess(returncode=0)
+
+    import asu_june_bot.jobs.runner as runner_mod
+    monkeypatch.setattr(runner_mod, "_create_subprocess", fake_subprocess)
+
+    resp = client.post(f"/meetings/{MEETING_ID}/jobs/transcribe", headers=AUTH)
+    assert resp.status_code == 202
+    job_id = resp.json()["job_id"]
+
+    resp2 = client.get(f"/meetings/{MEETING_ID}/jobs/{job_id}", headers=AUTH)
+    assert resp2.status_code == 200
+
+
+def test_start_job_requires_csrf_for_cookie_user(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cookie-authenticated editor without CSRF header gets 403."""
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    client, _, admin_svc = _rbac_client(tmp_path)
+    cookie, _ = _cookie_session(client, admin_svc, "editor3@example.com", "editorpass3", ["editor"])
+    resp = client.post(
+        f"/meetings/{MEETING_ID}/jobs/transcribe",
+        cookies={"ma_session": cookie},
+        # no X-CSRF-Token
+    )
+    assert resp.status_code == 403

@@ -403,3 +403,61 @@ def test_machine_bearer_cannot_get_user(client: TestClient) -> None:
     bootstrap(client)
     resp = client.get("/admin/users/some-id", headers=MACHINE_AUTH)
     assert resp.status_code == 403
+
+
+# ------------------------------------------------------------------
+# Admin user list pagination bounds
+# ------------------------------------------------------------------
+
+def test_list_users_default_pagination(client: TestClient) -> None:
+    bootstrap(client)
+    cookie, _ = admin_login(client)
+    resp = client.get("/admin/users", cookies={"ma_session": cookie})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["offset"] == 0
+    assert body["limit"] == 100
+
+
+def test_list_users_valid_custom_pagination(client: TestClient) -> None:
+    bootstrap(client)
+    cookie, _ = admin_login(client)
+    resp = client.get("/admin/users?offset=0&limit=50", cookies={"ma_session": cookie})
+    assert resp.status_code == 200
+    assert resp.json()["limit"] == 50
+
+
+def test_list_users_negative_offset_returns_422(client: TestClient) -> None:
+    bootstrap(client)
+    cookie, _ = admin_login(client)
+    resp = client.get("/admin/users?offset=-1", cookies={"ma_session": cookie})
+    assert resp.status_code == 422
+
+
+def test_list_users_zero_limit_returns_422(client: TestClient) -> None:
+    bootstrap(client)
+    cookie, _ = admin_login(client)
+    resp = client.get("/admin/users?limit=0", cookies={"ma_session": cookie})
+    assert resp.status_code == 422
+
+
+def test_list_users_negative_limit_returns_422(client: TestClient) -> None:
+    bootstrap(client)
+    cookie, _ = admin_login(client)
+    resp = client.get("/admin/users?limit=-1", cookies={"ma_session": cookie})
+    assert resp.status_code == 422
+
+
+def test_list_users_excessive_limit_returns_422(client: TestClient) -> None:
+    bootstrap(client)
+    cookie, _ = admin_login(client)
+    resp = client.get("/admin/users?limit=201", cookies={"ma_session": cookie})
+    assert resp.status_code == 422
+
+
+def test_list_users_max_valid_limit(client: TestClient) -> None:
+    bootstrap(client)
+    cookie, _ = admin_login(client)
+    resp = client.get("/admin/users?limit=200", cookies={"ma_session": cookie})
+    assert resp.status_code == 200
+    assert resp.json()["limit"] == 200
