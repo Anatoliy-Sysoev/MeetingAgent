@@ -172,6 +172,18 @@ exclude_extensions:
 
 # Authentication settings.
 auth:
+  # Bootstrap safety for self-hosted / non-local deployments.
+  # By default, POST /admin/bootstrap accepts requests only from localhost.
+  # To allow bootstrap from a non-local address, set allow_remote: true AND
+  # provide a strong secret. The secret must be sent in the X-Bootstrap-Token
+  # header. Both settings can also be set via environment variables
+  # (MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE and MEETINGAGENT_BOOTSTRAP_SECRET),
+  # which take precedence. Remove or disable both after bootstrap is complete.
+  #
+  # bootstrap:
+  #   allow_remote: false        # default; set true only for non-local bootstrap
+  #   secret: ""                 # required when allow_remote is true
+
   # Server-side session lifetime in seconds. Default: 86400 (24 h).
   session_ttl_seconds: 86400
 

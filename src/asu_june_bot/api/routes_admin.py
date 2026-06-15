@@ -6,6 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from asu_june_bot.api.auth import require_admin_action_permission, require_admin_user_permission
+from asu_june_bot.api.bootstrap_policy import (
+    BOOTSTRAP_TOKEN_HEADER,
+    BootstrapPolicy,
+    is_local_request,
+)
 from asu_june_bot.auth.models import Principal
 from asu_june_bot.auth.service import (
     AdminService,
@@ -52,12 +57,47 @@ class UpdateUserRequest(BaseModel):
 # Bootstrap (no auth — first-user path)
 # ------------------------------------------------------------------
 
+def _enforce_bootstrap_policy(request: Request, policy: BootstrapPolicy) -> None:
+    """Reject non-local bootstrap requests that lack operator authorisation.
+
+    The local bypass (loopback peer → no secret required) applies only when
+    there are no forwarded proxy headers.  If X-Forwarded-For or Forwarded is
+    present the direct peer is a reverse proxy, not the real client, so the
+    local bypass is suppressed and the normal policy is enforced.
+
+    Forwarded headers are intentionally NOT used to identify the real client
+    IP — they are only examined to detect proxy presence (X-Forwarded-For,
+    Forwarded, X-Real-IP).
+    """
+    peer_host = request.client.host if request.client else None
+    has_forwarded = bool(
+        request.headers.get("x-forwarded-for")
+        or request.headers.get("forwarded")
+        or request.headers.get("x-real-ip")
+    )
+    if is_local_request(peer_host) and not has_forwarded:
+        return
+    if not policy.allow_remote:
+        raise HTTPException(
+            status_code=403,
+            detail="Bootstrap is not available from remote addresses",
+        )
+    provided = request.headers.get(BOOTSTRAP_TOKEN_HEADER, "")
+    if not policy.verify_secret(provided):
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid or missing bootstrap token",
+        )
+
+
 @router.post("/bootstrap", status_code=201)
 def bootstrap_admin(
     payload: BootstrapRequest,
     request: Request,
 ) -> dict:
     """Create the first admin user. Returns 409 if any user already exists."""
+    policy: BootstrapPolicy = request.app.state.asu_june_bot.bootstrap_policy
+    _enforce_bootstrap_policy(request, policy)
     admin_service: AdminService = _get_admin_service(request)
     try:
         user = admin_service.bootstrap_admin(

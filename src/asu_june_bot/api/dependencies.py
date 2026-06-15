@@ -15,6 +15,7 @@ from asu_june_bot.auth.service import (
     LocalAuthService,
 )
 from asu_june_bot.auth.throttle import LoginLimiter, build_login_throttle
+from asu_june_bot.api.bootstrap_policy import BootstrapPolicy, build_bootstrap_policy
 from asu_june_bot.chat import ChatService
 from asu_june_bot.core.config import load_config
 from asu_june_bot.health import HealthService
@@ -37,6 +38,7 @@ class AppState:
     local_auth_service: LocalAuthService
     admin_service: AdminService
     login_throttle: LoginLimiter
+    bootstrap_policy: BootstrapPolicy
 
 
 def _normalize_cookie_secure(value: Any) -> str:
@@ -70,6 +72,7 @@ def build_app_state() -> AppState:
     cookie_name = str(auth_cfg.get("cookie_name") or DEFAULT_COOKIE_NAME)
     cookie_secure = _normalize_cookie_secure(auth_cfg.get("cookie_secure"))
     login_throttle = build_login_throttle(auth_cfg.get("login_throttle"))
+    bootstrap_policy = build_bootstrap_policy(auth_cfg)
     return AppState(
         config=config,
         search_service=search_service,
@@ -93,6 +96,7 @@ def build_app_state() -> AppState:
         ),
         admin_service=AdminService(auth_repository),
         login_throttle=login_throttle,
+        bootstrap_policy=bootstrap_policy,
     )
 
 
