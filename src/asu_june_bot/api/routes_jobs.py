@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from asu_june_bot.api.auth import require_permission, require_write_access
+from asu_june_bot.api.auth import require_action_permission, require_permission
 from asu_june_bot.auth.models import Principal
 from asu_june_bot.jobs.runner import (
     STAGE_COMMANDS,
@@ -39,7 +39,7 @@ def _get_meetings_service(request: Request) -> MeetingsService:
 async def start_job(
     meeting_id: str,
     stage: str,
-    _principal: Annotated[Principal, Depends(require_write_access)],
+    _principal: Annotated[Principal, Depends(require_action_permission("jobs.start"))],
     runner: JobRunner = Depends(_get_runner),
     service: MeetingsService = Depends(_get_meetings_service),
 ) -> JSONResponse:
@@ -99,7 +99,7 @@ async def get_job(
 async def cancel_job(
     meeting_id: str,
     job_id: str,
-    _principal: Annotated[Principal, Depends(require_write_access)],
+    _principal: Annotated[Principal, Depends(require_action_permission("jobs.cancel"))],
     runner: JobRunner = Depends(_get_runner),
 ) -> JSONResponse:
     try:
