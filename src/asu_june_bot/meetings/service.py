@@ -12,6 +12,13 @@ import jsonschema
 SUPPORTED_MEDIA_EXTENSIONS = frozenset({".mp4", ".mp3", ".wav", ".m4a"})
 _VIDEO_EXTENSIONS = frozenset({".mp4"})
 
+_MEDIA_MIME_TYPES: dict[str, str] = {
+    ".wav": "audio/wav",
+    ".mp3": "audio/mpeg",
+    ".m4a": "audio/mp4",
+    ".mp4": "video/mp4",
+}
+
 # Allowlist: only these suffixes are served as text content.
 _SAFE_ARTIFACT_SUFFIXES = frozenset({
     ".md", ".txt", ".json", ".jsonl", ".srt", ".vtt", ".csv", ".yaml", ".yml"
@@ -150,6 +157,15 @@ def _artifact_entry(meeting_dir: Path, key: str, rel_path: str) -> dict[str, Any
             stat.st_mtime, tz=datetime.timezone.utc
         ).isoformat()
     return entry
+
+
+def _coerce_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _detect_content_type(path: Path) -> str | None:
@@ -351,6 +367,133 @@ class MeetingsService:
         text = self._read_text_bounded(abs_path, artifact_name)
         fmt = "jsonl" if suffix == ".jsonl" else ("json" if suffix == ".json" else "text")
         return {"artifact": artifact_name, "format": fmt, "content": text}
+
+    def list_media(self, meeting_id: str) -> list[dict[str, Any]] | None:
+        """Return safe metadata for all media files registered in a meeting card.
+
+        Returns None when meeting_id is unsafe or the meeting does not exist.
+        Returns an empty list when the meeting has no usable media files.
+        Never exposes absolute filesystem paths.
+        """
+        if not _safe_meeting_id(meeting_id):
+            return None
+        card_path = self._card_path(meeting_id)
+        if not card_path.exists():
+            return None
+        data = _read_meeting_json(card_path)
+        meeting_dir = self._meeting_dir(meeting_id)
+        media_files: list[dict] = (data.get("source") or {}).get("media_files") or []
+        result: list[dict[str, Any]] = []
+        for i, mf in enumerate(media_files):
+            rel = mf.get("path", "")
+            if not rel:
+                continue
+            abs_path = (meeting_dir / rel).resolve()
+            try:
+                abs_path.relative_to(meeting_dir.resolve())
+            except ValueError:
+                continue  # path traversal recorded in card — skip silently
+            if not abs_path.exists() or not abs_path.is_file():
+                continue
+            suffix = abs_path.suffix.lower()
+            mime = _MEDIA_MIME_TYPES.get(suffix)
+            if not mime:
+                continue  # unsupported extension — not listed
+            stat = abs_path.stat()
+            entry: dict[str, Any] = {
+                "media_id": str(i),
+                "filename": abs_path.name,
+                "media_type": mime,
+                "size_bytes": stat.st_size,
+            }
+            if mf.get("sha256"):
+                entry["sha256"] = mf["sha256"]
+            duration = mf.get("duration_seconds")
+            if duration is not None:
+                entry["duration_sec"] = float(duration)
+            result.append(entry)
+        return result
+
+    def get_media_path(self, meeting_id: str, media_id: str) -> tuple[Path, str] | None:
+        """Return (abs_path, mime_type) for a media file identified by its list index.
+
+        media_id is the string representation of the 0-based index into
+        source.media_files.  It is never used as a filesystem path — the actual
+        path is always sourced from the meeting card.
+        Returns None when not found, unsafe, or unsupported type.
+        """
+        if not _safe_meeting_id(meeting_id):
+            return None
+        try:
+            idx = int(media_id)
+        except (ValueError, TypeError):
+            return None
+        if idx < 0:
+            return None
+        card_path = self._card_path(meeting_id)
+        if not card_path.exists():
+            return None
+        data = _read_meeting_json(card_path)
+        meeting_dir = self._meeting_dir(meeting_id)
+        media_files: list[dict] = (data.get("source") or {}).get("media_files") or []
+        if idx >= len(media_files):
+            return None
+        mf = media_files[idx]
+        rel = mf.get("path", "")
+        if not rel:
+            return None
+        abs_path = (meeting_dir / rel).resolve()
+        try:
+            abs_path.relative_to(meeting_dir.resolve())
+        except ValueError:
+            return None
+        if not abs_path.exists() or not abs_path.is_file():
+            return None
+        suffix = abs_path.suffix.lower()
+        mime = _MEDIA_MIME_TYPES.get(suffix)
+        if not mime:
+            return None
+        return abs_path, mime
+
+    def get_transcript_segments(self, meeting_id: str) -> dict[str, Any] | None:
+        """Return normalized transcript segments for the workspace UI.
+
+        Returns None when meeting not found.  Returns dict with empty segments
+        when transcript is unavailable or not in JSONL segment format.
+        Each segment has a stable ``segment_id`` (``seg-NNNNNN``) and
+        normalized field names regardless of the transcription engine that
+        produced the JSONL.
+        """
+        if not _safe_meeting_id(meeting_id):
+            return None
+        card_path = self._card_path(meeting_id)
+        if not card_path.exists():
+            return None
+        raw = self.get_transcript(meeting_id)
+        if raw is None:
+            return None
+        base: dict[str, Any] = {"meeting_id": meeting_id, "segments": []}
+        if not raw.get("artifact"):
+            return base
+        if raw.get("format") != "jsonl":
+            return base  # text/json transcript — segment shape not available
+        normalized = []
+        for i, seg in enumerate(raw.get("segments") or []):
+            normalized.append({
+                "segment_id": f"seg-{i + 1:06d}",
+                "start_sec": _coerce_float(seg.get("start_sec") or seg.get("start")),
+                "end_sec": _coerce_float(seg.get("end_sec") or seg.get("end")),
+                "speaker": (
+                    seg.get("speaker")
+                    or seg.get("speaker_id")
+                    or seg.get("speaker_label")
+                ),
+                "text": (
+                    seg.get("text") or seg.get("content") or seg.get("transcript") or ""
+                ),
+            })
+        base["segments"] = normalized
+        return base
 
     # ------------------------------------------------------------------
     # Write / ingest
