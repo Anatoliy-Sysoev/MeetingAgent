@@ -533,10 +533,13 @@ async function loadArtifacts() {
           <span class="artifact-name">${esc(a.key)}</span>
           <span class="artifact-size">${fmtBytes(a.size_bytes)}</span>
         </span>
-        <button onclick="viewArtifact('${esc(a.key)}')" style="font-size:11px;padding:2px 8px">View</button>
+        <button class="view-artifact-btn" data-artifact-key="${esc(a.key)}" style="font-size:11px;padding:2px 8px">View</button>
       </li>`
     ).join("") +
     `</ul><div id="artifact-viewer"></div>`;
+  panel.querySelectorAll(".view-artifact-btn").forEach(btn => {
+    btn.addEventListener("click", () => viewArtifact(btn.dataset.artifactKey));
+  });
 }
 
 async function viewArtifact(key) {

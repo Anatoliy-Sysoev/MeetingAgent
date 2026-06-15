@@ -431,3 +431,45 @@ def test_workspace_meeting_id_safely_embedded_in_js(tmp_path: Path) -> None:
     assert resp.status_code == 200
     # The ID appears as a proper JSON string literal in JS
     assert f'"{MEETING_ID}"' in resp.text
+
+
+# ------------------------------------------------------------------
+# Regression: artifact key XSS via inline onclick
+# ------------------------------------------------------------------
+
+def test_workspace_artifact_key_with_single_quote_not_in_onclick(tmp_path: Path) -> None:
+    """Artifact keys with JS-injection payloads must not appear in onclick attributes."""
+    meeting_dir = make_meeting(tmp_path)
+    malicious_key = "x');alert(1);//"
+    # Write a real file so the artifact shows as exists=True
+    (meeting_dir / "bad.md").write_text("content", encoding="utf-8")
+    card = json.loads((meeting_dir / "meeting.json").read_text())
+    card["artifacts"] = {malicious_key: "bad.md"}
+    (meeting_dir / "meeting.json").write_text(json.dumps(card))
+
+    resp = make_client(tmp_path).get(f"/meetings/{MEETING_ID}/workspace")
+    assert resp.status_code == 200
+    body = resp.text
+    # The raw payload must not appear unescaped inside an onclick="..." attribute
+    assert f"onclick=\"viewArtifact('{malicious_key}')" not in body
+    assert "alert(1)" not in body
+
+
+def test_workspace_template_uses_data_attribute_not_onclick_for_artifact_key(tmp_path: Path) -> None:
+    """The workspace JS template must not interpolate artifact keys into onclick strings.
+
+    Artifact rendering is client-side (loadArtifacts fetches the API), so the
+    static HTML never contains artifact keys from the server.  What we verify is
+    that the embedded JS source uses data-artifact-key + addEventListener, not
+    onclick string interpolation which would be XSS-vulnerable.
+    """
+    make_meeting(tmp_path)
+    resp = make_client(tmp_path).get(f"/meetings/{MEETING_ID}/workspace")
+    assert resp.status_code == 200
+    body = resp.text
+    # The dangerous pattern (inline onclick with artifact key interpolated) must be absent
+    assert "onclick=\"viewArtifact('" not in body
+    # The safe pattern (data attribute + listener) must be present in the JS template
+    assert "data-artifact-key" in body
+    assert "view-artifact-btn" in body
+    assert "dataset.artifactKey" in body
