@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+import json as _json
+
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from asu_june_bot.meetings.service import MeetingsService, _safe_meeting_id
@@ -418,8 +420,8 @@ async function loadMedia() {
   if (items.length > 1) {
     selectorHtml = `<div class="media-selector" id="media-sel">` +
       items.map((m, i) =>
-        `<button class="${i===0?"active":""}" onclick="switchMedia(${i},'${m.media_type.startsWith("video/")?"video":"audio"}')">`
-        + `${m.filename} (${fmtBytes(m.size_bytes)})</button>`
+        `<button class="${i===0?"active":""}" data-media-id="${esc(m.media_id)}" onclick="switchMedia('${esc(m.media_id)}')">`
+        + `${esc(m.filename)} (${fmtBytes(m.size_bytes)})</button>`
       ).join("") + `</div>`;
   }
 
@@ -436,15 +438,15 @@ async function loadMedia() {
   _player.addEventListener("timeupdate", onTimeUpdate);
 }
 
-function switchMedia(idx, type) {
+function switchMedia(mediaId) {
   if (!_player) return;
-  const src = `/meetings/${encodeURIComponent(MEETING_ID)}/media/${idx}`;
+  const src = `/meetings/${encodeURIComponent(MEETING_ID)}/media/${encodeURIComponent(mediaId)}`;
   const t = _player.currentTime;
   _player.src = src;
   _player.load();
   _player.currentTime = t;
-  document.querySelectorAll("#media-sel button").forEach((b, i) => {
-    b.classList.toggle("active", i === idx);
+  document.querySelectorAll("#media-sel button").forEach((b) => {
+    b.classList.toggle("active", b.dataset.mediaId === String(mediaId));
   });
 }
 
@@ -614,20 +616,23 @@ reloadAll();
 
 
 @router.get("/meetings/{meeting_id}/workspace", response_class=HTMLResponse)
-def meeting_workspace(meeting_id: str, request: Request) -> HTMLResponse:
+def meeting_workspace(meeting_id: str, request: Request) -> HTMLResponse:  # noqa: ARG001
     """Serve the Meeting Workspace single-page UI.
 
     Auth is enforced by the API calls the page makes — not at this route — to
-    be consistent with the existing SPA at GET /.  Invalid meeting_id format
-    returns 404 before serving HTML to avoid XSS via injected IDs.
+    be consistent with the existing SPA at GET /.
+
+    Existence is NOT checked here: doing so would let unauthenticated callers
+    distinguish 200 vs 404 and probe which meeting IDs exist.  The JS handles
+    404 / 401 from the API gracefully.
+
+    Only the meeting_id *format* is validated to prevent injection into the
+    embedded JS literal; meeting_id is additionally serialised with json.dumps
+    as belt-and-suspenders.
     """
     if not _safe_meeting_id(meeting_id):
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
-    svc: MeetingsService = getattr(request.app.state.asu_june_bot, "meetings_service", None) or MeetingsService()
-    card = svc.root / meeting_id / "meeting.json"
-    if not card.exists():
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
-    html = _WORKSPACE_HTML.replace("__MEETING_ID__", meeting_id)
+    # json.dumps produces a quoted, JSON-safe JS string literal including surrounding quotes.
+    safe_js_id = _json.dumps(meeting_id)
+    html = _WORKSPACE_HTML.replace('"__MEETING_ID__"', safe_js_id)
     return HTMLResponse(content=html)

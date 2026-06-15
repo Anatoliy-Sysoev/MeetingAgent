@@ -315,11 +315,119 @@ def test_workspace_returns_html(tmp_path: Path) -> None:
     assert "artifacts-panel" in body
 
 
-def test_workspace_404_unknown_meeting(tmp_path: Path) -> None:
+def test_workspace_unknown_meeting_serves_html(tmp_path: Path) -> None:
+    # No existence check at page-serve time — avoids unauthenticated probing.
     resp = make_client(tmp_path).get("/meetings/9999-99-99__ghost/workspace")
-    assert resp.status_code == 404
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
 
 
 def test_workspace_404_invalid_id(tmp_path: Path) -> None:
     resp = make_client(tmp_path).get("/meetings/../etc/workspace")
     assert resp.status_code in (404, 422)
+
+
+# ------------------------------------------------------------------
+# Regression: malformed JSONL transcript
+# ------------------------------------------------------------------
+
+def test_transcript_segments_malformed_jsonl_skips_bad_lines(tmp_path: Path) -> None:
+    """Malformed JSONL lines are silently skipped; valid lines still returned."""
+    meeting_dir = make_meeting(tmp_path)
+    seg_dir = meeting_dir / "transcript"
+    seg_dir.mkdir()
+    # Mix of valid, empty, and malformed lines
+    (seg_dir / "segments.jsonl").write_text(
+        '{"start": 0.0, "end": 2.0, "speaker": "A", "text": "Good"}\n'
+        "{bad json\n"
+        "\n"
+        '{"start": 5.0, "end": 8.0, "speaker": "B", "text": "Also good"}\n',
+        encoding="utf-8",
+    )
+    card = json.loads((meeting_dir / "meeting.json").read_text())
+    card["artifacts"] = {"segments": "transcript/segments.jsonl"}
+    (meeting_dir / "meeting.json").write_text(json.dumps(card))
+
+    resp = make_client(tmp_path).get(f"/meetings/{MEETING_ID}/transcript/segments")
+    assert resp.status_code == 200
+    segs = resp.json()["segments"]
+    assert len(segs) == 2
+    assert segs[0]["text"] == "Good"
+    assert segs[1]["text"] == "Also good"
+
+
+def test_transcript_segments_all_malformed_returns_empty(tmp_path: Path) -> None:
+    meeting_dir = make_meeting(tmp_path)
+    seg_dir = meeting_dir / "transcript"
+    seg_dir.mkdir()
+    (seg_dir / "segments.jsonl").write_text("{bad\n{also bad\n", encoding="utf-8")
+    card = json.loads((meeting_dir / "meeting.json").read_text())
+    card["artifacts"] = {"segments": "transcript/segments.jsonl"}
+    (meeting_dir / "meeting.json").write_text(json.dumps(card))
+
+    resp = make_client(tmp_path).get(f"/meetings/{MEETING_ID}/transcript/segments")
+    assert resp.status_code == 200
+    assert resp.json()["segments"] == []
+
+
+# ------------------------------------------------------------------
+# Regression: media switcher uses media_id from API, not display index
+# ------------------------------------------------------------------
+
+def test_media_list_media_id_matches_stream_url(tmp_path: Path) -> None:
+    """media_id in list response must be usable directly in the stream URL."""
+    meeting_dir = make_meeting(tmp_path)
+    source = meeting_dir / "source"
+    source.mkdir()
+    (source / "audio.wav").write_bytes(b"RIFF\x00\x00\x00\x00WAVE")
+    card = json.loads((meeting_dir / "meeting.json").read_text())
+    card["source"]["media_files"] = [{"path": "source/audio.wav", "media_type": "audio"}]
+    (meeting_dir / "meeting.json").write_text(json.dumps(card))
+
+    client = make_client(tmp_path)
+    list_resp = client.get(f"/meetings/{MEETING_ID}/media")
+    assert list_resp.status_code == 200
+    items = list_resp.json()["media"]
+    assert len(items) == 1
+    media_id = items[0]["media_id"]
+
+    # Stream using the media_id exactly as returned by the list endpoint
+    stream_resp = client.get(f"/meetings/{MEETING_ID}/media/{media_id}")
+    assert stream_resp.status_code == 200
+
+
+# ------------------------------------------------------------------
+# Regression: workspace no existence leak for unauthenticated callers
+# ------------------------------------------------------------------
+
+def test_workspace_serves_html_without_auth_no_existence_leak(tmp_path: Path) -> None:
+    """Workspace page serves HTML for unauthenticated users (no 401/404 info leak).
+    The auth overlay is handled client-side after API calls return 401.
+    """
+    make_meeting(tmp_path)
+    client = make_client(tmp_path)
+    # Without auth header — page still serves HTML; 401 is handled by JS overlay
+    resp = client.get(
+        f"/meetings/{MEETING_ID}/workspace",
+        headers={"Authorization": ""},
+    )
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert "auth-overlay" in resp.text
+
+
+def test_workspace_nonexistent_meeting_serves_html_not_404(tmp_path: Path) -> None:
+    """Nonexistent meeting IDs with valid format serve HTML (no existence disclosure)."""
+    resp = make_client(tmp_path).get("/meetings/2026-01-01__does-not-exist/workspace")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert "2026-01-01--does-not-exist" not in resp.text  # id in JS, not in URL form
+
+
+def test_workspace_meeting_id_safely_embedded_in_js(tmp_path: Path) -> None:
+    """meeting_id is embedded via json.dumps; no raw string injection into JS."""
+    make_meeting(tmp_path)
+    resp = make_client(tmp_path).get(f"/meetings/{MEETING_ID}/workspace")
+    assert resp.status_code == 200
+    # The ID appears as a proper JSON string literal in JS
+    assert f'"{MEETING_ID}"' in resp.text

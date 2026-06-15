@@ -335,7 +335,14 @@ class MeetingsService:
                 continue
             text = self._read_text_bounded(abs_path, key)
             if content_type == "jsonl":
-                lines = [json.loads(ln) for ln in text.splitlines() if ln.strip()]
+                lines = []
+                for ln in text.splitlines():
+                    if not ln.strip():
+                        continue
+                    try:
+                        lines.append(json.loads(ln))
+                    except json.JSONDecodeError:
+                        continue  # skip malformed lines; do not surface parse details
                 return {"artifact": key, "format": "jsonl", "segments": lines}
             if content_type == "json":
                 return {"artifact": key, "format": "json", "content": json.loads(text)}
