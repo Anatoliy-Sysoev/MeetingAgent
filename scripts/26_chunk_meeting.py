@@ -47,6 +47,20 @@ def validate_schema(data: dict[str, Any], schema_path: Path) -> None:
     Draft202012Validator(schema).validate(data)
 
 
+def _safe_resolve(meeting_dir: Path, rel_value: str) -> Path | None:
+    rel = str(rel_value).replace("\\", "/")
+    rel_path = Path(rel)
+    if rel_path.is_absolute() or ".." in rel_path.parts:
+        return None
+    base = meeting_dir.resolve()
+    target = (base / rel_path).resolve()
+    try:
+        target.relative_to(base)
+        return target
+    except ValueError:
+        return None
+
+
 def resolve_meeting_dir(value: str) -> Path:
     path = Path(value).expanduser()
     if not path.is_absolute():
@@ -193,10 +207,15 @@ def run(args: argparse.Namespace) -> int:
         "speaker_transcript",
         "transcript/speaker_transcript.jsonl",
     )
-    speaker_path = meeting_dir / speaker_rel
+    speaker_path = _safe_resolve(meeting_dir, speaker_rel)
+    if speaker_path is None:
+        raise ChunkMeetingError(
+            "speaker_transcript path is unsafe (absolute or traversal)",
+            stage="preflight",
+        )
     if not speaker_path.exists():
         raise ChunkMeetingError(
-            f"speaker_transcript.jsonl not found: {speaker_path}",
+            "speaker_transcript.jsonl not found; run merge first",
             stage="preflight",
         )
 

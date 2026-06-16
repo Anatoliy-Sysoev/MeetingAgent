@@ -56,6 +56,20 @@ def validate_schema(data: dict[str, Any], schema_path: Path) -> None:
     Draft202012Validator(schema).validate(data)
 
 
+def _safe_resolve(meeting_dir: Path, rel_value: str) -> Path | None:
+    rel = str(rel_value).replace("\\", "/")
+    rel_path = Path(rel)
+    if rel_path.is_absolute() or ".." in rel_path.parts:
+        return None
+    base = meeting_dir.resolve()
+    target = (base / rel_path).resolve()
+    try:
+        target.relative_to(base)
+        return target
+    except ValueError:
+        return None
+
+
 def resolve_meeting_dir(value: str) -> Path:
     path = Path(value).expanduser()
     if not path.is_absolute():
@@ -189,9 +203,11 @@ def run(args: argparse.Namespace) -> int:
     meeting = read_json(meeting_path)
     validate_schema(meeting, schema_path)
     chunks_rel = meeting.get("artifacts", {}).get("chunks", "transcript/chunks.jsonl")
-    chunks_path = meeting_dir / chunks_rel
+    chunks_path = _safe_resolve(meeting_dir, chunks_rel)
+    if chunks_path is None:
+        raise EnrichMeetingError("chunks path is unsafe (absolute or traversal)", stage="preflight")
     if not chunks_path.exists():
-        raise EnrichMeetingError(f"chunks.jsonl not found: {chunks_path}", stage="preflight")
+        raise EnrichMeetingError("chunks.jsonl not found; run chunk first", stage="preflight")
     output_path = meeting_dir / "artifacts" / "enriched_chunks.jsonl"
     if output_path.exists() and not args.force:
         raise EnrichMeetingError(f"Enriched chunks already exist: {output_path}. Use --force.", stage="preflight")

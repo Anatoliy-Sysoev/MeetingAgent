@@ -96,6 +96,20 @@ def validate_schema(data: dict[str, Any], schema_path: Path) -> None:
     Draft202012Validator(schema).validate(data)
 
 
+def _safe_resolve(meeting_dir: Path, rel_value: str) -> Path | None:
+    rel = str(rel_value).replace("\\", "/")
+    rel_path = Path(rel)
+    if rel_path.is_absolute() or ".." in rel_path.parts:
+        return None
+    base = meeting_dir.resolve()
+    target = (base / rel_path).resolve()
+    try:
+        target.relative_to(base)
+        return target
+    except ValueError:
+        return None
+
+
 def resolve_meeting_dir(raw: str) -> Path:
     path = Path(raw).expanduser()
     if not path.is_absolute():
@@ -563,9 +577,11 @@ def run(args: argparse.Namespace) -> int:
     meeting = read_json(meeting_path)
     validate_schema(meeting, schema_dir / "meeting.schema.json")
     chunks_rel = meeting.get("artifacts", {}).get("enriched_chunks", "artifacts/enriched_chunks.jsonl")
-    chunks_path = meeting_dir / chunks_rel
+    chunks_path = _safe_resolve(meeting_dir, chunks_rel)
+    if chunks_path is None:
+        raise AnalyzeMeetingError("enriched_chunks path is unsafe (absolute or traversal)", "preflight")
     if not chunks_path.exists():
-        raise AnalyzeMeetingError(f"enriched chunks not found: {chunks_path}", "preflight")
+        raise AnalyzeMeetingError("enriched_chunks.jsonl not found; run enrich first", "preflight")
 
     for rel_path in ARTIFACT_PATHS.values():
         target = meeting_dir / rel_path
