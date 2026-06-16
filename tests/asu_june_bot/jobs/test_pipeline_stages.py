@@ -561,6 +561,40 @@ def test_unknown_stage_still_returns_422(tmp_path: Path) -> None:
     assert resp.status_code == 422
 
 
+def test_transcribe_stage_pins_product_asr_model() -> None:
+    """UI-launched transcribe must request large-v3-turbo, never fall back to small."""
+    base_args = STAGE_COMMANDS["transcribe"]["base_args"]
+    assert "--model" in base_args
+    assert base_args[base_args.index("--model") + 1] == "large-v3-turbo"
+    assert "small" not in base_args
+
+
+def test_transcribe_launch_command_carries_product_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    _make_meeting(tmp_path)
+    client, _, _ = _make_client(tmp_path)
+
+    real_calls: list[tuple] = []
+
+    import asu_june_bot.jobs.runner as runner_mod
+
+    async def fake_subprocess(*args, stdout, stderr):
+        if "--dry-run" not in args:
+            real_calls.append(args)
+        return _ImmediateProcess(returncode=0)
+
+    monkeypatch.setattr(runner_mod, "_create_subprocess", fake_subprocess)
+
+    resp = client.post(f"/meetings/{MEETING_ID}/jobs/transcribe", headers=AUTH)
+    assert resp.status_code == 202
+    assert real_calls, "real subprocess should have been launched after preflight"
+    args = real_calls[0]
+    assert "--model" in args
+    assert "large-v3-turbo" in args
+
+
 def test_transcribe_dry_run_preflight_still_works(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

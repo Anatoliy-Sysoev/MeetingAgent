@@ -145,8 +145,13 @@ STAGE_COMMANDS: dict[str, dict[str, Any]] = {
         "preflight": _extract_audio_preflight,
     },
     "transcribe": {
+        # Pin the product offline ASR model explicitly. Without --model, the
+        # script falls back to "small" when local config omits
+        # transcription.model, which would silently downgrade UI-launched
+        # transcription to draft quality. "small" remains available only via
+        # an explicit CLI --model for drafts.
         "script": _ROOT / "scripts" / "22_transcribe_meeting.py",
-        "base_args": ["--engine", "faster-whisper"],
+        "base_args": ["--engine", "faster-whisper", "--model", "large-v3-turbo"],
         "supports_dry_run": True,
     },
     "diarize": {
