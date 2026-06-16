@@ -147,19 +147,24 @@ def test_stages_requires_auth(tmp_path: Path) -> None:
     assert resp.status_code == 401
 
 
-def test_stages_returns_allowlisted_stages(tmp_path: Path) -> None:
+def test_stages_returns_all_runnable_stages(tmp_path: Path) -> None:
     make_meeting(tmp_path)
     client, _, _ = make_client(tmp_path)
     resp = client.get(f"/meetings/{MEETING_ID}/jobs/stages", headers=AUTH)
     assert resp.status_code == 200
     body = resp.json()
     assert body["meeting_id"] == MEETING_ID
-    stages = {s["stage"] for s in body["stages"]}
-    assert stages == {"transcribe", "diarize", "merge"}
+    stage_names = [s["stage"] for s in body["stages"]]
+    expected = [
+        "extract_audio", "transcribe", "diarize", "merge",
+        "chunk", "enrich", "index", "analyze",
+    ]
+    assert stage_names == expected, "stages must be returned in pipeline order"
     for s in body["stages"]:
         assert s["start_permission"] == "jobs.start"
         assert s["cancel_permission"] == "jobs.cancel"
         assert "label" in s and "description" in s
+        assert "order" in s
 
 
 def test_stages_no_filesystem_paths_in_response(tmp_path: Path) -> None:
