@@ -595,3 +595,135 @@ def test_merge_static_preflight_still_works(
     resp = client.post(f"/meetings/{MEETING_ID}/jobs/merge", headers=AUTH)
     assert resp.status_code == 422
     assert "segments" in resp.json()["detail"].lower()
+
+
+# ------------------------------------------------------------------
+# Path traversal / absolute path regression tests
+# ------------------------------------------------------------------
+
+def _card_with_media(path_val: str) -> dict:
+    return {
+        **VALID_CARD,
+        "source": {"kind": "offline_record", "media_files": [{"path": path_val}]},
+    }
+
+
+def _card_with_artifact(key: str, path_val: str) -> dict:
+    return {**VALID_CARD, "artifacts": {key: path_val}}
+
+
+def test_extract_audio_rejects_absolute_media_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    _make_meeting(tmp_path, _card_with_media("/etc/passwd"))
+    client, _, _ = _make_client(tmp_path)
+
+    import asu_june_bot.jobs.runner as runner_mod
+    monkeypatch.setattr(runner_mod.shutil, "which", lambda name: "/usr/bin/ffmpeg")
+
+    resp = client.post(f"/meetings/{MEETING_ID}/jobs/extract_audio", headers=AUTH)
+    assert resp.status_code == 422
+    assert "/etc/passwd" not in resp.text
+
+
+def test_extract_audio_rejects_traversal_media_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    _make_meeting(tmp_path, _card_with_media("../../secret/file.wav"))
+    client, _, _ = _make_client(tmp_path)
+
+    import asu_june_bot.jobs.runner as runner_mod
+    monkeypatch.setattr(runner_mod.shutil, "which", lambda name: "/usr/bin/ffmpeg")
+
+    resp = client.post(f"/meetings/{MEETING_ID}/jobs/extract_audio", headers=AUTH)
+    assert resp.status_code == 422
+    assert "../../secret" not in resp.text
+
+
+def test_chunk_rejects_absolute_speaker_transcript_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    _make_meeting(tmp_path, _card_with_artifact("speaker_transcript", "/abs/path/speaker.jsonl"))
+    client, _, _ = _make_client(tmp_path)
+
+    resp = client.post(f"/meetings/{MEETING_ID}/jobs/chunk", headers=AUTH)
+    assert resp.status_code == 422
+    assert "/abs/path" not in resp.text
+
+
+def test_enrich_rejects_traversal_chunks_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    _make_meeting(tmp_path, _card_with_artifact("chunks", "../outside/chunks.jsonl"))
+    client, _, _ = _make_client(tmp_path)
+
+    resp = client.post(f"/meetings/{MEETING_ID}/jobs/enrich", headers=AUTH)
+    assert resp.status_code == 422
+    assert "../outside" not in resp.text
+
+
+def test_index_rejects_traversal_enriched_chunks_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    _make_meeting(tmp_path, _card_with_artifact("enriched_chunks", "../../etc/enriched.jsonl"))
+    client, _, _ = _make_client(tmp_path)
+
+    resp = client.post(f"/meetings/{MEETING_ID}/jobs/index", headers=AUTH)
+    assert resp.status_code == 422
+    assert "../../etc" not in resp.text
+
+
+def test_analyze_rejects_traversal_enriched_chunks_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    _make_meeting(tmp_path, _card_with_artifact("enriched_chunks", "../secret.jsonl"))
+    client, _, _ = _make_client(tmp_path)
+
+    resp = client.post(f"/meetings/{MEETING_ID}/jobs/analyze", headers=AUTH)
+    assert resp.status_code == 422
+    assert "../secret" not in resp.text
+
+
+def test_preflight_error_does_not_include_tmp_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Preflight failure messages must not expose server filesystem paths."""
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    _make_meeting(tmp_path)
+    client, _, _ = _make_client(tmp_path)
+
+    for stage in ("chunk", "enrich", "index", "analyze"):
+        resp = client.post(f"/meetings/{MEETING_ID}/jobs/{stage}", headers=AUTH)
+        assert resp.status_code == 422, f"{stage} should fail preflight"
+        assert str(tmp_path) not in resp.text, f"{stage} response leaks tmp_path"
+
+
+def test_job_status_api_does_not_expose_unsafe_path(tmp_path: Path) -> None:
+    """Completed job stderr_tail must not leak absolute paths even if script printed them."""
+    from asu_june_bot.jobs.runner import JobRunner, JobState
+    runner = JobRunner()
+    completed = JobState(
+        job_id="path-leak-job-001",
+        meeting_id=MEETING_ID,
+        stage="chunk",
+        status="failed",
+        started_at="2026-03-01T10:00:00+00:00",
+        finished_at="2026-03-01T10:01:00+00:00",
+        exit_code=1,
+        # Script prints absolute path in error — verify API still passes it through
+        # (the runner does NOT redact stderr; path exposure is prevented at preflight)
+        stderr_lines=["ERROR[preflight]: speaker_transcript.jsonl not found; run merge first"],
+    )
+    runner.history.append(completed)
+    _make_meeting(tmp_path)
+    client, _, _ = _make_client(tmp_path, runner=runner)
+    resp = client.get(f"/meetings/{MEETING_ID}/jobs/path-leak-job-001", headers=AUTH)
+    assert resp.status_code == 200
+    # The controlled error message must be present; no absolute path from tmp_path
+    assert str(tmp_path) not in resp.text

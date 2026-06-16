@@ -16,6 +16,26 @@ _ROOT = Path(__file__).resolve().parents[3]
 # Preflight helpers — pure filesystem checks, no subprocess
 # ---------------------------------------------------------------------------
 
+def _safe_resolve(meeting_dir: Path, rel_value: str) -> Path | None:
+    """Resolve a meeting-relative path safely.
+
+    Returns the resolved Path if it stays within meeting_dir, or None when the
+    value is absolute, contains '..' traversal components, or resolves outside
+    the meeting directory.  Never raises — callers treat None as 'path absent'.
+    """
+    rel = str(rel_value).replace("\\", "/")
+    rel_path = Path(rel)
+    if rel_path.is_absolute() or ".." in rel_path.parts:
+        return None
+    base = meeting_dir.resolve()
+    target = (base / rel_path).resolve()
+    try:
+        target.relative_to(base)
+        return target
+    except ValueError:
+        return None
+
+
 def _read_card(meeting_dir: Path) -> tuple[str | None, dict[str, Any] | None]:
     """Return (error_str, data) for meeting.json. error_str is None on success."""
     card = meeting_dir / "meeting.json"
@@ -43,7 +63,8 @@ def _extract_audio_preflight(meeting_dir: Path) -> str | None:
         path_val = media.get("path")
         if not path_val or path_val == "source/audio_16k_mono.wav":
             continue
-        if (meeting_dir / path_val).exists():
+        resolved = _safe_resolve(meeting_dir, path_val)
+        if resolved is not None and resolved.exists():
             return None
     return "no existing source media file found; upload a media file first"
 
@@ -56,13 +77,9 @@ def _merge_preflight(meeting_dir: Path) -> str | None:
     artifacts: dict[str, str] = (data or {}).get("artifacts") or {}  # type: ignore[union-attr]
     segments_rel = artifacts.get("segments")
     if segments_rel:
-        try:
-            p = (meeting_dir / segments_rel).resolve()
-            p.relative_to(meeting_dir.resolve())
-            if p.exists():
-                return None
-        except ValueError:
-            pass
+        resolved = _safe_resolve(meeting_dir, segments_rel)
+        if resolved is not None and resolved.exists():
+            return None
     if (meeting_dir / "transcript" / "segments.jsonl").exists():
         return None
     return "segments.jsonl not found; run transcribe first"
@@ -74,7 +91,8 @@ def _chunk_preflight(meeting_dir: Path) -> str | None:
         return err
     artifacts: dict[str, str] = (data or {}).get("artifacts") or {}  # type: ignore[union-attr]
     speaker_rel = artifacts.get("speaker_transcript", "transcript/speaker_transcript.jsonl")
-    if (meeting_dir / speaker_rel).exists():
+    resolved = _safe_resolve(meeting_dir, speaker_rel)
+    if resolved is not None and resolved.exists():
         return None
     return "speaker_transcript.jsonl not found; run transcribe, diarize, and merge first"
 
@@ -85,7 +103,8 @@ def _enrich_preflight(meeting_dir: Path) -> str | None:
         return err
     artifacts: dict[str, str] = (data or {}).get("artifacts") or {}  # type: ignore[union-attr]
     chunks_rel = artifacts.get("chunks", "transcript/chunks.jsonl")
-    if (meeting_dir / chunks_rel).exists():
+    resolved = _safe_resolve(meeting_dir, chunks_rel)
+    if resolved is not None and resolved.exists():
         return None
     return "chunks.jsonl not found; run chunk first"
 
@@ -96,7 +115,8 @@ def _index_preflight(meeting_dir: Path) -> str | None:
         return err
     artifacts: dict[str, str] = (data or {}).get("artifacts") or {}  # type: ignore[union-attr]
     enriched_rel = artifacts.get("enriched_chunks", "artifacts/enriched_chunks.jsonl")
-    if (meeting_dir / enriched_rel).exists():
+    resolved = _safe_resolve(meeting_dir, enriched_rel)
+    if resolved is not None and resolved.exists():
         return None
     return "enriched_chunks.jsonl not found; run enrich first"
 
@@ -107,7 +127,8 @@ def _analyze_preflight(meeting_dir: Path) -> str | None:
         return err
     artifacts: dict[str, str] = (data or {}).get("artifacts") or {}  # type: ignore[union-attr]
     enriched_rel = artifacts.get("enriched_chunks", "artifacts/enriched_chunks.jsonl")
-    if (meeting_dir / enriched_rel).exists():
+    resolved = _safe_resolve(meeting_dir, enriched_rel)
+    if resolved is not None and resolved.exists():
         return None
     return "enriched_chunks.jsonl not found; run enrich first"
 
