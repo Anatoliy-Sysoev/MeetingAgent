@@ -522,36 +522,61 @@ function switchMedia(mediaId) {
 }
 
 // ---- transcript ----
+function _mkEl(tag, className) {
+  const el = document.createElement(tag);
+  if (className) el.className = className;
+  return el;
+}
+
+function _mkEmptyMsg(msg) {
+  const div = _mkEl("div", "empty");
+  div.textContent = msg;
+  return div;
+}
+
 async function loadTranscript() {
   const list = document.getElementById("transcript-list");
   const resp = await apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}/transcript/segments`);
-  if (!resp) { list.innerHTML = ""; return; }
+  if (!resp) { list.replaceChildren(); return; }
   if (!resp.ok) {
-    list.innerHTML = `<div class="empty">Transcript not available</div>`;
+    list.replaceChildren(_mkEmptyMsg("Transcript not available"));
     return;
   }
   const data = await resp.json();
   _segments = data.segments || [];
   document.getElementById("seg-count").textContent = `${_segments.length} segments`;
   if (_segments.length === 0) {
-    list.innerHTML = `<div class="empty">No transcript segments available</div>`;
+    list.replaceChildren(_mkEmptyMsg("No transcript segments available"));
     return;
   }
-  list.innerHTML = _segments.map((seg, i) =>
-    `<div class="seg" id="seg-${i}" data-start-sec="${seg.start_sec != null ? seg.start_sec : ""}">
-      <div class="seg-meta">
-        <span class="seg-time">${fmtSec(seg.start_sec)}</span>
-        ${seg.speaker ? ` &mdash; <span class="seg-speaker">${esc(seg.speaker)}</span>` : ""}
-      </div>
-      <div class="seg-text">${esc(seg.text)}</div>
-    </div>`
-  ).join("");
-  list.querySelectorAll(".seg").forEach((el) => {
-    el.addEventListener("click", () => {
-      const v = el.dataset.startSec;
-      if (v !== "") seekTo(Number(v));
+  const nodes = _segments.map((seg, i) => {
+    const div = _mkEl("div", "seg");
+    div.id = `seg-${i}`;
+    if (seg.start_sec != null) div.dataset.startSec = seg.start_sec;
+
+    const meta = _mkEl("div", "seg-meta");
+    const time = _mkEl("span", "seg-time");
+    time.textContent = fmtSec(seg.start_sec);
+    meta.appendChild(time);
+    if (seg.speaker) {
+      const sep = document.createTextNode(" — ");
+      meta.appendChild(sep);
+      const spk = _mkEl("span", "seg-speaker");
+      spk.textContent = seg.speaker;
+      meta.appendChild(spk);
+    }
+
+    const txt = _mkEl("div", "seg-text");
+    txt.textContent = seg.text;
+
+    div.appendChild(meta);
+    div.appendChild(txt);
+    div.addEventListener("click", () => {
+      if (seg.start_sec != null) seekTo(seg.start_sec);
     });
+    return div;
   });
+  list.replaceChildren(...nodes);
 }
 
 function seekTo(sec) {
@@ -595,48 +620,65 @@ function filterSegments(q) {
 async function loadArtifacts() {
   const panel = document.getElementById("artifacts-panel");
   const resp = await apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}/artifacts`);
-  if (!resp) { panel.innerHTML = ""; return; }
-  if (!resp.ok) { panel.innerHTML = `<div class="empty">No artifacts</div>`; return; }
+  if (!resp) { panel.replaceChildren(); return; }
+  if (!resp.ok) { panel.replaceChildren(_mkEmptyMsg("No artifacts")); return; }
   const data = await resp.json();
   const artifacts = (data.artifacts || []).filter(a => a.exists);
   if (artifacts.length === 0) {
-    panel.innerHTML = `<div class="empty">No artifacts generated yet</div>`;
+    panel.replaceChildren(_mkEmptyMsg("No artifacts generated yet"));
     return;
   }
-  panel.innerHTML = `<ul class="artifact-list">` +
-    artifacts.map(a =>
-      `<li>
-        <span>
-          <span class="artifact-name">${esc(a.key)}</span>
-          <span class="artifact-size">${fmtBytes(a.size_bytes)}</span>
-        </span>
-        <button class="view-artifact-btn" data-artifact-key="${esc(a.key)}" style="font-size:11px;padding:2px 8px">View</button>
-      </li>`
-    ).join("") +
-    `</ul><div id="artifact-viewer"></div>`;
-  panel.querySelectorAll(".view-artifact-btn").forEach(btn => {
+  const ul = _mkEl("ul", "artifact-list");
+  artifacts.forEach(a => {
+    const li = document.createElement("li");
+
+    const nameWrap = document.createElement("span");
+    const nameSpan = _mkEl("span", "artifact-name");
+    nameSpan.textContent = a.key;
+    const sizeSpan = _mkEl("span", "artifact-size");
+    sizeSpan.textContent = fmtBytes(a.size_bytes);
+    nameWrap.appendChild(nameSpan);
+    nameWrap.appendChild(sizeSpan);
+
+    const btn = document.createElement("button");
+    btn.className = "view-artifact-btn";
+    btn.dataset.artifactKey = a.key;
+    btn.style.cssText = "font-size:11px;padding:2px 8px";
+    btn.textContent = "View";
     btn.addEventListener("click", () => viewArtifact(btn.dataset.artifactKey));
+
+    li.appendChild(nameWrap);
+    li.appendChild(btn);
+    ul.appendChild(li);
   });
+  const viewerDiv = document.createElement("div");
+  viewerDiv.id = "artifact-viewer";
+  panel.replaceChildren(ul, viewerDiv);
 }
 
 async function viewArtifact(key) {
   const viewer = document.getElementById("artifact-viewer");
   if (!viewer) return;
-  viewer.innerHTML = `<div class="artifact-content">Loading&hellip;</div>`;
+  const loading = _mkEl("div", "artifact-content");
+  loading.textContent = "Loading…";
+  viewer.replaceChildren(loading);
   document.getElementById("close-artifact-btn").style.display = "";
   const resp = await apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}/artifacts/${encodeURIComponent(key)}`);
   if (!resp || !resp.ok) {
-    viewer.innerHTML = `<div class="err-msg">Could not load artifact.</div>`;
+    const errDiv = _mkEl("div", "err-msg");
+    errDiv.textContent = "Could not load artifact.";
+    viewer.replaceChildren(errDiv);
     return;
   }
   const data = await resp.json();
-  const content = data.content || "";
-  viewer.innerHTML = `<div class="artifact-content">${esc(String(content))}</div>`;
+  const contentDiv = _mkEl("div", "artifact-content");
+  contentDiv.textContent = String(data.content || "");
+  viewer.replaceChildren(contentDiv);
 }
 
 function closeArtifact() {
   const viewer = document.getElementById("artifact-viewer");
-  if (viewer) viewer.innerHTML = "";
+  if (viewer) viewer.replaceChildren();
   document.getElementById("close-artifact-btn").style.display = "none";
 }
 

@@ -291,12 +291,13 @@ class MeetingQAService:
         if not answer or _has_no_answer_marker(answer):
             return self._chat_payload(meeting_id, status="no_answer", refusal=_REFUSAL_NO_ANSWER)
 
-        # Only surface sources the answer actually cited via [S#], so the
-        # evidence base is not overstated. If the model emitted no parseable
-        # markers, fall back to all retrieved chunks and label them as such.
-        cited = set(_cited_source_indices(answer, len(ranked)))
-        if cited:
-            selected = [row for idx, (_score, row) in enumerate(ranked, start=1) if idx in cited]
+        # Only surface sources the answer actually cited via [S#], preserving
+        # first-appearance order from the answer. If the model emitted no
+        # parseable markers, fall back to all retrieved chunks.
+        used = _cited_source_indices(answer, len(ranked))
+        by_idx = {idx: row for idx, (_score, row) in enumerate(ranked, start=1)}
+        if used:
+            selected = [by_idx[idx] for idx in used if idx in by_idx]
             basis = "cited"
         else:
             selected = [row for _score, row in ranked]

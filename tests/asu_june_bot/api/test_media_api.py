@@ -469,8 +469,9 @@ def test_workspace_template_uses_data_attribute_not_onclick_for_artifact_key(tmp
     body = resp.text
     # The dangerous pattern (inline onclick with artifact key interpolated) must be absent
     assert "onclick=\"viewArtifact('" not in body
-    # The safe pattern (data attribute + listener) must be present in the JS template
-    assert "data-artifact-key" in body
+    # The safe pattern (dataset property + listener) must be present in the JS template.
+    # Artifact keys are set via btn.dataset.artifactKey (DOM property), not inline HTML attr.
+    assert "dataset.artifactKey" in body
     assert "view-artifact-btn" in body
 
 
