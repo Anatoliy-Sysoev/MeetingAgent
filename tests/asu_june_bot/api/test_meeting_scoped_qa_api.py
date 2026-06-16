@@ -375,6 +375,22 @@ def test_chat_hallucinated_citation_index_is_dropped(tmp_path: Path) -> None:
     assert cited_ids <= {"c1", "c2"}
 
 
+def test_chat_citations_preserve_answer_citation_order(tmp_path: Path) -> None:
+    """Citations must appear in the order the answer cites them, not ranked order.
+
+    The answer cites [S2] before [S1].  The ranked list has c1 as S1 and c2 as S2.
+    The returned citations should be [c2, c1], not [c1, c2].
+    """
+    client, _repo, _llm = make_client(tmp_path, llm=FakeLLM("Важно [S2], дополнительно [S1]."))
+    resp = client.post(f"/meetings/{MEETING_ID}/chat", json={"query": "бюджет", "top_k": 5})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["citations_basis"] == "cited"
+    assert len(body["citations"]) == 2
+    assert body["citations"][0]["chunk_id"] == "c2"
+    assert body["citations"][1]["chunk_id"] == "c1"
+
+
 def test_cited_source_indices_parsing() -> None:
     from asu_june_bot.meetings.qa import _cited_source_indices
 
