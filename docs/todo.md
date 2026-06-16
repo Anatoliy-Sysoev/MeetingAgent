@@ -1,6 +1,6 @@
 # Todo
 
-Обновлено: 2026-06-16.
+Обновлено: 2026-06-16 (E2E smoke).
 
 ## Done
 
@@ -27,14 +27,16 @@
 - [x] MA-PIPELINE-STAGES-EXPANSION (#76): expand runner beyond transcribe/diarize/merge — add extract_audio, chunk, enrich, index, analyze; stage catalog sorted by order; static preflight checks per stage; `index` stage populates data/meeting_chunks.jsonl enabling workspace Q&A
 - [x] MA-POST-PIPELINE-HARDENING (#78): pin product ASR model (`--model large-v3-turbo`) for UI-launched transcribe (no silent `small` fallback); remove remaining inline `on*` handlers from Workspace (header refresh, transcript filter, close-artifact, transcript segment seek → `dataset`+`addEventListener`); chat citations filtered to actually-cited `[S#]` with `citations_basis` (`cited`/`retrieved`/`null`)
 
-## Backlog (приоритет сверху вниз)
+## Done (E2E Smoke)
 
-- MA-PIPELINE-END-TO-END-SMOKE: замкнуть полный сценарий ingest → pipeline stages → meeting_chunks.jsonl → workspace → search/chat
+- [x] MA-PIPELINE-E2E-SMOKE (#80): deterministic E2E smoke suite — chunk → enrich → index → analyze in-process; Workspace API; meeting-scoped search/chat; ASR model pin regression; DOM/CSP checks; path-safety assertions
+
+## Backlog (приоритет сверху вниз)
 - MA-REVIEW-QUEUE: разметка chat_runs.jsonl для eval, генерация guard_v2_cases.jsonl
 - Meeting-scoped Q&A v2: vector retrieval over meeting chunks (current MVP is lexical), transcript-segment-level citations (`segment_id`)
 - #39/#40 auth evolution: per-user tokens или OIDC; require_write_access() — стабильный контракт роутов, менять только внутри auth.py
 
 ## Dev Roadmap
 
-- После MA-PIPELINE-STAGES-EXPANSION: замкнутый цикл ingest → extract_audio → transcribe → diarize → merge → chunk → enrich → index → workspace search/chat через браузер
+- MA-PIPELINE-STAGES-EXPANSION (#76) + MA-POST-PIPELINE-HARDENING (#78) + MA-PIPELINE-E2E-SMOKE (#80) вместе замыкают цикл: chunk → enrich → index → workspace search/chat подтверждён in-process E2E тестами
 - После Epic #44: multi-user / публичный деплой без шаринга одного токена
