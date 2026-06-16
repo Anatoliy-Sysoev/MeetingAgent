@@ -1,6 +1,6 @@
 # Todo
 
-Обновлено: 2026-06-13.
+Обновлено: 2026-06-16.
 
 ## Done
 
@@ -23,16 +23,18 @@
 
 - [x] MA-MEETING-WORKSPACE (#68, PR #69): workspace page, media streaming, normalized transcript segments, artifact viewer, read-only status
 - [x] MA-WORKSPACE-JOB-CONTROLS (#70): pipeline controls panel (start/cancel/refresh + polling), `GET /auth/csrf`, `GET /meetings/{id}/jobs/stages`, CSRF-safe browser actions
-- [x] MA-MEETING-SCOPED-QA (#74): `POST /meetings/{id}/search` + `POST /meetings/{id}/chat`, self-contained `MeetingQAService` (lexical MVP over meeting_chunks.jsonl, strict meeting scoping, no project/global leakage), workspace Q&A panel (answer/citations/search, seek-on-click)
+- [x] MA-MEETING-SCOPED-QA (#74, PR #75): `POST /meetings/{id}/search` + `POST /meetings/{id}/chat`, self-contained `MeetingQAService` (lexical MVP over meeting_chunks.jsonl, strict meeting scoping, no project/global leakage), workspace Q&A panel (answer/citations/search, seek-on-click)
+- [x] MA-PIPELINE-STAGES-EXPANSION (#76): expand runner beyond transcribe/diarize/merge — add extract_audio, chunk, enrich, index, analyze; stage catalog sorted by order; static preflight checks per stage; `index` stage populates data/meeting_chunks.jsonl enabling workspace Q&A
+- [x] MA-POST-PIPELINE-HARDENING (#78): pin product ASR model (`--model large-v3-turbo`) for UI-launched transcribe (no silent `small` fallback); remove remaining inline `on*` handlers from Workspace (header refresh, transcript filter, close-artifact, transcript segment seek → `dataset`+`addEventListener`); chat citations filtered to actually-cited `[S#]` with `citations_basis` (`cited`/`retrieved`/`null`)
 
 ## Backlog (приоритет сверху вниз)
 
+- MA-PIPELINE-END-TO-END-SMOKE: замкнуть полный сценарий ingest → pipeline stages → meeting_chunks.jsonl → workspace → search/chat
 - MA-REVIEW-QUEUE: разметка chat_runs.jsonl для eval, генерация guard_v2_cases.jsonl
 - Meeting-scoped Q&A v2: vector retrieval over meeting chunks (current MVP is lexical), transcript-segment-level citations (`segment_id`)
-- Pipeline stages beyond transcribe/diarize/merge (extract audio, chunk, enrich, index, analyze) — требуют поддержки в job runner
 - #39/#40 auth evolution: per-user tokens или OIDC; require_write_access() — стабильный контракт роутов, менять только внутри auth.py
 
 ## Dev Roadmap
 
-- После Meeting Workspace UI: замкнутый цикл ingest → transcribe → diarize → merge через браузер
+- После MA-PIPELINE-STAGES-EXPANSION: замкнутый цикл ingest → extract_audio → transcribe → diarize → merge → chunk → enrich → index → workspace search/chat через браузер
 - После Epic #44: multi-user / публичный деплой без шаринга одного токена

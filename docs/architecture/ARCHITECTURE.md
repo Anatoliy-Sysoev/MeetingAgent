@@ -56,18 +56,42 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    A["meetings/<meeting_id>/meeting.json"] --> B["06_transcribe_meeting.py"]
-    B --> C["transcript/segments.jsonl"]
-    B --> D["transcript/transcript.md"]
-    C --> E["08_process_meeting_pipeline.py"]
-    E --> F["ASR windows"]
-    F --> G["MAP partial JSON"]
-    G --> H["REDUCE final JSON"]
-    H --> I["RENDER memo.md / protocol.md"]
-    I --> J["artifacts/"]
+    A["meetings/<meeting_id>/meeting.json"] --> B["extract_audio (21)"]
+    B --> C["source/audio_16k_mono.wav"]
+    C --> D["transcribe (22)"]
+    D --> E["transcript/segments.jsonl"]
+    E --> F["diarize (23)"]
+    F --> G["transcript/diarization.jsonl"]
+    E --> H["merge (24)"]
+    G --> H
+    H --> I["transcript/speaker_transcript.jsonl"]
+    I --> J["chunk (26)"]
+    J --> K["transcript/chunks.jsonl"]
+    K --> L["enrich (27)"]
+    L --> M["artifacts/enriched_chunks.jsonl"]
+    M --> N["index (28)"]
+    N --> O["data/meeting_chunks.jsonl"]
+    O --> P["Workspace Q&A search/chat"]
+    M --> Q["analyze (29)"]
+    Q --> R["artifacts/memo.md / protocol.md / decisions.json / ..."]
 ```
 
-`07_generate_meeting_artifacts.py` остаётся ранним генератором `summarized`-состояния. Его `extractive`-режим — скаффолд контракта, не финальный продуктовый генератор memo/protocol.
+Стадии `extract_audio`, `transcribe`, `diarize`, `merge`, `chunk`, `enrich`, `index`, `analyze` реализованы в job runner и доступны через Workspace Pipeline panel и `POST /meetings/{id}/jobs/{stage}`.
+
+Preflight для каждой стадии:
+- `extract_audio`: ffmpeg в PATH + существующий source media файл
+- `merge`: наличие `segments.jsonl`
+- `chunk`: наличие `speaker_transcript.jsonl`
+- `enrich`: наличие `chunks.jsonl`
+- `index`, `analyze`: наличие `enriched_chunks.jsonl`
+
+Стадия `index` делает upsert в `data/meeting_chunks.jsonl` по `meeting_id` (замещает строки той же встречи, сохраняет другие). После `index` workspace Q&A (`POST /meetings/{id}/search` и `/chat`) может находить чанки этой встречи.
+
+Стадия `transcribe` через runner жёстко передаёт `--model large-v3-turbo` (продуктовый offline ASR). Без явного `--model` скрипт падает на fallback `small`, если локальный `transcription.model` не задан, — это молча понизило бы качество UI-транскрипции до черновика. `small` остаётся доступен только через явный CLI `--model` для черновиков.
+
+Стадия `analyze` запускается в режиме `extractive` (без LLM), продуцирует `artifacts/summary.md`, `artifacts/protocol.md` и JSON-артефакты решений/задач/рисков/вопросов.
+
+`07_generate_meeting_artifacts.py` остаётся ранним генератором `summarized`-состояния. `08_process_meeting_pipeline.py` — standalone MAP-REDUCE скрипт, не в runner.
 
 ### Meeting Workspace UI
 
@@ -75,10 +99,12 @@ flowchart TD
 
 Pipeline-панель управляет job runner-ом из браузера:
 
-- `GET /meetings/{id}/jobs/stages` — список запускаемых стадий (`jobs.read`); отдаёт только стадии, которые реально умеет runner (`transcribe`, `diarize`, `merge`), без путей ФС;
+- `GET /meetings/{id}/jobs/stages` — список запускаемых стадий (`jobs.read`); отдаёт все стадии, которые реально умеет runner (`extract_audio`, `transcribe`, `diarize`, `merge`, `chunk`, `enrich`, `index`, `analyze`), отсортированных по `order`, без путей ФС и командных строк;
 - Start/Cancel вызывают существующие `POST /meetings/{id}/jobs/{stage}` (`jobs.start`) и `.../cancel` (`jobs.cancel`).
 
 CSRF-поток для браузерных write-действий: при login выставляется non-HttpOnly cookie `ma_session_csrf`; JS получает токен через `GET /auth/csrf` (валидирует cookie против session hash, не создаёт сессию, не раскрывает hash) и шлёт его как `X-CSRF-Token`. Machine Bearer-вызовы CSRF-exempt. CSRF-токен в JS живёт только в памяти, не пишется в DOM/persistent storage. Все динамические значения job/stage рендерятся через DOM API + `textContent`/`dataset` + `addEventListener` (без inline-интерполяции).
+
+CSP-гигиена: ни один HTML-элемент страницы не несёт inline `on*`-обработчиков. Все интерактивные элементы (header refresh, фильтр транскрипта, close-artifact, клики по сегментам транскрипта, медиа-переключатель, артефакты, job/stage-кнопки, Q&A) привязаны через `addEventListener`, а данные передаются через `data-*`/`dataset` (`data-start-sec` для seek по сегменту). Это позволяет в дальнейшем применить строгий CSP без `unsafe-inline` для обработчиков.
 
 #### Meeting-scoped search & Q&A
 
@@ -91,7 +117,9 @@ CSRF-поток для браузерных write-действий: при login
 
 Изоляция и безопасность: неизвестная/небезопасная встреча → 404; отсутствует индекс/файл чанков → 200 с `available:false` и пустыми результатами (не 500); в ответах нет путей ФС и сырых ошибок бэкенда; цитаты только из возвращённых meeting-источников (без галлюцинаций). Форма цитаты: `chunk_id`, `excerpt`, `artifact`, `segment_id`, `speaker`, `start_sec`, `end_sec`. По клику на цитату/результат с `start_sec` плеер перематывается на таймкод. Это контур MeetingAgent Core, изолированный от Project Knowledge Bot.
 
-Известные ограничения: retrieval лексический (не векторный); `segment_id` пока `null` (чанки — это окна, а не сегменты транскрипта); стадии вне transcribe/diarize/merge пока не реализованы (нужна поддержка в job runner).
+Цитаты chat-а не завышают доказательную базу: ответ парсится на маркеры `[S#]`, и в `citations` попадают только реально процитированные источники. Поле `citations_basis` различает режимы: `"cited"` — отфильтровано по `[S#]` из ответа; `"retrieved"` — модель не проставила распознаваемых маркеров, поэтому показаны все найденные источники; `null` — ответ не сформирован (refusal). Маркеры на источники вне диапазона (`[S9]` при 2 фрагментах) игнорируются.
+
+Известные ограничения: retrieval лексический (не векторный); `segment_id` пока `null` (чанки — это окна, а не сегменты транскрипта). `data/meeting_chunks.jsonl` наполняется стадией `index` job runner-а.
 
 ## Контур 3. Project Knowledge Bot
 

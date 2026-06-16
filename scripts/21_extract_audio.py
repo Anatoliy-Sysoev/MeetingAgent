@@ -75,6 +75,20 @@ def ensure_ffmpeg() -> None:
         )
 
 
+def _safe_resolve(meeting_dir: Path, rel_value: str) -> Path | None:
+    rel = str(rel_value).replace("\\", "/")
+    rel_path = Path(rel)
+    if rel_path.is_absolute() or ".." in rel_path.parts:
+        return None
+    base = meeting_dir.resolve()
+    target = (base / rel_path).resolve()
+    try:
+        target.relative_to(base)
+        return target
+    except ValueError:
+        return None
+
+
 def choose_input_media(meeting_dir: Path, meeting: dict[str, Any]) -> Path:
     media_files = meeting.get("source", {}).get("media_files", [])
     if not media_files:
@@ -84,7 +98,9 @@ def choose_input_media(meeting_dir: Path, meeting: dict[str, Any]) -> Path:
         path_value = media.get("path")
         if not path_value or path_value == OUTPUT_AUDIO:
             continue
-        media_path = meeting_dir / path_value
+        media_path = _safe_resolve(meeting_dir, path_value)
+        if media_path is None:
+            continue  # absolute path or traversal — skip silently
         if media_path.exists():
             return media_path
 
