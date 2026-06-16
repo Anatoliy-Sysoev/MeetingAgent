@@ -147,19 +147,24 @@ def test_stages_requires_auth(tmp_path: Path) -> None:
     assert resp.status_code == 401
 
 
-def test_stages_returns_allowlisted_stages(tmp_path: Path) -> None:
+def test_stages_returns_all_runnable_stages(tmp_path: Path) -> None:
     make_meeting(tmp_path)
     client, _, _ = make_client(tmp_path)
     resp = client.get(f"/meetings/{MEETING_ID}/jobs/stages", headers=AUTH)
     assert resp.status_code == 200
     body = resp.json()
     assert body["meeting_id"] == MEETING_ID
-    stages = {s["stage"] for s in body["stages"]}
-    assert stages == {"transcribe", "diarize", "merge"}
+    stage_names = [s["stage"] for s in body["stages"]]
+    expected = [
+        "extract_audio", "transcribe", "diarize", "merge",
+        "chunk", "enrich", "index", "analyze",
+    ]
+    assert stage_names == expected, "stages must be returned in pipeline order"
     for s in body["stages"]:
         assert s["start_permission"] == "jobs.start"
         assert s["cancel_permission"] == "jobs.cancel"
         assert "label" in s and "description" in s
+        assert "order" in s
 
 
 def test_stages_no_filesystem_paths_in_response(tmp_path: Path) -> None:
@@ -345,6 +350,44 @@ def test_workspace_js_no_unsafe_inline_job_interpolation(tmp_path: Path) -> None
     assert "addEventListener" in body
 
 
+def test_workspace_html_has_no_inline_event_handlers(tmp_path: Path) -> None:
+    """No HTML element may carry inline on* handlers — required for strict CSP."""
+    import re as _re
+    make_meeting(tmp_path)
+    client, _, _ = make_client(tmp_path)
+    body = client.get(f"/meetings/{MEETING_ID}/workspace").text
+    matches = _re.findall(r'\son[a-z]+\s*=\s*"', body)
+    assert matches == [], f"found inline handlers: {matches}"
+
+
+def test_workspace_transcript_uses_dataset_not_inline_onclick(tmp_path: Path) -> None:
+    """Transcript segments must seek via dataset.startSec + addEventListener."""
+    make_meeting(tmp_path)
+    client, _, _ = make_client(tmp_path)
+    body = client.get(f"/meetings/{MEETING_ID}/workspace").text
+    assert 'onclick="seekTo(' not in body
+    # Segments are built via DOM API — startSec is set through dataset property in JS.
+    assert "dataset.startSec" in body
+    assert "addEventListener" in body
+
+
+def test_workspace_static_controls_wired_via_listeners(tmp_path: Path) -> None:
+    """Refresh, filter and close-artifact controls are wired in JS, not inline."""
+    make_meeting(tmp_path)
+    client, _, _ = make_client(tmp_path)
+    body = client.get(f"/meetings/{MEETING_ID}/workspace").text
+    # Elements carry ids that the init block binds listeners to.
+    assert 'id="hdr-refresh-btn"' in body
+    assert 'id="seg-filter"' in body
+    assert 'id="close-artifact-btn"' in body
+    for fragment in (
+        'getElementById("hdr-refresh-btn")',
+        'getElementById("seg-filter")',
+        'getElementById("close-artifact-btn")',
+    ):
+        assert fragment in body, f"missing listener wiring: {fragment}"
+
+
 def test_workspace_js_does_not_persist_csrf_token(tmp_path: Path) -> None:
     """CSRF token must stay in JS memory — no localStorage/sessionStorage."""
     make_meeting(tmp_path)
@@ -360,3 +403,25 @@ def test_workspace_html_has_error_container(tmp_path: Path) -> None:
     body = client.get(f"/meetings/{MEETING_ID}/workspace").text
     assert "jobs-error" in body
     assert "auth-overlay" in body
+
+
+def test_workspace_transcript_and_artifacts_use_dom_api_not_innerhtml(tmp_path: Path) -> None:
+    """loadTranscript, loadArtifacts, and viewArtifact must not set innerHTML with
+    runtime-data template literals — they must use createElement/textContent/replaceChildren."""
+    make_meeting(tmp_path)
+    client, _, _ = make_client(tmp_path)
+    body = client.get(f"/meetings/{MEETING_ID}/workspace").text
+    # DOM API idioms must be present.
+    assert "replaceChildren" in body
+    assert "createElement" in body
+    assert "textContent" in body
+    # Dynamic runtime data must NOT be interpolated into innerHTML.
+    import re
+    # innerHTML assignments that interpolate variables (${...}) are violations.
+    bad_patterns = [
+        r'list\.innerHTML\s*=\s*_segments',
+        r'panel\.innerHTML\s*=\s*`[^`]*\$\{',
+        r'viewer\.innerHTML\s*=\s*`[^`]*\$\{',
+    ]
+    for pat in bad_patterns:
+        assert not re.search(pat, body), f"dynamic innerHTML found: {pat}"

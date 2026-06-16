@@ -335,6 +335,80 @@ def test_chat_citations_are_meeting_scoped_with_source_fields(tmp_path: Path) ->
     assert "/abs/local/path" not in resp.text
 
 
+def test_chat_citations_filtered_to_actually_cited_sources(tmp_path: Path) -> None:
+    """Answer citing only [S2] must return only that source, not all retrieved."""
+    client, _repo, _llm = make_client(tmp_path, llm=FakeLLM("Бюджет увеличен [S2]."))
+    resp = client.post(f"/meetings/{MEETING_ID}/chat", json={"query": "бюджет", "top_k": 5})
+    assert resp.status_code == 200
+    body = resp.json()
+    # Query matches c1 and c2, but the answer only references [S2] → c2.
+    assert body["citations_basis"] == "cited"
+    assert len(body["citations"]) == 1
+    assert body["citations"][0]["chunk_id"] == "c2"
+
+
+def test_chat_citations_include_all_referenced_sources(tmp_path: Path) -> None:
+    client, _repo, _llm = make_client(tmp_path, llm=FakeLLM("Итог [S1] и ещё [S2]."))
+    resp = client.post(f"/meetings/{MEETING_ID}/chat", json={"query": "бюджет", "top_k": 5})
+    body = resp.json()
+    assert body["citations_basis"] == "cited"
+    assert {c["chunk_id"] for c in body["citations"]} == {"c1", "c2"}
+
+
+def test_chat_no_markers_falls_back_to_retrieved(tmp_path: Path) -> None:
+    """When the model emits no [S#] markers, surface retrieved sources but label them."""
+    client, _repo, _llm = make_client(tmp_path, llm=FakeLLM("Ответ без ссылок на источники."))
+    resp = client.post(f"/meetings/{MEETING_ID}/chat", json={"query": "бюджет", "top_k": 5})
+    body = resp.json()
+    assert body["citations_basis"] == "retrieved"
+    assert {c["chunk_id"] for c in body["citations"]} == {"c1", "c2"}
+
+
+def test_chat_hallucinated_citation_index_is_dropped(tmp_path: Path) -> None:
+    """A reference to a source that was never provided ([S9]) must not be honored."""
+    client, _repo, _llm = make_client(tmp_path, llm=FakeLLM("Согласно [S9] всё хорошо."))
+    resp = client.post(f"/meetings/{MEETING_ID}/chat", json={"query": "бюджет", "top_k": 5})
+    body = resp.json()
+    # No valid in-range markers → fall back to retrieved (cannot trust [S9]).
+    assert body["citations_basis"] == "retrieved"
+    cited_ids = {c["chunk_id"] for c in body["citations"]}
+    assert cited_ids <= {"c1", "c2"}
+
+
+def test_chat_citations_preserve_answer_citation_order(tmp_path: Path) -> None:
+    """Citations must appear in the order the answer cites them, not ranked order.
+
+    The answer cites [S2] before [S1].  The ranked list has c1 as S1 and c2 as S2.
+    The returned citations should be [c2, c1], not [c1, c2].
+    """
+    client, _repo, _llm = make_client(tmp_path, llm=FakeLLM("Важно [S2], дополнительно [S1]."))
+    resp = client.post(f"/meetings/{MEETING_ID}/chat", json={"query": "бюджет", "top_k": 5})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["citations_basis"] == "cited"
+    assert len(body["citations"]) == 2
+    assert body["citations"][0]["chunk_id"] == "c2"
+    assert body["citations"][1]["chunk_id"] == "c1"
+
+
+def test_cited_source_indices_parsing() -> None:
+    from asu_june_bot.meetings.qa import _cited_source_indices
+
+    assert _cited_source_indices("a [S1] b [S3] c [S1]", 5) == [1, 3]
+    assert _cited_source_indices("lower [s2] case", 5) == [2]
+    assert _cited_source_indices("out [S9] of range", 3) == []
+    assert _cited_source_indices("no markers here", 5) == []
+    assert _cited_source_indices("", 5) == []
+
+
+def test_chat_refusal_payload_has_null_citations_basis(tmp_path: Path) -> None:
+    client, _repo, _llm = make_client(tmp_path)
+    resp = client.post(f"/meetings/{MEETING_ID}/chat", json={"query": "zzzqqq неведомое"})
+    body = resp.json()
+    assert body["citations"] == []
+    assert body["citations_basis"] is None
+
+
 def test_chat_llm_unavailable_controlled_response(tmp_path: Path) -> None:
     client, _repo, _llm = make_client(tmp_path, llm=FailingLLM())
     resp = client.post(f"/meetings/{MEETING_ID}/chat", json={"query": "бюджет"})

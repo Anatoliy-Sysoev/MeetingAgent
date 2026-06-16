@@ -70,6 +70,20 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
+def _safe_resolve(meeting_dir: Path, rel_value: str) -> Path | None:
+    rel = str(rel_value).replace("\\", "/")
+    rel_path = Path(rel)
+    if rel_path.is_absolute() or ".." in rel_path.parts:
+        return None
+    base = meeting_dir.resolve()
+    target = (base / rel_path).resolve()
+    try:
+        target.relative_to(base)
+        return target
+    except ValueError:
+        return None
+
+
 def stable_id(value: str, length: int = 24) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:length]
 
@@ -167,9 +181,11 @@ def run(args: argparse.Namespace) -> int:
     meeting = read_json(meeting_path)
     validate_schema(meeting, schema_path)
     chunks_rel = meeting.get("artifacts", {}).get("enriched_chunks", "artifacts/enriched_chunks.jsonl")
-    chunks_path = meeting_dir / chunks_rel
+    chunks_path = _safe_resolve(meeting_dir, chunks_rel)
+    if chunks_path is None:
+        raise IndexMeetingError("enriched_chunks path is unsafe (absolute or traversal)", stage="preflight")
     if not chunks_path.exists():
-        raise IndexMeetingError(f"enriched_chunks.jsonl not found: {chunks_path}", stage="preflight")
+        raise IndexMeetingError("enriched_chunks.jsonl not found; run enrich first", stage="preflight")
     try:
         rows = [to_index_chunk(meeting_dir, meeting, chunk, index) for index, chunk in enumerate(read_jsonl(chunks_path), start=1)]
         if not rows:

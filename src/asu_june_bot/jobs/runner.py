@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shutil
 import sys
 import uuid
 from dataclasses import dataclass, field
@@ -11,10 +12,146 @@ from typing import Any
 
 _ROOT = Path(__file__).resolve().parents[3]
 
+# ---------------------------------------------------------------------------
+# Preflight helpers — pure filesystem checks, no subprocess
+# ---------------------------------------------------------------------------
+
+def _safe_resolve(meeting_dir: Path, rel_value: str) -> Path | None:
+    """Resolve a meeting-relative path safely.
+
+    Returns the resolved Path if it stays within meeting_dir, or None when the
+    value is absolute, contains '..' traversal components, or resolves outside
+    the meeting directory.  Never raises — callers treat None as 'path absent'.
+    """
+    rel = str(rel_value).replace("\\", "/")
+    rel_path = Path(rel)
+    if rel_path.is_absolute() or ".." in rel_path.parts:
+        return None
+    base = meeting_dir.resolve()
+    target = (base / rel_path).resolve()
+    try:
+        target.relative_to(base)
+        return target
+    except ValueError:
+        return None
+
+
+def _read_card(meeting_dir: Path) -> tuple[str | None, dict[str, Any] | None]:
+    """Return (error_str, data) for meeting.json. error_str is None on success."""
+    card = meeting_dir / "meeting.json"
+    if not meeting_dir.exists():
+        return "meeting directory does not exist", None
+    if not card.exists():
+        return "meeting.json not found", None
+    try:
+        data = json.loads(card.read_text(encoding="utf-8"))
+        return None, data
+    except Exception as exc:
+        return f"meeting.json unreadable: {exc}", None
+
+
+def _extract_audio_preflight(meeting_dir: Path) -> str | None:
+    if not shutil.which("ffmpeg"):
+        return "ffmpeg not found in PATH; install ffmpeg to use extract_audio"
+    err, data = _read_card(meeting_dir)
+    if err:
+        return err
+    media_files = (data or {}).get("source", {}).get("media_files", [])  # type: ignore[union-attr]
+    if not media_files:
+        return "no source.media_files in meeting.json; upload a media file first"
+    for media in media_files:
+        path_val = media.get("path")
+        if not path_val or path_val == "source/audio_16k_mono.wav":
+            continue
+        resolved = _safe_resolve(meeting_dir, path_val)
+        if resolved is not None and resolved.exists():
+            return None
+    return "no existing source media file found; upload a media file first"
+
+
+def _merge_preflight(meeting_dir: Path) -> str | None:
+    """Return error string if merge preconditions are not met, else None."""
+    err, data = _read_card(meeting_dir)
+    if err:
+        return err
+    artifacts: dict[str, str] = (data or {}).get("artifacts") or {}  # type: ignore[union-attr]
+    segments_rel = artifacts.get("segments")
+    if segments_rel:
+        resolved = _safe_resolve(meeting_dir, segments_rel)
+        if resolved is not None and resolved.exists():
+            return None
+    if (meeting_dir / "transcript" / "segments.jsonl").exists():
+        return None
+    return "segments.jsonl not found; run transcribe first"
+
+
+def _chunk_preflight(meeting_dir: Path) -> str | None:
+    err, data = _read_card(meeting_dir)
+    if err:
+        return err
+    artifacts: dict[str, str] = (data or {}).get("artifacts") or {}  # type: ignore[union-attr]
+    speaker_rel = artifacts.get("speaker_transcript", "transcript/speaker_transcript.jsonl")
+    resolved = _safe_resolve(meeting_dir, speaker_rel)
+    if resolved is not None and resolved.exists():
+        return None
+    return "speaker_transcript.jsonl not found; run transcribe, diarize, and merge first"
+
+
+def _enrich_preflight(meeting_dir: Path) -> str | None:
+    err, data = _read_card(meeting_dir)
+    if err:
+        return err
+    artifacts: dict[str, str] = (data or {}).get("artifacts") or {}  # type: ignore[union-attr]
+    chunks_rel = artifacts.get("chunks", "transcript/chunks.jsonl")
+    resolved = _safe_resolve(meeting_dir, chunks_rel)
+    if resolved is not None and resolved.exists():
+        return None
+    return "chunks.jsonl not found; run chunk first"
+
+
+def _index_preflight(meeting_dir: Path) -> str | None:
+    err, data = _read_card(meeting_dir)
+    if err:
+        return err
+    artifacts: dict[str, str] = (data or {}).get("artifacts") or {}  # type: ignore[union-attr]
+    enriched_rel = artifacts.get("enriched_chunks", "artifacts/enriched_chunks.jsonl")
+    resolved = _safe_resolve(meeting_dir, enriched_rel)
+    if resolved is not None and resolved.exists():
+        return None
+    return "enriched_chunks.jsonl not found; run enrich first"
+
+
+def _analyze_preflight(meeting_dir: Path) -> str | None:
+    err, data = _read_card(meeting_dir)
+    if err:
+        return err
+    artifacts: dict[str, str] = (data or {}).get("artifacts") or {}  # type: ignore[union-attr]
+    enriched_rel = artifacts.get("enriched_chunks", "artifacts/enriched_chunks.jsonl")
+    resolved = _safe_resolve(meeting_dir, enriched_rel)
+    if resolved is not None and resolved.exists():
+        return None
+    return "enriched_chunks.jsonl not found; run enrich first"
+
+
+# ---------------------------------------------------------------------------
+# Stage command registry
+# ---------------------------------------------------------------------------
+
 STAGE_COMMANDS: dict[str, dict[str, Any]] = {
+    "extract_audio": {
+        "script": _ROOT / "scripts" / "21_extract_audio.py",
+        "base_args": [],
+        "supports_dry_run": False,
+        "preflight": _extract_audio_preflight,
+    },
     "transcribe": {
+        # Pin the product offline ASR model explicitly. Without --model, the
+        # script falls back to "small" when local config omits
+        # transcription.model, which would silently downgrade UI-launched
+        # transcription to draft quality. "small" remains available only via
+        # an explicit CLI --model for drafts.
         "script": _ROOT / "scripts" / "22_transcribe_meeting.py",
-        "base_args": ["--engine", "faster-whisper"],
+        "base_args": ["--engine", "faster-whisper", "--model", "large-v3-turbo"],
         "supports_dry_run": True,
     },
     "diarize": {
@@ -26,6 +163,31 @@ STAGE_COMMANDS: dict[str, dict[str, Any]] = {
         "script": _ROOT / "scripts" / "24_merge_transcript_speakers.py",
         "base_args": [],
         "supports_dry_run": False,
+        "preflight": _merge_preflight,
+    },
+    "chunk": {
+        "script": _ROOT / "scripts" / "26_chunk_meeting.py",
+        "base_args": ["--force"],
+        "supports_dry_run": False,
+        "preflight": _chunk_preflight,
+    },
+    "enrich": {
+        "script": _ROOT / "scripts" / "27_enrich_meeting_chunks.py",
+        "base_args": ["--force"],
+        "supports_dry_run": False,
+        "preflight": _enrich_preflight,
+    },
+    "index": {
+        "script": _ROOT / "scripts" / "28_index_meeting_chunks.py",
+        "base_args": [],
+        "supports_dry_run": False,
+        "preflight": _index_preflight,
+    },
+    "analyze": {
+        "script": _ROOT / "scripts" / "29_analyze_meeting.py",
+        "base_args": ["--mode", "extractive", "--force"],
+        "supports_dry_run": False,
+        "preflight": _analyze_preflight,
     },
 }
 
@@ -33,25 +195,63 @@ STAGE_COMMANDS: dict[str, dict[str, Any]] = {
 # STAGE_COMMANDS — only stages the runner can actually execute are surfaced,
 # so the workspace never offers a button for an unimplemented stage.
 # No filesystem paths are described here; `requires`/`outputs` are abstract
-# capability tokens, not paths.
+# capability tokens. `order` controls display order in the Pipeline panel.
 STAGE_METADATA: dict[str, dict[str, Any]] = {
+    "extract_audio": {
+        "label": "Extract audio",
+        "description": "Extract normalized 16 kHz mono WAV audio from source media.",
+        "requires": ["source_media"],
+        "outputs": ["normalized_audio"],
+        "order": 10,
+    },
     "transcribe": {
         "label": "Transcribe",
         "description": "Offline ASR of the meeting audio into transcript segments.",
         "requires": ["source_media"],
         "outputs": ["transcript_segments"],
+        "order": 20,
     },
     "diarize": {
         "label": "Diarize",
         "description": "Detect and label distinct speakers in the audio.",
         "requires": ["source_media"],
         "outputs": ["speaker_segments"],
+        "order": 30,
     },
     "merge": {
         "label": "Merge transcript and speakers",
         "description": "Combine transcript segments with speaker labels.",
         "requires": ["transcript_segments", "speaker_segments"],
         "outputs": ["merged_transcript"],
+        "order": 40,
+    },
+    "chunk": {
+        "label": "Chunk transcript",
+        "description": "Produce time-window chunks from merged transcript for retrieval.",
+        "requires": ["merged_transcript"],
+        "outputs": ["meeting_chunks"],
+        "order": 50,
+    },
+    "enrich": {
+        "label": "Enrich chunks",
+        "description": "Add semantic metadata (topics, decisions, action items, risks) to chunks.",
+        "requires": ["meeting_chunks"],
+        "outputs": ["enriched_chunks"],
+        "order": 60,
+    },
+    "index": {
+        "label": "Index meeting",
+        "description": "Write enriched chunks to the meeting search index for workspace Q&A.",
+        "requires": ["enriched_chunks"],
+        "outputs": ["meeting_search_index"],
+        "order": 70,
+    },
+    "analyze": {
+        "label": "Analyze meeting",
+        "description": "Generate memo, protocol, decisions, action items, risks, and open questions.",
+        "requires": ["enriched_chunks"],
+        "outputs": ["meeting_artifacts"],
+        "order": 80,
     },
 }
 
@@ -60,9 +260,9 @@ def stage_catalog() -> list[dict[str, Any]]:
     """Return the ordered, UI-safe list of runnable pipeline stages.
 
     Only stages present in both STAGE_COMMANDS and STAGE_METADATA are
-    returned, in STAGE_COMMANDS insertion order. Each entry carries the
-    permissions a caller needs to start/cancel the stage. Contains no
-    filesystem paths or command details.
+    returned, sorted by `order`. Each entry carries the permissions a caller
+    needs to start/cancel the stage. Contains no filesystem paths or command
+    details.
     """
     catalog: list[dict[str, Any]] = []
     for stage in STAGE_COMMANDS:
@@ -77,16 +277,30 @@ def stage_catalog() -> list[dict[str, Any]]:
             "cancel_permission": "jobs.cancel",
             "requires": list(meta["requires"]),
             "outputs": list(meta["outputs"]),
+            "order": meta["order"],
         })
+    catalog.sort(key=lambda e: e["order"])
     return catalog
 
 
 _STDERR_TAIL = 20
 _HISTORY_MAX = 20
 
+# Repo root is used as an additional redaction root for all jobs.
+_REPO_ROOT = _ROOT.resolve()
+
 
 def _now_iso() -> str:
     return datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
+
+
+def _redact_paths(line: str, roots: list[Path]) -> str:
+    """Replace occurrences of known server filesystem roots with '<path>'."""
+    for root in roots:
+        root_s = str(root)
+        if root_s and root_s != "/":
+            line = line.replace(root_s, "<path>")
+    return line
 
 
 class JobError(RuntimeError):
@@ -127,8 +341,16 @@ class JobState:
     exit_code: int | None = None
     stderr_lines: list[str] = field(default_factory=list)
     _process: Any = field(default=None, repr=False, compare=False)
+    _meeting_dir: Path | None = field(default=None, repr=False, compare=False)
 
     def as_dict(self, meeting_status: str | None = None) -> dict[str, Any]:
+        roots: list[Path] = [_REPO_ROOT]
+        if self._meeting_dir is not None:
+            roots.append(self._meeting_dir)
+        stderr_tail = [
+            _redact_paths(line, roots)
+            for line in self.stderr_lines[-_STDERR_TAIL:]
+        ]
         d: dict[str, Any] = {
             "job_id": self.job_id,
             "meeting_id": self.meeting_id,
@@ -137,7 +359,7 @@ class JobState:
             "started_at": self.started_at,
             "finished_at": self.finished_at,
             "exit_code": self.exit_code,
-            "stderr_tail": self.stderr_lines[-_STDERR_TAIL:],
+            "stderr_tail": stderr_tail,
         }
         if meeting_status is not None:
             d["meeting_status"] = meeting_status
@@ -160,32 +382,6 @@ def _read_meeting_status(meeting_dir: Path) -> str | None:
         return json.loads(card.read_text(encoding="utf-8")).get("processing_status")
     except Exception:
         return None
-
-
-def _merge_preflight(meeting_dir: Path) -> str | None:
-    """Return error string if merge preconditions are not met, else None."""
-    if not meeting_dir.exists():
-        return "meeting directory does not exist"
-    card = meeting_dir / "meeting.json"
-    if not card.exists():
-        return "meeting.json not found"
-    try:
-        data = json.loads(card.read_text(encoding="utf-8"))
-    except Exception as exc:
-        return f"meeting.json unreadable: {exc}"
-    artifacts: dict[str, str] = data.get("artifacts") or {}
-    segments_rel = artifacts.get("segments")
-    if segments_rel:
-        try:
-            p = (meeting_dir / segments_rel).resolve()
-            p.relative_to(meeting_dir.resolve())
-            if p.exists():
-                return None
-        except ValueError:
-            pass
-    if (meeting_dir / "transcript" / "segments.jsonl").exists():
-        return None
-    return "segments.jsonl not found; run transcribe first"
 
 
 class JobRunner:
@@ -254,6 +450,7 @@ class JobRunner:
                 stage=stage,
                 status="starting",
                 started_at=_now_iso(),
+                _meeting_dir=meeting_dir.resolve(),
             )
             self.active_job = job
 
@@ -270,9 +467,11 @@ class JobRunner:
                     detail = (stderr_bytes or b"").decode("utf-8", errors="replace").strip()
                     raise PreflightFailed(detail or "dry-run failed")
             else:
-                err = _merge_preflight(meeting_dir)
-                if err:
-                    raise PreflightFailed(err)
+                preflight_fn = cfg.get("preflight")
+                if preflight_fn is not None:
+                    err = preflight_fn(meeting_dir)
+                    if err:
+                        raise PreflightFailed(err)
 
             # Launch real process
             proc = await _create_subprocess(
