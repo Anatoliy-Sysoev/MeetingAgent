@@ -281,9 +281,21 @@ def stage_catalog() -> list[dict[str, Any]]:
 _STDERR_TAIL = 20
 _HISTORY_MAX = 20
 
+# Repo root is used as an additional redaction root for all jobs.
+_REPO_ROOT = _ROOT.resolve()
+
 
 def _now_iso() -> str:
     return datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
+
+
+def _redact_paths(line: str, roots: list[Path]) -> str:
+    """Replace occurrences of known server filesystem roots with '<path>'."""
+    for root in roots:
+        root_s = str(root)
+        if root_s and root_s != "/":
+            line = line.replace(root_s, "<path>")
+    return line
 
 
 class JobError(RuntimeError):
@@ -324,8 +336,16 @@ class JobState:
     exit_code: int | None = None
     stderr_lines: list[str] = field(default_factory=list)
     _process: Any = field(default=None, repr=False, compare=False)
+    _meeting_dir: Path | None = field(default=None, repr=False, compare=False)
 
     def as_dict(self, meeting_status: str | None = None) -> dict[str, Any]:
+        roots: list[Path] = [_REPO_ROOT]
+        if self._meeting_dir is not None:
+            roots.append(self._meeting_dir)
+        stderr_tail = [
+            _redact_paths(line, roots)
+            for line in self.stderr_lines[-_STDERR_TAIL:]
+        ]
         d: dict[str, Any] = {
             "job_id": self.job_id,
             "meeting_id": self.meeting_id,
@@ -334,7 +354,7 @@ class JobState:
             "started_at": self.started_at,
             "finished_at": self.finished_at,
             "exit_code": self.exit_code,
-            "stderr_tail": self.stderr_lines[-_STDERR_TAIL:],
+            "stderr_tail": stderr_tail,
         }
         if meeting_status is not None:
             d["meeting_status"] = meeting_status
@@ -425,6 +445,7 @@ class JobRunner:
                 stage=stage,
                 status="starting",
                 started_at=_now_iso(),
+                _meeting_dir=meeting_dir.resolve(),
             )
             self.active_job = job
 

@@ -704,9 +704,11 @@ def test_preflight_error_does_not_include_tmp_path(
         assert str(tmp_path) not in resp.text, f"{stage} response leaks tmp_path"
 
 
-def test_job_status_api_does_not_expose_unsafe_path(tmp_path: Path) -> None:
-    """Completed job stderr_tail must not leak absolute paths even if script printed them."""
+def test_job_status_api_redacts_absolute_stderr_path(tmp_path: Path) -> None:
+    """stderr_tail must have absolute meeting_dir paths replaced with <path>."""
     from asu_june_bot.jobs.runner import JobRunner, JobState
+
+    meeting_dir = (tmp_path / MEETING_ID).resolve()
     runner = JobRunner()
     completed = JobState(
         job_id="path-leak-job-001",
@@ -716,14 +718,74 @@ def test_job_status_api_does_not_expose_unsafe_path(tmp_path: Path) -> None:
         started_at="2026-03-01T10:00:00+00:00",
         finished_at="2026-03-01T10:01:00+00:00",
         exit_code=1,
-        # Script prints absolute path in error — verify API still passes it through
-        # (the runner does NOT redact stderr; path exposure is prevented at preflight)
-        stderr_lines=["ERROR[preflight]: speaker_transcript.jsonl not found; run merge first"],
+        stderr_lines=[
+            f"ERROR[read_utterances]: Invalid JSONL at {meeting_dir}/transcript/speaker_transcript.jsonl:1"
+        ],
+        _meeting_dir=meeting_dir,
     )
     runner.history.append(completed)
+
     _make_meeting(tmp_path)
     client, _, _ = _make_client(tmp_path, runner=runner)
+
     resp = client.get(f"/meetings/{MEETING_ID}/jobs/path-leak-job-001", headers=AUTH)
     assert resp.status_code == 200
-    # The controlled error message must be present; no absolute path from tmp_path
     assert str(tmp_path) not in resp.text
+    assert str(meeting_dir) not in resp.text
+    assert "<path>" in resp.text
+
+
+def test_job_status_api_redacts_repo_root_from_stderr(tmp_path: Path) -> None:
+    """stderr lines containing the repo root path are also redacted."""
+    from asu_june_bot.jobs.runner import JobRunner, JobState, _REPO_ROOT
+
+    runner = JobRunner()
+    completed = JobState(
+        job_id="path-leak-job-002",
+        meeting_id=MEETING_ID,
+        stage="transcribe",
+        status="failed",
+        started_at="2026-03-01T10:00:00+00:00",
+        exit_code=1,
+        stderr_lines=[f"model not found at {_REPO_ROOT}/models/whisper-base"],
+    )
+    runner.history.append(completed)
+
+    _make_meeting(tmp_path)
+    client, _, _ = _make_client(tmp_path, runner=runner)
+
+    resp = client.get(f"/meetings/{MEETING_ID}/jobs/path-leak-job-002", headers=AUTH)
+    assert resp.status_code == 200
+    assert str(_REPO_ROOT) not in resp.text
+    assert "<path>" in resp.text
+
+
+def test_failed_subprocess_stderr_is_redacted_in_history(tmp_path: Path) -> None:
+    """JobState.as_dict() redacts meeting_dir from stderr_lines regardless of how they arrived."""
+    from asu_june_bot.jobs.runner import JobRunner, JobState
+
+    meeting_dir = (tmp_path / MEETING_ID).resolve()
+    abs_path_in_stderr = f"ERROR at {meeting_dir}/transcript/speaker_transcript.jsonl:99"
+
+    runner = JobRunner()
+    job = JobState(
+        job_id="stderr-redact-001",
+        meeting_id=MEETING_ID,
+        stage="chunk",
+        status="failed",
+        started_at="2026-03-01T10:00:00+00:00",
+        exit_code=1,
+        stderr_lines=[abs_path_in_stderr],
+        _meeting_dir=meeting_dir,
+    )
+    runner.history.append(job)
+
+    _make_meeting(tmp_path)
+    client, _, _ = _make_client(tmp_path, runner=runner)
+
+    resp = client.get(f"/meetings/{MEETING_ID}/jobs/stderr-redact-001", headers=AUTH)
+    assert resp.status_code == 200
+    assert str(meeting_dir) not in resp.text
+    assert "<path>" in resp.text
+    # Diagnostic context (non-path parts) is preserved
+    assert "speaker_transcript.jsonl:99" in resp.text
