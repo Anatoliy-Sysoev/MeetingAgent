@@ -300,7 +300,7 @@ _WORKSPACE_HTML = """\
   <div class="title" id="hdr-title">Loading&hellip;</div>
   <div class="meta" id="hdr-date"></div>
   <span class="badge" id="hdr-status"></span>
-  <button onclick="reloadAll()" title="Refresh">&#8635; Refresh</button>
+  <button id="hdr-refresh-btn" title="Refresh">&#8635; Refresh</button>
 </div>
 
 <div class="workspace">
@@ -312,8 +312,7 @@ _WORKSPACE_HTML = """\
       <span id="seg-count" style="font-size:11px;font-weight:normal"></span>
     </div>
     <div class="transcript-search">
-      <input id="seg-filter" type="text" placeholder="Filter transcript&hellip;"
-             oninput="filterSegments(this.value)" />
+      <input id="seg-filter" type="text" placeholder="Filter transcript&hellip;" />
     </div>
     <div class="transcript-list" id="transcript-list">
       <div class="empty">Loading transcript&hellip;</div>
@@ -335,7 +334,7 @@ _WORKSPACE_HTML = """\
     <div class="panel">
       <div class="panel-header">
         Artifacts
-        <button id="close-artifact-btn" onclick="closeArtifact()" style="display:none;font-size:11px;padding:2px 8px">Close</button>
+        <button id="close-artifact-btn" style="display:none;font-size:11px;padding:2px 8px">Close</button>
       </div>
       <div class="panel-body" id="artifacts-panel">
         <div class="empty">Loading artifacts&hellip;</div>
@@ -539,7 +538,7 @@ async function loadTranscript() {
     return;
   }
   list.innerHTML = _segments.map((seg, i) =>
-    `<div class="seg" id="seg-${i}" onclick="seekTo(${seg.start_sec})">
+    `<div class="seg" id="seg-${i}" data-start-sec="${seg.start_sec != null ? seg.start_sec : ""}">
       <div class="seg-meta">
         <span class="seg-time">${fmtSec(seg.start_sec)}</span>
         ${seg.speaker ? ` &mdash; <span class="seg-speaker">${esc(seg.speaker)}</span>` : ""}
@@ -547,6 +546,12 @@ async function loadTranscript() {
       <div class="seg-text">${esc(seg.text)}</div>
     </div>`
   ).join("");
+  list.querySelectorAll(".seg").forEach((el) => {
+    el.addEventListener("click", () => {
+      const v = el.dataset.startSec;
+      if (v !== "") seekTo(Number(v));
+    });
+  });
 }
 
 function seekTo(sec) {
@@ -999,6 +1004,15 @@ async function reloadAll() {
     loadJobs(),
   ]);
 }
+
+const _hdrRefreshBtn = document.getElementById("hdr-refresh-btn");
+if (_hdrRefreshBtn) _hdrRefreshBtn.addEventListener("click", reloadAll);
+
+const _segFilter = document.getElementById("seg-filter");
+if (_segFilter) _segFilter.addEventListener("input", (e) => filterSegments(e.target.value));
+
+const _closeArtifactBtn = document.getElementById("close-artifact-btn");
+if (_closeArtifactBtn) _closeArtifactBtn.addEventListener("click", closeArtifact);
 
 const _jobsRefreshBtn = document.getElementById("jobs-refresh-btn");
 if (_jobsRefreshBtn) {

@@ -350,6 +350,43 @@ def test_workspace_js_no_unsafe_inline_job_interpolation(tmp_path: Path) -> None
     assert "addEventListener" in body
 
 
+def test_workspace_html_has_no_inline_event_handlers(tmp_path: Path) -> None:
+    """No HTML element may carry inline on* handlers — required for strict CSP."""
+    import re as _re
+    make_meeting(tmp_path)
+    client, _, _ = make_client(tmp_path)
+    body = client.get(f"/meetings/{MEETING_ID}/workspace").text
+    matches = _re.findall(r'\son[a-z]+\s*=\s*"', body)
+    assert matches == [], f"found inline handlers: {matches}"
+
+
+def test_workspace_transcript_uses_dataset_not_inline_onclick(tmp_path: Path) -> None:
+    """Transcript segments must seek via data-start-sec + addEventListener."""
+    make_meeting(tmp_path)
+    client, _, _ = make_client(tmp_path)
+    body = client.get(f"/meetings/{MEETING_ID}/workspace").text
+    assert 'onclick="seekTo(' not in body
+    assert "data-start-sec" in body
+    assert "dataset.startSec" in body
+
+
+def test_workspace_static_controls_wired_via_listeners(tmp_path: Path) -> None:
+    """Refresh, filter and close-artifact controls are wired in JS, not inline."""
+    make_meeting(tmp_path)
+    client, _, _ = make_client(tmp_path)
+    body = client.get(f"/meetings/{MEETING_ID}/workspace").text
+    # Elements carry ids that the init block binds listeners to.
+    assert 'id="hdr-refresh-btn"' in body
+    assert 'id="seg-filter"' in body
+    assert 'id="close-artifact-btn"' in body
+    for fragment in (
+        'getElementById("hdr-refresh-btn")',
+        'getElementById("seg-filter")',
+        'getElementById("close-artifact-btn")',
+    ):
+        assert fragment in body, f"missing listener wiring: {fragment}"
+
+
 def test_workspace_js_does_not_persist_csrf_token(tmp_path: Path) -> None:
     """CSRF token must stay in JS memory — no localStorage/sessionStorage."""
     make_meeting(tmp_path)

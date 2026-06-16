@@ -87,6 +87,8 @@ Preflight для каждой стадии:
 
 Стадия `index` делает upsert в `data/meeting_chunks.jsonl` по `meeting_id` (замещает строки той же встречи, сохраняет другие). После `index` workspace Q&A (`POST /meetings/{id}/search` и `/chat`) может находить чанки этой встречи.
 
+Стадия `transcribe` через runner жёстко передаёт `--model large-v3-turbo` (продуктовый offline ASR). Без явного `--model` скрипт падает на fallback `small`, если локальный `transcription.model` не задан, — это молча понизило бы качество UI-транскрипции до черновика. `small` остаётся доступен только через явный CLI `--model` для черновиков.
+
 Стадия `analyze` запускается в режиме `extractive` (без LLM), продуцирует `artifacts/summary.md`, `artifacts/protocol.md` и JSON-артефакты решений/задач/рисков/вопросов.
 
 `07_generate_meeting_artifacts.py` остаётся ранним генератором `summarized`-состояния. `08_process_meeting_pipeline.py` — standalone MAP-REDUCE скрипт, не в runner.
@@ -102,6 +104,8 @@ Pipeline-панель управляет job runner-ом из браузера:
 
 CSRF-поток для браузерных write-действий: при login выставляется non-HttpOnly cookie `ma_session_csrf`; JS получает токен через `GET /auth/csrf` (валидирует cookie против session hash, не создаёт сессию, не раскрывает hash) и шлёт его как `X-CSRF-Token`. Machine Bearer-вызовы CSRF-exempt. CSRF-токен в JS живёт только в памяти, не пишется в DOM/persistent storage. Все динамические значения job/stage рендерятся через DOM API + `textContent`/`dataset` + `addEventListener` (без inline-интерполяции).
 
+CSP-гигиена: ни один HTML-элемент страницы не несёт inline `on*`-обработчиков. Все интерактивные элементы (header refresh, фильтр транскрипта, close-artifact, клики по сегментам транскрипта, медиа-переключатель, артефакты, job/stage-кнопки, Q&A) привязаны через `addEventListener`, а данные передаются через `data-*`/`dataset` (`data-start-sec` для seek по сегменту). Это позволяет в дальнейшем применить строгий CSP без `unsafe-inline` для обработчиков.
+
 #### Meeting-scoped search & Q&A
 
 Панель Q&A workspace-а обращается к meeting-scoped эндпоинтам:
@@ -112,6 +116,8 @@ CSRF-поток для браузерных write-действий: при login
 Реализованы через отдельный `MeetingQAService` (`meetings/qa.py`), сознательно НЕ переиспользующий project `SearchService`/`ChatService`: те запускают project-only `ProjectGuard` (отклонил бы вопросы о встрече) и ищут по проектному корпусу (риск утечки project/global чанков). MeetingQAService читает `data/meeting_chunks.jsonl`, жёстко фильтрует по `meeting_id` ∩ meeting-типам источников (`meeting_chunk`/`meeting_decision`/`meeting_action_item`/`meeting_risk`/`meeting_open_question`), лексически ранжирует (MVP, как `scripts/31_meeting_search.py`) и формирует ответ только по найденным чанкам.
 
 Изоляция и безопасность: неизвестная/небезопасная встреча → 404; отсутствует индекс/файл чанков → 200 с `available:false` и пустыми результатами (не 500); в ответах нет путей ФС и сырых ошибок бэкенда; цитаты только из возвращённых meeting-источников (без галлюцинаций). Форма цитаты: `chunk_id`, `excerpt`, `artifact`, `segment_id`, `speaker`, `start_sec`, `end_sec`. По клику на цитату/результат с `start_sec` плеер перематывается на таймкод. Это контур MeetingAgent Core, изолированный от Project Knowledge Bot.
+
+Цитаты chat-а не завышают доказательную базу: ответ парсится на маркеры `[S#]`, и в `citations` попадают только реально процитированные источники. Поле `citations_basis` различает режимы: `"cited"` — отфильтровано по `[S#]` из ответа; `"retrieved"` — модель не проставила распознаваемых маркеров, поэтому показаны все найденные источники; `null` — ответ не сформирован (refusal). Маркеры на источники вне диапазона (`[S9]` при 2 фрагментах) игнорируются.
 
 Известные ограничения: retrieval лексический (не векторный); `segment_id` пока `null` (чанки — это окна, а не сегменты транскрипта). `data/meeting_chunks.jsonl` наполняется стадией `index` job runner-а.
 
