@@ -37,6 +37,9 @@ MEETING_SOURCE_TYPES = frozenset(
 
 _TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9]{2,}")
 
+# Matches source references the model is asked to emit, e.g. [S1], [S2].
+_CITATION_REF_RE = re.compile(r"\[[Ss](\d+)\]")
+
 _SYSTEM_PROMPT = (
     "Ты ассистент по конкретной встрече. Отвечай ТОЛЬКО на основе переданных "
     "фрагментов встречи. Не используй внешние знания. Если фрагментов "
@@ -59,6 +62,21 @@ _REFUSAL_LLM_UNAVAILABLE = (
 
 def _tokenize(text: str) -> list[str]:
     return [token.lower().replace("ё", "е") for token in _TOKEN_RE.findall(text or "")]
+
+
+def _cited_source_indices(answer: str, max_index: int) -> list[int]:
+    """Return 1-based source indices actually referenced as ``[S#]`` in answer.
+
+    Preserves first-appearance order, de-duplicates, and drops any index
+    outside ``[1, max_index]`` (a hallucinated reference to a source that was
+    not provided).
+    """
+    seen: list[int] = []
+    for match in _CITATION_REF_RE.finditer(answer or ""):
+        idx = int(match.group(1))
+        if 1 <= idx <= max_index and idx not in seen:
+            seen.append(idx)
+    return seen
 
 
 def _coerce_float(value: Any) -> float | None:
@@ -273,9 +291,24 @@ class MeetingQAService:
         if not answer or _has_no_answer_marker(answer):
             return self._chat_payload(meeting_id, status="no_answer", refusal=_REFUSAL_NO_ANSWER)
 
-        citations = [self._citation(row, meeting_id) for _score, row in ranked]
+        # Only surface sources the answer actually cited via [S#], preserving
+        # first-appearance order from the answer. If the model emitted no
+        # parseable markers, fall back to all retrieved chunks.
+        used = _cited_source_indices(answer, len(ranked))
+        by_idx = {idx: row for idx, (_score, row) in enumerate(ranked, start=1)}
+        if used:
+            selected = [by_idx[idx] for idx in used if idx in by_idx]
+            basis = "cited"
+        else:
+            selected = [row for _score, row in ranked]
+            basis = "retrieved"
+        citations = [self._citation(row, meeting_id) for row in selected]
         return self._chat_payload(
-            meeting_id, status="answered", answer=answer, citations=citations
+            meeting_id,
+            status="answered",
+            answer=answer,
+            citations=citations,
+            citations_basis=basis,
         )
 
     # -- helpers ------------------------------------------------------------
@@ -314,6 +347,7 @@ class MeetingQAService:
         answer: str | None = None,
         refusal: str | None = None,
         citations: list[dict[str, Any]] | None = None,
+        citations_basis: str | None = None,
     ) -> dict[str, Any]:
         return {
             "meeting_id": meeting_id,
@@ -321,6 +355,10 @@ class MeetingQAService:
             "answer": answer,
             "refusal": refusal,
             "citations": citations or [],
+            # "cited"  → filtered to [S#] actually referenced in the answer
+            # "retrieved" → answer had no parseable markers; all retrieved shown
+            # None     → no answer produced (refusal paths)
+            "citations_basis": citations_basis,
         }
 
 

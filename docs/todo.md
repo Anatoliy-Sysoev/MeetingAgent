@@ -25,6 +25,7 @@
 - [x] MA-WORKSPACE-JOB-CONTROLS (#70): pipeline controls panel (start/cancel/refresh + polling), `GET /auth/csrf`, `GET /meetings/{id}/jobs/stages`, CSRF-safe browser actions
 - [x] MA-MEETING-SCOPED-QA (#74, PR #75): `POST /meetings/{id}/search` + `POST /meetings/{id}/chat`, self-contained `MeetingQAService` (lexical MVP over meeting_chunks.jsonl, strict meeting scoping, no project/global leakage), workspace Q&A panel (answer/citations/search, seek-on-click)
 - [x] MA-PIPELINE-STAGES-EXPANSION (#76): expand runner beyond transcribe/diarize/merge — add extract_audio, chunk, enrich, index, analyze; stage catalog sorted by order; static preflight checks per stage; `index` stage populates data/meeting_chunks.jsonl enabling workspace Q&A
+- [x] MA-POST-PIPELINE-HARDENING (#78): pin product ASR model (`--model large-v3-turbo`) for UI-launched transcribe (no silent `small` fallback); remove remaining inline `on*` handlers from Workspace (header refresh, transcript filter, close-artifact, transcript segment seek → `dataset`+`addEventListener`); chat citations filtered to actually-cited `[S#]` with `citations_basis` (`cited`/`retrieved`/`null`)
 
 ## Backlog (приоритет сверху вниз)
 
