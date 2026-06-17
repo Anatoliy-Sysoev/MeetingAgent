@@ -10,7 +10,11 @@ _SENSITIVE_FIELD_NAMES = frozenset({"password", "token", "secret", "authorizatio
 def _is_sensitive_loc(loc: tuple | list | None) -> bool:
     if not loc:
         return False
-    return any(str(part).lower() in _SENSITIVE_FIELD_NAMES for part in loc)
+    for part in loc:
+        normalized = str(part).lower().replace("-", "_")
+        if any(marker in normalized for marker in _SENSITIVE_FIELD_NAMES):
+            return True
+    return False
 
 
 def _sanitize_ctx(ctx: object) -> dict | None:
