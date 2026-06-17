@@ -27,10 +27,10 @@ def make_v2_cfg(cfg: dict[str, Any], chunks_path: str, index_dir: str) -> dict[s
     return patched
 
 
-def unavailable_payload(query: str, mode: str, exc: Exception, query_intent: dict[str, Any] | None = None, guard: dict[str, Any] | None = None) -> dict[str, Any]:
+def unavailable_payload(query: str, mode: str, exc: Exception, query_intent: dict[str, Any] | None = None, guard: dict[str, Any] | None = None, corpus_name: str = "") -> dict[str, Any]:
     return {
         "query": query,
-        "corpus": CORPUS_NAME,
+        "corpus": corpus_name,
         "mode": mode,
         "status": SearchStatus.ERROR.value,
         "error_code": "ollama_unavailable",
@@ -107,7 +107,7 @@ class SearchService:
 
         t0 = time.perf_counter()
         rows = read_jsonl(chunks_path)
-        diagnostics.add_stage("load_chunks", self._elapsed_ms(t0), {"chunks_path": str(chunks_path), "rows": len(rows)})
+        diagnostics.add_stage("load_chunks", self._elapsed_ms(t0), {"rows": len(rows)})
 
         if request.mode in {"hybrid", "vector"} and not (index_dir / "manifest.json").exists():
             raise FileNotFoundError(
@@ -130,8 +130,7 @@ class SearchService:
             )
             diagnostics.add_stage("retrieval", self._elapsed_ms(t0), {"raw_results": len(raw_results), "mode": request.mode})
         except OllamaUnavailableError as exc:
-            payload = unavailable_payload(request.query, request.mode, exc, query_intent_payload, guard_payload)
-            payload["corpus"] = corpus.name
+            payload = unavailable_payload(request.query, request.mode, exc, query_intent_payload, guard_payload, corpus_name=corpus.name)
             payload["corpus_key"] = corpus.key
             return self._with_diagnostics(payload, diagnostics, request.include_diagnostics)
 
@@ -162,8 +161,6 @@ class SearchService:
             "mode": request.mode,
             "status": SearchStatus.OK.value,
             "top_k": request.top_k,
-            "chunks_path": str(chunks_path),
-            "index_dir": str(index_dir),
             "query_intent": query_intent_payload,
             "guard": guard_payload,
             "warnings": warnings,
