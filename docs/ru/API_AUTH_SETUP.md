@@ -563,9 +563,98 @@ openssl rand -hex 32
 | Локальный логин (cookie-сессия) | **Работает** |
 | Первичная регистрация администратора (`POST /admin/bootstrap`) | **Работает** |
 | Admin user API (`/admin/users`) | **Работает** |
+| Валидация безопасности деплоя | **Работает** — `MEETINGAGENT_DEPLOYMENT_MODE`, startup-валидатор, `GET /admin/security/status` |
 | Admin UI | **Не реализован** — используйте admin API напрямую |
 | Чат в Web UI (браузер) | **Не работает** — UI не передаёт credentials; возвращает 401 после включения RBAC |
 | Yandex ID / Google / OIDC | **Не реализованы** |
 | Публичная регистрация | **Не планируется в MVP** |
 | Per-user API tokens | **Не реализованы** |
 | Сброс пароля | **Не реализован** |
+
+---
+
+## Безопасность деплоя
+
+### Режим деплоя
+
+Установите `MEETINGAGENT_DEPLOYMENT_MODE` для управления валидацией при старте:
+
+| Режим | Описание |
+|---|---|
+| `local` (по умолчанию) | Локальная разработка. Слабая конфигурация даёт **warnings**, но не блокирует старт. |
+| `self_hosted` | LAN или интернет. Отсутствие/слабость обязательных настроек даёт **error** и **прерывает старт**. |
+
+```bash
+# .env — self-hosted деплой
+MEETINGAGENT_DEPLOYMENT_MODE=self_hosted
+MEETINGAGENT_API_TOKEN=<сгенерируйте: python -c "import secrets; print(secrets.token_urlsafe(48))">
+```
+
+### Что проверяется при старте
+
+| Код нарушения | Что проверяется | Severity в self_hosted |
+|---|---|---|
+| `deployment_mode_unknown` | Неизвестное значение `MEETINGAGENT_DEPLOYMENT_MODE` | error |
+| `machine_token_missing` | `MEETINGAGENT_API_TOKEN` не задан | error |
+| `machine_token_weak` | Токен является placeholder-ом или короче 32 символов | error |
+| `session_cookie_insecure` | `auth.cookie_secure = false` в конфиге | error |
+| `cors_wildcard_self_hosted` | Не настроены `security.allowed_hosts` или `security.allowed_origins` | warning |
+| `bootstrap_policy_unsafe` | `allow_remote=true` без надёжного bootstrap-секрета | error |
+
+В режиме `local` те же проверки дают `warning` или `info` и не прерывают старт.
+
+### Чеклист для self-hosted деплоя
+
+1. Установите `MEETINGAGENT_DEPLOYMENT_MODE=self_hosted` в `.env`.
+2. Установите надёжный токен: `MEETINGAGENT_API_TOKEN=<случайная строка ≥ 32 символов>`.
+3. Установите `auth.cookie_secure: auto` или `true` в `config.yaml` (не `false`).
+4. Настройте `security.allowed_hosts` / `security.allowed_origins` в `config.yaml` или убедитесь, что reverse proxy ограничивает допустимые хосты/источники.
+5. Используйте HTTPS или доверенный reverse proxy для всего браузерного доступа.
+6. Запустите bootstrap первого администратора через локальный путь или используйте `MEETINGAGENT_BOOTSTRAP_SECRET`.
+7. Убедитесь, что `.env` не зафиксирован в VCS (он в `.gitignore`).
+8. Запустите `pytest tests/asu_june_bot/auth -q` — убедитесь, что тесты безопасности проходят.
+
+### Endpoint статуса безопасности
+
+```
+GET /admin/security/status
+```
+
+Требует браузерную сессию администратора (`users.manage`). Machine Bearer токены запрещены для этого endpoint-а.
+
+Возвращает режим деплоя и очищенные от секретов нарушения. **Никогда** не включает значения токенов, хэши токенов, идентификаторы сессий или пути файловой системы.
+
+### Типы principals и что они могут
+
+- **Machine Bearer token** (`MEETINGAGENT_API_TOKEN`) — для скриптов, CI, межсервисных вызовов. Не является паролем администратора в браузере. Machine-токены не могут управлять пользователями браузера (`/admin/users`, `/admin/security/status`).
+- **Браузерная сессия** (`ma_session` cookie) — для операторов в web UI. Запросы, изменяющие состояние, требуют CSRF-токен (заголовок `X-CSRF-Token`).
+
+Это разные principals. Корректная cookie-сессия **не компенсирует** неверный Bearer-токен — неверные credentials всегда возвращают 401.
+
+### Безопасность cookie и сессий
+
+| Свойство | Значение |
+|---|---|
+| Имя cookie | `ma_session` (настраивается) |
+| HttpOnly | Да — JavaScript не может прочитать cookie сессии |
+| SameSite | `Lax` |
+| Флаг Secure | Управляется `auth.cookie_secure` (`auto` / `true` / `false`; по умолчанию `auto`) |
+| TTL сессии | 24 часа (настраивается через `auth.session_ttl_seconds`) |
+| Хранилище | Серверное (SQLite); хранится только хэш токена — plaintext не сохраняется |
+| CSRF | non-HttpOnly cookie `ma_session_csrf`; значение передаётся в заголовке `X-CSRF-Token` |
+
+### Контроль хостов и источников
+
+MeetingAgent не включает встроенный CORS или TrustedHost middleware. Для self-hosted деплоев ограничения хостов/источников должны обеспечиваться reverse proxy (nginx, Caddy и т.п.) перед приложением.
+
+Чтобы убрать warning `cors_wildcard_self_hosted`, задайте явные списки в `config.yaml`:
+
+```yaml
+security:
+  allowed_hosts:
+    - meetingagent.internal
+  allowed_origins:
+    - https://meetingagent.internal
+```
+
+Эти значения в текущей реализации используются только в валидаторе нарушений. Применение middleware — элемент roadmap.
