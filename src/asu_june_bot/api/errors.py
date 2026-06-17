@@ -4,6 +4,35 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+_SENSITIVE_FIELD_NAMES = frozenset({"password", "token", "secret", "authorization", "api_key", "csrf"})
+
+
+def _is_sensitive_loc(loc: tuple | list | None) -> bool:
+    if not loc:
+        return False
+    return any(str(part).lower() in _SENSITIVE_FIELD_NAMES for part in loc)
+
+
+def _sanitize_ctx(ctx: object) -> dict | None:
+    if not isinstance(ctx, dict):
+        return None
+    return {k: v for k, v in ctx.items() if k not in ("actual", "given", "pattern")} or None
+
+
+def _sanitize_validation_errors(errors: list[dict]) -> list[dict]:
+    result = []
+    for err in errors:
+        safe: dict = {"loc": err.get("loc"), "type": err.get("type")}
+        if _is_sensitive_loc(err.get("loc")):
+            safe["msg"] = "Field value redacted for security"
+        else:
+            safe["msg"] = err.get("msg")
+        ctx = _sanitize_ctx(err.get("ctx"))
+        if ctx:
+            safe["ctx"] = ctx
+        result.append(safe)
+    return result
+
 
 class ApiError(Exception):
     def __init__(self, message: str, *, status_code: int = 500, error_code: str = "api_error") -> None:
@@ -53,7 +82,7 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
             status="error",
             error_code="validation_error",
             message="Некорректный запрос к API",
-            details=exc.errors(),
+            details=_sanitize_validation_errors(exc.errors()),
         ),
     )
 
