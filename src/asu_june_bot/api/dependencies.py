@@ -8,6 +8,7 @@ from fastapi import Request
 
 from asu_june_bot.auth.deployment_safety import check_and_fail_if_unsafe
 from asu_june_bot.auth.repository import DEFAULT_DB_PATH, AuthRepository
+from asu_june_bot.auth.trusted_proxy import load_trusted_proxy_cidrs
 from asu_june_bot.auth.service import (
     DEFAULT_COOKIE_NAME,
     DEFAULT_COOKIE_SECURE,
@@ -42,6 +43,7 @@ class AppState:
     admin_service: AdminService
     login_throttle: LoginLimiter
     bootstrap_policy: BootstrapPolicy
+    trusted_proxy_cidrs: list[str]
 
 
 def _normalize_cookie_secure(value: Any) -> str:
@@ -77,6 +79,7 @@ def build_app_state() -> AppState:
     cookie_secure = _normalize_cookie_secure(auth_cfg.get("cookie_secure"))
     login_throttle = build_login_throttle(auth_cfg.get("login_throttle"))
     bootstrap_policy = build_bootstrap_policy(auth_cfg)
+    trusted_proxy_cidrs = load_trusted_proxy_cidrs(config)
     meetings_service = MeetingsService(
         meetings_root=meetings_root,
         max_text_artifact_bytes=max_text_artifact_bytes,
@@ -107,6 +110,7 @@ def build_app_state() -> AppState:
         admin_service=AdminService(auth_repository),
         login_throttle=login_throttle,
         bootstrap_policy=bootstrap_policy,
+        trusted_proxy_cidrs=trusted_proxy_cidrs,
     )
 
 
