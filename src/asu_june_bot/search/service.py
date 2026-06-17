@@ -107,7 +107,7 @@ class SearchService:
 
         t0 = time.perf_counter()
         rows = read_jsonl(chunks_path)
-        diagnostics.add_stage("load_chunks", self._elapsed_ms(t0), {"chunks_path": str(chunks_path), "rows": len(rows)})
+        diagnostics.add_stage("load_chunks", self._elapsed_ms(t0), {"rows": len(rows)})
 
         if request.mode in {"hybrid", "vector"} and not (index_dir / "manifest.json").exists():
             raise FileNotFoundError(

@@ -47,5 +47,4 @@ class SearchResult:
             "chunk_id": self.metadata.get("chunk_id"),
             "text_preview": text_preview,
             "diagnostics": self.diagnostics,
-            "metadata": self.metadata,
         }

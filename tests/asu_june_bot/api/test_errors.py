@@ -101,6 +101,36 @@ def test_sanitize_redacts_secret_field() -> None:
     assert "input" not in result[0]
 
 
+def test_sanitize_redacts_access_token_substring() -> None:
+    errors = [{"loc": ("body", "access_token"), "type": "string_too_short", "msg": "String too short", "input": "x"}]
+    result = _sanitize_validation_errors(errors)
+    assert result[0]["msg"] == "Field value redacted for security"
+
+
+def test_sanitize_redacts_csrf_token_substring() -> None:
+    errors = [{"loc": ("body", "csrf_token"), "type": "missing", "msg": "Field required", "input": "bad"}]
+    result = _sanitize_validation_errors(errors)
+    assert result[0]["msg"] == "Field value redacted for security"
+
+
+def test_sanitize_redacts_new_password_substring() -> None:
+    errors = [{"loc": ("body", "new_password"), "type": "string_too_short", "msg": "min length 8", "input": "short"}]
+    result = _sanitize_validation_errors(errors)
+    assert result[0]["msg"] == "Field value redacted for security"
+
+
+def test_sanitize_redacts_bootstrap_secret_substring() -> None:
+    errors = [{"loc": ("body", "bootstrap_secret"), "type": "missing", "msg": "Field required", "input": "x"}]
+    result = _sanitize_validation_errors(errors)
+    assert result[0]["msg"] == "Field value redacted for security"
+
+
+def test_sanitize_redacts_nested_sensitive_field() -> None:
+    errors = [{"loc": ("body", "auth", "api_key"), "type": "missing", "msg": "Field required", "input": None}]
+    result = _sanitize_validation_errors(errors)
+    assert result[0]["msg"] == "Field value redacted for security"
+
+
 # ---------------------------------------------------------------------------
 # Integration: validation error handler via TestClient
 # ---------------------------------------------------------------------------

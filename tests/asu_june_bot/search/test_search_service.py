@@ -165,16 +165,7 @@ def _make_ok_service():
     return service, intent
 
 
-def test_search_response_has_no_chunks_path() -> None:
-    service, intent = _make_ok_service()
-    with patch("asu_june_bot.search.service.classify_query_intent", return_value=intent), \
-         patch("asu_june_bot.search.service.resolve_work_path", side_effect=lambda _cfg, p: Path(p)), \
-         patch("asu_june_bot.search.service.read_jsonl", return_value=[{"chunk_id": "chunk-1"}]), \
-         patch("asu_june_bot.search.service.build_hybrid_retriever", return_value=service.post_reranker.__class__()):
-        pass  # just verify the key is absent in the payload dict
-
-    raw = service_with_guard(GuardDecision.ALLOW)
-    svc, intent2, _ = raw
+def _run_ok_search(svc, intent, *, work_prefix: str = "") -> object:
     retr = MagicMock()
     retr.search.return_value = [search_result()]
     retr.last_warnings = []
@@ -182,37 +173,53 @@ def test_search_response_has_no_chunks_path() -> None:
     svc.post_reranker.rerank.return_value = RerankResult(results=[search_result()], excluded=[], diagnostics={})
     svc.context_builder = MagicMock()
     svc.context_builder.build.return_value = FakeBuiltContext()
-
-    with patch("asu_june_bot.search.service.classify_query_intent", return_value=intent2), \
-         patch("asu_june_bot.search.service.resolve_work_path", side_effect=lambda _cfg, p: Path("/abs/" + str(p))), \
+    side_effect = (lambda _cfg, p: Path(work_prefix + str(p))) if work_prefix else (lambda _cfg, p: Path(p))
+    with patch("asu_june_bot.search.service.classify_query_intent", return_value=intent), \
+         patch("asu_june_bot.search.service.resolve_work_path", side_effect=side_effect), \
          patch("asu_june_bot.search.service.read_jsonl", return_value=[]), \
          patch("asu_june_bot.search.service.build_hybrid_retriever", return_value=retr):
-        resp = svc.search(SearchRequest(query="авторизация", mode="bm25"))
+        return svc.search(SearchRequest(query="авторизация", mode="bm25"))
 
+
+def test_search_response_has_no_chunks_path_or_index_dir() -> None:
+    svc, intent, _ = service_with_guard(GuardDecision.ALLOW)
+    resp = _run_ok_search(svc, intent)
     d = resp.to_dict()
     assert "chunks_path" not in d
     assert "index_dir" not in d
 
 
 def test_search_response_does_not_leak_absolute_paths() -> None:
-    service, intent, _ = service_with_guard(GuardDecision.ALLOW)
-    retr = MagicMock()
-    retr.search.return_value = [search_result()]
-    retr.last_warnings = []
-    service.post_reranker = MagicMock()
-    service.post_reranker.rerank.return_value = RerankResult(results=[search_result()], excluded=[], diagnostics={})
-    service.context_builder = MagicMock()
-    service.context_builder.build.return_value = FakeBuiltContext()
+    import json
+    svc, intent, _ = service_with_guard(GuardDecision.ALLOW)
+    resp = _run_ok_search(svc, intent, work_prefix="/secret/server/path/")
+    serialized = json.dumps(resp.to_dict(), ensure_ascii=False)
+    assert "/secret/server/path/" not in serialized
+    assert "chunks_path" not in serialized
+    assert "index_dir" not in serialized
+    assert "source_path" not in serialized
 
-    with patch("asu_june_bot.search.service.classify_query_intent", return_value=intent), \
-         patch("asu_june_bot.search.service.resolve_work_path", side_effect=lambda _cfg, p: Path("/secret/server/path/" + str(p))), \
-         patch("asu_june_bot.search.service.read_jsonl", return_value=[]), \
-         patch("asu_june_bot.search.service.build_hybrid_retriever", return_value=retr):
-        resp = service.search(SearchRequest(query="авторизация", mode="bm25"))
 
-    d = resp.to_dict()
-    assert "chunks_path" not in d
-    assert "index_dir" not in d
+def test_search_result_metadata_does_not_expose_source_path() -> None:
+    import json
+    result = SearchResult(
+        source_id="SRC-001",
+        text="some text",
+        score=1.0,
+        vector_score=None,
+        bm25_score=1.0,
+        metadata={
+            "chunk_id": "chunk-1",
+            "relative_path": "doc.md",
+            "source_path": "/secret/server/path/doc.md",
+        },
+        matched_by=["bm25"],
+    )
+    body = result.to_dict()
+    serialized = json.dumps(body, ensure_ascii=False)
+    assert "source_path" not in serialized
+    assert "/secret/server/path" not in serialized
+    assert body.get("document") == "doc.md"
 
 
 def test_ollama_unavailable_returns_controlled_payload_not_nameerror() -> None:
