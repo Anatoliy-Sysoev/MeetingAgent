@@ -222,6 +222,9 @@ def security_status(
     config = request.app.state.asu_june_bot.config
     findings = validate_deployment_safety(config, os.environ)
     mode = _deployment_mode(config, os.environ)
+    trusted_cidrs: list[str] = getattr(
+        request.app.state.asu_june_bot, "trusted_proxy_cidrs", []
+    ) or []
     return {
         "deployment_mode": mode,
         "findings": [
@@ -235,6 +238,10 @@ def security_status(
         ],
         "error_count": sum(1 for f in findings if f.severity == "error"),
         "warning_count": sum(1 for f in findings if f.severity == "warning"),
+        "trusted_proxy_policy": {
+            "configured": len(trusted_cidrs) > 0,
+            "count": len(trusted_cidrs),
+        },
     }
 
 
