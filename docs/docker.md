@@ -29,6 +29,20 @@ ASU_JUNE_BOT_TELEGRAM_TOKEN=...
 ASU_JUNE_BOT_ALLOWED_CHAT_IDS=...
 ```
 
+## Windows и UTF-8
+
+Для Windows smoke-сессий задавайте UTF-8 явно, чтобы русские реплики, subtitle
+файлы и JSON-артефакты не ломались из-за code page:
+
+```powershell
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+$OutputEncoding = [System.Text.UTF8Encoding]::new()
+$env:PYTHONIOENCODING = "utf-8"
+```
+
+Это особенно важно для `tests/unit/test_live_transcription_contract.py` и
+`scripts/33_live_transcribe_meeting.py`, где встречается не-ASCII текст.
+
 ## Запуск API
 
 ```powershell
