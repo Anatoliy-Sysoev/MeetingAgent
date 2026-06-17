@@ -562,9 +562,116 @@ openssl rand -hex 32
 | Local login (cookie session) | **Working** |
 | First-admin bootstrap (`POST /admin/bootstrap`) | **Working** |
 | Admin user API (`/admin/users`) | **Working** |
+| Deployment safety validation | **Working** — `MEETINGAGENT_DEPLOYMENT_MODE`, startup validator, `GET /admin/security/status` |
 | Admin UI | **Not implemented** — use the admin API directly |
 | Web UI chat (browser) | **Broken** — UI sends no credentials; returns 401 after RBAC enabled |
 | Yandex ID / Google / OIDC | **Not implemented** |
 | Public registration | **Not planned for MVP** |
 | Per-user API tokens | **Not implemented** |
 | Password reset | **Not implemented** |
+
+---
+
+## Deployment Safety
+
+### Deployment mode
+
+Set `MEETINGAGENT_DEPLOYMENT_MODE` to control startup safety validation:
+
+| Mode | Description |
+|---|---|
+| `local` (default) | Local development. Weak config produces **warnings** but does not block startup. |
+| `self_hosted` | LAN or internet exposure. Missing/weak required settings produce **errors** and **abort startup**. |
+
+```bash
+# .env — self-hosted deployment
+MEETINGAGENT_DEPLOYMENT_MODE=self_hosted
+MEETINGAGENT_API_TOKEN=<generate with: python -c "import secrets; print(secrets.token_urlsafe(48))">
+```
+
+### What is validated at startup
+
+The validator (`src/asu_june_bot/auth/deployment_safety.py`) checks:
+
+| Finding code | Checked | self_hosted severity |
+|---|---|---|
+| `deployment_mode_unknown` | Unknown value for `MEETINGAGENT_DEPLOYMENT_MODE` | error |
+| `machine_token_missing` | `MEETINGAGENT_API_TOKEN` not set | error |
+| `machine_token_weak` | Token is a placeholder or shorter than 32 characters | error |
+| `session_cookie_insecure` | `auth.cookie_secure = false` in config | error |
+| `cors_wildcard_self_hosted` | No `security.allowed_hosts` or `security.allowed_origins` configured | warning |
+| `bootstrap_policy_unsafe` | `allow_remote=true` without a strong bootstrap secret | error |
+
+In `local` mode, the same checks produce `warning` or `info` findings and never abort startup.
+
+### Self-hosted deployment checklist
+
+1. Set `MEETINGAGENT_DEPLOYMENT_MODE=self_hosted` in `.env`.
+2. Set a strong machine/API token: `MEETINGAGENT_API_TOKEN=<random ≥ 32 chars>`.
+3. Set `auth.cookie_secure: auto` or `true` in `config.yaml` (never `false`).
+4. Configure `security.allowed_hosts` / `security.allowed_origins` in `config.yaml`, or ensure your reverse proxy enforces host/origin restrictions.
+5. Use HTTPS or a trusted reverse proxy for all browser access.
+6. Run first-admin bootstrap through the local-only path or use `MEETINGAGENT_BOOTSTRAP_SECRET`.
+7. Confirm `.env` is not committed to version control (it is in `.gitignore`).
+8. Run `pytest tests/asu_june_bot/auth -q` to confirm safety tests pass.
+
+### Admin security status endpoint
+
+```
+GET /admin/security/status
+```
+
+Requires an admin browser session (`users.manage` permission). Machine Bearer tokens are forbidden for this endpoint.
+
+Returns deployment mode and redacted findings. **Never** includes raw token values, token hashes, session IDs, or filesystem paths.
+
+```json
+{
+  "deployment_mode": "self_hosted",
+  "findings": [
+    {
+      "code": "cors_wildcard_self_hosted",
+      "severity": "warning",
+      "message": "No security.allowed_hosts or security.allowed_origins are configured...",
+      "setting": "security.allowed_hosts / security.allowed_origins"
+    }
+  ],
+  "error_count": 0,
+  "warning_count": 1
+}
+```
+
+### Principal types and what they can access
+
+- **Machine Bearer token** (`MEETINGAGENT_API_TOKEN`) — intended for scripts, CI, and service-to-service calls. Not a browser admin password. Machine tokens cannot manage browser users (`/admin/users`, `/admin/security/status`).
+- **Browser session** (`ma_session` cookie) — for human operators using the web UI. State-changing requests require a CSRF token (`X-CSRF-Token` header).
+
+These are separate principals. A valid session cookie does **not** compensate for a wrong Bearer token — invalid supplied credentials always return 401.
+
+### Cookie and session security
+
+| Property | Value |
+|---|---|
+| Cookie name | `ma_session` (configurable) |
+| HttpOnly | Yes — JavaScript cannot read the session cookie |
+| SameSite | `Lax` |
+| Secure flag | Controlled by `auth.cookie_secure` (`auto` / `true` / `false`; default `auto`) |
+| Session TTL | 24 hours (configurable via `auth.session_ttl_seconds`) |
+| Storage | Server-side (SQLite); token hash only — plaintext token never stored |
+| CSRF | Non-HttpOnly `ma_session_csrf` cookie; value sent as `X-CSRF-Token` header |
+
+### Host and origin controls
+
+MeetingAgent does not include built-in CORS or TrustedHost middleware. For self-hosted deployments, host/origin enforcement must be provided by the reverse proxy (nginx, Caddy, etc.) or load balancer in front of the app.
+
+To suppress the `cors_wildcard_self_hosted` warning, configure explicit lists in `config.yaml`:
+
+```yaml
+security:
+  allowed_hosts:
+    - meetingagent.internal
+  allowed_origins:
+    - https://meetingagent.internal
+```
+
+These values are currently used only for the safety validator finding. Middleware enforcement is a future roadmap item.

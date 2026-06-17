@@ -17,7 +17,7 @@
 - [x] MA-AUTH-RBAC-INTEGRATION (#50): session principals, RBAC на роутах, CSRF
 - [x] MA-AUTH-LOGIN-THROTTLE (#51): in-memory brute-force protection, 429+Retry-After, trusted proxy CIDR — merged `567f043a`
 - [x] MA-AUTH-BOOTSTRAP-ADMIN (#58): first-admin bootstrap + admin user API — `04b7af4`
-- [ ] MA-AUTH-DEPLOYMENT-SAFETY: safe defaults для self-hosted
+- [x] MA-AUTH-DEPLOYMENT-SAFETY-V2 (#82): deployment mode (local/self_hosted), safety validator, machine token validation, cookie safety checks, CORS/host boundary, admin `/admin/security/status`, docs
 
 ## Done (Meeting Workspace)
 

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import os
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from asu_june_bot.api.auth import require_admin_action_permission, require_admin_user_permission
+from asu_june_bot.auth.deployment_safety import _deployment_mode, validate_deployment_safety
 from asu_june_bot.api.bootstrap_policy import (
     BOOTSTRAP_TOKEN_HEADER,
     BootstrapPolicy,
@@ -205,6 +207,35 @@ def disable_user(
     except LastAdminError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     return user
+
+
+@router.get("/security/status")
+def security_status(
+    request: Request,
+    _principal: Annotated[Principal, Depends(_require_admin_read)],
+) -> dict:
+    """Return deployment mode and redacted safety findings.
+
+    Admin-only. Response never includes raw secrets, token values, token hashes,
+    session IDs, bootstrap secrets, or private filesystem paths.
+    """
+    config = request.app.state.asu_june_bot.config
+    findings = validate_deployment_safety(config, os.environ)
+    mode = _deployment_mode(config, os.environ)
+    return {
+        "deployment_mode": mode,
+        "findings": [
+            {
+                "code": f.code,
+                "severity": f.severity,
+                "message": f.message,
+                "setting": f.setting,
+            }
+            for f in findings
+        ],
+        "error_count": sum(1 for f in findings if f.severity == "error"),
+        "warning_count": sum(1 for f in findings if f.severity == "warning"),
+    }
 
 
 @router.post("/users/{user_id}/enable")
