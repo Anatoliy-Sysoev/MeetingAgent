@@ -146,3 +146,92 @@ def test_no_guard_forces_retrieval_even_when_guard_refuses() -> None:
     assert response.status == "ok"
     assert response.to_dict()["diagnostics"]["search_service"]["retrieval_called"] is True
     retriever.search.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Issue #85 — path leakage + CORPUS_NAME NameError
+# ---------------------------------------------------------------------------
+
+def _make_ok_service():
+    service, intent, _ = service_with_guard(GuardDecision.ALLOW)
+    raw_result = search_result()
+    retriever = MagicMock()
+    retriever.search.return_value = [raw_result]
+    retriever.last_warnings = []
+    service.post_reranker = MagicMock()
+    service.post_reranker.rerank.return_value = RerankResult(results=[raw_result], excluded=[], diagnostics={})
+    service.context_builder = MagicMock()
+    service.context_builder.build.return_value = FakeBuiltContext()
+    return service, intent
+
+
+def test_search_response_has_no_chunks_path() -> None:
+    service, intent = _make_ok_service()
+    with patch("asu_june_bot.search.service.classify_query_intent", return_value=intent), \
+         patch("asu_june_bot.search.service.resolve_work_path", side_effect=lambda _cfg, p: Path(p)), \
+         patch("asu_june_bot.search.service.read_jsonl", return_value=[{"chunk_id": "chunk-1"}]), \
+         patch("asu_june_bot.search.service.build_hybrid_retriever", return_value=service.post_reranker.__class__()):
+        pass  # just verify the key is absent in the payload dict
+
+    raw = service_with_guard(GuardDecision.ALLOW)
+    svc, intent2, _ = raw
+    retr = MagicMock()
+    retr.search.return_value = [search_result()]
+    retr.last_warnings = []
+    svc.post_reranker = MagicMock()
+    svc.post_reranker.rerank.return_value = RerankResult(results=[search_result()], excluded=[], diagnostics={})
+    svc.context_builder = MagicMock()
+    svc.context_builder.build.return_value = FakeBuiltContext()
+
+    with patch("asu_june_bot.search.service.classify_query_intent", return_value=intent2), \
+         patch("asu_june_bot.search.service.resolve_work_path", side_effect=lambda _cfg, p: Path("/abs/" + str(p))), \
+         patch("asu_june_bot.search.service.read_jsonl", return_value=[]), \
+         patch("asu_june_bot.search.service.build_hybrid_retriever", return_value=retr):
+        resp = svc.search(SearchRequest(query="авторизация", mode="bm25"))
+
+    d = resp.to_dict()
+    assert "chunks_path" not in d
+    assert "index_dir" not in d
+
+
+def test_search_response_does_not_leak_absolute_paths() -> None:
+    service, intent, _ = service_with_guard(GuardDecision.ALLOW)
+    retr = MagicMock()
+    retr.search.return_value = [search_result()]
+    retr.last_warnings = []
+    service.post_reranker = MagicMock()
+    service.post_reranker.rerank.return_value = RerankResult(results=[search_result()], excluded=[], diagnostics={})
+    service.context_builder = MagicMock()
+    service.context_builder.build.return_value = FakeBuiltContext()
+
+    with patch("asu_june_bot.search.service.classify_query_intent", return_value=intent), \
+         patch("asu_june_bot.search.service.resolve_work_path", side_effect=lambda _cfg, p: Path("/secret/server/path/" + str(p))), \
+         patch("asu_june_bot.search.service.read_jsonl", return_value=[]), \
+         patch("asu_june_bot.search.service.build_hybrid_retriever", return_value=retr):
+        resp = service.search(SearchRequest(query="авторизация", mode="bm25"))
+
+    d = resp.to_dict()
+    assert "chunks_path" not in d
+    assert "index_dir" not in d
+
+
+def test_ollama_unavailable_returns_controlled_payload_not_nameerror() -> None:
+    from asu_june_bot.retrieval.vector import OllamaUnavailableError
+    service, intent, _ = service_with_guard(GuardDecision.ALLOW)
+    retr = MagicMock()
+    retr.search.side_effect = OllamaUnavailableError("connection refused")
+    retr.last_warnings = []
+
+    with patch("asu_june_bot.search.service.classify_query_intent", return_value=intent), \
+         patch("asu_june_bot.search.service.resolve_work_path", side_effect=lambda _cfg, p: Path(p)), \
+         patch("asu_june_bot.search.service.read_jsonl", return_value=[]), \
+         patch("asu_june_bot.search.service.build_hybrid_retriever", return_value=retr), \
+         patch("pathlib.Path.exists", return_value=True):
+        # Must not raise NameError
+        resp = service.search(SearchRequest(query="авторизация", mode="hybrid"))
+
+    d = resp.to_dict()
+    assert d["error_code"] == "ollama_unavailable"
+    assert "corpus" in d
+    assert "chunks_path" not in d
+    assert "index_dir" not in d
