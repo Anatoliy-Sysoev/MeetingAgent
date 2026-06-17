@@ -146,3 +146,99 @@ def test_no_guard_forces_retrieval_even_when_guard_refuses() -> None:
     assert response.status == "ok"
     assert response.to_dict()["diagnostics"]["search_service"]["retrieval_called"] is True
     retriever.search.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Issue #85 — path leakage + CORPUS_NAME NameError
+# ---------------------------------------------------------------------------
+
+def _make_ok_service():
+    service, intent, _ = service_with_guard(GuardDecision.ALLOW)
+    raw_result = search_result()
+    retriever = MagicMock()
+    retriever.search.return_value = [raw_result]
+    retriever.last_warnings = []
+    service.post_reranker = MagicMock()
+    service.post_reranker.rerank.return_value = RerankResult(results=[raw_result], excluded=[], diagnostics={})
+    service.context_builder = MagicMock()
+    service.context_builder.build.return_value = FakeBuiltContext()
+    return service, intent
+
+
+def _run_ok_search(svc, intent, *, work_prefix: str = "") -> object:
+    retr = MagicMock()
+    retr.search.return_value = [search_result()]
+    retr.last_warnings = []
+    svc.post_reranker = MagicMock()
+    svc.post_reranker.rerank.return_value = RerankResult(results=[search_result()], excluded=[], diagnostics={})
+    svc.context_builder = MagicMock()
+    svc.context_builder.build.return_value = FakeBuiltContext()
+    side_effect = (lambda _cfg, p: Path(work_prefix + str(p))) if work_prefix else (lambda _cfg, p: Path(p))
+    with patch("asu_june_bot.search.service.classify_query_intent", return_value=intent), \
+         patch("asu_june_bot.search.service.resolve_work_path", side_effect=side_effect), \
+         patch("asu_june_bot.search.service.read_jsonl", return_value=[]), \
+         patch("asu_june_bot.search.service.build_hybrid_retriever", return_value=retr):
+        return svc.search(SearchRequest(query="авторизация", mode="bm25"))
+
+
+def test_search_response_has_no_chunks_path_or_index_dir() -> None:
+    svc, intent, _ = service_with_guard(GuardDecision.ALLOW)
+    resp = _run_ok_search(svc, intent)
+    d = resp.to_dict()
+    assert "chunks_path" not in d
+    assert "index_dir" not in d
+
+
+def test_search_response_does_not_leak_absolute_paths() -> None:
+    import json
+    svc, intent, _ = service_with_guard(GuardDecision.ALLOW)
+    resp = _run_ok_search(svc, intent, work_prefix="/secret/server/path/")
+    serialized = json.dumps(resp.to_dict(), ensure_ascii=False)
+    assert "/secret/server/path/" not in serialized
+    assert "chunks_path" not in serialized
+    assert "index_dir" not in serialized
+    assert "source_path" not in serialized
+
+
+def test_search_result_metadata_does_not_expose_source_path() -> None:
+    import json
+    result = SearchResult(
+        source_id="SRC-001",
+        text="some text",
+        score=1.0,
+        vector_score=None,
+        bm25_score=1.0,
+        metadata={
+            "chunk_id": "chunk-1",
+            "relative_path": "doc.md",
+            "source_path": "/secret/server/path/doc.md",
+        },
+        matched_by=["bm25"],
+    )
+    body = result.to_dict()
+    serialized = json.dumps(body, ensure_ascii=False)
+    assert "source_path" not in serialized
+    assert "/secret/server/path" not in serialized
+    assert body.get("document") == "doc.md"
+
+
+def test_ollama_unavailable_returns_controlled_payload_not_nameerror() -> None:
+    from asu_june_bot.retrieval.vector import OllamaUnavailableError
+    service, intent, _ = service_with_guard(GuardDecision.ALLOW)
+    retr = MagicMock()
+    retr.search.side_effect = OllamaUnavailableError("connection refused")
+    retr.last_warnings = []
+
+    with patch("asu_june_bot.search.service.classify_query_intent", return_value=intent), \
+         patch("asu_june_bot.search.service.resolve_work_path", side_effect=lambda _cfg, p: Path(p)), \
+         patch("asu_june_bot.search.service.read_jsonl", return_value=[]), \
+         patch("asu_june_bot.search.service.build_hybrid_retriever", return_value=retr), \
+         patch("pathlib.Path.exists", return_value=True):
+        # Must not raise NameError
+        resp = service.search(SearchRequest(query="авторизация", mode="hybrid"))
+
+    d = resp.to_dict()
+    assert d["error_code"] == "ollama_unavailable"
+    assert "corpus" in d
+    assert "chunks_path" not in d
+    assert "index_dir" not in d

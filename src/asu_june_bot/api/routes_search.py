@@ -22,7 +22,7 @@ class SearchApiRequest(BaseModel):
     mode: Literal["hybrid", "vector", "bm25"] = "hybrid"
     top_k: int = Field(default=8, ge=1, le=50)
     include_source_types: list[str] | None = None
-    include_diagnostics: bool = True
+    include_diagnostics: bool = False
 
 
 @router.post("/search")
