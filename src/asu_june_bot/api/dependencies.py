@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import Request
 
+from asu_june_bot.auth.deployment_safety import check_and_fail_if_unsafe
 from asu_june_bot.auth.repository import DEFAULT_DB_PATH, AuthRepository
 from asu_june_bot.auth.service import (
     DEFAULT_COOKIE_NAME,
@@ -60,6 +61,7 @@ def _normalize_cookie_secure(value: Any) -> str:
 
 def build_app_state() -> AppState:
     config = load_config()
+    check_and_fail_if_unsafe(config)  # fails closed in self_hosted mode on unsafe config
     search_service = SearchService(config=config)
     ollama_cfg = config.get("ollama", {}) if isinstance(config.get("ollama"), dict) else {}
     chat_base_url = str(ollama_cfg.get("chat_base_url") or "http://127.0.0.1:11434/v1")
