@@ -328,7 +328,8 @@ def check_and_fail_if_unsafe(
     mode = _deployment_mode(config, env)
 
     errors = [f for f in findings if f.severity == "error"]
-    if errors and mode == "self_hosted":
+    has_unknown_mode = any(f.code == "deployment_mode_unknown" for f in findings)
+    if has_unknown_mode or (errors and mode == "self_hosted"):
         raise DeploymentSafetyError(findings)
 
     return findings

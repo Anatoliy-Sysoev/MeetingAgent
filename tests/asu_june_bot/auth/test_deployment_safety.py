@@ -353,6 +353,18 @@ def test_deployment_safety_error_does_not_expose_secrets() -> None:
     assert secret not in msg
 
 
+def test_unknown_mode_raises_deployment_safety_error() -> None:
+    env = {
+        "MEETINGAGENT_DEPLOYMENT_MODE": "cloud",
+        "MEETINGAGENT_API_TOKEN": "a" * 40,
+    }
+    with pytest.raises(DeploymentSafetyError) as exc_info:
+        check_and_fail_if_unsafe({}, env)
+    msg = str(exc_info.value)
+    assert "deployment_mode_unknown" in msg
+    assert "cloud" not in msg  # raw mode value must not appear in exception message
+
+
 def test_local_mode_never_raises_even_with_weak_config() -> None:
     """Local dev startup must not break even when config is not production-ready."""
     findings = check_and_fail_if_unsafe({}, {})  # missing token, no mode → local
