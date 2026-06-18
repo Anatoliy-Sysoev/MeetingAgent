@@ -269,7 +269,7 @@ def _check_trusted_proxy_policy(
     """
     findings: list[SafetyFinding] = []
 
-    cidrs = load_trusted_proxy_cidrs(config)
+    cidrs = load_trusted_proxy_cidrs(config, env)
 
     bad_cidrs = validate_trusted_proxy_cidrs(cidrs)
     if bad_cidrs:

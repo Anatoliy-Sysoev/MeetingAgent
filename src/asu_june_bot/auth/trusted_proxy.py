@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import ipaddress
 import os
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 
@@ -121,8 +121,19 @@ def validate_trusted_proxy_cidrs(cidrs: list[str]) -> list[str]:
     return bad
 
 
-def load_trusted_proxy_cidrs(config: dict[str, Any]) -> list[str]:
-    """Load trusted proxy CIDRs from config + env, in that priority order."""
-    env_val = os.environ.get("MEETINGAGENT_TRUSTED_PROXY_CIDRS", "")
+def load_trusted_proxy_cidrs(
+    config: dict[str, Any],
+    env: Mapping[str, str] | None = None,
+) -> list[str]:
+    """Load trusted proxy CIDRs from config + env, in that priority order.
+
+    Args:
+        config: Loaded application config dict.
+        env:    Environment mapping to read MEETINGAGENT_TRUSTED_PROXY_CIDRS from.
+                Defaults to os.environ when None (runtime startup path).
+    """
+    if env is None:
+        env = os.environ
+    env_val = env.get("MEETINGAGENT_TRUSTED_PROXY_CIDRS", "")
     cfg_val = (config.get("security") or {}).get("trusted_proxy_cidrs")
     return parse_trusted_proxy_cidrs(cfg_val, env_val)

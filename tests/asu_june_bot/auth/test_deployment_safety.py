@@ -765,6 +765,29 @@ def test_admin_security_status_includes_trusted_proxy_policy(tmp_path: Path) -> 
     assert isinstance(tpp["count"], int)
 
 
+def test_self_hosted_auto_secure_with_trusted_proxy_from_env_no_warning() -> None:
+    cfg = {"auth": {"cookie_secure": "auto"}}
+    env = {
+        "MEETINGAGENT_DEPLOYMENT_MODE": "self_hosted",
+        "MEETINGAGENT_API_TOKEN": STRONG_TOKEN,
+        "MEETINGAGENT_TRUSTED_PROXY_CIDRS": "10.0.0.0/8",
+    }
+    findings = validate_deployment_safety(cfg, env)
+    assert "trusted_proxy_no_cidrs" not in _finding_codes(findings)
+    assert "invalid_trusted_proxy_cidrs" not in _finding_codes(findings)
+
+
+def test_invalid_trusted_proxy_cidr_from_env_is_error() -> None:
+    cfg = {}
+    env = {
+        "MEETINGAGENT_DEPLOYMENT_MODE": "self_hosted",
+        "MEETINGAGENT_API_TOKEN": STRONG_TOKEN,
+        "MEETINGAGENT_TRUSTED_PROXY_CIDRS": "not-a-cidr",
+    }
+    findings = validate_deployment_safety(cfg, env)
+    assert "invalid_trusted_proxy_cidrs" in _error_codes(findings)
+
+
 def test_admin_security_status_does_not_expose_raw_proxy_cidrs(tmp_path: Path) -> None:
     cidr = "10.0.0.0/8"
     client, admin_svc = _make_admin_client(tmp_path, config={"security": {"trusted_proxy_cidrs": [cidr]}})
