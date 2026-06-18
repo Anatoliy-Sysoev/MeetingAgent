@@ -460,7 +460,7 @@ def test_index_upserts_replaces_same_meeting_rows(tmp_path: Path) -> None:
     )
     output_path = tmp_path / "data" / "meeting_chunks.jsonl"
     _run_index_script(meeting_dir, output_path)
-    first_count = sum(1 for _ in output_path.read_text().splitlines() if _.strip())
+    first_count = sum(1 for _ in output_path.read_text(encoding="utf-8").splitlines() if _.strip())
 
     # Run again — must replace, not append
     (meeting_dir / "meeting.json").write_text(
@@ -468,7 +468,7 @@ def test_index_upserts_replaces_same_meeting_rows(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     _run_index_script(meeting_dir, output_path)
-    second_count = sum(1 for _ in output_path.read_text().splitlines() if _.strip())
+    second_count = sum(1 for _ in output_path.read_text(encoding="utf-8").splitlines() if _.strip())
     assert second_count == first_count, "second index run must not duplicate rows"
 
 
@@ -495,7 +495,7 @@ def test_index_preserves_other_meeting_rows(tmp_path: Path) -> None:
     )
     _run_index_script(meeting_dir, output_path)
 
-    rows = [json.loads(line) for line in output_path.read_text().splitlines() if line.strip()]
+    rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     other_rows = [r for r in rows if r.get("meeting_id") == other_meeting_id]
     assert other_rows, "other meeting's row must survive index"
     assert other_rows[0]["chunk_id"] == "other-c1"

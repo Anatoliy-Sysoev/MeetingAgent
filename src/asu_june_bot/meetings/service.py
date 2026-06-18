@@ -5,6 +5,7 @@ import json
 import re
 import shutil
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any
 
 import jsonschema
@@ -176,6 +177,18 @@ def _coerce_float(value: Any) -> float | None:
         return None
 
 
+def _artifact_map(card: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the artifacts dict from a meeting card, normalizing malformed values.
+
+    Handles artifacts: null, [], "bad", or missing key — all return {}.
+    Only a real dict passes through unchanged.
+    """
+    artifacts = card.get("artifacts")
+    if isinstance(artifacts, dict):
+        return artifacts
+    return {}
+
+
 def _detect_content_type(path: Path) -> str | None:
     """Return format string for allowlisted suffixes, None for everything else."""
     suffix = path.suffix.lower()
@@ -189,7 +202,7 @@ def _detect_content_type(path: Path) -> str | None:
 
 
 def _summary(data: dict[str, Any]) -> dict[str, Any]:
-    artifacts: dict[str, str] = data.get("artifacts") or {}
+    artifacts = _artifact_map(data)
     media_files: list[dict] = (data.get("source") or {}).get("media_files") or []
     result: dict[str, Any] = {
         "meeting_id": data.get("meeting_id"),
@@ -310,7 +323,7 @@ class MeetingsService:
         if not card_path.exists():
             return None
         data = _read_meeting_json(card_path)
-        artifacts_map: dict[str, str] = data.get("artifacts") or {}
+        artifacts_map = _artifact_map(data)
         meeting_dir = self._meeting_dir(meeting_id)
         return [
             _artifact_entry(meeting_dir, key, rel)
@@ -325,7 +338,7 @@ class MeetingsService:
         if not card_path.exists():
             return None
         data = _read_meeting_json(card_path)
-        artifacts: dict[str, str] = data.get("artifacts") or {}
+        artifacts = _artifact_map(data)
         meeting_dir = self._meeting_dir(meeting_id)
         for key in ("segments", "transcript_json", "transcript_txt", "transcript"):
             rel = artifacts.get(key)
@@ -367,7 +380,7 @@ class MeetingsService:
         if not card_path.exists():
             return None
         data = _read_meeting_json(card_path)
-        artifacts: dict[str, str] = data.get("artifacts") or {}
+        artifacts = _artifact_map(data)
         rel = artifacts.get(artifact_name)
         if not rel:
             return None
