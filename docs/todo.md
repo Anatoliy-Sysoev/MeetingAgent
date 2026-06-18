@@ -31,6 +31,8 @@
 
 - [x] MA-PIPELINE-E2E-SMOKE (#80): deterministic E2E smoke suite — chunk → enrich → index → analyze in-process; Workspace API; meeting-scoped search/chat; ASR model pin regression; DOM/CSP checks; path-safety assertions
 
+- [x] MA-AUTH-SECRET-STRENGTH-AND-TRUSTED-PROXY (#86, #91): entropy-based secret validation (single-char repeat, block repeat, placeholder); trusted proxy CIDR policy for cookie_secure=auto; X-Forwarded-Proto ignored from untrusted clients; deployment safety warnings for missing proxy policy; /admin/security/status trusted_proxy_policy field
+
 ## Backlog (приоритет сверху вниз)
 - MA-REVIEW-QUEUE: разметка chat_runs.jsonl для eval, генерация guard_v2_cases.jsonl
 - Meeting-scoped Q&A v2: vector retrieval over meeting chunks (current MVP is lexical), transcript-segment-level citations (`segment_id`)

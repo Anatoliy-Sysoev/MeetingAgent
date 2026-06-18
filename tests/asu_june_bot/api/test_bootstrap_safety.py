@@ -29,7 +29,7 @@ from asu_june_bot.auth.service import AdminService, LocalAuthService  # noqa: E4
 from asu_june_bot.auth.throttle import LoginThrottle  # noqa: E402
 
 _BOOTSTRAP_SECRET = "safety-test-bootstrap-secret-that-is-long-enough-abcdefgh"
-_STRONG_SECRET = "a" * MIN_BOOTSTRAP_SECRET_LENGTH
+_STRONG_SECRET = "Xq2A9mP7vR4tY8nB6cD1eF3gH5jK0sLzW"
 _ADMIN_EMAIL = "admin@example.com"
 _ADMIN_PASS = "adminpassword1"
 _PAYLOAD = {"email": _ADMIN_EMAIL, "password": _ADMIN_PASS}
@@ -101,7 +101,7 @@ def test_build_bootstrap_policy_allow_remote_from_config() -> None:
 
 
 def test_build_bootstrap_policy_env_overrides_config(monkeypatch: pytest.MonkeyPatch) -> None:
-    env_secret = "env-secret-value-that-is-long-enough-abcdefghij"
+    env_secret = "Xq2A9mP7vR4tY8nB6cD1eF3gH5jK0sLzW-from-env"
     monkeypatch.setenv("MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE", "true")
     monkeypatch.setenv("MEETINGAGENT_BOOTSTRAP_SECRET", env_secret)
     pol = build_bootstrap_policy({"bootstrap": {"allow_remote": False, "secret": _STRONG_SECRET}})

@@ -22,6 +22,8 @@ import secrets
 from dataclasses import dataclass
 from typing import Any
 
+from asu_june_bot.auth.secret_strength import validate_secret_strength
+
 BOOTSTRAP_TOKEN_HEADER = "X-Bootstrap-Token"
 
 _LOCALHOST_HOSTS: frozenset[str] = frozenset({"127.0.0.1", "::1", "::ffff:127.0.0.1"})
@@ -110,10 +112,10 @@ def build_bootstrap_policy(auth_cfg: dict[str, Any] | None) -> BootstrapPolicy:
         )
 
     if allow_remote and secret:
-        if len(secret) < MIN_BOOTSTRAP_SECRET_LENGTH:
+        strength = validate_secret_strength(secret, min_length=MIN_BOOTSTRAP_SECRET_LENGTH)
+        if not strength.ok:
             raise ValueError(
-                f"Bootstrap secret is too short ({len(secret)} chars); "
-                f"minimum is {MIN_BOOTSTRAP_SECRET_LENGTH} characters. "
+                f"Bootstrap secret does not meet security requirements. {strength.reason} "
                 "Generate one: python -c \"import secrets; print(secrets.token_urlsafe(48))\""
             )
 

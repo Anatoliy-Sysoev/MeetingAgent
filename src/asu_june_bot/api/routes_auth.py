@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from asu_june_bot.api.auth import CSRF_HEADER
 from asu_june_bot.api.dependencies import get_local_auth_service, get_login_throttle
 from asu_june_bot.auth.passwords import verify_csrf_token
+from asu_june_bot.auth.trusted_proxy import resolve_cookie_secure
 from asu_june_bot.auth.service import (
     AuthenticatedSession,
     InvalidCredentialsError,
@@ -27,14 +28,18 @@ class LoginRequest(BaseModel):
 
 
 def _resolve_secure(service: LocalAuthService, request: Request) -> bool:
-    mode = service.cookie_secure
-    if mode == "true":
-        return True
-    if mode == "false":
-        return False
-    if request.url.scheme == "https":
-        return True
-    return request.headers.get("x-forwarded-proto", "").lower() == "https"
+    trusted_cidrs = getattr(
+        getattr(request, "app", None) and request.app.state.asu_june_bot,
+        "trusted_proxy_cidrs",
+        [],
+    ) or []
+    return resolve_cookie_secure(
+        configured=service.cookie_secure,
+        request_scheme=request.url.scheme,
+        forwarded_proto=request.headers.get("x-forwarded-proto"),
+        client_host=request.client.host if request.client else None,
+        trusted_proxy_cidrs=trusted_cidrs,
+    )
 
 
 def _csrf_cookie_name(service: LocalAuthService) -> str:

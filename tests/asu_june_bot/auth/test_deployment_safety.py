@@ -41,7 +41,7 @@ from asu_june_bot.auth.deployment_safety import (  # noqa: E402
 # Helpers
 # ---------------------------------------------------------------------------
 
-STRONG_TOKEN = "a" * 40  # 40-char dummy; not a placeholder
+STRONG_TOKEN = "r7NQx4vP9zK2mT6aY8sD3fG5hJ1kL0pW"  # random-looking, passes entropy checks
 
 def _env(**kwargs: str) -> dict[str, str]:
     return {k: v for k, v in kwargs.items()}
@@ -292,7 +292,7 @@ def test_allow_remote_with_placeholder_secret_is_error() -> None:
 def test_allow_remote_with_strong_secret_no_bootstrap_finding() -> None:
     env = {
         "MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE": "true",
-        "MEETINGAGENT_BOOTSTRAP_SECRET": "x" * 40,
+        "MEETINGAGENT_BOOTSTRAP_SECRET": "Xq2A9mP7vR4tY8nB6cD1eF3gH5jK0sLz",
     }
     findings = validate_deployment_safety({}, env)
     assert "bootstrap_policy_unsafe" not in _finding_codes(findings)
@@ -356,7 +356,7 @@ def test_deployment_safety_error_does_not_expose_secrets() -> None:
 def test_unknown_mode_raises_deployment_safety_error() -> None:
     env = {
         "MEETINGAGENT_DEPLOYMENT_MODE": "cloud",
-        "MEETINGAGENT_API_TOKEN": "a" * 40,
+        "MEETINGAGENT_API_TOKEN": STRONG_TOKEN,
     }
     with pytest.raises(DeploymentSafetyError) as exc_info:
         check_and_fail_if_unsafe({}, env)
@@ -422,6 +422,7 @@ class FakeState:
     meeting_qa_service: object = field(default_factory=object)
     auth_repository: object = field(default_factory=object)
     bootstrap_policy: object = field(default_factory=object)
+    trusted_proxy_cidrs: list = field(default_factory=list)
 
 
 def _make_admin_client(tmp_path: Path, *, config: dict | None = None) -> tuple[TestClient, object]:
@@ -620,3 +621,179 @@ def test_session_cookie_has_finite_max_age(tmp_path: Path) -> None:
     import re
     m = re.search(r"max-age=(\d+)", set_cookie.lower())
     assert m and int(m.group(1)) > 0
+
+
+# ===========================================================================
+# 9. Secret strength (issue #86)
+# ===========================================================================
+
+def test_self_hosted_machine_token_rejects_low_entropy_value() -> None:
+    """Repeated single-char token must produce an error finding in self_hosted."""
+    env = {
+        "MEETINGAGENT_DEPLOYMENT_MODE": "self_hosted",
+        "MEETINGAGENT_API_TOKEN": "a" * 40,
+    }
+    findings = validate_deployment_safety({}, env)
+    assert "machine_token_weak" in _error_codes(findings)
+
+
+def test_local_machine_token_low_entropy_is_warning_not_error() -> None:
+    """Repeated single-char token produces only a warning in local mode."""
+    env = {"MEETINGAGENT_API_TOKEN": "a" * 40}
+    findings = validate_deployment_safety({}, env)
+    assert "machine_token_weak" in _warning_codes(findings)
+    assert "machine_token_weak" not in _error_codes(findings)
+
+
+def test_self_hosted_machine_token_rejects_repeated_block() -> None:
+    env = {
+        "MEETINGAGENT_DEPLOYMENT_MODE": "self_hosted",
+        "MEETINGAGENT_API_TOKEN": "abcabcabcabcabcabcabcabcabcabcabcabc",
+    }
+    findings = validate_deployment_safety({}, env)
+    assert "machine_token_weak" in _error_codes(findings)
+
+
+def test_bootstrap_secret_rejects_low_entropy_value() -> None:
+    env = {
+        "MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE": "true",
+        "MEETINGAGENT_BOOTSTRAP_SECRET": "a" * 40,
+    }
+    findings = validate_deployment_safety({}, env)
+    assert "bootstrap_policy_unsafe" in _error_codes(findings)
+
+
+def test_bootstrap_secret_rejects_repeated_block() -> None:
+    env = {
+        "MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE": "true",
+        "MEETINGAGENT_BOOTSTRAP_SECRET": "token-token-token-token-token-token-token",
+    }
+    findings = validate_deployment_safety({}, env)
+    assert "bootstrap_policy_unsafe" in _error_codes(findings)
+
+
+def test_secret_strength_errors_do_not_expose_secret_value() -> None:
+    low_entropy_token = "a" * 40
+    env = {
+        "MEETINGAGENT_DEPLOYMENT_MODE": "self_hosted",
+        "MEETINGAGENT_API_TOKEN": low_entropy_token,
+    }
+    findings = validate_deployment_safety({}, env)
+    for f in findings:
+        assert low_entropy_token not in f.message, (
+            f"Low-entropy token value leaked in finding '{f.code}': {f.message!r}"
+        )
+
+
+def test_deployment_safety_error_does_not_expose_low_entropy_secret() -> None:
+    low_entropy_secret = "abcabcabcabcabcabcabcabcabcabcabcabc"
+    env = {
+        "MEETINGAGENT_DEPLOYMENT_MODE": "self_hosted",
+        "MEETINGAGENT_API_TOKEN": low_entropy_secret,
+    }
+    with pytest.raises(DeploymentSafetyError) as exc_info:
+        check_and_fail_if_unsafe({}, env)
+    msg = str(exc_info.value)
+    assert low_entropy_secret not in msg
+    assert "abcabc" not in msg
+
+
+# ===========================================================================
+# 10. Trusted proxy policy (issue #91)
+# ===========================================================================
+
+def test_self_hosted_auto_secure_without_trusted_proxy_policy_reports_warning() -> None:
+    """cookie_secure=auto in self_hosted without trusted proxy CIDRs → warning."""
+    cfg = {"auth": {"cookie_secure": "auto"}}
+    env = {"MEETINGAGENT_DEPLOYMENT_MODE": "self_hosted", "MEETINGAGENT_API_TOKEN": STRONG_TOKEN}
+    findings = validate_deployment_safety(cfg, env)
+    assert "trusted_proxy_no_cidrs" in _warning_codes(findings)
+
+
+def test_self_hosted_auto_secure_with_trusted_proxy_no_warning() -> None:
+    cfg = {
+        "auth": {"cookie_secure": "auto"},
+        "security": {"trusted_proxy_cidrs": ["127.0.0.1/32"]},
+    }
+    env = {"MEETINGAGENT_DEPLOYMENT_MODE": "self_hosted", "MEETINGAGENT_API_TOKEN": STRONG_TOKEN}
+    findings = validate_deployment_safety(cfg, env)
+    assert "trusted_proxy_no_cidrs" not in _finding_codes(findings)
+
+
+def test_self_hosted_cookie_secure_true_no_proxy_warning() -> None:
+    """cookie_secure=true doesn't need proxy CIDRs — always secure regardless."""
+    cfg = {"auth": {"cookie_secure": "true"}}
+    env = {"MEETINGAGENT_DEPLOYMENT_MODE": "self_hosted", "MEETINGAGENT_API_TOKEN": STRONG_TOKEN}
+    findings = validate_deployment_safety(cfg, env)
+    assert "trusted_proxy_no_cidrs" not in _finding_codes(findings)
+
+
+def test_local_mode_no_trusted_proxy_warning() -> None:
+    """Local mode should not warn about missing proxy CIDRs."""
+    cfg = {"auth": {"cookie_secure": "auto"}}
+    env = {"MEETINGAGENT_API_TOKEN": STRONG_TOKEN}
+    findings = validate_deployment_safety(cfg, env)
+    assert "trusted_proxy_no_cidrs" not in _finding_codes(findings)
+
+
+def test_invalid_trusted_proxy_cidr_is_error() -> None:
+    cfg = {"security": {"trusted_proxy_cidrs": ["not-a-cidr", "also-bad"]}}
+    findings = validate_deployment_safety(cfg, {})
+    assert "invalid_trusted_proxy_cidrs" in _error_codes(findings)
+
+
+def test_invalid_trusted_proxy_cidr_aborts_startup_in_self_hosted() -> None:
+    cfg = {"security": {"trusted_proxy_cidrs": ["not-a-cidr"]}}
+    env = {"MEETINGAGENT_DEPLOYMENT_MODE": "self_hosted", "MEETINGAGENT_API_TOKEN": STRONG_TOKEN}
+    with pytest.raises(DeploymentSafetyError) as exc_info:
+        check_and_fail_if_unsafe(cfg, env)
+    assert "invalid_trusted_proxy_cidrs" in str(exc_info.value)
+
+
+def test_admin_security_status_includes_trusted_proxy_policy(tmp_path: Path) -> None:
+    client, admin_svc = _make_admin_client(tmp_path)
+    admin_svc.create_user(email="admin-tp@example.com", password="pass12345678", roles=["admin"], actor_id="sys")
+    resp = client.post("/auth/local/login", json={"email": "admin-tp@example.com", "password": "pass12345678"})
+    cookie = resp.cookies["ma_session"]
+    resp2 = client.get("/admin/security/status", cookies={"ma_session": cookie})
+    body = resp2.json()
+    assert "trusted_proxy_policy" in body
+    tpp = body["trusted_proxy_policy"]
+    assert "configured" in tpp
+    assert "count" in tpp
+    assert isinstance(tpp["configured"], bool)
+    assert isinstance(tpp["count"], int)
+
+
+def test_self_hosted_auto_secure_with_trusted_proxy_from_env_no_warning() -> None:
+    cfg = {"auth": {"cookie_secure": "auto"}}
+    env = {
+        "MEETINGAGENT_DEPLOYMENT_MODE": "self_hosted",
+        "MEETINGAGENT_API_TOKEN": STRONG_TOKEN,
+        "MEETINGAGENT_TRUSTED_PROXY_CIDRS": "10.0.0.0/8",
+    }
+    findings = validate_deployment_safety(cfg, env)
+    assert "trusted_proxy_no_cidrs" not in _finding_codes(findings)
+    assert "invalid_trusted_proxy_cidrs" not in _finding_codes(findings)
+
+
+def test_invalid_trusted_proxy_cidr_from_env_is_error() -> None:
+    cfg = {}
+    env = {
+        "MEETINGAGENT_DEPLOYMENT_MODE": "self_hosted",
+        "MEETINGAGENT_API_TOKEN": STRONG_TOKEN,
+        "MEETINGAGENT_TRUSTED_PROXY_CIDRS": "not-a-cidr",
+    }
+    findings = validate_deployment_safety(cfg, env)
+    assert "invalid_trusted_proxy_cidrs" in _error_codes(findings)
+
+
+def test_admin_security_status_does_not_expose_raw_proxy_cidrs(tmp_path: Path) -> None:
+    cidr = "10.0.0.0/8"
+    client, admin_svc = _make_admin_client(tmp_path, config={"security": {"trusted_proxy_cidrs": [cidr]}})
+    admin_svc.create_user(email="admin-tp2@example.com", password="pass12345678", roles=["admin"], actor_id="sys")
+    resp = client.post("/auth/local/login", json={"email": "admin-tp2@example.com", "password": "pass12345678"})
+    cookie = resp.cookies["ma_session"]
+    resp2 = client.get("/admin/security/status", cookies={"ma_session": cookie})
+    text = resp2.text
+    assert cidr not in text, f"Raw CIDR {cidr!r} leaked in security status response"
