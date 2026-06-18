@@ -5,6 +5,7 @@ import json
 import re
 import shutil
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any
 
 import jsonschema
