@@ -29,6 +29,23 @@ def format_vtt_time(seconds: float) -> str:
     return format_srt_time(seconds).replace(",", ".")
 
 
+def _seconds_to_ms(seconds: float) -> int:
+    """Convert float seconds to integer milliseconds, rounding to nearest ms."""
+    return max(0, int(math.floor((seconds * 1000) + 0.5)))
+
+
+def _format_ms_srt(ms: int) -> str:
+    hours = ms // 3_600_000
+    minutes = (ms % 3_600_000) // 60_000
+    secs = (ms % 60_000) // 1000
+    millis = ms % 1000
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+
+
+def _format_ms_vtt(ms: int) -> str:
+    return _format_ms_srt(ms).replace(",", ".")
+
+
 def build_plain_text_transcript(segments: Iterable[CanonicalSegment]) -> str:
     lines = [segment.text for segment in segments if segment.text.strip()]
     return "\n".join(lines).rstrip() + ("\n" if lines else "")
@@ -66,11 +83,13 @@ def build_srt_transcript(segments: Iterable[CanonicalSegment]) -> str:
         text = segment.text.strip()
         if not text:
             continue
+        start_ms = _seconds_to_ms(segment.start)
+        end_ms = max(_seconds_to_ms(segment.end), start_ms + 1)
         blocks.append(
             "\n".join(
                 [
                     str(cue_index),
-                    f"{format_srt_time(segment.start)} --> {format_srt_time(segment.end)}",
+                    f"{_format_ms_srt(start_ms)} --> {_format_ms_srt(end_ms)}",
                     text,
                 ]
             )
@@ -85,9 +104,11 @@ def build_vtt_transcript(segments: Iterable[CanonicalSegment]) -> str:
         text = segment.text.strip()
         if not text:
             continue
+        start_ms = _seconds_to_ms(segment.start)
+        end_ms = max(_seconds_to_ms(segment.end), start_ms + 1)
         blocks.extend(
             [
-                f"{format_vtt_time(segment.start)} --> {format_vtt_time(segment.end)}",
+                f"{_format_ms_vtt(start_ms)} --> {_format_ms_vtt(end_ms)}",
                 text,
                 "",
             ]

@@ -573,3 +573,46 @@ def test_max_text_artifact_bytes_property_is_read_only(tmp_path: Path) -> None:
     assert svc.max_text_artifact_bytes == 1024
     with pytest.raises(AttributeError):
         svc.max_text_artifact_bytes = 99  # type: ignore[misc]
+
+
+# ------------------------------------------------------------------
+# _artifact_map: malformed artifacts values (#88)
+# ------------------------------------------------------------------
+
+def test_list_artifacts_null_artifacts(tmp_path: Path) -> None:
+    make_card(tmp_path, data={"artifacts": None})
+    svc = MeetingsService(tmp_path)
+    result = svc.list_artifacts("2026-01-15__kickoff")
+    assert result == []
+
+
+def test_list_artifacts_list_artifacts(tmp_path: Path) -> None:
+    make_card(tmp_path, data={"artifacts": ["foo", "bar"]})
+    svc = MeetingsService(tmp_path)
+    result = svc.list_artifacts("2026-01-15__kickoff")
+    assert result == []
+
+
+def test_list_artifacts_string_artifacts(tmp_path: Path) -> None:
+    make_card(tmp_path, data={"artifacts": "bad-string"})
+    svc = MeetingsService(tmp_path)
+    result = svc.list_artifacts("2026-01-15__kickoff")
+    assert result == []
+
+
+def test_list_artifacts_missing_artifacts_key(tmp_path: Path) -> None:
+    card = dict(VALID_CARD)
+    card.pop("artifacts")
+    meeting_dir = tmp_path / "2026-01-15__kickoff"
+    meeting_dir.mkdir(parents=True)
+    (meeting_dir / "meeting.json").write_text(json.dumps(card), encoding="utf-8")
+    svc = MeetingsService(tmp_path)
+    result = svc.list_artifacts("2026-01-15__kickoff")
+    assert result == []
+
+
+def test_get_artifact_content_list_artifacts_does_not_raise(tmp_path: Path) -> None:
+    make_card(tmp_path, data={"artifacts": ["foo"]})
+    svc = MeetingsService(tmp_path)
+    result = svc.get_artifact_content("2026-01-15__kickoff", "foo")
+    assert result is None
