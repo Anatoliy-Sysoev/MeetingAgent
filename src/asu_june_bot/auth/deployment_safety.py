@@ -21,20 +21,30 @@ self_hosted
 
 Finding codes
 -------------
-deployment_mode_unknown      Unknown value for deployment mode.
-machine_token_missing        MEETINGAGENT_API_TOKEN not set.
-machine_token_weak           MEETINGAGENT_API_TOKEN present but too short or is a placeholder.
-session_cookie_insecure      cookie_secure explicitly set to "false" in self_hosted mode.
-cors_wildcard_self_hosted    No host/origin controls; operator must configure reverse proxy.
-bootstrap_policy_unsafe      allow_remote=true but weak/missing bootstrap secret.
+deployment_mode_unknown          Unknown value for deployment mode.
+machine_token_missing            MEETINGAGENT_API_TOKEN not set.
+machine_token_weak               MEETINGAGENT_API_TOKEN present but too short, placeholder, or low-entropy.
+session_cookie_insecure          cookie_secure explicitly set to "false" in self_hosted mode.
+cors_wildcard_self_hosted        No host/origin controls; operator must configure reverse proxy.
+bootstrap_policy_unsafe          allow_remote=true but weak/missing bootstrap secret.
+trusted_proxy_no_cidrs           cookie_secure=auto in self_hosted but no trusted proxy CIDRs configured.
+invalid_trusted_proxy_cidrs      One or more configured trusted_proxy_cidrs are not valid CIDR notation.
 """
 from __future__ import annotations
 
 import os
-import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Literal
+
+from asu_june_bot.auth.secret_strength import (
+    is_placeholder as _is_placeholder,  # re-exported for backward-compat
+    validate_secret_strength,
+)
+from asu_june_bot.auth.trusted_proxy import (
+    load_trusted_proxy_cidrs,
+    validate_trusted_proxy_cidrs,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -42,11 +52,6 @@ from typing import Any, Literal
 # ---------------------------------------------------------------------------
 
 _Severity = Literal["info", "warning", "error"]
-
-_PLACEHOLDER_RE = re.compile(
-    r"(?i)(placeholder|changeme|example|your[_-]?token|strong[_-]?random"
-    r"|secret|<[^>]+>|todo|fixme|replace[_-]?me|test[_-]?token)",
-)
 
 _MIN_TOKEN_BYTES = 32
 
@@ -94,10 +99,6 @@ def _deployment_mode(config: dict[str, Any], env: Mapping[str, str]) -> str:
     return "local"
 
 
-def _is_placeholder(value: str) -> bool:
-    return bool(_PLACEHOLDER_RE.search(value))
-
-
 # ---------------------------------------------------------------------------
 # Individual checks
 # ---------------------------------------------------------------------------
@@ -135,23 +136,16 @@ def _check_machine_token(
         ))
         return findings
 
-    weak = False
-    reason = ""
-    if _is_placeholder(token):
-        weak = True
-        reason = "The value appears to be a placeholder from documentation examples."
-    elif len(token) < _MIN_TOKEN_BYTES:
-        weak = True
-        reason = f"The value is shorter than {_MIN_TOKEN_BYTES} characters."
-
-    if weak:
+    strength = validate_secret_strength(token, min_length=_MIN_TOKEN_BYTES)
+    if not strength.ok:
         sev = "error" if mode == "self_hosted" else "warning"
         findings.append(SafetyFinding(
             code="machine_token_weak",
             severity=sev,
             # Never include the token value in the message.
             message=(
-                f"MEETINGAGENT_API_TOKEN does not meet security requirements. {reason} "
+                f"MEETINGAGENT_API_TOKEN does not meet security requirements. "
+                f"{strength.reason} "
                 f"Set a strong random token of at least {_MIN_TOKEN_BYTES} characters."
             ),
             setting="MEETINGAGENT_API_TOKEN",
@@ -247,26 +241,67 @@ def _check_bootstrap_policy(
             ),
             setting="MEETINGAGENT_BOOTSTRAP_SECRET",
         ))
-    elif len(secret) < 32:
+    else:
+        # Use validate_secret_strength for full low-entropy detection.
+        strength = validate_secret_strength(secret, min_length=32)
+        if not strength.ok:
+            findings.append(SafetyFinding(
+                code="bootstrap_policy_unsafe",
+                severity="error",
+                # Never include the secret value in the message.
+                message=(
+                    f"Remote bootstrap is enabled but MEETINGAGENT_BOOTSTRAP_SECRET "
+                    f"does not meet security requirements. {strength.reason} "
+                    "Set a strong random value of at least 32 characters."
+                ),
+                setting="MEETINGAGENT_BOOTSTRAP_SECRET",
+            ))
+
+    return findings
+
+
+def _check_trusted_proxy_policy(
+    config: dict[str, Any], env: Mapping[str, str], mode: str
+) -> list[SafetyFinding]:
+    """Warn when cookie_secure=auto without trusted proxy CIDRs in self_hosted.
+
+    Also raise an error for invalid CIDR notation in any mode.
+    """
+    findings: list[SafetyFinding] = []
+
+    cidrs = load_trusted_proxy_cidrs(config, env)
+
+    bad_cidrs = validate_trusted_proxy_cidrs(cidrs)
+    if bad_cidrs:
         findings.append(SafetyFinding(
-            code="bootstrap_policy_unsafe",
+            code="invalid_trusted_proxy_cidrs",
             severity="error",
             message=(
-                "Remote bootstrap is enabled but MEETINGAGENT_BOOTSTRAP_SECRET "
-                f"is shorter than 32 characters. "
-                "Set a strong random secret of at least 32 characters."
+                f"security.trusted_proxy_cidrs contains {len(bad_cidrs)} invalid "
+                "CIDR notation value(s). Correct or remove them before starting."
             ),
-            setting="MEETINGAGENT_BOOTSTRAP_SECRET",
+            setting="security.trusted_proxy_cidrs",
         ))
-    elif _is_placeholder(secret):
+        return findings
+
+    if mode != "self_hosted":
+        return findings
+
+    auth_cfg = config.get("auth") or {}
+    cookie_secure = str(auth_cfg.get("cookie_secure") or "auto").strip().lower()
+
+    if cookie_secure == "auto" and not cidrs:
         findings.append(SafetyFinding(
-            code="bootstrap_policy_unsafe",
-            severity="error",
+            code="trusted_proxy_no_cidrs",
+            severity="warning",
             message=(
-                "Remote bootstrap is enabled but MEETINGAGENT_BOOTSTRAP_SECRET "
-                "appears to be a placeholder. Set a strong random value."
+                "auth.cookie_secure is 'auto' in self_hosted mode but no "
+                "security.trusted_proxy_cidrs are configured. "
+                "X-Forwarded-Proto from untrusted clients will be ignored. "
+                "Configure trusted_proxy_cidrs to enable HTTPS detection via reverse proxy, "
+                "or set auth.cookie_secure to 'true' for always-Secure cookies."
             ),
-            setting="MEETINGAGENT_BOOTSTRAP_SECRET",
+            setting="security.trusted_proxy_cidrs",
         ))
 
     return findings
@@ -307,6 +342,7 @@ def validate_deployment_safety(
     findings.extend(_check_cookie_security(config, mode))
     findings.extend(_check_cors_hosts(config, mode))
     findings.extend(_check_bootstrap_policy(config, env, mode))
+    findings.extend(_check_trusted_proxy_policy(config, env, mode))
 
     return findings
 

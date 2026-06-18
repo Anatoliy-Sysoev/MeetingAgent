@@ -191,14 +191,17 @@ def test_cookie_secure_auto_http_not_secure(client: TestClient, repo: AuthReposi
     assert "secure" not in login(client).headers["set-cookie"].lower()
 
 
-def test_cookie_secure_auto_forwarded_https(client: TestClient, repo: AuthRepository) -> None:
+def test_cookie_secure_auto_forwarded_https_from_untrusted_client_ignored(
+    client: TestClient, repo: AuthRepository
+) -> None:
+    # X-Forwarded-Proto: https from an untrusted client must NOT set Secure.
     make_user(repo)
     resp = client.post(
         "/auth/local/login",
         json={"email": "alice@example.com", "password": PASSWORD},
         headers={"x-forwarded-proto": "https"},
     )
-    assert "secure" in resp.headers["set-cookie"].lower()
+    assert "secure" not in resp.headers["set-cookie"].lower()
 
 
 def test_cookie_secure_true_forces_secure(repo: AuthRepository) -> None:
