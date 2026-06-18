@@ -235,7 +235,7 @@ def make_client(
 def test_chunk_creates_chunks_jsonl(tmp_path: Path) -> None:
     meeting_dir = build_meeting_dir(tmp_path)
     # Update meeting.json to point to the seeded speaker_transcript
-    card = json.loads((meeting_dir / "meeting.json").read_text())
+    card = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
     card["artifacts"]["speaker_transcript"] = "transcript/speaker_transcript.jsonl"
     _write_json(meeting_dir / "meeting.json", card)
 
@@ -246,20 +246,20 @@ def test_chunk_creates_chunks_jsonl(tmp_path: Path) -> None:
     chunks_path = meeting_dir / "transcript" / "chunks.jsonl"
     assert chunks_path.exists()
 
-    rows = [json.loads(l) for l in chunks_path.read_text().splitlines() if l.strip()]
+    rows = [json.loads(l) for l in chunks_path.read_text(encoding="utf-8").splitlines() if l.strip()]
     assert rows, "chunk produced no rows"
     for row in rows:
         assert row.get("meeting_id") == MEETING_ID
         assert row.get("source_type") == "meeting_chunk"
         assert row.get("text"), "chunk row has no text"
 
-    card_after = json.loads((meeting_dir / "meeting.json").read_text())
+    card_after = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
     assert card_after["artifacts"].get("chunks") == "transcript/chunks.jsonl"
 
 
 def test_chunk_text_contains_expected_phrases(tmp_path: Path) -> None:
     meeting_dir = build_meeting_dir(tmp_path)
-    card = json.loads((meeting_dir / "meeting.json").read_text())
+    card = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
     card["artifacts"]["speaker_transcript"] = "transcript/speaker_transcript.jsonl"
     _write_json(meeting_dir / "meeting.json", card)
 
@@ -269,7 +269,7 @@ def test_chunk_text_contains_expected_phrases(tmp_path: Path) -> None:
     chunks_path = meeting_dir / "transcript" / "chunks.jsonl"
     combined = " ".join(
         json.loads(l)["text"]
-        for l in chunks_path.read_text().splitlines()
+        for l in chunks_path.read_text(encoding="utf-8").splitlines()
         if l.strip()
     )
     assert "бюджет" in combined.lower()
@@ -292,7 +292,7 @@ def test_chunk_fails_without_speaker_transcript(tmp_path: Path) -> None:
 
 def _seed_chunks(meeting_dir: Path) -> None:
     """Run chunk stage and update meeting.json so enrich can find the output."""
-    card = json.loads((meeting_dir / "meeting.json").read_text())
+    card = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
     card["artifacts"]["speaker_transcript"] = "transcript/speaker_transcript.jsonl"
     _write_json(meeting_dir / "meeting.json", card)
     mod = _import_script("chunk")
@@ -310,14 +310,14 @@ def test_enrich_creates_enriched_chunks_jsonl(tmp_path: Path) -> None:
     enriched_path = meeting_dir / "artifacts" / "enriched_chunks.jsonl"
     assert enriched_path.exists()
 
-    rows = [json.loads(l) for l in enriched_path.read_text().splitlines() if l.strip()]
+    rows = [json.loads(l) for l in enriched_path.read_text(encoding="utf-8").splitlines() if l.strip()]
     assert rows
     for row in rows:
         assert row.get("meeting_id") == MEETING_ID
         assert row.get("chunk_id"), "enriched row missing chunk_id"
         assert str(row.get("text") or "").strip(), "enriched row has empty text"
 
-    card_after = json.loads((meeting_dir / "meeting.json").read_text())
+    card_after = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
     assert card_after["artifacts"].get("enriched_chunks") == "artifacts/enriched_chunks.jsonl"
 
 
@@ -327,7 +327,7 @@ def test_enrich_preserves_chunk_ids(tmp_path: Path) -> None:
 
     chunk_ids = {
         json.loads(l)["chunk_id"]
-        for l in (meeting_dir / "transcript" / "chunks.jsonl").read_text().splitlines()
+        for l in (meeting_dir / "transcript" / "chunks.jsonl").read_text(encoding="utf-8").splitlines()
         if l.strip()
     }
 
@@ -336,7 +336,7 @@ def test_enrich_preserves_chunk_ids(tmp_path: Path) -> None:
 
     enriched_ids = {
         json.loads(l)["chunk_id"]
-        for l in (meeting_dir / "artifacts" / "enriched_chunks.jsonl").read_text().splitlines()
+        for l in (meeting_dir / "artifacts" / "enriched_chunks.jsonl").read_text(encoding="utf-8").splitlines()
         if l.strip()
     }
     assert chunk_ids == enriched_ids, "enrich changed or dropped chunk_ids"
@@ -365,7 +365,7 @@ def test_index_creates_meeting_chunks_jsonl(tmp_path: Path) -> None:
     assert rc == 0
     assert chunks_out.exists()
 
-    rows = [json.loads(l) for l in chunks_out.read_text().splitlines() if l.strip()]
+    rows = [json.loads(l) for l in chunks_out.read_text(encoding="utf-8").splitlines() if l.strip()]
     assert rows
     for row in rows:
         assert row["meeting_id"] == MEETING_ID
@@ -382,10 +382,10 @@ def test_index_upsert_replaces_same_meeting_rows(tmp_path: Path) -> None:
     args = mod.parse_args(["--meeting-dir", str(meeting_dir), "--output", str(chunks_out)])
 
     mod.run(args)
-    first_count = sum(1 for l in chunks_out.read_text().splitlines() if l.strip())
+    first_count = sum(1 for l in chunks_out.read_text(encoding="utf-8").splitlines() if l.strip())
 
     mod.run(mod.parse_args(["--meeting-dir", str(meeting_dir), "--output", str(chunks_out)]))
-    second_count = sum(1 for l in chunks_out.read_text().splitlines() if l.strip())
+    second_count = sum(1 for l in chunks_out.read_text(encoding="utf-8").splitlines() if l.strip())
 
     assert second_count == first_count, "second index run duplicated rows"
 
@@ -405,7 +405,7 @@ def test_index_upsert_preserves_other_meetings(tmp_path: Path) -> None:
     mod = _import_script("index")
     mod.run(mod.parse_args(["--meeting-dir", str(meeting_dir), "--output", str(chunks_out)]))
 
-    rows = [json.loads(l) for l in chunks_out.read_text().splitlines() if l.strip()]
+    rows = [json.loads(l) for l in chunks_out.read_text(encoding="utf-8").splitlines() if l.strip()]
     other_rows = [r for r in rows if r["meeting_id"] == OTHER_MEETING_ID]
     assert other_rows, "index upsert deleted other-meeting row"
 
@@ -418,7 +418,7 @@ def test_index_rows_have_relative_path_not_absolute(tmp_path: Path) -> None:
     mod = _import_script("index")
     mod.run(mod.parse_args(["--meeting-dir", str(meeting_dir), "--output", str(chunks_out)]))
 
-    rows = [json.loads(l) for l in chunks_out.read_text().splitlines() if l.strip()]
+    rows = [json.loads(l) for l in chunks_out.read_text(encoding="utf-8").splitlines() if l.strip()]
     for row in rows:
         rel = row.get("relative_path", "")
         assert not rel.startswith("/"), f"absolute relative_path leaked: {rel}"
@@ -433,7 +433,7 @@ def test_index_meeting_json_updated(tmp_path: Path) -> None:
     mod = _import_script("index")
     mod.run(mod.parse_args(["--meeting-dir", str(meeting_dir), "--output", str(chunks_out)]))
 
-    card = json.loads((meeting_dir / "meeting.json").read_text())
+    card = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
     indexed = card.get("rag", {}).get("indexed_artifacts", [])
     assert "transcript/chunks.jsonl" in indexed or "artifacts/enriched_chunks.jsonl" in indexed
 
@@ -483,7 +483,7 @@ def test_analyze_extractive_updates_processing_status(tmp_path: Path) -> None:
     mod = _import_script("analyze")
     mod.run(mod.parse_args(["--meeting-dir", str(meeting_dir), "--mode", "extractive", "--force"]))
 
-    card = json.loads((meeting_dir / "meeting.json").read_text())
+    card = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
     assert card["processing_status"] == "summarized"
 
 
@@ -515,7 +515,7 @@ def test_analyze_artifacts_are_valid_json(tmp_path: Path) -> None:
 def test_full_pipeline_chain_produces_indexed_chunks(tmp_path: Path) -> None:
     """chunk → enrich → index → analyze all succeed on the seeded transcript."""
     meeting_dir = build_meeting_dir(tmp_path)
-    card = json.loads((meeting_dir / "meeting.json").read_text())
+    card = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
     card["artifacts"]["speaker_transcript"] = "transcript/speaker_transcript.jsonl"
     _write_json(meeting_dir / "meeting.json", card)
 
@@ -532,14 +532,14 @@ def test_full_pipeline_chain_produces_indexed_chunks(tmp_path: Path) -> None:
     assert analyze_mod.run(analyze_mod.parse_args(["--meeting-dir", str(meeting_dir), "--mode", "extractive", "--force"])) == 0
 
     # Indexed rows exist.
-    rows = [json.loads(l) for l in chunks_out.read_text().splitlines() if l.strip()]
+    rows = [json.loads(l) for l in chunks_out.read_text(encoding="utf-8").splitlines() if l.strip()]
     assert any(r["meeting_id"] == MEETING_ID for r in rows)
 
     # Analyze artifacts exist.
     assert (meeting_dir / "artifacts" / "summary.md").exists()
     assert (meeting_dir / "artifacts" / "decisions.json").exists()
 
-    card_final = json.loads((meeting_dir / "meeting.json").read_text())
+    card_final = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
     assert card_final["processing_status"] == "summarized"
 
 
@@ -729,7 +729,7 @@ def test_chat_citation_order_follows_answer_references(tmp_path: Path) -> None:
     index_mod = _import_script("index")
     index_mod.run(index_mod.parse_args(["--meeting-dir", str(meeting_dir), "--output", str(chunks_out)]))
 
-    rows = [json.loads(l) for l in chunks_out.read_text().splitlines() if l.strip()
+    rows = [json.loads(l) for l in chunks_out.read_text(encoding="utf-8").splitlines() if l.strip()
             if l.strip() and json.loads(l).get("meeting_id") == MEETING_ID]
 
     # Only meaningful if there are at least 2 indexed rows.
