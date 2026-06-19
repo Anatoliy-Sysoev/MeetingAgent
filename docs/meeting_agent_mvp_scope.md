@@ -304,17 +304,19 @@ cloud ASR/LLM.
 
 ## Ближайшие 10 Задач
 
+> Status: historical planning note. All 10 tasks below are complete as of 2026-06. See docs/context.md and docs/todo.md for current state. Current pipeline stages available via job runner: extract_audio → transcribe → diarize → merge → chunk → enrich → index → analyze. Meeting-scoped search and chat are live at POST /meetings/{id}/search and POST /meetings/{id}/chat.
+
 ```text
-1. Зафиксировать architecture/scope docs.
-2. Реализовать scripts/20_ingest_meeting.py.
-3. Реализовать scripts/21_extract_audio.py.
-4. Поддерживать scripts/22_transcribe_meeting.py как основной ASR entrypoint, а scripts/06_transcribe_meeting.py как thin wrapper.
-5. Проверить diarization/merge на 2-3 реальных встречах и подобрать параметры sherpa-onnx.
-6. Реализовать scripts/26_chunk_meeting.py.
-7. Реализовать scripts/27_enrich_meeting_chunks.py.
-8. Реализовать scripts/28_index_meeting_chunks.py.
-9. Развить scripts/07/08 до structured analysis или добавить scripts/29_analyze_meeting.py.
-10. Добавить meeting search CLI и smoke eval.
+1. Зафиксировать architecture/scope docs.                    — DONE
+2. Реализовать scripts/20_ingest_meeting.py.                 — DONE
+3. Реализовать scripts/21_extract_audio.py.                  — DONE
+4. Поддерживать scripts/22_transcribe_meeting.py как основной ASR entrypoint, а scripts/06_transcribe_meeting.py как thin wrapper.  — DONE
+5. Проверить diarization/merge на 2-3 реальных встречах и подобрать параметры sherpa-onnx.  — DONE
+6. Реализовать scripts/26_chunk_meeting.py.                  — DONE
+7. Реализовать scripts/27_enrich_meeting_chunks.py.          — DONE
+8. Реализовать scripts/28_index_meeting_chunks.py.           — DONE
+9. Развить scripts/07/08 до structured analysis или добавить scripts/29_analyze_meeting.py.  — DONE
+10. Добавить meeting search CLI и smoke eval.                 — DONE
 ```
 
 ## Критерий Готовности Первой Версии

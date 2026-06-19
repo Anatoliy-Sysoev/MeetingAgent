@@ -1,6 +1,8 @@
 # Диаграммы технических файлов MeetingAgent
 
-Обновлено: 2026-05-19.
+Обновлено: 2026-06-19.
+
+> Note: canonical offline transcription entrypoint is `scripts/22_transcribe_meeting.py` with `--engine faster-whisper --model large-v3-turbo`. `scripts/06_transcribe_meeting.py` is a compatibility wrapper only. Current pipeline stages available via job runner: extract_audio → transcribe → diarize → merge → chunk → enrich → index → analyze.
 
 ## 1. Карта технических контуров
 
@@ -16,7 +18,7 @@ flowchart TD
     RAGv1 --> RAGData["data/manifest, extracted_text, chunks, embeddings_cache, numpy_index"]
 
     Meetings --> MeetingSchema["configs/schemas/meeting.schema.json"]
-    Meetings --> MeetingScripts["scripts/06, 07, 08"]
+    Meetings --> MeetingScripts["scripts/20..29 (canonical), scripts/06..08 (legacy wrappers)"]
     Meetings --> MeetingPrompts["configs/prompts/meeting_*.md"]
     Meetings --> MeetingDocs["docs/architecture/MEETING_ARTIFACTS_PIPELINE.md"]
 
@@ -57,9 +59,9 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
     [*] --> new
-    new --> transcribing: 06_transcribe_meeting.py
+    new --> transcribing: 22_transcribe_meeting.py (canonical)
     transcribing --> transcribed: transcript + segments
-    transcribed --> processing: 08_process_meeting_pipeline.py
+    transcribed --> processing: 29_analyze_meeting.py (and/or job runner stages)
     processing --> summarized: artifacts ready
     new --> failed
     transcribing --> failed
@@ -70,9 +72,9 @@ stateDiagram-v2
 flowchart LR
     MeetingJson["meeting.json"] --> Schema["meeting.schema.json"]
     MeetingJson --> Source["source media"]
-    Source --> Transcribe["06_transcribe_meeting.py"]
+    Source --> Transcribe["22_transcribe_meeting.py (canonical offline ASR)"]
     Transcribe --> Segments["transcript/segments.jsonl"]
-    Segments --> Pipeline["08_process_meeting_pipeline.py"]
+    Segments --> Pipeline["job runner: chunk / enrich / index / analyze\n(scripts/26..29)"]
     Pipeline --> Partials["artifacts/_partials/window_*.json"]
     Partials --> FinalJson["decisions/tasks/risks/open_questions.json"]
     FinalJson --> Markdown["memo.md / protocol.md"]
@@ -153,5 +155,5 @@ classDiagram
 | --- | --- | --- |
 | MeetingAgent RAG v1 | `scripts/01..05`, `04_query.py`, `data/numpy_index/` | ChromaDB / `vector_db/` |
 | Project Knowledge Bot | `src/asu_june_bot/`, `scripts/asu_june_bot_*.py` | `scripts/09_chat.py` |
-| Meeting artifacts | `06_transcribe_meeting.py`, `08_process_meeting_pipeline.py`, `meeting.schema.json` | `07_generate_meeting_artifacts.py extractive` как финальный генератор |
+| Meeting artifacts | `22_transcribe_meeting.py` (canonical ASR), `scripts/26..29` via job runner, `meeting.schema.json` | `06_transcribe_meeting.py` — compatibility wrapper only; `08_process_meeting_pipeline.py` — legacy batch pipeline |
 | Quality pipeline | `docs/quality/*`, `scripts/10..14` | fine-tuning / auto-promotion |

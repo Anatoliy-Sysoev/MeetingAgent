@@ -1,6 +1,8 @@
 # Project-Only Chatbot MVP
 
-Обновлено: 2026-05-14.
+Обновлено: 2026-06-19.
+
+> **Status note (2026-06-19):** The roadmap phases below (Search Quality v2.2 through Evaluation) are historical planning notes. `POST /search` and `POST /chat` are implemented and protected by RBAC (`search.use` / `chat.use`). Auth, RBAC, guardrails, and meeting workspace are implemented. See `docs/context.md` and `docs/todo.md` for current state.
 
 ## Цель
 
@@ -241,6 +243,8 @@ ContextBuilder должен:
 
 ## Дорожная Карта
 
+> Status: historical planning note. Some implementation details have since changed; see docs/context.md and docs/todo.md for current state.
+
 ### Этап 1. Search Quality v2.2
 
 Цель: сделать retrieval пригодным для API и LLM-контекста.
@@ -304,13 +308,15 @@ POST /search
 
 ### Этап 5. UI
 
+> Status: historical planning note. Some implementation details have since changed; see docs/context.md and docs/todo.md for current state.
+
 Варианты:
 
 - быстрый путь: OpenWebUI как оболочка вокруг локального API/tool;
 - продуктовый путь: собственный минимальный web UI MeetingAgent;
 - временный путь: CLI.
 
-UI не начинать до стабильных `/search` и `/chat`.
+`/search` и `/chat` реализованы. Встроенный Web UI отправляет запросы без учётных данных — после включения RBAC возвращает 401. Используйте Bearer token напрямую до реализации auth-интеграции в UI.
 
 ### Этап 6. Evaluation
 
