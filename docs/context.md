@@ -1,79 +1,94 @@
 # Текущий Контекст
 
-Обновлено: 2026-06-16.
+Обновлено: 2026-06-19.
 
 ## Now
 
-- last commit: Post-pipeline hardening — ASR model pin, CSP hygiene, QA citations (MA-POST-PIPELINE-HARDENING #78)
-- in progress: —
+- active task: DOC-REPO-CLEANUP-AFTER-AUTH-AND-MEETING-HARDENING (#59) — clean up stale docs and roadmap drift after #84–#91 hardening work
+- branch: 59-doc-repo-cleanup
 
-## Done latest
+## Done latest (last 4 PRs)
 
-- MA-POST-PIPELINE-HARDENING (#78): three post-pipeline fixes. (1) ASR: runner's `transcribe` stage pins `--engine faster-whisper --model large-v3-turbo` so UI-launched transcription never silently falls back to draft `small` when local `transcription.model` is unset; `small` only via explicit CLI `--model`. (2) CSP hygiene: removed the last inline `on*` handlers from Workspace (header Refresh, transcript filter `oninput`, close-artifact, and transcript-segment `onclick="seekTo()"`); all now wired via `addEventListener`, segment seek via `data-start-sec`/`dataset`; no element carries inline handlers (verified by regex test) — enables strict CSP without `unsafe-inline` for handlers. (3) Chat citations no longer overstate evidence: answer is parsed for `[S#]` markers and `citations` is filtered to actually-cited sources; new `citations_basis` field = `cited` (filtered) / `retrieved` (no parseable markers → all retrieved shown) / `null` (refusal); out-of-range markers (`[S9]` with 2 chunks) ignored. 11 new tests. Refs #68/#69/#71/#73/#74/#75/#76.
-- MA-PIPELINE-STAGES-EXPANSION (#76): job runner expanded beyond transcribe/diarize/merge — added extract_audio, chunk, enrich, index, analyze. `stage_catalog()` returns all 8 runnable stages sorted by `order`, no script/base_args/fs paths. Static preflight per new stage (controlled 422); `_safe_resolve()` rejects absolute/`..`/symlink-escape artifact paths from meeting.json (runner + scripts 21/26/27/28/29). `index` upserts `data/meeting_chunks.jsonl` by meeting_id (replaces same-meeting rows, preserves others) → enables workspace Q&A. `analyze` runs extractive (no LLM). Job status `stderr_tail` redacts repo root + meeting_dir as `<path>`. 37 jobs tests.
-- MA-MEETING-SCOPED-QA (#74): meeting-scoped search + Q&A in Meeting Workspace. `POST /meetings/{id}/search` (`search.use`) and `POST /meetings/{id}/chat` (`chat.use` + CSRF for cookie callers, Bearer exempt). New self-contained `MeetingQAService` (meetings/qa.py) — independent of project SearchService/ChatService to avoid ProjectGuard rejection and project/global chunk leakage. Lexical MVP over `data/meeting_chunks.jsonl`, strictly filtered to one `meeting_id` ∩ meeting source types; unknown/unsafe meeting → 404; no chunks file → controlled `available:false` + empty results (no 500); no fs paths in responses. Chat grounds answer only on retrieved meeting chunks, controlled refusal when no context / no-answer / LLM unavailable; citations only from returned sources (chunk_id, excerpt, artifact, segment_id, speaker, start_sec, end_sec) — no hallucinated citations. Workspace Q&A panel replaces placeholder: Ask + answer/refusal/citations, "Search in meeting" + results; all dynamic text via `textContent`, citations/results via `dataset` + `addEventListener` (no inline handlers, no innerHTML interpolation), citation/result click seeks media player via `start_sec`; no localStorage/sessionStorage. 19 new tests. MVP limits: lexical (not vector) retrieval; `segment_id` null (chunks are windows, not transcript segments).
-- MA-WORKSPACE-JOB-CONTROLS (#70): pipeline controls panel in Meeting Workspace — per-stage Start, Cancel active job, Refresh, auto-poll (3s) while running. `GET /auth/csrf` (cookie-session only; validates non-HttpOnly CSRF cookie against session csrf_token_hash, echoes raw token; no new session, no hash/session exposure; 401 unauth / 409 no-csrf / 403 mismatch). `GET /meetings/{id}/jobs/stages` (`jobs.read`; allowlisted runnable stages only — transcribe/diarize/merge; no fs paths). `stage_catalog()` in jobs/runner.py (subset of STAGE_COMMANDS ∩ STAGE_METADATA). Job start/cancel unchanged — already enforce `jobs.start`/`jobs.cancel` + CSRF for cookie callers, Bearer exempt. Workspace JS: CSRF in-memory only (no DOM/persistent storage), all dynamic job/stage values via DOM APIs + textContent/dataset + addEventListener (no inline interpolation), controlled 401/403/409/422/500 states. 22 new tests.
-- MA-MEETING-WORKSPACE (#68): workspace UI page `GET /meetings/{id}/workspace`; media endpoints `GET /meetings/{id}/media` + `/media/{media_id}` (streaming, Range, path-safe, audio/video MIME only); normalized `GET /meetings/{id}/transcript/segments` (stable seg-NNNNNN ids, malformed JSONL skipped); artifact viewer; XSS-safe (json.dumps id embed, data-attr + addEventListener); meeting-scoped search/chat deferred.
-- MA-API-RBAC-HARDENING (#62): job start uses `jobs.start`, cancel uses `jobs.cancel` (replaced generic write guard); admin user list bounded pagination `offset ge=0, limit ge=1 le=200`; regression test for upload-only role without job permissions.
-- MA-AUTH-DEPLOYMENT-SAFETY (#61): `POST /admin/bootstrap` locality policy — loopback allowed, non-local blocked; `MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE` + `MEETINGAGENT_BOOTSTRAP_SECRET` (min 32 chars) opt-in; proxy detection via X-Forwarded-For/Forwarded/X-Real-IP suppresses loopback bypass; constant-time secret compare; secret not logged/returned/persisted. Docs updated en+ru.
-- MA-PRODUCT-SPLIT-PREP (#63): `docs/architecture/PRODUCT_BOUNDARIES.md` — product split plan: MeetingAgent Core vs. Project Knowledge Bot vs. Shared/Common; full file ownership matrix; adapter contract (Section E); 6-phase migration plan; no code moved.
+- MA-CHAT-PROMPT-SOURCE-BOUNDARY (#90, PR #96): retrieved sources wrapped in `[BEGIN UNTRUSTED SOURCE Sn]` / `[END UNTRUSTED SOURCE Sn]` delimiters in both project chat and meeting QA prompt builders; `_SOURCE_BOUNDARY_INSTRUCTION` added before sources; `[S#]` citation format and `_cited_source_indices()` parsing unchanged; 23 injection regression tests.
+- MA-MEETING-ARTIFACTS-UTF8-SUBTITLE-HARDENING (#87/#88/#89, PR #95): (87) all `.read_text()` calls in pipeline/stage tests now use `encoding="utf-8"` (Windows portability); (88) `_artifact_map()` helper with `isinstance(artifacts, dict)` guard replaces `data.get("artifacts") or {}` in MeetingsService — safely handles null/list/string/missing values; (89) SRT/VTT subtitle cue timestamps computed once as integer ms via `_seconds_to_ms()`, end clamped to `max(end_ms, start_ms + 1)` — prevents zero-duration cues.
+- MA-AUTH-SECRET-STRENGTH-AND-TRUSTED-PROXY (#86/#91, PR #94): entropy-based `validate_secret_strength()` (rejects single-char repeat, block repeat, placeholder words); `load_trusted_proxy_cidrs()` + `is_trusted_proxy()` for cookie_secure=auto; X-Forwarded-Proto ignored from untrusted proxy CIDRs; deployment safety warnings for missing proxy policy; `validate_deployment_safety(config, env)` — env threaded through all sub-checks.
+- MA-REPO-HARDENING-BUGFIX-PACK (#84/#85, PR #93): (84) `RequestValidationError` sanitization strips `input` field, redacts msg for sensitive locs (substring match on password/token/secret/api_key etc.); (85) search response diagnostics no longer expose `chunks_path` or other runtime fs paths; `include_diagnostics` defaults to False.
 
-- MA-AUTH-BOOTSTRAP-ADMIN (#58): POST /admin/bootstrap (atomic, no-auth, 409 if any user exists), GET/POST /admin/users, GET/PATCH /admin/users/{id}, POST /admin/users/{id}/disable, POST /admin/users/{id}/enable. AdminService class: bootstrap_admin, create_user, list_users, get_user, update_user, disable_user, enable_user. Last-active-admin protection (409 on disable/demotion). AuthRepository: count_users(), count_active_admin_users(), bootstrap_first_admin() (SQLite BEGIN EXCLUSIVE), set_user_display_name(). Machine token cannot manage users (users.manage not in MACHINE_PERMISSIONS → 403). Cookie writes require CSRF (require_action_permission). 40 new tests. Docs updated: API_AUTH_SETUP.md (en+ru), context.md, todo.md.
-- DOC-API-AUTH-SETUP (#53): docs/en/API_AUTH_SETUP.md + docs/ru/API_AUTH_SETUP.md — полный справочник API и auth: MEETINGAGENT_API_TOKEN, machine/browser principals, cookie-сессия, RBAC viewer/editor/admin, CSRF, все эндпоинты (meetings, ingest, jobs, search, chat), HTTP-коды (401/403/409/413/415/422/429), лимит 10 МиБ, login throttle, HTTPS/reverse proxy, безопасное хранение. .env.example обновлён (MEETINGAGENT_API_TOKEN). README.md и README.ru.md — добавлен раздел Authentication и ссылки. Явно задокументированы отсутствующие функции: bootstrap admin, admin API/UI, Yandex/Google/OIDC, публичная регистрация.
-- MA-ARTIFACT-SIZE-LIMITS (#52): text transcript/artifact reads bounded by configurable bytes (meetings.max_text_artifact_bytes, default 10 MiB). parse_max_text_artifact_bytes() strict startup validation (positive int only; reject bool/zero/negative/float/string/non-mapping meetings; no silent default fallback). MeetingsService gains immutable max_text_artifact_bytes; single _read_text_bounded() helper used by get_transcript + get_artifact_content: stat() pre-check then bounded binary read of max+1 bytes (closes TOCTOU/stale-stat), decode only after, never partial. No Path.read_text() for content endpoints. ArtifactTooLargeError(artifact, size_bytes, max_bytes) — no path/content in public fields. Routes map it to 413 with structured detail {error, artifact, size_bytes, max_bytes}; no path/content/traceback. Oversized canonical transcript candidate raises immediately (not skipped for smaller fallback); size error wins over JSON/JSONL parse error. Preserved: 404, 415 binary, RBAC (auth before content), traversal + suffix allowlist. Streaming/pagination/range remain out of scope. 32 new tests
-- MA-AUTH-LOGIN-THROTTLE (#51): bounded in-memory brute-force protection — LoginThrottle (LRU + stale-purge, threading.Lock, injectable monotonic clock), key=sha256(email)+client_ip; threshold-reaching failure itself returns 429 + Retry-After (not the next request); body "Too many login attempts"; block cleared on success; safe X-Forwarded-For resolved right-to-left skipping trusted_proxy_cidrs, returns canonical IP, never trusts client-prepended hops; auth.login.throttled audit event (email only, no password/session/CSRF); LoginRequest bounded (email 1..320, password 1..1024); disabled mode via NoOpLoginThrottle; strict startup validation (bool enabled, positive ints, no bool-as-int, max_entries>=max_failures, invalid CIDR→ValueError). Config: auth.login_throttle.{enabled, max_failures, window_seconds, block_seconds=900, max_entries=10000, trusted_proxy_cidrs}; 37 tests
-- MA-AUTH-RBAC-INTEGRATION (#50): provider-independent auth deps in api/auth.py — get_optional_principal (Bearer→machine / cookie→user, invalid Bearer raises 401 no fallback), require_user, require_permission(perm), require_role(role), require_write_access (machine+editor+admin, viewer 403, no auth 401, CSRF guard for cookie requests); CSRF per-session hash in auth_sessions (idempotent ALTER); raw token returned in login response + non-HttpOnly cookie; X-CSRF-Token header required for browser write requests, exempt for Bearer; MACHINE_PERMISSIONS centrally defined (no users/roles/settings/delete); read routes (meetings, search, chat) require permission; job status routes use jobs.read (добавлен в viewer, наследуется editor/admin); write routes use require_write_access returning Principal; /chat — action route через require_action_permission (permission + CSRF для cookie, Bearer exempt); malformed/non-Bearer Authorization → 401 без fallback; logout требует session-bound CSRF; all existing tests adapted, 35 RBAC/CSRF tests; 403 pass
-- MA-AUTH-LOCAL-SESSIONS (#48): Argon2id password hashing (argon2-cffi), auth_sessions в SQLite (хранится sha256 токена, не сам токен), opaque HttpOnly SameSite=Lax cookie `ma_session` (Secure при https), POST /auth/local/login, GET /auth/me, POST /auth/logout; generic 401 (email не раскрывается), disabled user отклоняется, expiration/revocation, audit login/logout/failure, dummy_verify против timing-атак; AuthRepository+LocalAuthService в AppState; require_write_access не тронут
-- MA-AUTH-CORE-1 (#44): provider-independent auth domain — Principal/User/LocalCredential/ExternalIdentity, central RBAC (viewer/editor/admin, unknown role grants nothing), provider registry (local+machine, yandex/google/oidc/trusted_proxy reserved), SQLite repository (idempotent schema, FK on, parameterized SQL, audit events); 40 tests; no API behavior changed
-- MA-API-MEETINGS-RESTORE (#30): GET /meetings, GET /meetings/{id}, GET /meetings/{id}/transcript, GET /meetings/{id}/artifacts, GET /meetings/{id}/artifacts/{name}; read-side helpers ported into MeetingsService; 56 new tests; ingest and job API regressions pass
-- MA-JOB-API (#35): POST /meetings/{id}/jobs/{stage} → 202, GET status, POST cancel, GET /jobs/active; concurrency=1 via asyncio.Lock; subprocess dry-run preflight; merge preflight without dry-run; 17 tests pass
-- MA-INGEST-DEDUP (#34): POST /meetings/ingest — file upload, incremental sha256, dedup → 409, token guard via Depends(require_write_access), meeting.json creation + schema validation + rollback; hardening: path-traversal-safe filename, secrets.compare_digest, date.fromisoformat, zero-byte guard
-- MA-FIX-GUARD-CASES (#32): pytest.skip(allow_module_level=True) в load_cases()
-- MA-ADR-AUTH (#33): ADR 0001 MVP access control — shared/per-user token; OIDC и public links out of scope; LAN не доверенный
-- MA-ASR-HOTWORDS: configs/asr_hotwords.yaml, hotwords loader/normalizer, faster-whisper >= 1.0 hotwords= param, CLI --hotwords/--hotwords-config
+## Current main state
 
-## Actual API surface (main)
+### Auth / security
+- machine Bearer token (`MEETINGAGENT_API_TOKEN`) is primary for script/service access; invalid Bearer raises 401 with no cookie fallback
+- local cookie sessions for browser (Argon2id, HttpOnly SameSite=Lax, server-side SQLite sessions)
+- CSRF required for cookie callers on all state-changing routes; Bearer callers exempt
+- RBAC: viewer / editor / admin; unknown role grants nothing
+- `POST /admin/bootstrap` — first-admin creation, loopback-only by default; `MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE` + strong `MEETINGAGENT_BOOTSTRAP_SECRET` to opt in
+- deployment safety validator runs on startup in self_hosted mode
+- `MEETINGAGENT_API_TOKEN` must be high-entropy (≥ 32 chars, not a placeholder/repeated pattern)
+- `MEETINGAGENT_TRUSTED_PROXY_CIDRS` — CIDRs trusted for X-Forwarded-Proto; proto forwarded from other clients is ignored for cookie_secure=auto
+- validation errors are sanitized (no raw input, sensitive field values redacted)
+- search responses do not expose runtime filesystem paths
 
-- GET  /meetings                                  — list (offset, limit)
-- GET  /meetings/{id}                             — card
-- GET  /meetings/{id}/transcript                  — transcript or available:false
-- GET  /meetings/{id}/artifacts                   — artifact metadata list
-- GET  /meetings/{id}/artifacts/{name}            — text artifact content
-- GET  /meetings/{id}/transcript/segments         — normalized transcript segments [transcripts.read]
-- GET  /meetings/{id}/media                        — media metadata list [meetings.read]
-- GET  /meetings/{id}/media/{media_id}             — stream media (Range) [meetings.read]
-- GET  /meetings/{id}/workspace                    — Meeting Workspace UI page
-- POST /meetings/{id}/search                        — meeting-scoped lexical search [search.use]
-- POST /meetings/{id}/chat                          — meeting-scoped grounded Q&A [chat.use +CSRF]
-- POST /auth/local/login                          — login → session cookie
-- GET  /auth/me                                   — identity + roles [cookie]
-- GET  /auth/csrf                                  — current session CSRF token [cookie]
-- POST /auth/logout                               — revoke session + clear cookie
-- POST /meetings/ingest                           — upload + sha256 dedup [auth]
-- GET  /meetings/{id}/jobs/stages                  — runnable pipeline stages [jobs.read]
-- POST /meetings/{id}/jobs/{stage}                — start pipeline job [jobs.start +CSRF]
-- GET  /meetings/{id}/jobs/{job_id}               — job status [jobs.read]
-- POST /meetings/{id}/jobs/{job_id}/cancel        — cancel job [jobs.cancel +CSRF]
-- GET  /jobs/active                               — active job or {} [jobs.read]
-- POST /search, POST /chat, GET /health           — pre-existing
-- POST /admin/bootstrap                           — create first admin [no auth]
-- GET  /admin/users                               — list users [users.manage]
-- GET  /admin/users/{id}                          — get user [users.manage]
-- POST /admin/users                               — create user [users.manage + CSRF]
-- PATCH /admin/users/{id}                         — update user [users.manage + CSRF]
-- POST /admin/users/{id}/disable                  — disable user [users.manage + CSRF]
-- POST /admin/users/{id}/enable                   — enable user [users.manage + CSRF]
+### Chat / retrieval
+- `POST /search` protected by `search.use`
+- `POST /chat` protected by `chat.use` + CSRF for cookie callers
+- project chat and meeting QA prompts wrap retrieved sources in explicit untrusted source delimiters
+- citation format `[S1]`, `[S2]` … stable; `citations_basis` field = `cited` / `retrieved` / `null`
+
+### Meeting pipeline
+- canonical offline ASR: `scripts/22_transcribe_meeting.py` with `--engine faster-whisper --model large-v3-turbo`
+- `scripts/06_transcribe_meeting.py` is a compatibility wrapper only
+- full pipeline stages available via job runner: extract_audio → transcribe → diarize → merge → chunk → enrich → index → analyze
+- meeting artifacts field in meeting.json tolerates null/list/string/missing — normalized to `{}`
+- SRT/VTT exports enforce positive cue duration (≥ 1 ms)
+- Meeting Workspace UI at `GET /meetings/{id}/workspace`
+- `POST /meetings/{id}/search` (search.use) and `POST /meetings/{id}/chat` (chat.use + CSRF) — meeting-scoped lexical retrieval + grounded Q&A
+
+## API surface (main)
+
+```text
+GET  /meetings                         list meetings
+GET  /meetings/{id}                    meeting card
+GET  /meetings/{id}/transcript         transcript or available:false
+GET  /meetings/{id}/artifacts          artifact metadata list
+GET  /meetings/{id}/artifacts/{name}   text artifact content (bounded read)
+GET  /meetings/{id}/transcript/segments normalized segments [transcripts.read]
+GET  /meetings/{id}/media              media metadata [meetings.read]
+GET  /meetings/{id}/media/{media_id}   stream media Range [meetings.read]
+GET  /meetings/{id}/workspace          Meeting Workspace UI
+POST /meetings/{id}/search             meeting-scoped search [search.use]
+POST /meetings/{id}/chat               meeting-scoped Q&A [chat.use + CSRF cookie]
+GET  /meetings/{id}/jobs/stages        runnable stages [jobs.read]
+POST /meetings/{id}/jobs/{stage}       start job [jobs.start + CSRF cookie]
+GET  /meetings/{id}/jobs/{job_id}      job status [jobs.read]
+POST /meetings/{id}/jobs/{job_id}/cancel cancel job [jobs.cancel + CSRF cookie]
+GET  /jobs/active                      active job or {} [jobs.read]
+POST /meetings/ingest                  upload + sha256 dedup [write]
+POST /search                           project corpus search [search.use]
+POST /chat                             project grounded Q&A [chat.use + CSRF cookie]
+GET  /health                           health check
+POST /auth/local/login                 login → session cookie
+GET  /auth/me                          identity + roles [cookie]
+GET  /auth/csrf                        CSRF token for current session [cookie]
+POST /auth/logout                      revoke session [CSRF cookie]
+POST /admin/bootstrap                  create first admin [no auth, loopback only]
+GET  /admin/users                      list users [users.manage]
+GET  /admin/users/{id}                 get user [users.manage]
+POST /admin/users                      create user [users.manage + CSRF]
+PATCH /admin/users/{id}                update user [users.manage + CSRF]
+POST /admin/users/{id}/disable         disable user [users.manage + CSRF]
+POST /admin/users/{id}/enable          enable user [users.manage + CSRF]
+GET  /admin/security/status            deployment safety status [admin]
+```
 
 ## Next
 
-- MA-AUTH-DEPLOYMENT-SAFETY: safe defaults для self-hosted
-- MA-REVIEW-QUEUE
-- Meeting Workspace UI
-- #39/#40 (auth evolution): require_write_access — стабильный контракт на роутах; менять backing-механизм только внутри auth.py, роуты не трогать
+- MA-REVIEW-QUEUE: разметка chat_runs.jsonl для eval, генерация guard_v2_cases.jsonl
+- Meeting-scoped Q&A v2: vector retrieval over meeting chunks (current MVP is lexical), transcript-segment-level citations
+- #39/#40 auth evolution: per-user tokens or OIDC
 
 ## Open decisions / blockers
 
-- guard_v2_cases.jsonl отсутствует (pre-existing) → regenerate via MA-REVIEW-QUEUE (collection не падает)
-- Hotwords: Vosk/live path NOT SUPPORTED
-- Hotwords: GigaAM NOT SUPPORTED
-- auth: require_write_access() принимает Bearer machine token и cookie+CSRF browser principal; контракт стабилен; #39/#40 меняют только реализацию внутри auth.py
+- guard_v2_cases.jsonl отсутствует (pre-existing) → regenerate via MA-REVIEW-QUEUE
+- Hotwords: Vosk/live path NOT SUPPORTED; GigaAM NOT SUPPORTED
+- Web UI chat sends requests without credentials → returns 401 after RBAC; use Bearer token directly until UI auth integration
+- Prompt source delimiter escaping not implemented: adversarial sources could include fake delimiter strings (tracked as future improvement)

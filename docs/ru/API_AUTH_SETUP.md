@@ -526,6 +526,48 @@ API определяет реальный IP, обходя `X-Forwarded-For` с�
 
 Cookies устанавливаются с атрибутом `Secure` только если запрос пришёл по HTTPS (`cookie_secure: auto`). Задайте `cookie_secure: true`, чтобы принудительно включить `Secure`, или `false` для отключения (только разработка). В продакшене используйте HTTPS.
 
+### Доверенные прокси-серверы для cookie_secure=auto
+
+При `cookie_secure: auto` API определяет, пришёл ли запрос по HTTPS, проверяя заголовок `X-Forwarded-Proto` — но **только если запрос пришёл с доверенного IP прокси**. Заголовок от недоверенных клиентов игнорируется.
+
+Настройте доверенные прокси-подсети через переменную окружения или конфиг:
+
+```text
+MEETINGAGENT_TRUSTED_PROXY_CIDRS=127.0.0.1/32,10.0.0.0/8
+```
+
+Или в `config.yaml`:
+
+```yaml
+security:
+  trusted_proxy_cidrs:
+    - "127.0.0.1/32"
+    - "10.0.0.0/8"
+```
+
+Без `trusted_proxy_cidrs` (пустой список по умолчанию) `X-Forwarded-Proto` игнорируется от всех клиентов, а флаг Secure устанавливается только по прямому соединению. Это безопасный дефолт для хоста напрямую открытого в интернет. Deployment safety validator предупреждает, если `cookie_secure: auto` включён без trusted_proxy_cidrs в режиме `self_hosted`.
+
+### Требования к секретам
+
+`MEETINGAGENT_API_TOKEN` и `MEETINGAGENT_BOOTSTRAP_SECRET` должны быть высокоэнтропийными секретами. Deployment safety validator отклоняет:
+
+- Пустые значения или слишком короткие (минимум 32 символа).
+- Однотипный повтор символа (например, `aaaa...`).
+- Повтор коротких блоков (например, `abcabc...`, `token-token-token...`).
+- Известные placeholder-слова (например, `changeme`, `example`, `placeholder`).
+
+Сгенерируйте надёжный токен:
+
+```powershell
+# PowerShell
+[Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Maximum 256 }))
+```
+
+```bash
+# bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
 ---
 
 ## Безопасное хранение
@@ -596,10 +638,12 @@ MEETINGAGENT_API_TOKEN=<сгенерируйте: python -c "import secrets; pri
 |---|---|---|
 | `deployment_mode_unknown` | Неизвестное значение `MEETINGAGENT_DEPLOYMENT_MODE` | error |
 | `machine_token_missing` | `MEETINGAGENT_API_TOKEN` не задан | error |
-| `machine_token_weak` | Токен является placeholder-ом или короче 32 символов | error |
+| `machine_token_weak` | `MEETINGAGENT_API_TOKEN` недостаточно надёжен: слишком короткий, похож на placeholder, повтор одного символа или повтор короткого блока | error |
 | `session_cookie_insecure` | `auth.cookie_secure = false` в конфиге | error |
 | `cors_wildcard_self_hosted` | Не настроены `security.allowed_hosts` или `security.allowed_origins` | warning |
 | `bootstrap_policy_unsafe` | `allow_remote=true` без надёжного bootstrap-секрета | error |
+| `trusted_proxy_no_cidrs` | `cookie_secure: auto` задан без `trusted_proxy_cidrs` | warning |
+| `invalid_trusted_proxy_cidrs` | Одно или несколько значений `trusted_proxy_cidrs` не является валидным CIDR | error |
 
 В режиме `local` те же проверки дают `warning` или `info` и не прерывают старт.
 
