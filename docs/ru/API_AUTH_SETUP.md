@@ -638,10 +638,12 @@ MEETINGAGENT_API_TOKEN=<сгенерируйте: python -c "import secrets; pri
 |---|---|---|
 | `deployment_mode_unknown` | Неизвестное значение `MEETINGAGENT_DEPLOYMENT_MODE` | error |
 | `machine_token_missing` | `MEETINGAGENT_API_TOKEN` не задан | error |
-| `machine_token_weak` | Токен является placeholder-ом или короче 32 символов | error |
+| `machine_token_weak` | `MEETINGAGENT_API_TOKEN` недостаточно надёжен: слишком короткий, похож на placeholder, повтор одного символа или повтор короткого блока | error |
 | `session_cookie_insecure` | `auth.cookie_secure = false` в конфиге | error |
 | `cors_wildcard_self_hosted` | Не настроены `security.allowed_hosts` или `security.allowed_origins` | warning |
 | `bootstrap_policy_unsafe` | `allow_remote=true` без надёжного bootstrap-секрета | error |
+| `trusted_proxy_no_cidrs` | `cookie_secure: auto` задан без `trusted_proxy_cidrs` | warning |
+| `invalid_trusted_proxy_cidrs` | Одно или несколько значений `trusted_proxy_cidrs` не является валидным CIDR | error |
 
 В режиме `local` те же проверки дают `warning` или `info` и не прерывают старт.
 

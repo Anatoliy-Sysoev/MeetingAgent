@@ -8,7 +8,7 @@
 - [x] MA-JOB-API (#35): concurrency=1 job runner, 4 endpoints
 - [x] MA-INGEST-DEDUP (#34): POST /meetings/ingest, sha256 dedup, auth guard
 - [x] MA-ARTIFACT-SIZE-LIMITS (#52): bounded transcript/artifact text reads, configurable meetings.max_text_artifact_bytes (10 MiB default), 413 on oversize, TOCTOU-safe bounded read
-- [x] DOC-API-AUTH-SETUP (#53): docs/en/API_AUTH_SETUP.md + docs/ru/API_AUTH_SETUP.md, .env.example, README auth section — original issue satisfied; tracked as stale/closed
+- [x] DOC-API-AUTH-SETUP (#53): docs/en/API_AUTH_SETUP.md + docs/ru/API_AUTH_SETUP.md, .env.example, README auth section — original issue appears satisfied; can be closed manually after docs cleanup review
 
 ## Epic #44 MA-AUTH-FOUNDATION-MVP
 

@@ -639,10 +639,12 @@ The validator (`src/asu_june_bot/auth/deployment_safety.py`) checks:
 |---|---|---|
 | `deployment_mode_unknown` | Unknown value for `MEETINGAGENT_DEPLOYMENT_MODE` | error |
 | `machine_token_missing` | `MEETINGAGENT_API_TOKEN` not set | error |
-| `machine_token_weak` | Token is a placeholder or shorter than 32 characters | error |
+| `machine_token_weak` | `MEETINGAGENT_API_TOKEN` is missing sufficient strength: too short, placeholder-like, repeated character, or repeated block pattern | error |
 | `session_cookie_insecure` | `auth.cookie_secure = false` in config | error |
 | `cors_wildcard_self_hosted` | No `security.allowed_hosts` or `security.allowed_origins` configured | warning |
 | `bootstrap_policy_unsafe` | `allow_remote=true` without a strong bootstrap secret | error |
+| `trusted_proxy_no_cidrs` | `cookie_secure: auto` set without any `trusted_proxy_cidrs` | warning |
+| `invalid_trusted_proxy_cidrs` | One or more values in `trusted_proxy_cidrs` are not valid CIDRs | error |
 
 In `local` mode, the same checks produce `warning` or `info` findings and never abort startup.
 
