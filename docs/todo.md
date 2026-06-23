@@ -50,13 +50,18 @@
   - _SOURCE_BOUNDARY_INSTRUCTION added before sources in both project chat and meeting QA
   - [S#] citation format and _cited_source_indices() parsing unchanged; 23 injection regression tests
 
+## Done (Runtime Hardening & Docs)
+
+- [x] MA-RUNTIME-HARDENING-BUGFIX-PACK-2 (#99, PR #100): `_artifact_map()`/`_runner_media_files()` guards in runner preflights; `_source_map()`/`_media_files()` guards in MeetingsService; `_path_variants()` + re.IGNORECASE in path redaction
+- [x] DOC-REPO-CLEANUP (#59, PR #97 + PR #98): context.md/todo.md compacted; code_review_2026-06-17.md added; API_AUTH_SETUP docs updated for entropy and trusted proxy findings
+
 ## Active
 
-- [ ] DOC-REPO-CLEANUP (#59): docs-only cleanup — compact context.md, sync todo.md, fix stale wording in README/architecture/product docs
+- [ ] MA-REVIEW-QUEUE (#36): review queue API + UI over chat_runs.jsonl — branch 36-ma-review-queue
 
 ## Backlog (приоритет сверху вниз)
 
-- MA-REVIEW-QUEUE: разметка chat_runs.jsonl для eval, генерация guard_v2_cases.jsonl
+- guard_v2_cases.jsonl generation from labeled review rows (after #36)
 - Meeting-scoped Q&A v2: vector retrieval over meeting chunks, transcript-segment-level citations (segment_id)
 - #39/#40 auth evolution: per-user tokens или OIDC
 

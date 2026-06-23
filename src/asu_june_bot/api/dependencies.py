@@ -26,6 +26,7 @@ from asu_june_bot.llm.ollama_openai import OllamaOpenAIClient
 from asu_june_bot.meetings.qa import MeetingQAService
 from asu_june_bot.meetings.service import MeetingsService, parse_max_text_artifact_bytes
 from asu_june_bot.observability import ChatRunsLogger
+from asu_june_bot.observability.review_queue import ReviewQueue
 from asu_june_bot.search import SearchService
 
 
@@ -44,6 +45,7 @@ class AppState:
     login_throttle: LoginLimiter
     bootstrap_policy: BootstrapPolicy
     trusted_proxy_cidrs: list[str]
+    review_queue: ReviewQueue
 
 
 def _normalize_cookie_secure(value: Any) -> str:
@@ -84,6 +86,8 @@ def build_app_state() -> AppState:
         meetings_root=meetings_root,
         max_text_artifact_bytes=max_text_artifact_bytes,
     )
+    _runs_path = Path("data/asu_june_bot/chat_runs.jsonl")
+    _labels_path = Path("data/asu_june_bot/chat_run_labels.jsonl")
     return AppState(
         config=config,
         search_service=search_service,
@@ -111,6 +115,7 @@ def build_app_state() -> AppState:
         login_throttle=login_throttle,
         bootstrap_policy=bootstrap_policy,
         trusted_proxy_cidrs=trusted_proxy_cidrs,
+        review_queue=ReviewQueue(runs_path=_runs_path, labels_path=_labels_path),
     )
 
 
