@@ -189,6 +189,18 @@ def _artifact_map(card: Mapping[str, Any]) -> dict[str, Any]:
     return {}
 
 
+def _source_map(card: Mapping[str, Any]) -> dict[str, Any]:
+    source = card.get("source")
+    return source if isinstance(source, dict) else {}
+
+
+def _media_files(card: Mapping[str, Any]) -> list[dict[str, Any]]:
+    raw = _source_map(card).get("media_files")
+    if not isinstance(raw, list):
+        return []
+    return [item for item in raw if isinstance(item, dict)]
+
+
 def _detect_content_type(path: Path) -> str | None:
     """Return format string for allowlisted suffixes, None for everything else."""
     suffix = path.suffix.lower()
@@ -203,7 +215,7 @@ def _detect_content_type(path: Path) -> str | None:
 
 def _summary(data: dict[str, Any]) -> dict[str, Any]:
     artifacts = _artifact_map(data)
-    media_files: list[dict] = (data.get("source") or {}).get("media_files") or []
+    media_files = _media_files(data)
     result: dict[str, Any] = {
         "meeting_id": data.get("meeting_id"),
         "title": data.get("title"),
@@ -413,9 +425,8 @@ class MeetingsService:
             return None
         data = _read_meeting_json(card_path)
         meeting_dir = self._meeting_dir(meeting_id)
-        media_files: list[dict] = (data.get("source") or {}).get("media_files") or []
         result: list[dict[str, Any]] = []
-        for i, mf in enumerate(media_files):
+        for i, mf in enumerate(_media_files(data)):
             rel = mf.get("path", "")
             if not rel:
                 continue
@@ -466,7 +477,7 @@ class MeetingsService:
             return None
         data = _read_meeting_json(card_path)
         meeting_dir = self._meeting_dir(meeting_id)
-        media_files: list[dict] = (data.get("source") or {}).get("media_files") or []
+        media_files = _media_files(data)
         if idx >= len(media_files):
             return None
         mf = media_files[idx]
@@ -544,8 +555,7 @@ class MeetingsService:
                 data = _read_meeting_json(card_path)
             except MeetingCardError:
                 continue
-            media_files: list[dict] = (data.get("source") or {}).get("media_files") or []
-            for mf in media_files:
+            for mf in _media_files(data):
                 if mf.get("sha256") == sha256:
                     return str(data.get("meeting_id", meeting_dir.name))
         return None
