@@ -642,7 +642,7 @@ HTML_TEMPLATE = """<!doctype html>
                 <div class="muted">Ручная разметка chat runs для формирования eval/regression cases. Только admin.</div>
               </div>
               <div style="display:flex;gap:8px;align-items:center;">
-                <button class="small-action" type="button" id="reviewLoad" onclick="loadReviewRuns()">Загрузить</button>
+                <button class="small-action" type="button" id="reviewLoad">Загрузить</button>
                 <a id="reviewExportLink" href="/admin/review/chat-runs/export" target="_blank" class="small-action" style="text-decoration:none;">Экспорт</a>
               </div>
             </div>
@@ -892,6 +892,15 @@ HTML_TEMPLATE = """<!doctype html>
     // --------------- Review tab ---------------
     const REVIEW_LABELS = ['correct','false_refuse','false_clarify','bad_source','needs_case','off_topic_ok','needs_review'];
 
+    async function getReviewCsrfToken() {
+      try {
+        const resp = await fetch('/auth/csrf');
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        return data.csrf_token || null;
+      } catch (_) { return null; }
+    }
+
     async function loadReviewRuns() {
       const statusEl = document.getElementById('reviewStatus');
       const listEl = document.getElementById('reviewList');
@@ -923,11 +932,21 @@ HTML_TEMPLATE = """<!doctype html>
       }
     }
 
+    function addMetaSpan(parent, value, className) {
+      const span = document.createElement('span');
+      if (className) span.className = className;
+      span.textContent = value || '';
+      parent.appendChild(span);
+    }
+
     function renderReviewList(items) {
       const listEl = document.getElementById('reviewList');
       listEl.innerHTML = '';
       if (!items.length) {
-        listEl.innerHTML = '<div class="empty-state">Нет runs по заданным фильтрам.</div>';
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        empty.textContent = 'Нет runs по заданным фильтрам.';
+        listEl.appendChild(empty);
         return;
       }
       for (const run of items) {
@@ -935,12 +954,12 @@ HTML_TEMPLATE = """<!doctype html>
         card.style.cssText = 'border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;background:var(--surface);';
         const meta = document.createElement('div');
         meta.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;font-size:12px;color:var(--muted);';
-        meta.innerHTML = `<span>${run.run_id}</span><span>${run.created_at || ''}</span><span class="badge">${run.status || ''}</span><span class="badge">${run.guard_decision || ''}</span>`;
+        addMetaSpan(meta, run.run_id);
+        addMetaSpan(meta, run.created_at || '');
+        addMetaSpan(meta, run.status || '', 'badge');
+        addMetaSpan(meta, run.guard_decision || '', 'badge');
         if (run.current_label) {
-          const lb = document.createElement('span');
-          lb.className = 'badge ok';
-          lb.textContent = run.current_label;
-          meta.appendChild(lb);
+          addMetaSpan(meta, run.current_label, 'badge ok');
         }
         const query = document.createElement('div');
         query.style.cssText = 'font-weight:600;margin-bottom:4px;';
@@ -952,35 +971,51 @@ HTML_TEMPLATE = """<!doctype html>
         labelRow.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;';
         const sel = document.createElement('select');
         sel.style.cssText = 'flex:1;min-width:140px;';
-        sel.innerHTML = '<option value="">— выбрать label —</option>' + REVIEW_LABELS.map(l => `<option value="${l}"${run.current_label===l?' selected':''}>${l}</option>`).join('');
+        const defaultOpt = document.createElement('option');
+        defaultOpt.value = '';
+        defaultOpt.textContent = '— выбрать label —';
+        sel.appendChild(defaultOpt);
+        for (const l of REVIEW_LABELS) {
+          const opt = document.createElement('option');
+          opt.value = l;
+          opt.textContent = l;
+          if (run.current_label === l) opt.selected = true;
+          sel.appendChild(opt);
+        }
         const issueInput = document.createElement('input');
         issueInput.type = 'text';
         issueInput.placeholder = 'manual_issue (опционально)';
-        issueInput.style.cssText = 'flex:2;min-width:160px;padding:4px 8px;border:1px solid var(--line);border-radius:4px;';
+        issueInput.style.cssText = 'flex:2;min-width:140px;padding:4px 8px;border:1px solid var(--line);border-radius:4px;';
         issueInput.value = run.manual_issue || '';
+        const commentInput = document.createElement('input');
+        commentInput.type = 'text';
+        commentInput.placeholder = 'comment (опционально)';
+        commentInput.style.cssText = 'flex:3;min-width:160px;padding:4px 8px;border:1px solid var(--line);border-radius:4px;';
+        commentInput.value = run.comment || '';
         const btn = document.createElement('button');
         btn.className = 'small-action';
         btn.textContent = 'Сохранить';
-        btn.onclick = async () => {
+        btn.addEventListener('click', async () => {
           const lbl = sel.value;
           if (!lbl) { alert('Выберите label'); return; }
           btn.disabled = true;
           try {
-            const csrf = document.cookie.match(/ma_csrf=([^;]+)/);
+            const csrf = await getReviewCsrfToken();
             const headers = {'Content-Type':'application/json'};
-            if (csrf) headers['X-CSRF-Token'] = decodeURIComponent(csrf[1]);
+            if (csrf) headers['X-CSRF-Token'] = csrf;
             const r = await fetch('/admin/review/chat-runs/' + encodeURIComponent(run.run_id) + '/label', {
               method: 'POST',
               headers,
-              body: JSON.stringify({ label: lbl, manual_issue: issueInput.value || null })
+              body: JSON.stringify({
+                label: lbl,
+                manual_issue: issueInput.value || null,
+                comment: commentInput.value || null
+              })
             });
             if (r.ok) {
               const existing = meta.querySelector('.badge.ok');
               if (existing) existing.remove();
-              const lb = document.createElement('span');
-              lb.className = 'badge ok';
-              lb.textContent = lbl;
-              meta.appendChild(lb);
+              addMetaSpan(meta, lbl, 'badge ok');
             } else {
               const err = await r.json().catch(() => ({}));
               alert('Ошибка ' + r.status + ': ' + JSON.stringify(err.detail || err));
@@ -988,9 +1023,10 @@ HTML_TEMPLATE = """<!doctype html>
           } finally {
             btn.disabled = false;
           }
-        };
+        });
         labelRow.appendChild(sel);
         labelRow.appendChild(issueInput);
+        labelRow.appendChild(commentInput);
         labelRow.appendChild(btn);
         card.appendChild(meta);
         card.appendChild(query);
@@ -999,6 +1035,8 @@ HTML_TEMPLATE = """<!doctype html>
         listEl.appendChild(card);
       }
     }
+
+    document.getElementById('reviewLoad').addEventListener('click', loadReviewRuns);
     // ------------------------------------------
 
     for (const button of document.querySelectorAll('.tab-btn')) {
