@@ -15,6 +15,8 @@ from asu_june_bot.jobs.runner import (  # noqa: E402
     _merge_preflight,
     _chunk_preflight,
     _enrich_preflight,
+    _index_preflight,
+    _analyze_preflight,
     _path_variants,
     _redact_paths,
 )
@@ -51,6 +53,20 @@ def test_runner_preflight_malformed_artifacts_null_does_not_raise(tmp_path):
     meeting_dir = make_meeting(tmp_path, None)
     result = _enrich_preflight(meeting_dir)
     assert isinstance(result, str)
+
+
+def test_runner_index_preflight_malformed_artifacts_string_does_not_raise(tmp_path):
+    meeting_dir = make_meeting(tmp_path, "bad-string")
+    result = _index_preflight(meeting_dir)
+    assert isinstance(result, str)
+    assert "enriched_chunks.jsonl not found" in result
+
+
+def test_runner_analyze_preflight_malformed_artifacts_list_does_not_raise(tmp_path):
+    meeting_dir = make_meeting(tmp_path, ["bad"])
+    result = _analyze_preflight(meeting_dir)
+    assert isinstance(result, str)
+    assert "enriched_chunks.jsonl not found" in result
 
 
 # ---------------------------------------------------------------------------
