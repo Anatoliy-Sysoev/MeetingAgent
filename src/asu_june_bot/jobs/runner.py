@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import shutil
 import sys
 import uuid
@@ -15,6 +16,20 @@ _ROOT = Path(__file__).resolve().parents[3]
 # ---------------------------------------------------------------------------
 # Preflight helpers — pure filesystem checks, no subprocess
 # ---------------------------------------------------------------------------
+
+def _artifact_map(card: dict[str, Any]) -> dict[str, Any]:
+    artifacts = card.get("artifacts")
+    return artifacts if isinstance(artifacts, dict) else {}
+
+
+def _runner_media_files(card: dict[str, Any]) -> list[dict[str, Any]]:
+    source = card.get("source")
+    source_dict = source if isinstance(source, dict) else {}
+    raw = source_dict.get("media_files")
+    if not isinstance(raw, list):
+        return []
+    return [item for item in raw if isinstance(item, dict)]
+
 
 def _safe_resolve(meeting_dir: Path, rel_value: str) -> Path | None:
     """Resolve a meeting-relative path safely.
@@ -56,7 +71,7 @@ def _extract_audio_preflight(meeting_dir: Path) -> str | None:
     err, data = _read_card(meeting_dir)
     if err:
         return err
-    media_files = (data or {}).get("source", {}).get("media_files", [])  # type: ignore[union-attr]
+    media_files = _runner_media_files(data or {})
     if not media_files:
         return "no source.media_files in meeting.json; upload a media file first"
     for media in media_files:
@@ -74,7 +89,7 @@ def _merge_preflight(meeting_dir: Path) -> str | None:
     err, data = _read_card(meeting_dir)
     if err:
         return err
-    artifacts: dict[str, str] = (data or {}).get("artifacts") or {}  # type: ignore[union-attr]
+    artifacts = _artifact_map(data or {})
     segments_rel = artifacts.get("segments")
     if segments_rel:
         resolved = _safe_resolve(meeting_dir, segments_rel)
@@ -89,7 +104,7 @@ def _chunk_preflight(meeting_dir: Path) -> str | None:
     err, data = _read_card(meeting_dir)
     if err:
         return err
-    artifacts: dict[str, str] = (data or {}).get("artifacts") or {}  # type: ignore[union-attr]
+    artifacts = _artifact_map(data or {})
     speaker_rel = artifacts.get("speaker_transcript", "transcript/speaker_transcript.jsonl")
     resolved = _safe_resolve(meeting_dir, speaker_rel)
     if resolved is not None and resolved.exists():
@@ -101,7 +116,7 @@ def _enrich_preflight(meeting_dir: Path) -> str | None:
     err, data = _read_card(meeting_dir)
     if err:
         return err
-    artifacts: dict[str, str] = (data or {}).get("artifacts") or {}  # type: ignore[union-attr]
+    artifacts = _artifact_map(data or {})
     chunks_rel = artifacts.get("chunks", "transcript/chunks.jsonl")
     resolved = _safe_resolve(meeting_dir, chunks_rel)
     if resolved is not None and resolved.exists():
@@ -113,7 +128,7 @@ def _index_preflight(meeting_dir: Path) -> str | None:
     err, data = _read_card(meeting_dir)
     if err:
         return err
-    artifacts: dict[str, str] = (data or {}).get("artifacts") or {}  # type: ignore[union-attr]
+    artifacts = _artifact_map(data or {})
     enriched_rel = artifacts.get("enriched_chunks", "artifacts/enriched_chunks.jsonl")
     resolved = _safe_resolve(meeting_dir, enriched_rel)
     if resolved is not None and resolved.exists():
@@ -125,7 +140,7 @@ def _analyze_preflight(meeting_dir: Path) -> str | None:
     err, data = _read_card(meeting_dir)
     if err:
         return err
-    artifacts: dict[str, str] = (data or {}).get("artifacts") or {}  # type: ignore[union-attr]
+    artifacts = _artifact_map(data or {})
     enriched_rel = artifacts.get("enriched_chunks", "artifacts/enriched_chunks.jsonl")
     resolved = _safe_resolve(meeting_dir, enriched_rel)
     if resolved is not None and resolved.exists():
@@ -294,12 +309,25 @@ def _now_iso() -> str:
     return datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
 
 
+def _path_variants(path: Path) -> set[str]:
+    """Return all string forms of a path that may appear in subprocess output."""
+    variants: set[str] = set()
+    for p in (path, path.resolve()):
+        s = str(p)
+        variants.add(s)
+        variants.add(s.replace("\\", "/"))
+        variants.add(s.replace("/", "\\"))
+        variants.add(s.lower())
+        variants.add(s.replace("\\", "/").lower())
+        variants.add(s.replace("/", "\\").lower())
+    return {v for v in variants if v and v != "/"}
+
+
 def _redact_paths(line: str, roots: list[Path]) -> str:
     """Replace occurrences of known server filesystem roots with '<path>'."""
     for root in roots:
-        root_s = str(root)
-        if root_s and root_s != "/":
-            line = line.replace(root_s, "<path>")
+        for variant in _path_variants(root):
+            line = re.sub(re.escape(variant), "<path>", line, flags=re.IGNORECASE)
     return line
 
 
