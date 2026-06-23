@@ -616,3 +616,56 @@ def test_get_artifact_content_list_artifacts_does_not_raise(tmp_path: Path) -> N
     svc = MeetingsService(tmp_path)
     result = svc.get_artifact_content("2026-01-15__kickoff", "foo")
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Bug 2: _source_map / _media_files type guards
+# ---------------------------------------------------------------------------
+
+def test_summary_source_list_does_not_raise(tmp_path: Path) -> None:
+    make_card(tmp_path, data={"source": ["bad", "list"]})
+    svc = MeetingsService(tmp_path)
+    result = svc.get_meeting("2026-01-15__kickoff")
+    assert result is not None
+
+
+def test_summary_source_string_does_not_raise(tmp_path: Path) -> None:
+    make_card(tmp_path, data={"source": "bad-string"})
+    svc = MeetingsService(tmp_path)
+    result = svc.get_meeting("2026-01-15__kickoff")
+    assert result is not None
+
+
+def test_list_media_source_list_returns_empty(tmp_path: Path) -> None:
+    make_card(tmp_path, data={"source": ["bad"]})
+    svc = MeetingsService(tmp_path)
+    result = svc.list_media("2026-01-15__kickoff")
+    assert result == []
+
+
+def test_list_media_media_files_string_returns_empty(tmp_path: Path) -> None:
+    make_card(tmp_path, data={"source": {"media_files": "bad-string"}})
+    svc = MeetingsService(tmp_path)
+    result = svc.list_media("2026-01-15__kickoff")
+    assert result == []
+
+
+def test_get_media_path_source_list_returns_none(tmp_path: Path) -> None:
+    make_card(tmp_path, data={"source": ["bad"]})
+    svc = MeetingsService(tmp_path)
+    result = svc.get_media_path("2026-01-15__kickoff", "0")
+    assert result is None
+
+
+def test_get_media_path_media_files_string_returns_none(tmp_path: Path) -> None:
+    make_card(tmp_path, data={"source": {"media_files": "bad-string"}})
+    svc = MeetingsService(tmp_path)
+    result = svc.get_media_path("2026-01-15__kickoff", "0")
+    assert result is None
+
+
+def test_dedup_scan_malformed_source_does_not_raise(tmp_path: Path) -> None:
+    make_card(tmp_path, data={"source": "not-a-dict"})
+    svc = MeetingsService(tmp_path)
+    result = svc.find_by_sha256("aabbccdd")
+    assert result is None
