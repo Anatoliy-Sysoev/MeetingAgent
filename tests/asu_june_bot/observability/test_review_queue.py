@@ -185,10 +185,11 @@ def test_list_runs_does_not_expose_prompt_internals(tmp_path: Path) -> None:
 
 def test_set_label_writes_to_sidecar(tmp_path: Path) -> None:
     q = ReviewQueue(runs_path=tmp_path / "runs.jsonl", labels_path=tmp_path / "labels.jsonl")
-    rec = q.set_label("r1", "correct", manual_issue="typo", labeled_by="admin@x.com")
+    rec = q.set_label("r1", "correct", manual_issue="typo", comment="good run", labeled_by="admin@x.com")
     assert rec["run_id"] == "r1"
     assert rec["label"] == "correct"
     assert rec["manual_issue"] == "typo"
+    assert rec["comment"] == "good run"
     assert rec["labeled_by"] == "admin@x.com"
     assert "labeled_at" in rec
     lines = (tmp_path / "labels.jsonl").read_text(encoding="utf-8").splitlines()

@@ -24,6 +24,7 @@ def _get_review_queue(request: Request) -> ReviewQueue:
 class LabelRequest(BaseModel):
     label: str = Field(..., min_length=1, max_length=64)
     manual_issue: str | None = Field(None, max_length=1000)
+    comment: str | None = Field(None, max_length=2000)
 
 
 @router.get("/chat-runs/export")
@@ -77,6 +78,7 @@ def set_run_label(
         run_id=run_id,
         label=payload.label,
         manual_issue=payload.manual_issue,
+        comment=payload.comment,
         labeled_by=principal.principal_id,
     )
     return record

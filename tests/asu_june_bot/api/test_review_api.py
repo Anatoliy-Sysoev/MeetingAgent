@@ -254,17 +254,19 @@ def test_set_label_invalid_label_returns_422(client: TestClient) -> None:
     assert resp.status_code == 422
 
 
-def test_set_label_with_manual_issue(client: TestClient, review_queue: ReviewQueue) -> None:
+def test_set_label_with_manual_issue_and_comment(client: TestClient, review_queue: ReviewQueue) -> None:
     _bootstrap_admin(client)
     session, csrf = _admin_login(client)
     resp = client.post(
         "/admin/review/chat-runs/r1/label",
-        json={"label": "false_refuse", "manual_issue": "should have answered"},
+        json={"label": "false_refuse", "manual_issue": "GH-123", "comment": "should have answered"},
         cookies={"ma_session": session},
         headers={"X-CSRF-Token": csrf},
     )
     assert resp.status_code == 200
-    assert resp.json()["manual_issue"] == "should have answered"
+    data = resp.json()
+    assert data["manual_issue"] == "GH-123"
+    assert data["comment"] == "should have answered"
 
 
 def test_set_label_run_id_too_long_returns_422(client: TestClient) -> None:
@@ -335,3 +337,31 @@ def test_export_does_not_expose_prompt_internals(client: TestClient, review_queu
     resp = client.get("/admin/review/chat-runs/export", cookies={"ma_session": session})
     item = resp.json()["items"][0]
     assert "prompt_sources" not in item
+
+
+# ---------------------------------------------------------------------------
+# UI security static checks (no XSS via innerHTML, CSRF via /auth/csrf)
+# ---------------------------------------------------------------------------
+
+def _get_html(client: TestClient) -> str:
+    resp = client.get("/")
+    assert resp.status_code == 200
+    return resp.text
+
+
+def test_review_ui_csrf_uses_auth_csrf_endpoint(client: TestClient) -> None:
+    html = _get_html(client)
+    assert "/auth/csrf" in html, "Review UI must use /auth/csrf to obtain CSRF token"
+
+
+def test_review_ui_no_innerHTML_with_run_fields(client: TestClient) -> None:
+    html = _get_html(client)
+    # Ensure run_id, status, guard_decision are not assigned via innerHTML
+    assert "run.run_id" not in html.split("innerHTML")[1] if "innerHTML" in html else True
+    # More direct: the template must not contain the known XSS pattern
+    assert "meta.innerHTML" not in html, "run fields must be set via textContent, not innerHTML"
+
+
+def test_review_ui_no_inline_onclick(client: TestClient) -> None:
+    html = _get_html(client)
+    assert 'onclick="loadReviewRuns()"' not in html, "reviewLoad button must use addEventListener, not inline onclick"

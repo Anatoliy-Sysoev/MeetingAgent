@@ -97,6 +97,7 @@ class ReviewQueue:
             out = _safe_run_fields(run)
             out["current_label"] = current_label
             out["manual_issue"] = lbl_record.get("manual_issue") if lbl_record else None
+            out["comment"] = lbl_record.get("comment") if lbl_record else None
             out["labeled_at"] = lbl_record.get("labeled_at") if lbl_record else None
             results.append(out)
         return results
@@ -106,6 +107,7 @@ class ReviewQueue:
         run_id: str,
         label: str,
         manual_issue: str | None = None,
+        comment: str | None = None,
         labeled_by: str = "unknown",
     ) -> dict[str, Any]:
         """Append a label record to the sidecar file and return the new record."""
@@ -113,6 +115,7 @@ class ReviewQueue:
             "run_id": run_id,
             "label": label,
             "manual_issue": manual_issue,
+            "comment": comment,
             "labeled_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "labeled_by": labeled_by,
         }
@@ -131,6 +134,7 @@ class ReviewQueue:
             out = _safe_run_fields(run)
             out["current_label"] = lbl_record.get("label") if lbl_record else None
             out["manual_issue"] = lbl_record.get("manual_issue") if lbl_record else None
+            out["comment"] = lbl_record.get("comment") if lbl_record else None
             out["labeled_at"] = lbl_record.get("labeled_at") if lbl_record else None
             out["labeled_by"] = lbl_record.get("labeled_by") if lbl_record else None
             result.append(out)
