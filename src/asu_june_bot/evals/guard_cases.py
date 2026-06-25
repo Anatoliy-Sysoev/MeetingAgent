@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -208,13 +210,12 @@ class GuardCaseExporter:
     ) -> dict[str, Any]:
         """Export cases to out_path and return a summary dict.
 
-        The output file is written atomically: cases are collected first, then
-        the file is opened for writing.  Original chat_runs.jsonl is never
-        touched.
+        Written atomically: all data is serialised into a temp file in the same
+        directory, then replaced with os.replace() so readers never see a
+        partial file.  Original chat_runs.jsonl is never touched.
         """
-        runs_count = len(self._read_jsonl_tail(self.runs_path))
+        runs = self._read_jsonl_tail(self.runs_path)
         labels_map = self._load_labels()
-        labels_count = len(labels_map)
 
         cases = self.export_cases(
             include_correct=include_correct,
@@ -222,10 +223,11 @@ class GuardCaseExporter:
             filter_labels=filter_labels,
         )
 
-        # Count breakdown for the summary.
-        total_runs = runs_count
-        labeled_runs = labels_count
-        unlabeled = total_runs - labeled_runs
+        # skipped_unlabeled: runs in the current bounded tail with no label entry.
+        labeled_run_ids = frozenset(labels_map)
+        skipped_unlabeled = sum(
+            1 for r in runs if r.get("run_id") and r["run_id"] not in labeled_run_ids
+        )
         allowed = self._allowed_labels(
             include_correct=include_correct,
             filter_labels=filter_labels,
@@ -236,15 +238,24 @@ class GuardCaseExporter:
         )
 
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        with out_path.open("w", encoding="utf-8") as fh:
-            for case in cases:
-                fh.write(json.dumps(case, ensure_ascii=False, separators=(",", ":")) + "\n")
+        fd, tmp = tempfile.mkstemp(dir=out_path.parent, prefix=".tmp_guard_cases_")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                for case in cases:
+                    fh.write(json.dumps(case, ensure_ascii=False, separators=(",", ":")) + "\n")
+            os.replace(tmp, out_path)
+        except Exception:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
 
         return {
-            "runs_read": total_runs,
-            "labels_read": labels_count,
+            "runs_read": len(runs),
+            "labels_read": len(labels_map),
             "cases_written": len(cases),
-            "skipped_unlabeled": unlabeled,
+            "skipped_unlabeled": skipped_unlabeled,
             "skipped_correct": skipped_correct,
             "output": str(out_path),
         }
