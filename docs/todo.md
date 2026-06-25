@@ -37,11 +37,12 @@
 - [x] MA-MEETING-STRUCTURED-ARTIFACTS-V2 (#123): source-grounded summary/protocol and structured decisions/tasks/risks/open questions with speaker refs, confidence and needs_review.
 - [x] MA-MEETING-QA-SEGMENT-CITATIONS (#126): meeting Q&A/search citations resolve to exact transcript segment refs when available, with chunk-level fallback.
 - [x] MA-MEETING-PACKAGING-LOCAL (#124): local all-in-one runbook, Docker healthcheck and preflight CLI for Docker/Ollama/models/ffmpeg/optional ASR — 2be1f89.
-- [x] MA-PRODUCT-SPLIT-PHASE-1 (#125): shared utilities extracted into `meeting_agent.shared`; meeting-owned code imports shared layer directly; old bot imports remain compatibility shims — pending commit.
+- [x] MA-PRODUCT-SPLIT-PHASE-1 (#125, PR #136): shared utilities extracted into `meeting_agent.shared`; meeting-owned code imports shared layer directly; old bot imports remain compatibility shims.
+- [x] MA-GUARD-PURE-DECISION-API (#106): pure deterministic `evaluate_guard_decision()` API for regression tests, wrapping existing guard behavior without retrieval/LLM/network/chat orchestration.
 
 ## Active / Next
 
-- [ ] MA-GUARD-PURE-DECISION-API (#106): deterministic guard decision API for regression tests.
+- [ ] Pick next open issue after #106 merge: auth/admin (#39/#40), anonymization (#22), summary eval (#24), public samples/docs/release automation (#19/#20/#21/#23/#25/#26).
 
 ## Meeting Product Backlog
 
