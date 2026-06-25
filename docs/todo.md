@@ -55,18 +55,20 @@
 - [x] MA-RUNTIME-HARDENING-BUGFIX-PACK-2 (#99, PR #100): `_artifact_map()`/`_runner_media_files()` guards in runner preflights; `_source_map()`/`_media_files()` guards in MeetingsService; `_path_variants()` + re.IGNORECASE in path redaction
 - [x] DOC-REPO-CLEANUP (#59, PR #97 + PR #98): context.md/todo.md compacted; code_review_2026-06-17.md added; API_AUTH_SETUP docs updated for entropy and trusted proxy findings
 
-## Done (Review Queue & Cases Export)
+## Done (Review Queue & Cases Export & Regression Harness)
 
 - [x] MA-REVIEW-QUEUE (#36, PR #101): `ReviewQueue` + review routes + "Разметка" tab; `review.manage` permission; comment field; XSS-safe DOM; CSRF via `/auth/csrf`
-- [x] MA-GUARD-V2-CASES-EXPORT (#102): `GuardCaseExporter` + `scripts/40_export_guard_v2_cases.py`; label→case mapping; no prompt_sources / no source paths; 22 tests
+- [x] MA-GUARD-V2-CASES-EXPORT (#102, PR #103): `GuardCaseExporter` + `scripts/40_export_guard_v2_cases.py`; label→case mapping; atomic write; accurate `skipped_unlabeled`; 24 tests
+- [x] MA-GUARD-V2-REGRESSION-TESTS (#104): `guard_case_loader.py` + committed sample fixture (7 labels) + loader unit tests + fixture/runtime regression harness; 41 tests, 6 skipped when runtime file absent
 
 ## Active
 
-- [ ] (none — awaiting review of #102)
+- [ ] (none — awaiting review)
 
 ## Backlog (приоритет сверху вниз)
 
-- run `scripts/40_export_guard_v2_cases.py` after labeling to produce guard_v2_cases.jsonl
+- run `scripts/40_export_guard_v2_cases.py` after labeling; runtime regression tests pick it up automatically
+- deterministic guard assertion layer (requires pure guard API without retrieval/LLM — future task)
 - Meeting-scoped Q&A v2: vector retrieval over meeting chunks, transcript-segment-level citations (segment_id)
 - #39/#40 auth evolution: per-user tokens или OIDC
 

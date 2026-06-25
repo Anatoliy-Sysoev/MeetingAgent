@@ -4,11 +4,13 @@
 
 ## Now
 
-- active task: MA-GUARD-V2-CASES-EXPORT (#102) — export labeled runs to guard_v2_cases.jsonl
-- branch: 102-guard-v2-cases-export
+- active task: MA-GUARD-V2-REGRESSION-TESTS (#104) — loader + regression harness for guard_v2_cases.jsonl
+- branch: 104-guard-v2-regression-tests
 
 ## Done latest (last 4 PRs)
 
+- MA-GUARD-V2-REGRESSION-TESTS (#104, PR #TBD): `guard_case_loader.py` with `GuardRegressionCase` + `load_guard_cases()` + `case_contains_forbidden_keys()`; committed sample fixture (7 labels, no private data); fixture + runtime regression tests (41 tests, 6 skipped when runtime file absent).
+- MA-GUARD-V2-CASES-EXPORT (#102, PR #103): `GuardCaseExporter`; `scripts/40_export_guard_v2_cases.py`; atomic write; accurate `skipped_unlabeled`; 24 tests.
 - MA-REVIEW-QUEUE (#36, PR #101): `ReviewQueue` + `routes_review.py`; review.manage permission; "Разметка" tab UI; set_label API with CSRF; comment field; XSS-safe DOM rendering; bounded reads.
 - MA-RUNTIME-HARDENING-BUGFIX-PACK-2 (#99, PR #100): `_artifact_map()` + `_runner_media_files()` guards in all 6 runner preflights; `_source_map()` + `_media_files()` guards in MeetingsService (_summary/list_media/get_media_path/find_by_sha256); `_path_variants()` + `re.IGNORECASE` in `_redact_paths()` — covers native/posix/backslash/case variants; 16 new tests.
 - DOC-CODE-REVIEW-REPORT (PR #98, closes #59 partial): `docs/architecture/code_review_2026-06-17.md` created — historical review snapshot, resolution table (H1/H2 + M findings mapped to #84–#91), 4 remaining open LOW findings listed.
@@ -99,9 +101,17 @@ GET  /admin/review/chat-runs/export    export joined runs+labels [review.manage]
 - `correct` excluded by default; opt in with `--include-correct`
 - No `prompt_sources`, no source `.path` in output; bounded reads (10 MiB) on both input files
 
+### Guard v2 regression harness
+- `src/asu_june_bot/evals/guard_case_loader.py` — `GuardRegressionCase` dataclass; `load_guard_cases(path, *, strict=True)`; `validate_guard_case_payload()`; `case_contains_forbidden_keys()`
+- `tests/fixtures/evals/guard_v2_cases.sample.jsonl` — committed sample: 7 rows, all labels, no private data, no filesystem paths
+- `tests/asu_june_bot/evals/test_guard_case_loader.py` — unit tests for loader
+- `tests/asu_june_bot/evals/test_guard_v2_regression_cases.py` — fixture regression always runs; runtime `data/asu_june_bot/guard_v2_cases.jsonl` tests skip if file absent
+- guard v2 runtime behavior is NOT implemented; no LLM/network calls in tests
+
 ## Next
 
-- run `scripts/40_export_guard_v2_cases.py` after labeling to produce guard_v2_cases.jsonl
+- run `scripts/40_export_guard_v2_cases.py` after labeling; runtime tests pick it up automatically
+- deterministic guard assertion layer (requires pure guard API — tracked as future task)
 - Meeting-scoped Q&A v2: vector retrieval over meeting chunks (current MVP is lexical), transcript-segment-level citations
 - #39/#40 auth evolution: per-user tokens or OIDC
 
