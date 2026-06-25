@@ -32,6 +32,7 @@ ADMIN_PERMISSIONS: frozenset[str] = EDITOR_PERMISSIONS | frozenset({
     "audit.read",
     "meetings.delete",
     "tokens.manage",
+    "review.manage",
 })
 
 ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
