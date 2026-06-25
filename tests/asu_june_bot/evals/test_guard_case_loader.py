@@ -75,6 +75,11 @@ def test_validate_rejects_unknown_label() -> None:
         validate_guard_case_payload(_valid_payload(label="not_a_label"))
 
 
+def test_validate_rejects_unknown_case_type() -> None:
+    with pytest.raises(GuardCaseValidationError, match="Unknown case_type"):
+        validate_guard_case_payload(_valid_payload(case_type="not_a_case_type"))
+
+
 def test_validate_rejects_non_bool_needs_manual_expected() -> None:
     with pytest.raises(GuardCaseValidationError, match="needs_manual_expected must be bool"):
         validate_guard_case_payload(_valid_payload(needs_manual_expected="yes"))
