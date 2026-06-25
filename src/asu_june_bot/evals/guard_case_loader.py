@@ -93,6 +93,10 @@ def validate_guard_case_payload(payload: dict[str, Any]) -> GuardRegressionCase:
     if label not in VALID_CASE_LABELS:
         raise GuardCaseValidationError(f"Unknown label: {label!r}")
 
+    case_type = payload["case_type"]
+    if case_type not in VALID_CASE_TYPES:
+        raise GuardCaseValidationError(f"Unknown case_type: {case_type!r}")
+
     needs_manual = payload["needs_manual_expected"]
     if not isinstance(needs_manual, bool):
         raise GuardCaseValidationError(
@@ -110,7 +114,7 @@ def validate_guard_case_payload(payload: dict[str, Any]) -> GuardRegressionCase:
         run_id=str(payload["run_id"]),
         query=str(payload["query"]),
         label=label,
-        case_type=str(payload["case_type"]),
+        case_type=case_type,
         observed_guard_decision=payload["observed_guard_decision"],
         expected_guard_decision=payload["expected_guard_decision"],
         needs_manual_expected=needs_manual,
