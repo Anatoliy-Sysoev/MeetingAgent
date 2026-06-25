@@ -533,6 +533,7 @@ HTML_TEMPLATE = """<!doctype html>
           <button class="tab-btn active" type="button" data-tab="chat">Чат</button>
           <button class="tab-btn" type="button" data-tab="sources">Источники</button>
           <button class="tab-btn" type="button" data-tab="diagnostics">Диагностика</button>
+          <button class="tab-btn" type="button" data-tab="review">Разметка</button>
         </nav>
 
         <section id="tab-chat" class="tab-panel active">
@@ -630,6 +631,47 @@ HTML_TEMPLATE = """<!doctype html>
               <span id="diagnosticsSummary" class="badge">выключено до первого запроса</span>
             </div>
             <pre id="diagnostics">{}</pre>
+          </div>
+        </section>
+
+        <section id="tab-review" class="tab-panel">
+          <div class="panel answer-panel">
+            <div class="field-header">
+              <div>
+                <div class="field-title">Разметка запросов</div>
+                <div class="muted">Ручная разметка chat runs для формирования eval/regression cases. Только admin.</div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <button class="small-action" type="button" id="reviewLoad">Загрузить</button>
+                <a id="reviewExportLink" href="/admin/review/chat-runs/export" target="_blank" class="small-action" style="text-decoration:none;">Экспорт</a>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+              <select id="reviewFilterStatus" style="flex:1;min-width:120px;">
+                <option value="">Статус: все</option>
+                <option value="answered">answered</option>
+                <option value="refused">refused</option>
+                <option value="error">error</option>
+              </select>
+              <select id="reviewFilterGuard" style="flex:1;min-width:120px;">
+                <option value="">Guard: все</option>
+                <option value="allow">allow</option>
+                <option value="refuse">refuse</option>
+                <option value="clarify">clarify</option>
+              </select>
+              <select id="reviewFilterLabel" style="flex:1;min-width:120px;">
+                <option value="">Label: все</option>
+                <option value="correct">correct</option>
+                <option value="false_refuse">false_refuse</option>
+                <option value="false_clarify">false_clarify</option>
+                <option value="bad_source">bad_source</option>
+                <option value="needs_case">needs_case</option>
+                <option value="off_topic_ok">off_topic_ok</option>
+                <option value="needs_review">needs_review</option>
+              </select>
+            </div>
+            <div id="reviewStatus" class="muted" style="margin-bottom:8px;">Нажмите «Загрузить» для получения runs.</div>
+            <div id="reviewList"></div>
           </div>
         </section>
       </div>
@@ -846,6 +888,156 @@ HTML_TEMPLATE = """<!doctype html>
         send.disabled = false;
       }
     }
+
+    // --------------- Review tab ---------------
+    const REVIEW_LABELS = ['correct','false_refuse','false_clarify','bad_source','needs_case','off_topic_ok','needs_review'];
+
+    async function getReviewCsrfToken() {
+      try {
+        const resp = await fetch('/auth/csrf');
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        return data.csrf_token || null;
+      } catch (_) { return null; }
+    }
+
+    async function loadReviewRuns() {
+      const statusEl = document.getElementById('reviewStatus');
+      const listEl = document.getElementById('reviewList');
+      statusEl.textContent = 'Загрузка...';
+      listEl.innerHTML = '';
+      const status = document.getElementById('reviewFilterStatus').value;
+      const guard = document.getElementById('reviewFilterGuard').value;
+      const label = document.getElementById('reviewFilterLabel').value;
+      const params = new URLSearchParams({ limit: 100 });
+      if (status) params.set('status', status);
+      if (guard) params.set('guard_decision', guard);
+      if (label) params.set('label', label);
+      try {
+        const resp = await fetch('/admin/review/chat-runs?' + params.toString());
+        if (resp.status === 401 || resp.status === 403) {
+          statusEl.textContent = `Ошибка ${resp.status}: недостаточно прав (требуется admin с review.manage).`;
+          return;
+        }
+        if (!resp.ok) {
+          statusEl.textContent = `Ошибка ${resp.status}`;
+          return;
+        }
+        const data = await resp.json();
+        const items = data.items || [];
+        statusEl.textContent = `Загружено: ${items.length} runs`;
+        renderReviewList(items);
+      } catch (e) {
+        statusEl.textContent = 'Ошибка запроса: ' + String(e);
+      }
+    }
+
+    function addMetaSpan(parent, value, className) {
+      const span = document.createElement('span');
+      if (className) span.className = className;
+      span.textContent = value || '';
+      parent.appendChild(span);
+    }
+
+    function renderReviewList(items) {
+      const listEl = document.getElementById('reviewList');
+      listEl.innerHTML = '';
+      if (!items.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        empty.textContent = 'Нет runs по заданным фильтрам.';
+        listEl.appendChild(empty);
+        return;
+      }
+      for (const run of items) {
+        const card = document.createElement('div');
+        card.style.cssText = 'border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;background:var(--surface);';
+        const meta = document.createElement('div');
+        meta.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;font-size:12px;color:var(--muted);';
+        addMetaSpan(meta, run.run_id);
+        addMetaSpan(meta, run.created_at || '');
+        addMetaSpan(meta, run.status || '', 'badge');
+        addMetaSpan(meta, run.guard_decision || '', 'badge');
+        if (run.current_label) {
+          addMetaSpan(meta, run.current_label, 'badge ok');
+        }
+        const query = document.createElement('div');
+        query.style.cssText = 'font-weight:600;margin-bottom:4px;';
+        query.textContent = run.query || '';
+        const preview = document.createElement('div');
+        preview.style.cssText = 'color:var(--muted);font-size:12px;margin-bottom:8px;white-space:pre-wrap;word-break:break-word;';
+        preview.textContent = (run.answer_preview || '').slice(0, 200);
+        const labelRow = document.createElement('div');
+        labelRow.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;';
+        const sel = document.createElement('select');
+        sel.style.cssText = 'flex:1;min-width:140px;';
+        const defaultOpt = document.createElement('option');
+        defaultOpt.value = '';
+        defaultOpt.textContent = '— выбрать label —';
+        sel.appendChild(defaultOpt);
+        for (const l of REVIEW_LABELS) {
+          const opt = document.createElement('option');
+          opt.value = l;
+          opt.textContent = l;
+          if (run.current_label === l) opt.selected = true;
+          sel.appendChild(opt);
+        }
+        const issueInput = document.createElement('input');
+        issueInput.type = 'text';
+        issueInput.placeholder = 'manual_issue (опционально)';
+        issueInput.style.cssText = 'flex:2;min-width:140px;padding:4px 8px;border:1px solid var(--line);border-radius:4px;';
+        issueInput.value = run.manual_issue || '';
+        const commentInput = document.createElement('input');
+        commentInput.type = 'text';
+        commentInput.placeholder = 'comment (опционально)';
+        commentInput.style.cssText = 'flex:3;min-width:160px;padding:4px 8px;border:1px solid var(--line);border-radius:4px;';
+        commentInput.value = run.comment || '';
+        const btn = document.createElement('button');
+        btn.className = 'small-action';
+        btn.textContent = 'Сохранить';
+        btn.addEventListener('click', async () => {
+          const lbl = sel.value;
+          if (!lbl) { alert('Выберите label'); return; }
+          btn.disabled = true;
+          try {
+            const csrf = await getReviewCsrfToken();
+            const headers = {'Content-Type':'application/json'};
+            if (csrf) headers['X-CSRF-Token'] = csrf;
+            const r = await fetch('/admin/review/chat-runs/' + encodeURIComponent(run.run_id) + '/label', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                label: lbl,
+                manual_issue: issueInput.value || null,
+                comment: commentInput.value || null
+              })
+            });
+            if (r.ok) {
+              const existing = meta.querySelector('.badge.ok');
+              if (existing) existing.remove();
+              addMetaSpan(meta, lbl, 'badge ok');
+            } else {
+              const err = await r.json().catch(() => ({}));
+              alert('Ошибка ' + r.status + ': ' + JSON.stringify(err.detail || err));
+            }
+          } finally {
+            btn.disabled = false;
+          }
+        });
+        labelRow.appendChild(sel);
+        labelRow.appendChild(issueInput);
+        labelRow.appendChild(commentInput);
+        labelRow.appendChild(btn);
+        card.appendChild(meta);
+        card.appendChild(query);
+        card.appendChild(preview);
+        card.appendChild(labelRow);
+        listEl.appendChild(card);
+      }
+    }
+
+    document.getElementById('reviewLoad').addEventListener('click', loadReviewRuns);
+    // ------------------------------------------
 
     for (const button of document.querySelectorAll('.tab-btn')) {
       button.addEventListener('click', () => setTab(button.dataset.tab));

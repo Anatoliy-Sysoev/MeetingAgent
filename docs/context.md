@@ -1,18 +1,18 @@
 # Текущий Контекст
 
-Обновлено: 2026-06-19.
+Обновлено: 2026-06-23.
 
 ## Now
 
-- active task: DOC-REPO-CLEANUP-AFTER-AUTH-AND-MEETING-HARDENING (#59) — clean up stale docs and roadmap drift after #84–#91 hardening work
-- branch: 59-doc-repo-cleanup
+- active task: MA-REVIEW-QUEUE (#36) — manual review labeling over chat_runs.jsonl
+- branch: 36-ma-review-queue
 
 ## Done latest (last 4 PRs)
 
-- MA-CHAT-PROMPT-SOURCE-BOUNDARY (#90, PR #96): retrieved sources wrapped in `[BEGIN UNTRUSTED SOURCE Sn]` / `[END UNTRUSTED SOURCE Sn]` delimiters in both project chat and meeting QA prompt builders; `_SOURCE_BOUNDARY_INSTRUCTION` added before sources; `[S#]` citation format and `_cited_source_indices()` parsing unchanged; 23 injection regression tests.
-- MA-MEETING-ARTIFACTS-UTF8-SUBTITLE-HARDENING (#87/#88/#89, PR #95): (87) all `.read_text()` calls in pipeline/stage tests now use `encoding="utf-8"` (Windows portability); (88) `_artifact_map()` helper with `isinstance(artifacts, dict)` guard replaces `data.get("artifacts") or {}` in MeetingsService — safely handles null/list/string/missing values; (89) SRT/VTT subtitle cue timestamps computed once as integer ms via `_seconds_to_ms()`, end clamped to `max(end_ms, start_ms + 1)` — prevents zero-duration cues.
-- MA-AUTH-SECRET-STRENGTH-AND-TRUSTED-PROXY (#86/#91, PR #94): entropy-based `validate_secret_strength()` (rejects single-char repeat, block repeat, placeholder words); `load_trusted_proxy_cidrs()` + `is_trusted_proxy()` for cookie_secure=auto; X-Forwarded-Proto ignored from untrusted proxy CIDRs; deployment safety warnings for missing proxy policy; `validate_deployment_safety(config, env)` — env threaded through all sub-checks.
-- MA-REPO-HARDENING-BUGFIX-PACK (#84/#85, PR #93): (84) `RequestValidationError` sanitization strips `input` field, redacts msg for sensitive locs (substring match on password/token/secret/api_key etc.); (85) search response diagnostics no longer expose `chunks_path` or other runtime fs paths; `include_diagnostics` defaults to False.
+- MA-RUNTIME-HARDENING-BUGFIX-PACK-2 (#99, PR #100): `_artifact_map()` + `_runner_media_files()` guards in all 6 runner preflights; `_source_map()` + `_media_files()` guards in MeetingsService (_summary/list_media/get_media_path/find_by_sha256); `_path_variants()` + `re.IGNORECASE` in `_redact_paths()` — covers native/posix/backslash/case variants; 16 new tests.
+- DOC-CODE-REVIEW-REPORT (PR #98, closes #59 partial): `docs/architecture/code_review_2026-06-17.md` created — historical review snapshot, resolution table (H1/H2 + M findings mapped to #84–#91), 4 remaining open LOW findings listed.
+- DOC-REPO-CLEANUP (PR #97, #59): compact context.md/todo.md; TECHNICAL_FILE_RELATIONSHIPS.md updated (06→22_transcribe_meeting.py); API_AUTH_SETUP docs updated (machine_token_weak entropy, trusted_proxy rows).
+- MA-CHAT-PROMPT-SOURCE-BOUNDARY (#90, PR #96): retrieved sources wrapped in `[BEGIN UNTRUSTED SOURCE Sn]` / `[END UNTRUSTED SOURCE Sn]` in both project chat and meeting QA; 23 injection regression tests.
 
 ## Current main state
 
@@ -78,11 +78,23 @@ PATCH /admin/users/{id}                update user [users.manage + CSRF]
 POST /admin/users/{id}/disable         disable user [users.manage + CSRF]
 POST /admin/users/{id}/enable          enable user [users.manage + CSRF]
 GET  /admin/security/status            deployment safety status [admin]
+GET  /admin/review/chat-runs           list chat runs with labels [review.manage]
+POST /admin/review/chat-runs/{id}/label set label for run [review.manage + CSRF]
+GET  /admin/review/chat-runs/export    export joined runs+labels [review.manage]
 ```
+
+### Review queue
+- `data/asu_june_bot/chat_runs.jsonl` — original log, never modified
+- `data/asu_june_bot/chat_run_labels.jsonl` — append-only sidecar; latest record per run_id wins
+- valid labels: `correct`, `false_refuse`, `false_clarify`, `bad_source`, `needs_case`, `off_topic_ok`, `needs_review`
+- `prompt_sources` and source `.path` fields are stripped from all API responses (no prompt internals or filesystem paths)
+- `review.manage` permission assigned to admin role; machine tokens blocked on review routes
+- UI "Разметка" tab at `GET /` or `GET /ui` (admin session required)
+- next step: generate `guard_v2_cases.jsonl` from labeled rows where `label in {false_refuse, false_clarify, needs_case}`
 
 ## Next
 
-- MA-REVIEW-QUEUE: разметка chat_runs.jsonl для eval, генерация guard_v2_cases.jsonl
+- guard_v2_cases.jsonl generation from labeled review rows
 - Meeting-scoped Q&A v2: vector retrieval over meeting chunks (current MVP is lexical), transcript-segment-level citations
 - #39/#40 auth evolution: per-user tokens or OIDC
 

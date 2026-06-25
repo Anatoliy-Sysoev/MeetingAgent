@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from asu_june_bot.llm import LLMClient, LLMError, LLMRequest
-from asu_june_bot.observability import ChatRunsLogger
 from asu_june_bot.search import SearchRequest, SearchService
+
+if TYPE_CHECKING:
+    from asu_june_bot.observability import ChatRunsLogger
 from asu_june_bot.search.models import SearchStatus
 
 from .answer_validator import AnswerValidator, has_no_answer_marker
