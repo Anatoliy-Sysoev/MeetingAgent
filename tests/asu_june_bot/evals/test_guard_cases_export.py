@@ -303,10 +303,48 @@ def test_write_cases_returns_summary(tmp_path: Path) -> None:
     assert summary["runs_read"] == 2
     assert summary["labels_read"] == 1
     assert summary["cases_written"] == 1
+    # skipped_unlabeled counts runs in tail without a label entry (r2 has none)
     assert summary["skipped_unlabeled"] == 1
     assert out_path.exists()
     lines = out_path.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 1
+
+
+def test_write_cases_atomic_no_partial_on_preexisting(tmp_path: Path) -> None:
+    """Verify that write_cases replaces the file atomically (no tmp leftovers)."""
+    exp = _make_exporter(tmp_path,
+        runs=[_make_run("r1")],
+        labels=[_make_label("r1", "false_refuse")],
+    )
+    out_path = tmp_path / "subdir" / "cases.jsonl"
+    exp.write_cases(out_path)
+    # No .tmp_guard_cases_ files left behind.
+    tmp_files = list((tmp_path / "subdir").glob(".tmp_guard_cases_*"))
+    assert tmp_files == []
+    assert out_path.exists()
+
+
+def test_skipped_unlabeled_counts_only_runs_in_tail(tmp_path: Path) -> None:
+    """skipped_unlabeled should count runs without labels, not runs_count - labels_count.
+
+    If labels_map contains run_ids that are not in the current runs tail (e.g. due
+    to bounded reads), subtracting counts would over-count labeled and under-count
+    unlabeled.  The correct count iterates the actual runs list.
+    """
+    runs_path = tmp_path / "chat_runs.jsonl"
+    labels_path = tmp_path / "chat_run_labels.jsonl"
+    # 2 runs in tail
+    _write_jsonl(runs_path, [_make_run("r1"), _make_run("r2")])
+    # 3 label entries — "r3" is not in runs tail (e.g. was rolled off by bounded read)
+    _write_jsonl(labels_path, [
+        _make_label("r1", "false_refuse"),
+        _make_label("r2", "false_refuse"),
+        _make_label("r3", "false_refuse"),  # outside tail
+    ])
+    exp = GuardCaseExporter(runs_path=runs_path, labels_path=labels_path)
+    summary = exp.write_cases(tmp_path / "out.jsonl")
+    # Both r1 and r2 are labeled — 0 unlabeled in tail, not -1
+    assert summary["skipped_unlabeled"] == 0
 
 
 def test_write_cases_skipped_correct_count(tmp_path: Path) -> None:
