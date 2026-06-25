@@ -1,14 +1,15 @@
 # Текущий Контекст
 
-Обновлено: 2026-06-23.
+Обновлено: 2026-06-25.
 
 ## Now
 
-- active task: MA-REVIEW-QUEUE (#36) — manual review labeling over chat_runs.jsonl
-- branch: 36-ma-review-queue
+- active task: MA-GUARD-V2-CASES-EXPORT (#102) — export labeled runs to guard_v2_cases.jsonl
+- branch: 102-guard-v2-cases-export
 
 ## Done latest (last 4 PRs)
 
+- MA-REVIEW-QUEUE (#36, PR #101): `ReviewQueue` + `routes_review.py`; review.manage permission; "Разметка" tab UI; set_label API with CSRF; comment field; XSS-safe DOM rendering; bounded reads.
 - MA-RUNTIME-HARDENING-BUGFIX-PACK-2 (#99, PR #100): `_artifact_map()` + `_runner_media_files()` guards in all 6 runner preflights; `_source_map()` + `_media_files()` guards in MeetingsService (_summary/list_media/get_media_path/find_by_sha256); `_path_variants()` + `re.IGNORECASE` in `_redact_paths()` — covers native/posix/backslash/case variants; 16 new tests.
 - DOC-CODE-REVIEW-REPORT (PR #98, closes #59 partial): `docs/architecture/code_review_2026-06-17.md` created — historical review snapshot, resolution table (H1/H2 + M findings mapped to #84–#91), 4 remaining open LOW findings listed.
 - DOC-REPO-CLEANUP (PR #97, #59): compact context.md/todo.md; TECHNICAL_FILE_RELATIONSHIPS.md updated (06→22_transcribe_meeting.py); API_AUTH_SETUP docs updated (machine_token_weak entropy, trusted_proxy rows).
@@ -90,17 +91,23 @@ GET  /admin/review/chat-runs/export    export joined runs+labels [review.manage]
 - `prompt_sources` and source `.path` fields are stripped from all API responses (no prompt internals or filesystem paths)
 - `review.manage` permission assigned to admin role; machine tokens blocked on review routes
 - UI "Разметка" tab at `GET /` or `GET /ui` (admin session required)
-- next step: generate `guard_v2_cases.jsonl` from labeled rows where `label in {false_refuse, false_clarify, needs_case}`
+
+### Guard v2 cases export
+- `src/asu_june_bot/evals/guard_cases.py` — `GuardCaseExporter`; reads `chat_runs.jsonl` + sidecar; never mutates either file
+- `scripts/40_export_guard_v2_cases.py` — CLI: `--runs`, `--labels`, `--out`, `--include-correct`, `--limit N`, `--label LABEL`, `--dry-run`
+- Label mapping: `false_refuse`/`false_clarify` → `expected_guard_decision=allow`; `bad_source`/`correct` → observed decision; `needs_case`/`needs_review`/`off_topic_ok` → null + `needs_manual_expected=True`
+- `correct` excluded by default; opt in with `--include-correct`
+- No `prompt_sources`, no source `.path` in output; bounded reads (10 MiB) on both input files
 
 ## Next
 
-- guard_v2_cases.jsonl generation from labeled review rows
+- run `scripts/40_export_guard_v2_cases.py` after labeling to produce guard_v2_cases.jsonl
 - Meeting-scoped Q&A v2: vector retrieval over meeting chunks (current MVP is lexical), transcript-segment-level citations
 - #39/#40 auth evolution: per-user tokens or OIDC
 
 ## Open decisions / blockers
 
-- guard_v2_cases.jsonl отсутствует (pre-existing) → regenerate via MA-REVIEW-QUEUE
+- guard_v2_cases.jsonl отсутствует — generate via `scripts/40_export_guard_v2_cases.py` after labeling
 - Hotwords: Vosk/live path NOT SUPPORTED; GigaAM NOT SUPPORTED
 - Web UI chat sends requests without credentials → returns 401 after RBAC; use Bearer token directly until UI auth integration
 - Prompt source delimiter escaping not implemented: adversarial sources could include fake delimiter strings (tracked as future improvement)

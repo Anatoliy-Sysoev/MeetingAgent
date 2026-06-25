@@ -1,6 +1,6 @@
 # Todo
 
-Обновлено: 2026-06-19.
+Обновлено: 2026-06-25.
 
 ## Done
 
@@ -55,13 +55,18 @@
 - [x] MA-RUNTIME-HARDENING-BUGFIX-PACK-2 (#99, PR #100): `_artifact_map()`/`_runner_media_files()` guards in runner preflights; `_source_map()`/`_media_files()` guards in MeetingsService; `_path_variants()` + re.IGNORECASE in path redaction
 - [x] DOC-REPO-CLEANUP (#59, PR #97 + PR #98): context.md/todo.md compacted; code_review_2026-06-17.md added; API_AUTH_SETUP docs updated for entropy and trusted proxy findings
 
+## Done (Review Queue & Cases Export)
+
+- [x] MA-REVIEW-QUEUE (#36, PR #101): `ReviewQueue` + review routes + "Разметка" tab; `review.manage` permission; comment field; XSS-safe DOM; CSRF via `/auth/csrf`
+- [x] MA-GUARD-V2-CASES-EXPORT (#102): `GuardCaseExporter` + `scripts/40_export_guard_v2_cases.py`; label→case mapping; no prompt_sources / no source paths; 22 tests
+
 ## Active
 
-- [ ] MA-REVIEW-QUEUE (#36): review queue API + UI over chat_runs.jsonl — branch 36-ma-review-queue
+- [ ] (none — awaiting review of #102)
 
 ## Backlog (приоритет сверху вниз)
 
-- guard_v2_cases.jsonl generation from labeled review rows (after #36)
+- run `scripts/40_export_guard_v2_cases.py` after labeling to produce guard_v2_cases.jsonl
 - Meeting-scoped Q&A v2: vector retrieval over meeting chunks, transcript-segment-level citations (segment_id)
 - #39/#40 auth evolution: per-user tokens или OIDC
 
