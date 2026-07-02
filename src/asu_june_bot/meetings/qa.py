@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from asu_june_bot.core.config import resolve_work_path
+from asu_june_bot.core.prompt_safety import neutralize_source_delimiters
 from asu_june_bot.llm import LLMClient, LLMError, LLMRequest
 from asu_june_bot.meetings.service import MeetingsService, _safe_meeting_id
 
@@ -330,6 +331,9 @@ class MeetingQAService:
             ts_end = row.get("timestamp_end") or "??:??:??"
             speaker = self._speaker(row) or "спикер неизвестен"
             inner = f"[{ref}] ({ts_start}-{ts_end}, {speaker})\n{str(row.get('text') or '').strip()}"
+            # Neutralize fake delimiter strings inside untrusted content (#108)
+            # before wrapping in the real source boundary.
+            inner = neutralize_source_delimiters(inner)
             blocks.append(
                 f"[BEGIN UNTRUSTED SOURCE {ref}]\n{inner}\n[END UNTRUSTED SOURCE {ref}]"
             )
