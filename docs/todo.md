@@ -63,7 +63,7 @@
 
 ## Active
 
-- [ ] (none — awaiting review)
+- [ ] MA-UI-CHAT-AUTH (#107): UI login panel + CSRF on POST /chat — branch 107-ui-chat-auth (awaiting review)
 
 ## Backlog (приоритет сверху вниз)
 
