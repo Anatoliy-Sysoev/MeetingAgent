@@ -62,10 +62,13 @@
 - [x] MA-GUARD-V2-REGRESSION-TESTS (#104): `guard_case_loader.py` + committed sample fixture (7 labels) + loader unit tests + fixture/runtime regression harness; 41 tests, 6 skipped when runtime file absent
 - [x] MA-UI-CHAT-AUTH (#107, PR #109): UI login panel + auth badge + CSRF (`X-CSRF-Token`) on POST /chat; safeJson + friendly 401/403/429; 15 tests
 - [x] MA-PROMPT-DELIMITER-ESCAPING (#108, PR #110): `core/prompt_safety.neutralize_source_delimiters()` in both prompt builders; 14 tests
+- [x] MA-MEETING-QA-V2 (#111, PR #112): semantic vector retrieval + fusion + lexical fallback; cache keyed by meeting_id+chunk_id+text_sha256+model; utterance-level citations; 17 tests
 
 ## Active
 
-- [ ] MA-MEETING-QA-V2 (#111): semantic RAG over meeting chunks + utterance-level citations — branch 111-meeting-qa-v2 (awaiting review)
+- [ ] MA-WORKSPACE-QA-V2-UI (#113): retrieval_mode + citation_label in Workspace Q&A — branch 113-workspace-qa-v2-ui (awaiting review)
+- [ ] MA-MEETING-STAGE-READINESS (#114): pipeline readiness map API — next
+- [ ] MA-MEETING-PIPELINE-RUN-ALL (#115): one-click sequential pipeline job — after #114
 
 ## Backlog (приоритет сверху вниз)
 
