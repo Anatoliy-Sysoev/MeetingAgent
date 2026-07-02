@@ -46,7 +46,9 @@
 - meeting artifacts field in meeting.json tolerates null/list/string/missing — normalized to `{}`
 - SRT/VTT exports enforce positive cue duration (≥ 1 ms)
 - Meeting Workspace UI at `GET /meetings/{id}/workspace`
-- `POST /meetings/{id}/search` (search.use) and `POST /meetings/{id}/chat` (chat.use + CSRF) — meeting-scoped lexical retrieval + grounded Q&A
+- `POST /meetings/{id}/search` (search.use) and `POST /meetings/{id}/chat` (chat.use + CSRF) — meeting-scoped retrieval + grounded Q&A
+- Meeting Q&A v2 (#111): semantic vector retrieval (Ollama `bge-m3` cosine, fused 0.6/0.4 with lexical) over meeting chunks; lazy embeddings cache `data/meeting_embeddings_cache.jsonl` (per-chunk, model-keyed); graceful lexical fallback when Ollama/retriever unavailable; `retrieval_mode` = `vector`/`lexical` in responses
+- Q&A citations carry `timestamp_start/end`, `speaker`, `speakers`, `utterance_ids`, `citation_label` (`[00:12:34, Спикер]`); strict `meeting_id` scoping unchanged
 
 ## API surface (main)
 
@@ -114,7 +116,6 @@ GET  /admin/review/chat-runs/export    export joined runs+labels [review.manage]
 
 - run `scripts/40_export_guard_v2_cases.py` after labeling; runtime tests pick it up automatically
 - deterministic guard assertion layer (requires pure guard API — tracked as future task)
-- Meeting-scoped Q&A v2: vector retrieval over meeting chunks (current MVP is lexical), transcript-segment-level citations
 - #39/#40 auth evolution: per-user tokens or OIDC
 
 ## Open decisions / blockers
