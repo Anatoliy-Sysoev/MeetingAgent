@@ -320,7 +320,8 @@ HTML_TEMPLATE = """<!doctype html>
       font-weight: 700;
     }
 
-    select {
+    select,
+    .setting input {
       width: 100%;
       border: 1px solid var(--line-strong);
       border-radius: 7px;
@@ -328,6 +329,21 @@ HTML_TEMPLATE = """<!doctype html>
       color: var(--text);
       padding: 9px 10px;
       min-height: 38px;
+      box-sizing: border-box;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .auth-panel {
+      margin: 12px 18px 0;
+    }
+
+    #loginError {
+      color: var(--error, #b3261e);
     }
 
     .setting-hint {
@@ -525,8 +541,34 @@ HTML_TEMPLATE = """<!doctype html>
             <div class="brand-subtitle">Локальный помощник по проектной базе знаний</div>
           </div>
         </div>
-        <div class="status-pill" id="topStatus">Готов к вопросу</div>
+        <div class="topbar-right">
+          <span class="badge" id="authStatus">проверка входа...</span>
+          <div class="status-pill" id="topStatus">Готов к вопросу</div>
+        </div>
       </header>
+
+      <div class="panel auth-panel" id="authPanel" hidden>
+        <div class="field-header">
+          <div>
+            <div class="field-title">Вход</div>
+            <div class="muted">Для вопросов к базе знаний нужна локальная учётная запись.</div>
+          </div>
+        </div>
+        <div class="settings-grid">
+          <div class="setting">
+            <label for="loginEmail">Email</label>
+            <input type="email" id="loginEmail" autocomplete="username" placeholder="user@example.com" />
+          </div>
+          <div class="setting">
+            <label for="loginPassword">Пароль</label>
+            <input type="password" id="loginPassword" autocomplete="current-password" placeholder="••••••••" />
+          </div>
+        </div>
+        <div class="action-row">
+          <div class="muted" id="loginError"></div>
+          <button id="loginSubmit" class="primary-btn" type="button">Войти</button>
+        </div>
+      </div>
 
       <div class="workspace">
         <nav class="tabs" aria-label="Разделы результата">
@@ -713,6 +755,71 @@ HTML_TEMPLATE = """<!doctype html>
     const sourcesSummary = document.getElementById('sourcesSummary');
     const diagnostics = document.getElementById('diagnostics');
     const diagnosticsSummary = document.getElementById('diagnosticsSummary');
+    const authStatus = document.getElementById('authStatus');
+    const authPanel = document.getElementById('authPanel');
+    const loginEmail = document.getElementById('loginEmail');
+    const loginPassword = document.getElementById('loginPassword');
+    const loginSubmit = document.getElementById('loginSubmit');
+    const loginError = document.getElementById('loginError');
+
+    // --------------- Auth ---------------
+    async function getCsrfToken() {
+      try {
+        const resp = await fetch('/auth/csrf');
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        return data.csrf_token || null;
+      } catch (_) { return null; }
+    }
+
+    async function refreshAuthState() {
+      try {
+        const resp = await fetch('/auth/me');
+        if (resp.ok) {
+          const me = await resp.json();
+          const who = me.email || me.principal_id || 'пользователь';
+          const roles = Array.isArray(me.roles) && me.roles.length ? ` (${me.roles.join(', ')})` : '';
+          authStatus.textContent = `вы вошли: ${who}${roles}`;
+          authStatus.className = 'badge ok';
+          authPanel.hidden = true;
+          return true;
+        }
+      } catch (_) { /* fallthrough */ }
+      authStatus.textContent = 'вход не выполнен';
+      authStatus.className = 'badge error';
+      authPanel.hidden = false;
+      return false;
+    }
+
+    async function doLogin() {
+      loginError.textContent = '';
+      const email = loginEmail.value.trim();
+      const password = loginPassword.value;
+      if (!email || !password) {
+        loginError.textContent = 'Укажите email и пароль.';
+        return;
+      }
+      loginSubmit.disabled = true;
+      try {
+        const resp = await fetch('/auth/local/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        if (resp.ok) {
+          loginPassword.value = '';
+          await refreshAuthState();
+        } else if (resp.status === 429) {
+          loginError.textContent = 'Слишком много попыток входа. Попробуйте позже.';
+        } else {
+          loginError.textContent = 'Неверный email или пароль.';
+        }
+      } catch (_) {
+        loginError.textContent = 'Не удалось выполнить вход. Проверьте, что API запущен.';
+      } finally {
+        loginSubmit.disabled = false;
+      }
+    }
 
     function escapeHtml(value) {
       return String(value ?? '')
@@ -840,9 +947,12 @@ HTML_TEMPLATE = """<!doctype html>
       const includeDiagnostics = document.getElementById('diagnosticsMode').value === 'on';
 
       try {
+        const csrf = await getCsrfToken();
+        const headers = { 'Content-Type': 'application/json' };
+        if (csrf) headers['X-CSRF-Token'] = csrf;
         const response = await fetch('/chat', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             query: text,
             mode: document.getElementById('mode').value,
@@ -855,6 +965,11 @@ HTML_TEMPLATE = """<!doctype html>
         });
         const data = await response.json();
         if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            renderError('Нет доступа: войдите в систему, чтобы задавать вопросы.');
+            await refreshAuthState();
+            return;
+          }
           renderError(`HTTP ${response.status}\\n${JSON.stringify(data, null, 2)}`);
           return;
         }
@@ -893,12 +1008,7 @@ HTML_TEMPLATE = """<!doctype html>
     const REVIEW_LABELS = ['correct','false_refuse','false_clarify','bad_source','needs_case','off_topic_ok','needs_review'];
 
     async function getReviewCsrfToken() {
-      try {
-        const resp = await fetch('/auth/csrf');
-        if (!resp.ok) return null;
-        const data = await resp.json();
-        return data.csrf_token || null;
-      } catch (_) { return null; }
+      return getCsrfToken();
     }
 
     async function loadReviewRuns() {
@@ -1050,6 +1160,11 @@ HTML_TEMPLATE = """<!doctype html>
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') ask();
     });
     send.addEventListener('click', ask);
+    loginSubmit.addEventListener('click', doLogin);
+    loginPassword.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') doLogin();
+    });
+    refreshAuthState();
 
     updateCounter();
     updateHints();

@@ -36,6 +36,7 @@
 - `POST /chat` protected by `chat.use` + CSRF for cookie callers
 - project chat and meeting QA prompts wrap retrieved sources in explicit untrusted source delimiters
 - citation format `[S1]`, `[S2]` … stable; `citations_basis` field = `cited` / `retrieved` / `null`
+- Web UI chat auth integrated (#107): login panel (`POST /auth/local/login`), auth badge (`GET /auth/me`), CSRF via `GET /auth/csrf` + `X-CSRF-Token` on `POST /chat`; friendly 401/403 message; no web storage, no inline handlers
 
 ### Meeting pipeline
 - canonical offline ASR: `scripts/22_transcribe_meeting.py` with `--engine faster-whisper --model large-v3-turbo`
@@ -119,5 +120,4 @@ GET  /admin/review/chat-runs/export    export joined runs+labels [review.manage]
 
 - guard_v2_cases.jsonl отсутствует — generate via `scripts/40_export_guard_v2_cases.py` after labeling
 - Hotwords: Vosk/live path NOT SUPPORTED; GigaAM NOT SUPPORTED
-- Web UI chat sends requests without credentials → returns 401 after RBAC; use Bearer token directly until UI auth integration
 - Prompt source delimiter escaping not implemented: adversarial sources could include fake delimiter strings (tracked as future improvement)
