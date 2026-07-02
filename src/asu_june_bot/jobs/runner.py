@@ -400,13 +400,13 @@ class JobState:
 
 # Stage sequences per profile. Only stages from STAGE_COMMANDS are allowed.
 PIPELINE_PROFILES: dict[str, list[str]] = {
-    "default": ["extract_audio", "transcribe", "merge", "chunk", "index"],
+    "default": ["extract_audio", "transcribe", "merge", "chunk", "enrich", "index"],
     "full": [
         "extract_audio", "transcribe", "diarize", "merge",
         "chunk", "enrich", "index", "analyze",
     ],
     "transcript_only": ["extract_audio", "transcribe"],
-    "qa_ready": ["extract_audio", "transcribe", "merge", "chunk", "index"],
+    "qa_ready": ["extract_audio", "transcribe", "merge", "chunk", "enrich", "index"],
 }
 
 _PIPELINE_POLL_SEC = 0.2
