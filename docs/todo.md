@@ -60,10 +60,11 @@
 - [x] MA-REVIEW-QUEUE (#36, PR #101): `ReviewQueue` + review routes + "Разметка" tab; `review.manage` permission; comment field; XSS-safe DOM; CSRF via `/auth/csrf`
 - [x] MA-GUARD-V2-CASES-EXPORT (#102, PR #103): `GuardCaseExporter` + `scripts/40_export_guard_v2_cases.py`; label→case mapping; atomic write; accurate `skipped_unlabeled`; 24 tests
 - [x] MA-GUARD-V2-REGRESSION-TESTS (#104): `guard_case_loader.py` + committed sample fixture (7 labels) + loader unit tests + fixture/runtime regression harness; 41 tests, 6 skipped when runtime file absent
+- [x] MA-UI-CHAT-AUTH (#107, PR #109): UI login panel + auth badge + CSRF (`X-CSRF-Token`) on POST /chat; safeJson + friendly 401/403/429; 15 tests
 
 ## Active
 
-- [ ] MA-PROMPT-DELIMITER-ESCAPING (#108): neutralize fake source delimiters — branch 108-prompt-delimiter-escaping (awaiting review)
+- [ ] MA-PROMPT-DELIMITER-ESCAPING (#108): neutralize fake source delimiters — branch 108-prompt-delimiter-escaping (awaiting merge)
 
 ## Backlog (приоритет сверху вниз)
 
