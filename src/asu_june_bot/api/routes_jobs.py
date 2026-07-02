@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from asu_june_bot.api.auth import require_action_permission, require_permission
 from asu_june_bot.auth.models import Principal
 from asu_june_bot.jobs.runner import (
+    PIPELINE_PROFILES,
     STAGE_COMMANDS,
     JobAlreadyRunning,
     JobNotFound,
@@ -17,6 +18,8 @@ from asu_june_bot.jobs.runner import (
     _read_meeting_status,
     stage_catalog,
 )
+from pydantic import BaseModel, Field
+
 from asu_june_bot.jobs.readiness import pipeline_readiness
 from asu_june_bot.meetings.service import MeetingsService, _safe_meeting_id
 
@@ -69,6 +72,58 @@ async def pipeline_readiness_map(
 
 
 # ------------------------------------------------------------------
+# POST /meetings/{meeting_id}/jobs/pipeline  — run-all pipeline job (#115)
+# Declared BEFORE the generic /jobs/{stage} route so "pipeline" is never
+# captured as a stage name.
+# ------------------------------------------------------------------
+
+class PipelineRequest(BaseModel):
+    profile: str = Field("default", max_length=32)
+    force: bool = False
+    stages: list[str] | None = Field(None, max_length=16)
+
+
+@router.post("/meetings/{meeting_id}/jobs/pipeline", status_code=202)
+async def start_pipeline(
+    meeting_id: str,
+    body: PipelineRequest,
+    _principal: Annotated[Principal, Depends(require_action_permission("jobs.start"))],
+    runner: JobRunner = Depends(_get_runner),
+    service: MeetingsService = Depends(_get_meetings_service),
+) -> JSONResponse:
+    if not _safe_meeting_id(meeting_id):
+        raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
+    meeting_dir = service.root / meeting_id
+    if not (meeting_dir / "meeting.json").exists():
+        raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
+    if body.stages is not None:
+        unknown = [s for s in body.stages if s not in STAGE_COMMANDS]
+        if unknown or not body.stages:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unknown stages: {unknown!r}. Allowed: {sorted(STAGE_COMMANDS)}",
+            )
+    elif body.profile not in PIPELINE_PROFILES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown profile {body.profile!r}. Allowed: {sorted(PIPELINE_PROFILES)}",
+        )
+    try:
+        pipeline = await runner.submit_pipeline(
+            meeting_id=meeting_id,
+            meeting_dir=meeting_dir,
+            profile=body.profile,
+            force=body.force,
+            stages=body.stages,
+        )
+    except JobAlreadyRunning as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return JSONResponse(status_code=202, content=pipeline.as_dict())
+
+
+# ------------------------------------------------------------------
 # POST /meetings/{meeting_id}/jobs/{stage}  — start a pipeline job
 # ------------------------------------------------------------------
 
@@ -116,7 +171,7 @@ async def get_job(
     service: MeetingsService = Depends(_get_meetings_service),
 ) -> JSONResponse:
     try:
-        job = runner._find_job(job_id)
+        job = runner.get_job_or_pipeline(job_id)
     except JobNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     if job.meeting_id != meeting_id:
@@ -140,7 +195,7 @@ async def cancel_job(
     runner: JobRunner = Depends(_get_runner),
 ) -> JSONResponse:
     try:
-        job = runner._find_job(job_id)
+        job = runner.get_job_or_pipeline(job_id)
     except JobNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     if job.meeting_id != meeting_id:
