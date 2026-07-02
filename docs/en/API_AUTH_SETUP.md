@@ -8,18 +8,18 @@ This document covers authentication, authorization, and API usage for the Meetin
 
 ## Current State
 
-**The machine Bearer token (`MEETINGAGENT_API_TOKEN`) is the primary access method for scripts and automation. Local login with cookie sessions is fully operational; first-admin bootstrap and admin user management are now implemented.**
+**The machine Bearer token (`MEETINGAGENT_API_TOKEN`) is the primary access method for scripts and automation. Local login with cookie sessions is operational for browser use; first-admin bootstrap and admin user management are implemented.**
 
 This means:
 
 - For scripts, CI, automation, and service-to-service calls: use the Bearer token.
 - For browser sessions: use `POST /admin/bootstrap` to create the first admin, then `POST /auth/local/login`.
 - Public registration does not exist and is not planned for the MVP.
-- Admin UI is not implemented — manage users via the admin API.
+- Admin user-management UI is not implemented — manage users via the admin API.
 
 ### Web UI note
 
-The built-in web UI (`/` and `/ui`) sends `/chat` requests without any credentials or CSRF token. After RBAC was enabled, the UI's chat feature returns an auth error (`401`). The UI is not integrated with login or Bearer auth. Use the machine Bearer token directly (curl / PowerShell / scripts) until a UI auth integration is implemented.
+The built-in web UI (`/` and `/ui`) supports local login, displays the current auth state, requests CSRF through `GET /auth/csrf`, and sends `X-CSRF-Token` on cookie-authenticated `POST /chat` and review actions. It does not store credentials or CSRF tokens in localStorage/sessionStorage.
 
 ---
 
@@ -71,8 +71,10 @@ After login, call `GET /auth/me` to confirm the session and retrieve the user id
 Cookie-authenticated requests to the following write and action endpoints require an `X-CSRF-Token` header:
 
 - `POST /meetings/ingest`
+- `POST /meetings/{id}/jobs/pipeline`
 - `POST /meetings/{id}/jobs/{stage}`
 - `POST /meetings/{id}/jobs/{job_id}/cancel`
+- `POST /meetings/{id}/chat`
 - `POST /chat`
 - `POST /auth/logout`
 - `POST /admin/users`
@@ -138,6 +140,10 @@ All paths are relative to the API base URL (e.g. `http://127.0.0.1:8000`).
 | GET | `/meetings/{id}/transcript` | transcripts.read | No | Transcript or `{"available": false}` |
 | GET | `/meetings/{id}/artifacts` | artifacts.read | No | Artifact metadata list |
 | GET | `/meetings/{id}/artifacts/{name}` | artifacts.read | No | Text artifact content. 413 if > limit. 415 for binary. |
+| GET | `/meetings/{id}/transcript/segments` | transcripts.read | No | Normalized transcript segments |
+| GET | `/meetings/{id}/media` | meetings.read | No | Safe media metadata list |
+| GET | `/meetings/{id}/media/{media_id}` | meetings.read | No | Stream media with Range support |
+| GET | `/meetings/{id}/workspace` | meetings.read | No | Meeting Workspace UI |
 
 Text artifact size limit: **10 MiB** (configurable via `meetings.max_text_artifact_bytes`). Binary artifacts return `415 Unsupported Media Type`.
 
@@ -151,6 +157,9 @@ Text artifact size limit: **10 MiB** (configurable via `meetings.max_text_artifa
 
 | Method | Path | Permission | CSRF | Notes |
 |---|---|---|---|---|
+| GET | `/meetings/{id}/jobs/stages` | jobs.read | No | Runnable stage catalog |
+| GET | `/meetings/{id}/pipeline/readiness` | jobs.read | No | Stage readiness map |
+| POST | `/meetings/{id}/jobs/pipeline` | jobs.start | **Yes** (cookie) | Run a sequential pipeline profile |
 | POST | `/meetings/{id}/jobs/{stage}` | write access | **Yes** (cookie) | Start pipeline stage. Returns 202. |
 | GET | `/meetings/{id}/jobs/{job_id}` | jobs.read | No | Job status |
 | POST | `/meetings/{id}/jobs/{job_id}/cancel` | write access | **Yes** (cookie) | Cancel a job |
@@ -162,6 +171,8 @@ Text artifact size limit: **10 MiB** (configurable via `meetings.max_text_artifa
 |---|---|---|---|---|
 | POST | `/search` | search.use | No | RAG retrieval. No CSRF even for cookie callers. |
 | POST | `/chat` | chat.use | **Yes** (cookie) | Grounded answer with citations. Machine Bearer exempt. |
+| POST | `/meetings/{id}/search` | search.use | No | Meeting-scoped search over indexed meeting chunks. |
+| POST | `/meetings/{id}/chat` | chat.use | **Yes** (cookie) | Meeting-scoped Q&A with citations. Machine Bearer exempt. |
 
 ### Admin
 
@@ -606,7 +617,7 @@ openssl rand -hex 32
 | Admin user API (`/admin/users`) | **Working** |
 | Deployment safety validation | **Working** — `MEETINGAGENT_DEPLOYMENT_MODE`, startup validator, `GET /admin/security/status` |
 | Admin UI | **Not implemented** — use the admin API directly |
-| Web UI chat (browser) | **Broken** — UI sends no credentials; returns 401 after RBAC enabled |
+| Web UI chat (browser) | **Working** — local login + CSRF token flow |
 | Yandex ID / Google / OIDC | **Not implemented** |
 | Public registration | **Not planned for MVP** |
 | Per-user API tokens | **Not implemented** |

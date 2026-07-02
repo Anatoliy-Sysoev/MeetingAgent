@@ -1,83 +1,70 @@
 # Todo
 
-Обновлено: 2026-06-25.
+Обновлено: 2026-07-02.
 
 ## Done
 
-- [x] MA-API-MEETINGS-RESTORE (#30): read-only Meeting API restored — GET /meetings, /{id}, /{id}/transcript, /{id}/artifacts, /{id}/artifacts/{name}
-- [x] MA-JOB-API (#35): concurrency=1 job runner, 4 endpoints
-- [x] MA-INGEST-DEDUP (#34): POST /meetings/ingest, sha256 dedup, auth guard
-- [x] MA-ARTIFACT-SIZE-LIMITS (#52): bounded transcript/artifact text reads, configurable meetings.max_text_artifact_bytes (10 MiB default), 413 on oversize, TOCTOU-safe bounded read
-- [x] DOC-API-AUTH-SETUP (#53): docs/en/API_AUTH_SETUP.md + docs/ru/API_AUTH_SETUP.md, .env.example, README auth section — original issue appears satisfied; can be closed manually after docs cleanup review
+- [x] MA-API-MEETINGS-RESTORE (#30): read-only Meeting API restored.
+- [x] MA-INGEST-DEDUP (#34): `POST /meetings/ingest`, sha256 dedup, auth guard.
+- [x] MA-JOB-API (#35): concurrency=1 job runner and base job endpoints.
+- [x] MA-AUTH-FOUNDATION-MVP (#44): local users, sessions, RBAC, CSRF, bootstrap/admin API, deployment safety.
+- [x] DOC-GIT-WORKFLOW (#45/#46): issue -> branch -> commit -> PR workflow documented.
+- [x] MA-ARTIFACT-SIZE-LIMITS (#52): bounded transcript/artifact text reads.
+- [x] DOC-API-AUTH-SETUP (#53): bilingual API/auth setup docs.
+- [x] DOC-REPO-CLEANUP (#59): stale docs cleanup and public-safe repository rules.
+- [x] MA-PRODUCT-SPLIT-PREP (#63): product boundary documentation and migration phases.
+- [x] MA-MEETING-WORKSPACE (#68): Workspace page, media streaming, normalized transcript segments, artifact viewer.
+- [x] MA-WORKSPACE-JOB-CONTROLS (#70): stage controls, cancel/refresh/polling, CSRF-safe browser actions.
+- [x] MA-MEETING-SCOPED-QA (#74): meeting-scoped search/chat over indexed meeting chunks.
+- [x] MA-PIPELINE-STAGES-EXPANSION (#76): runner stages `extract_audio`, `chunk`, `enrich`, `index`, `analyze`.
+- [x] MA-POST-PIPELINE-HARDENING (#78): product ASR model pin, Workspace DOM/CSP hygiene, honest Q&A citations.
+- [x] MA-PIPELINE-E2E-SMOKE (#80): deterministic meeting pipeline smoke coverage.
+- [x] MA-RUNTIME-HARDENING-BUGFIX-PACK (#84-#91, #99): validation redaction, path leakage fix, secret/proxy hardening, UTF-8, artifact guards, subtitle duration, prompt boundaries.
+- [x] MA-REVIEW-QUEUE (#36): manual review queue over chat runs.
+- [x] MA-GUARD-V2-CASES-EXPORT (#102): reviewed chat runs -> guard/eval regression cases.
+- [x] MA-GUARD-V2-REGRESSION-TESTS (#104): guard case loader and regression harness.
+- [x] MA-UI-CHAT-AUTH (#107): Web UI local login/auth badge/CSRF for chat.
+- [x] MA-PROMPT-DELIMITER-ESCAPING (#108): neutralize fake untrusted-source delimiters in retrieved content.
+- [x] MA-MEETING-QA-V2 (#111): semantic vector retrieval for meeting Q&A with lexical fallback.
+- [x] MA-WORKSPACE-QA-V2-UI (#113): retrieval mode and precise citation labels in Workspace Q&A.
+- [x] MA-MEETING-STAGE-READINESS (#114): readiness map API.
+- [x] MA-MEETING-PIPELINE-RUN-ALL (#115): one-click sequential pipeline job.
+- [x] DOC-CURRENT-STATE-REFRESH (#127): current documentation refresh.
 
-## Epic #44 MA-AUTH-FOUNDATION-MVP
+## Active / Next
 
-- [x] MA-AUTH-CORE-1: auth domain model + SQLite persistence
-- [x] MA-AUTH-LOCAL-SESSIONS (#48): Argon2id, local login, server-side sessions, /auth/me, logout
-- [x] MA-AUTH-RBAC-INTEGRATION (#50): session principals, RBAC на роутах, CSRF
-- [x] MA-AUTH-LOGIN-THROTTLE (#51): in-memory brute-force protection, 429+Retry-After, trusted proxy CIDR
-- [x] MA-AUTH-BOOTSTRAP-ADMIN (#58): first-admin bootstrap + admin user API
-- [x] MA-AUTH-DEPLOYMENT-SAFETY-V2 (#82): deployment mode (local/self_hosted), safety validator, machine token validation, cookie safety, CORS/host boundary, /admin/security/status
+- [ ] MA-MEETING-ARTIFACT-CONTRACT (#119): stable artifact manifest for Meeting Workspace.
+- [ ] MA-MEETING-ERRORS-AND-RETRY (#120): product-grade stage errors, retry, and resume.
+- [ ] MA-MEETING-WORKSPACE-FLOW (#121): end-to-end upload, run, monitor, and review UX.
 
-## Done (Meeting Workspace)
+## Meeting Product Backlog
 
-- [x] MA-MEETING-WORKSPACE (#68): workspace page, media streaming, normalized transcript segments, artifact viewer
-- [x] MA-WORKSPACE-JOB-CONTROLS (#70): pipeline controls panel (start/cancel/refresh + polling), GET /auth/csrf, GET /meetings/{id}/jobs/stages
-- [x] MA-MEETING-SCOPED-QA (#74): POST /meetings/{id}/search + POST /meetings/{id}/chat, MeetingQAService (lexical MVP), workspace Q&A panel
-- [x] MA-PIPELINE-STAGES-EXPANSION (#76): expand runner — extract_audio/chunk/enrich/index/analyze; stage catalog sorted by order; index stage populates meeting_chunks.jsonl
-- [x] MA-POST-PIPELINE-HARDENING (#78): pin product ASR model (--model large-v3-turbo); remove remaining inline on* handlers from Workspace; chat citations filtered to actually-cited [S#] with citations_basis
+- [ ] MA-SPEAKER-MAPPING-UI (#122): map diarized `SPEAKER_XX` labels to names and roles.
+- [ ] MA-MEETING-STRUCTURED-ARTIFACTS-V2 (#123): source-grounded summary, protocol, decisions, tasks, risks and open questions.
+- [ ] MA-MEETING-PACKAGING-LOCAL (#124): local all-in-one runbook and Docker profile.
+- [ ] MA-MEETING-QA-SEGMENT-CITATIONS (#126): map meeting Q&A citations to transcript segments.
+- [ ] Add anonymization pipeline for sensitive transcripts (#22).
+- [ ] Add evaluation benchmark for meeting summaries (#24).
 
-## Done (E2E Smoke)
+## Project Knowledge Bot / Guard / Auth Backlog
 
-- [x] MA-PIPELINE-E2E-SMOKE (#80): deterministic E2E smoke suite — chunk/enrich/index/analyze in-process; Workspace API; meeting-scoped search/chat; ASR model pin regression; DOM/CSP checks; path-safety assertions
+- [ ] MA-GUARD-PURE-DECISION-API (#106): deterministic guard decision API for regression tests.
+- [ ] MA-ADR-AUTH-PROVIDERS (#39): decide provider evolution, per-user tokens, OIDC/local provider roadmap.
+- [ ] MA-ADMIN-CONSOLE (#40): define/implement admin UI for users, roles, settings, jobs, audit and health.
+- [ ] MA-PRODUCT-SPLIT-PHASE-1 (#125): extract shared utilities before separating Project Knowledge Bot.
 
-## Done (Security & Hardening #84–#91)
+## Documentation / OSS Backlog
 
-- [x] MA-REPO-HARDENING-BUGFIX-PACK: validation redaction (#84) + search path leakage fix (#85) — PR #93
-  - RequestValidationError sanitization: strips input, redacts sensitive field values
-  - Search diagnostics no longer expose runtime fs paths; include_diagnostics defaults to False
-- [x] MA-AUTH-SECRET-STRENGTH-AND-TRUSTED-PROXY (#86, #91) — PR #94
-  - validate_secret_strength(): entropy check (single-char repeat, block repeat, placeholder words)
-  - Trusted proxy CIDR policy: load_trusted_proxy_cidrs(), is_trusted_proxy()
-  - X-Forwarded-Proto ignored from untrusted clients for cookie_secure=auto
-  - Deployment safety warns on missing proxy policy; env threaded through all sub-checks
-- [x] MA-MEETING-ARTIFACTS-UTF8-SUBTITLE-HARDENING (#87, #88, #89) — PR #95
-  - #87: explicit encoding="utf-8" on all read_text() calls in pipeline/stage tests
-  - #88: _artifact_map() with isinstance(artifacts, dict) guard — handles null/list/string/missing
-  - #89: SRT/VTT cue end clamped to max(end_ms, start_ms + 1) — no zero-duration cues
-- [x] MA-CHAT-PROMPT-SOURCE-BOUNDARY (#90) — PR #96
-  - Retrieved sources wrapped in [BEGIN UNTRUSTED SOURCE Sn] / [END UNTRUSTED SOURCE Sn]
-  - _SOURCE_BOUNDARY_INSTRUCTION added before sources in both project chat and meeting QA
-  - [S#] citation format and _cited_source_indices() parsing unchanged; 23 injection regression tests
+- [ ] Add public sample meeting dataset (#19).
+- [ ] Add transcript-to-protocol CLI quickstart (#20).
+- [ ] Add Codex security review checklist (#21).
+- [ ] Add release workflow and changelog automation (#23).
+- [ ] Improve English/Russian documentation parity (#25).
+- [ ] Add GitHub Pages documentation site (#26).
 
-## Done (Runtime Hardening & Docs)
+## Operating Rules
 
-- [x] MA-RUNTIME-HARDENING-BUGFIX-PACK-2 (#99, PR #100): `_artifact_map()`/`_runner_media_files()` guards in runner preflights; `_source_map()`/`_media_files()` guards in MeetingsService; `_path_variants()` + re.IGNORECASE in path redaction
-- [x] DOC-REPO-CLEANUP (#59, PR #97 + PR #98): context.md/todo.md compacted; code_review_2026-06-17.md added; API_AUTH_SETUP docs updated for entropy and trusted proxy findings
-
-## Done (Review Queue & Cases Export & Regression Harness)
-
-- [x] MA-REVIEW-QUEUE (#36, PR #101): `ReviewQueue` + review routes + "Разметка" tab; `review.manage` permission; comment field; XSS-safe DOM; CSRF via `/auth/csrf`
-- [x] MA-GUARD-V2-CASES-EXPORT (#102, PR #103): `GuardCaseExporter` + `scripts/40_export_guard_v2_cases.py`; label→case mapping; atomic write; accurate `skipped_unlabeled`; 24 tests
-- [x] MA-GUARD-V2-REGRESSION-TESTS (#104): `guard_case_loader.py` + committed sample fixture (7 labels) + loader unit tests + fixture/runtime regression harness; 41 tests, 6 skipped when runtime file absent
-- [x] MA-UI-CHAT-AUTH (#107, PR #109): UI login panel + auth badge + CSRF (`X-CSRF-Token`) on POST /chat; safeJson + friendly 401/403/429; 15 tests
-- [x] MA-PROMPT-DELIMITER-ESCAPING (#108, PR #110): `core/prompt_safety.neutralize_source_delimiters()` in both prompt builders; 14 tests
-- [x] MA-MEETING-QA-V2 (#111, PR #112): semantic vector retrieval + fusion + lexical fallback; cache keyed by meeting_id+chunk_id+text_sha256+model; utterance-level citations; 17 tests
-
-## Active
-
-- [ ] MA-WORKSPACE-QA-V2-UI (#113): retrieval_mode + citation_label in Workspace Q&A — branch 113-workspace-qa-v2-ui (awaiting review)
-- [ ] MA-MEETING-STAGE-READINESS (#114): pipeline readiness map API — next
-- [ ] MA-MEETING-PIPELINE-RUN-ALL (#115): one-click sequential pipeline job — after #114
-
-## Backlog (приоритет сверху вниз)
-
-- run `scripts/40_export_guard_v2_cases.py` after labeling; runtime regression tests pick it up automatically
-- deterministic guard assertion layer (requires pure guard API without retrieval/LLM — future task)
-- #39/#40 auth evolution: per-user tokens или OIDC
-
-## Dev Roadmap
-
-- MA-PIPELINE-STAGES-EXPANSION (#76) + MA-POST-PIPELINE-HARDENING (#78) + MA-PIPELINE-E2E-SMOKE (#80) together close the loop: chunk → enrich → index → workspace search/chat confirmed in-process E2E
-- Security hardening pack #84–#91 closes auth entropy, path leakage, validation redaction, UTF-8 portability, artifact type guard, subtitle duration, and prompt injection boundary
-- After Epic #44 + hardening: multi-user / public deploy without sharing a single token
+- Public Git must not include real transcripts, customer documents, runtime meeting cards, indexes, caches, logs, local configs or secrets.
+- Long offline ASR jobs must run as background/status workflows, not short shell/API timeouts.
+- GigaAM remains an optional isolated local runtime; do not commit GigaAM venv/cache/chunks/raw outputs.
+- `data/meeting_embeddings_cache.jsonl`, `data/meeting_chunks.jsonl`, private review labels and real eval outputs are runtime data.

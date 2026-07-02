@@ -1,8 +1,8 @@
 # Project-Only Chatbot MVP
 
-Обновлено: 2026-06-19.
+Обновлено: 2026-07-02.
 
-> **Status note (2026-06-19):** The roadmap phases below (Search Quality v2.2 through Evaluation) are historical planning notes. `POST /search` and `POST /chat` are implemented and protected by RBAC (`search.use` / `chat.use`). Auth, RBAC, guardrails, and meeting workspace are implemented. See `docs/context.md` and `docs/todo.md` for current state.
+> **Status note (2026-07-02):** The roadmap phases below (Search Quality v2.2 through Evaluation) are historical planning notes. `POST /search` and `POST /chat` are implemented and protected by RBAC (`search.use` / `chat.use`). Auth, RBAC, guardrails, review queue, Web UI chat auth, meeting workspace, meeting Q&A v2, readiness API, and one-click meeting pipeline are implemented. See `docs/context.md` and `docs/todo.md` for current state.
 
 ## Цель
 
@@ -20,10 +20,11 @@
 Asu June Bot
 ```
 
-Документация подпроекта:
+Публичная документация подпроекта:
 
 ```text
-docs/subprojects/asu-june-bot/
+docs/project_knowledge_bot.md
+docs/architecture/PRODUCT_BOUNDARIES.md
 ```
 
 Актуальный runtime v2:
@@ -116,11 +117,12 @@ exact section / requirement boost
 штрафы для glossary/front matter/software/support tables
 ```
 
-Smoke-отчет:
+Исторические smoke/QH-отчеты были приватными runtime-документами и больше не публикуются в дереве документации. Актуальный public-safe статус фиксируется в:
 
 ```text
-docs/subprojects/asu-june-bot/QH_STATUS.md
-docs/subprojects/asu-june-bot/FTT_STATUS.md
+docs/context.md
+docs/todo.md
+docs/quality/
 ```
 
 ## Текущие результаты smoke
@@ -316,7 +318,7 @@ POST /search
 - продуктовый путь: собственный минимальный web UI MeetingAgent;
 - временный путь: CLI.
 
-`/search` и `/chat` реализованы. Встроенный Web UI отправляет запросы без учётных данных — после включения RBAC возвращает 401. Используйте Bearer token напрямую до реализации auth-интеграции в UI.
+`/search` и `/chat` реализованы. Исторически Web UI после включения RBAC возвращал 401, потому что не передавал credentials; это исправлено в MA-UI-CHAT-AUTH (#107). Актуальный UI использует local login, auth badge, `GET /auth/csrf` и `X-CSRF-Token` для cookie-authenticated chat/review actions. Текущий статус см. в `docs/context.md` и `docs/en/API_AUTH_SETUP.md`.
 
 ### Этап 6. Evaluation
 
