@@ -394,6 +394,59 @@ class JobState:
         return d
 
 
+# ---------------------------------------------------------------------------
+# Pipeline (run-all) — MA-MEETING-PIPELINE-RUN-ALL (#115)
+# ---------------------------------------------------------------------------
+
+# Stage sequences per profile. Only stages from STAGE_COMMANDS are allowed.
+PIPELINE_PROFILES: dict[str, list[str]] = {
+    "default": ["extract_audio", "transcribe", "merge", "chunk", "index"],
+    "full": [
+        "extract_audio", "transcribe", "diarize", "merge",
+        "chunk", "enrich", "index", "analyze",
+    ],
+    "transcript_only": ["extract_audio", "transcribe"],
+    "qa_ready": ["extract_audio", "transcribe", "merge", "chunk", "index"],
+}
+
+_PIPELINE_POLL_SEC = 0.2
+
+
+@dataclass
+class PipelineJobState:
+    """Aggregate job that runs pipeline stages sequentially."""
+
+    job_id: str
+    meeting_id: str
+    profile: str
+    force: bool
+    status: str  # running | completed | failed | cancelled
+    started_at: str
+    stages: list[dict[str, Any]] = field(default_factory=list)
+    # per item: {stage, status: pending|skipped|running|completed|failed|cancelled,
+    #            job_id, exit_code, reason}
+    current_stage: str | None = None
+    finished_at: str | None = None
+    _meeting_dir: Path | None = field(default=None, repr=False, compare=False)
+
+    def as_dict(self, meeting_status: str | None = None) -> dict[str, Any]:
+        d: dict[str, Any] = {
+            "job_id": self.job_id,
+            "meeting_id": self.meeting_id,
+            "kind": "pipeline",
+            "profile": self.profile,
+            "force": self.force,
+            "status": self.status,
+            "started_at": self.started_at,
+            "finished_at": self.finished_at,
+            "current_stage": self.current_stage,
+            "stages": [dict(item) for item in self.stages],
+        }
+        if meeting_status is not None:
+            d["meeting_status"] = meeting_status
+        return d
+
+
 async def _create_subprocess(
     *args: str,
     stdout: int,
@@ -417,6 +470,8 @@ class JobRunner:
         self._lock: asyncio.Lock = asyncio.Lock()
         self.active_job: JobState | None = None
         self.history: list[JobState] = []
+        self.active_pipeline: PipelineJobState | None = None
+        self.pipeline_history: list[PipelineJobState] = []
 
     # ------------------------------------------------------------------
     # Internals
@@ -429,6 +484,14 @@ class JobRunner:
             if job.job_id == job_id:
                 return job
         raise JobNotFound(f"Job not found: {job_id!r}")
+
+    def _find_pipeline(self, job_id: str) -> PipelineJobState | None:
+        if self.active_pipeline and self.active_pipeline.job_id == job_id:
+            return self.active_pipeline
+        for job in self.pipeline_history:
+            if job.job_id == job_id:
+                return job
+        return None
 
     def _add_history(self, job: JobState) -> None:
         self.history.append(job)
@@ -460,7 +523,16 @@ class JobRunner:
     # Public API
     # ------------------------------------------------------------------
 
-    async def submit(self, *, meeting_id: str, stage: str, meeting_dir: Path) -> JobState:
+    async def submit(
+        self,
+        *,
+        meeting_id: str,
+        stage: str,
+        meeting_dir: Path,
+        _from_pipeline: bool = False,
+    ) -> JobState:
+        if self.active_pipeline is not None and not _from_pipeline:
+            raise JobAlreadyRunning("A pipeline job is already running. Cancel it first.")
         cfg = STAGE_COMMANDS[stage]
         script: Path = cfg["script"]
         base_args: list[str] = cfg["base_args"]
@@ -519,7 +591,10 @@ class JobRunner:
                     self.active_job = None
             raise
 
-    async def cancel(self, job_id: str) -> JobState:
+    async def cancel(self, job_id: str) -> JobState | PipelineJobState:
+        pipeline = self._find_pipeline(job_id)
+        if pipeline is not None:
+            return await self._cancel_pipeline(pipeline)
         job = self._find_job(job_id)
         if job.status not in ("starting", "running"):
             raise JobNotRunning(
@@ -535,3 +610,139 @@ class JobRunner:
 
     def get_active(self) -> JobState | None:
         return self.active_job
+
+    # ------------------------------------------------------------------
+    # Pipeline (run-all)
+    # ------------------------------------------------------------------
+
+    def get_job_or_pipeline(self, job_id: str) -> JobState | PipelineJobState:
+        pipeline = self._find_pipeline(job_id)
+        if pipeline is not None:
+            return pipeline
+        return self._find_job(job_id)
+
+    async def submit_pipeline(
+        self,
+        *,
+        meeting_id: str,
+        meeting_dir: Path,
+        profile: str = "default",
+        force: bool = False,
+        stages: list[str] | None = None,
+    ) -> PipelineJobState:
+        """Start a sequential pipeline job. Returns its aggregate state.
+
+        Stage plan comes from PIPELINE_PROFILES[profile] unless an explicit
+        ``stages`` subset is given (each must be a known runnable stage).
+        Already-done stages are skipped unless ``force``.
+        """
+        plan = list(stages) if stages else PIPELINE_PROFILES.get(profile) or []
+        if not plan:
+            raise ValueError(f"Unknown pipeline profile: {profile!r}")
+        unknown = [s for s in plan if s not in STAGE_COMMANDS]
+        if unknown:
+            raise ValueError(f"Unknown stages: {unknown!r}")
+
+        async with self._lock:
+            if self.active_job is not None or self.active_pipeline is not None:
+                raise JobAlreadyRunning("A job is already running. Cancel it first.")
+            pstate = PipelineJobState(
+                job_id=str(uuid.uuid4()),
+                meeting_id=meeting_id,
+                profile=profile if not stages else "custom",
+                force=force,
+                status="running",
+                started_at=_now_iso(),
+                stages=[
+                    {"stage": s, "status": "pending", "job_id": None,
+                     "exit_code": None, "reason": None}
+                    for s in plan
+                ],
+                _meeting_dir=meeting_dir.resolve(),
+            )
+            self.active_pipeline = pstate
+        asyncio.create_task(self._run_pipeline(pstate, meeting_dir))
+        return pstate
+
+    async def _cancel_pipeline(self, pipeline: PipelineJobState) -> PipelineJobState:
+        if pipeline.status != "running":
+            raise JobNotRunning(
+                f"Job {pipeline.job_id!r} is not running (status={pipeline.status!r})"
+            )
+        pipeline.status = "cancelled"
+        # Cancel the currently running child stage, if any.
+        child = self.active_job
+        if child is not None and child.status in ("starting", "running"):
+            try:
+                await self.cancel(child.job_id)
+            except JobNotRunning:
+                pass
+        return pipeline
+
+    async def _run_pipeline(self, pstate: PipelineJobState, meeting_dir: Path) -> None:
+        # Local import avoids a cycle: readiness imports runner constants.
+        from asu_june_bot.jobs.readiness import _read_card, _stage_done
+
+        try:
+            for item in pstate.stages:
+                if pstate.status == "cancelled":
+                    item["status"] = "cancelled"
+                    continue
+                stage = item["stage"]
+                card = _read_card(meeting_dir)
+                if not pstate.force and _stage_done(stage, meeting_dir, card):
+                    item["status"] = "skipped"
+                    item["reason"] = "already_done"
+                    continue
+                pstate.current_stage = stage
+                item["status"] = "running"
+                try:
+                    child = await self.submit(
+                        meeting_id=pstate.meeting_id,
+                        stage=stage,
+                        meeting_dir=meeting_dir,
+                        _from_pipeline=True,
+                    )
+                except PreflightFailed as exc:
+                    item["status"] = "failed"
+                    item["reason"] = str(exc)
+                    pstate.status = "failed"
+                    break
+                except JobAlreadyRunning:
+                    item["status"] = "failed"
+                    item["reason"] = "another job occupied the runner"
+                    pstate.status = "failed"
+                    break
+                item["job_id"] = child.job_id
+                while child.status in ("starting", "running"):
+                    await asyncio.sleep(_PIPELINE_POLL_SEC)
+                item["exit_code"] = child.exit_code
+                if child.status == "completed":
+                    item["status"] = "completed"
+                    continue
+                # failed or cancelled child stops the pipeline
+                item["status"] = child.status
+                if pstate.status != "cancelled":
+                    pstate.status = "failed" if child.status == "failed" else "cancelled"
+                break
+            else:
+                if pstate.status == "running":
+                    pstate.status = "completed"
+            # Mark any untouched stages after an early stop.
+            stop_label = "cancelled" if pstate.status == "cancelled" else "skipped"
+            for item in pstate.stages:
+                if item["status"] == "pending":
+                    item["status"] = stop_label
+                    if stop_label == "skipped":
+                        item["reason"] = "pipeline stopped on earlier failure"
+        finally:
+            pstate.current_stage = None
+            pstate.finished_at = _now_iso()
+            if pstate.status == "running":
+                pstate.status = "completed"
+            async with self._lock:
+                if self.active_pipeline is pstate:
+                    self.active_pipeline = None
+            self.pipeline_history.append(pstate)
+            if len(self.pipeline_history) > _HISTORY_MAX:
+                self.pipeline_history = self.pipeline_history[-_HISTORY_MAX:]
