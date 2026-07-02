@@ -65,6 +65,7 @@ GET  /meetings/{id}/workspace          Meeting Workspace UI
 POST /meetings/{id}/search             meeting-scoped search [search.use]
 POST /meetings/{id}/chat               meeting-scoped Q&A [chat.use + CSRF cookie]
 GET  /meetings/{id}/jobs/stages        runnable stages [jobs.read]
+GET  /meetings/{id}/pipeline/readiness stage readiness map [jobs.read]
 POST /meetings/{id}/jobs/{stage}       start job [jobs.start + CSRF cookie]
 GET  /meetings/{id}/jobs/{job_id}      job status [jobs.read]
 POST /meetings/{id}/jobs/{job_id}/cancel cancel job [jobs.cancel + CSRF cookie]

@@ -17,6 +17,7 @@ from asu_june_bot.jobs.runner import (
     _read_meeting_status,
     stage_catalog,
 )
+from asu_june_bot.jobs.readiness import pipeline_readiness
 from asu_june_bot.meetings.service import MeetingsService, _safe_meeting_id
 
 router = APIRouter(tags=["jobs"])
@@ -47,6 +48,24 @@ async def list_job_stages(
     if not (service.root / meeting_id / "meeting.json").exists():
         raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
     return JSONResponse(content={"meeting_id": meeting_id, "stages": stage_catalog()})
+
+
+# ------------------------------------------------------------------
+# GET /meetings/{meeting_id}/pipeline/readiness  — stage readiness map (read)
+# ------------------------------------------------------------------
+
+@router.get("/meetings/{meeting_id}/pipeline/readiness")
+async def pipeline_readiness_map(
+    meeting_id: str,
+    _principal: Annotated[Principal, Depends(require_permission("jobs.read"))],
+    service: MeetingsService = Depends(_get_meetings_service),
+) -> JSONResponse:
+    if not _safe_meeting_id(meeting_id):
+        raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
+    meeting_dir = service.root / meeting_id
+    if not (meeting_dir / "meeting.json").exists():
+        raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
+    return JSONResponse(content=pipeline_readiness(meeting_id, meeting_dir))
 
 
 # ------------------------------------------------------------------
