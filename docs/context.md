@@ -4,8 +4,8 @@
 
 ## Now
 
-- active task: DOC-CURRENT-STATE-REFRESH (#127) — актуализировать public-safe документацию после Workspace/Q&A/pipeline merges.
-- branch: 127-doc-current-state-refresh.
+- active task: MA-MEETING-ARTIFACT-CONTRACT (#119) — artifact manifest API.
+- branch: 119-meeting-artifact-contract.
 - canonical main state: latest merged pipeline/UI work is in `origin/main` through PR #118.
 
 ## Done latest
@@ -50,6 +50,7 @@ GET  /meetings/{id}
 GET  /meetings/{id}/transcript
 GET  /meetings/{id}/transcript/segments
 GET  /meetings/{id}/artifacts
+GET  /meetings/{id}/artifacts/manifest
 GET  /meetings/{id}/artifacts/{name}
 GET  /meetings/{id}/media
 GET  /meetings/{id}/media/{media_id}
