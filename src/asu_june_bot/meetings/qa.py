@@ -21,6 +21,10 @@ from asu_june_bot.core.config import resolve_work_path
 from asu_june_bot.core.prompt_safety import neutralize_source_delimiters
 from asu_june_bot.llm import LLMClient, LLMError, LLMRequest
 from asu_june_bot.meetings.service import MeetingsService, _safe_meeting_id
+from asu_june_bot.meetings.vector_index import (
+    MeetingVectorRetriever,
+    build_meeting_vector_retriever,
+)
 
 DEFAULT_MEETING_CHUNKS_PATH = "data/meeting_chunks.jsonl"
 
@@ -106,7 +110,19 @@ def _make_preview(text: str, max_chars: int = 280) -> str:
 
 
 class MeetingQAService:
-    """Lexical search + grounded chat scoped to a single meeting."""
+    """Semantic + lexical search and grounded chat scoped to a single meeting.
+
+    Retrieval (#111): vector (Ollama embeddings, cosine) fused with the
+    lexical score when embeddings are available; pure lexical fallback when
+    the vector retriever is absent or Ollama is unreachable.  Retrieval is
+    always hard-scoped to one ``meeting_id``.
+    """
+
+    # Rows with no lexical overlap still qualify when semantically close.
+    MIN_VECTOR_SIMILARITY = 0.35
+    # Fusion weights over max-normalized scores (vector-primary).
+    VECTOR_WEIGHT = 0.6
+    LEXICAL_WEIGHT = 0.4
 
     def __init__(
         self,
@@ -114,6 +130,7 @@ class MeetingQAService:
         meetings_service: MeetingsService | None = None,
         llm_client: LLMClient | None = None,
         meeting_chunks_path: Path | str | None = None,
+        vector_retriever: MeetingVectorRetriever | None = None,
     ) -> None:
         self.config = config
         self.meetings_service = meetings_service or MeetingsService()
@@ -121,6 +138,7 @@ class MeetingQAService:
         self._explicit_chunks_path = (
             Path(meeting_chunks_path) if meeting_chunks_path is not None else None
         )
+        self.vector_retriever = vector_retriever or build_meeting_vector_retriever(config)
 
     # -- chunk loading ------------------------------------------------------
 
@@ -216,26 +234,79 @@ class MeetingQAService:
             return str(speakers[0])
         return None
 
+    @staticmethod
+    def _speakers(row: dict[str, Any]) -> list[str]:
+        speakers = row.get("speaker_names") or row.get("speakers") or []
+        if isinstance(speakers, list):
+            return [str(item) for item in speakers if str(item).strip()]
+        return []
+
+    @staticmethod
+    def _utterance_ids(row: dict[str, Any]) -> list[str]:
+        ids = row.get("utterance_ids") or []
+        if isinstance(ids, list):
+            return [str(item) for item in ids if str(item).strip()]
+        return []
+
+    def _citation_label(self, row: dict[str, Any]) -> str:
+        """Human-readable reference like ``[00:12:34, PRIVATE_PERSON_2]``."""
+        ts = str(row.get("timestamp_start") or "??:??:??")
+        speaker = self._speaker(row) or "спикер неизвестен"
+        return f"[{ts}, {speaker}]"
+
     def _source_ref(self, row: dict[str, Any], meeting_id: str) -> dict[str, Any]:
         return {
             "meeting_id": meeting_id,
             "artifact": self._artifact_ref(row, meeting_id),
             "segment_id": None,  # chunks are windows, not transcript segments
+            "utterance_ids": self._utterance_ids(row),
             "speaker": self._speaker(row),
+            "speakers": self._speakers(row),
+            "timestamp_start": row.get("timestamp_start"),
+            "timestamp_end": row.get("timestamp_end"),
             "start_sec": _coerce_float(row.get("start")),
             "end_sec": _coerce_float(row.get("end")),
+            "citation_label": self._citation_label(row),
         }
 
     def _ranked_rows(
         self, meeting_id: str, query: str, top_k: int
-    ) -> list[tuple[float, dict[str, Any]]]:
+    ) -> tuple[list[tuple[float, dict[str, Any]]], str]:
+        """Return (ranked rows, retrieval_mode) — mode is "vector" or "lexical".
+
+        Vector mode fuses max-normalized cosine and lexical scores; a row with
+        zero lexical overlap qualifies when its raw cosine similarity is at
+        least MIN_VECTOR_SIMILARITY (semantic paraphrase support).  Any vector
+        failure falls back to the lexical-only path.
+        """
         rows = self._load_meeting_rows(meeting_id)
+        lexical_scores = [self._lexical_score(query, row) for row in rows]
+
+        vector_scores: list[float] | None = None
+        if self.vector_retriever is not None:
+            vector_scores = self.vector_retriever.score_rows(query, rows)
+
         scored: list[tuple[float, dict[str, Any]]] = []
-        for row in rows:
-            score = self._lexical_score(query, row)
-            if score <= 0:
-                continue
-            scored.append((score, row))
+        if vector_scores is not None and len(vector_scores) == len(rows):
+            mode = "vector"
+            max_vec = max(vector_scores, default=0.0)
+            max_lex = max(lexical_scores, default=0.0)
+            for row, vec, lex in zip(rows, vector_scores, lexical_scores):
+                if lex <= 0 and vec < self.MIN_VECTOR_SIMILARITY:
+                    continue
+                vec_norm = vec / max_vec if max_vec > 0 else 0.0
+                lex_norm = lex / max_lex if max_lex > 0 else 0.0
+                fused = self.VECTOR_WEIGHT * vec_norm + self.LEXICAL_WEIGHT * lex_norm
+                if fused <= 0:
+                    continue
+                scored.append((round(fused, 6), row))
+        else:
+            mode = "lexical"
+            for row, lex in zip(rows, lexical_scores):
+                if lex <= 0:
+                    continue
+                scored.append((lex, row))
+
         scored.sort(
             key=lambda item: (
                 -item[0],
@@ -243,7 +314,7 @@ class MeetingQAService:
                 str(item[1].get("chunk_id") or ""),
             )
         )
-        return scored[:top_k]
+        return scored[:top_k], mode
 
     # -- public API ---------------------------------------------------------
 
@@ -255,7 +326,7 @@ class MeetingQAService:
             return None
 
         path_exists = self._chunks_path().exists()
-        ranked = self._ranked_rows(meeting_id, query, top_k)
+        ranked, retrieval_mode = self._ranked_rows(meeting_id, query, top_k)
         results = [
             {
                 "chunk_id": str(row.get("chunk_id") or ""),
@@ -269,6 +340,7 @@ class MeetingQAService:
             "meeting_id": meeting_id,
             "query": query,
             "available": path_exists,
+            "retrieval_mode": retrieval_mode,
             "results": results,
         }
 
@@ -279,14 +351,22 @@ class MeetingQAService:
         if self.meetings_service.get_meeting(meeting_id) is None:
             return None
 
-        ranked = self._ranked_rows(meeting_id, query, top_k)
+        ranked, retrieval_mode = self._ranked_rows(meeting_id, query, top_k)
         if not ranked:
-            return self._chat_payload(meeting_id, status="no_context", refusal=_REFUSAL_NO_CONTEXT)
+            return self._chat_payload(
+                meeting_id,
+                status="no_context",
+                refusal=_REFUSAL_NO_CONTEXT,
+                retrieval_mode=retrieval_mode,
+            )
 
         prompt = self._build_prompt(query, ranked)
         if self.llm_client is None:
             return self._chat_payload(
-                meeting_id, status="llm_unavailable", refusal=_REFUSAL_LLM_UNAVAILABLE
+                meeting_id,
+                status="llm_unavailable",
+                refusal=_REFUSAL_LLM_UNAVAILABLE,
+                retrieval_mode=retrieval_mode,
             )
         try:
             llm_response = self.llm_client.generate(
@@ -294,12 +374,20 @@ class MeetingQAService:
             )
         except LLMError:
             return self._chat_payload(
-                meeting_id, status="llm_error", refusal=_REFUSAL_LLM_UNAVAILABLE
+                meeting_id,
+                status="llm_error",
+                refusal=_REFUSAL_LLM_UNAVAILABLE,
+                retrieval_mode=retrieval_mode,
             )
 
         answer = (llm_response.text or "").strip()
         if not answer or _has_no_answer_marker(answer):
-            return self._chat_payload(meeting_id, status="no_answer", refusal=_REFUSAL_NO_ANSWER)
+            return self._chat_payload(
+                meeting_id,
+                status="no_answer",
+                refusal=_REFUSAL_NO_ANSWER,
+                retrieval_mode=retrieval_mode,
+            )
 
         # Only surface sources the answer actually cited via [S#], preserving
         # first-appearance order from the answer. If the model emitted no
@@ -319,6 +407,7 @@ class MeetingQAService:
             answer=answer,
             citations=citations,
             citations_basis=basis,
+            retrieval_mode=retrieval_mode,
         )
 
     # -- helpers ------------------------------------------------------------
@@ -351,9 +440,14 @@ class MeetingQAService:
             "excerpt": _make_preview(str(row.get("text") or "")),
             "artifact": self._artifact_ref(row, meeting_id),
             "segment_id": None,
+            "utterance_ids": self._utterance_ids(row),
             "speaker": self._speaker(row),
+            "speakers": self._speakers(row),
+            "timestamp_start": row.get("timestamp_start"),
+            "timestamp_end": row.get("timestamp_end"),
             "start_sec": _coerce_float(row.get("start")),
             "end_sec": _coerce_float(row.get("end")),
+            "citation_label": self._citation_label(row),
         }
 
     @staticmethod
@@ -364,12 +458,15 @@ class MeetingQAService:
         refusal: str | None = None,
         citations: list[dict[str, Any]] | None = None,
         citations_basis: str | None = None,
+        retrieval_mode: str | None = None,
     ) -> dict[str, Any]:
         return {
             "meeting_id": meeting_id,
             "status": status,
             "answer": answer,
             "refusal": refusal,
+            # "vector" → semantic retrieval used; "lexical" → fallback path
+            "retrieval_mode": retrieval_mode,
             "citations": citations or [],
             # "cited"  → filtered to [S#] actually referenced in the answer
             # "retrieved" → answer had no parseable markers; all retrieved shown
