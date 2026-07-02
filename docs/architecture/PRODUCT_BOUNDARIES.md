@@ -1,8 +1,10 @@
 # Product Boundaries: MeetingAgent and Project Knowledge Bot
 
-Updated: 2026-06-15.
+Updated: 2026-07-02.
 
 This document defines the intended product split between **MeetingAgent Core** and **Project Knowledge Bot**, classifies current files by ownership, and provides a phased migration plan. No code moves are performed in this task.
+
+Status: documentation prep is complete and the original prep issue is closed. Code-level extraction starts with #125 (`MA-PRODUCT-SPLIT-PHASE-1`) and must preserve existing route paths and compatibility shims.
 
 ---
 

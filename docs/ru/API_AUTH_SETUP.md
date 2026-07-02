@@ -8,18 +8,18 @@
 
 ## Текущее состояние
 
-**Machine Bearer token (`MEETINGAGENT_API_TOKEN`) — основной способ доступа для скриптов и автоматизации. Локальный логин с cookie-сессиями полностью работает; первичная регистрация администратора и управление пользователями теперь реализованы.**
+**Machine Bearer token (`MEETINGAGENT_API_TOKEN`) — основной способ доступа для скриптов и автоматизации. Локальный логин с cookie-сессиями работает для браузера; первичная регистрация администратора и управление пользователями реализованы.**
 
 Это означает:
 
 - Для скриптов, CI, автоматизации и межсервисных вызовов: используйте Bearer token.
 - Для браузерных сессий: используйте `POST /admin/bootstrap`, чтобы создать первого администратора, затем `POST /auth/local/login`.
 - Публичная регистрация отсутствует и не планируется в MVP.
-- Admin UI не реализован — управляйте пользователями через admin API.
+- UI управления пользователями пока не реализован — управляйте пользователями через admin API.
 
 ### Замечание о встроенном Web UI
 
-Встроенный web UI (`/` и `/ui`) отправляет запросы `/chat` без каких-либо учётных данных и без CSRF-токена. После включения RBAC функция чата в UI возвращает ошибку авторизации (`401`). UI не интегрирован с логином или Bearer auth. Используйте machine Bearer token напрямую (curl / PowerShell / скрипты), пока не будет реализована auth-интеграция в UI.
+Встроенный web UI (`/` и `/ui`) поддерживает локальный login, показывает текущее auth-состояние, получает CSRF через `GET /auth/csrf` и отправляет `X-CSRF-Token` для cookie-аутентифицированных `POST /chat` и review-действий. Credentials и CSRF token не сохраняются в localStorage/sessionStorage.
 
 ---
 
@@ -71,8 +71,10 @@ Content-Type: application/json
 Cookie-аутентифицированные запросы к следующим write и action эндпоинтам требуют заголовок `X-CSRF-Token`:
 
 - `POST /meetings/ingest`
+- `POST /meetings/{id}/jobs/pipeline`
 - `POST /meetings/{id}/jobs/{stage}`
 - `POST /meetings/{id}/jobs/{job_id}/cancel`
+- `POST /meetings/{id}/chat`
 - `POST /chat`
 - `POST /auth/logout`
 - `POST /admin/users`
@@ -138,6 +140,10 @@ Machine principal имеет: `meetings.upload`, `meetings.read`, `artifacts.rea
 | GET | `/meetings/{id}/transcript` | transcripts.read | Нет | Транскрипт или `{"available": false}` |
 | GET | `/meetings/{id}/artifacts` | artifacts.read | Нет | Список метаданных артефактов |
 | GET | `/meetings/{id}/artifacts/{name}` | artifacts.read | Нет | Текстовый артефакт. 413 при превышении лимита. 415 для бинарных. |
+| GET | `/meetings/{id}/transcript/segments` | transcripts.read | Нет | Нормализованные сегменты транскрипта |
+| GET | `/meetings/{id}/media` | meetings.read | Нет | Безопасный список media-файлов |
+| GET | `/meetings/{id}/media/{media_id}` | meetings.read | Нет | Стриминг media с поддержкой Range |
+| GET | `/meetings/{id}/workspace` | meetings.read | Нет | Meeting Workspace UI |
 
 Лимит текстового артефакта: **10 МиБ** (настраивается через `meetings.max_text_artifact_bytes`). Бинарные артефакты возвращают `415 Unsupported Media Type`.
 
@@ -151,6 +157,9 @@ Machine principal имеет: `meetings.upload`, `meetings.read`, `artifacts.rea
 
 | Метод | Путь | Право | CSRF | Примечания |
 |---|---|---|---|---|
+| GET | `/meetings/{id}/jobs/stages` | jobs.read | Нет | Каталог запускаемых стадий |
+| GET | `/meetings/{id}/pipeline/readiness` | jobs.read | Нет | Карта готовности стадий |
+| POST | `/meetings/{id}/jobs/pipeline` | jobs.start | **Да** (cookie) | Запустить последовательный pipeline profile |
 | POST | `/meetings/{id}/jobs/{stage}` | write access | **Да** (cookie) | Запустить стадию pipeline. Возвращает 202. |
 | GET | `/meetings/{id}/jobs/{job_id}` | jobs.read | Нет | Статус задачи |
 | POST | `/meetings/{id}/jobs/{job_id}/cancel` | write access | **Да** (cookie) | Отменить задачу |
@@ -162,6 +171,8 @@ Machine principal имеет: `meetings.upload`, `meetings.read`, `artifacts.rea
 |---|---|---|---|---|
 | POST | `/search` | search.use | Нет | RAG-поиск. CSRF не требуется даже для cookie-клиентов. |
 | POST | `/chat` | chat.use | **Да** (cookie) | Ответ с citations. Machine Bearer освобождён. |
+| POST | `/meetings/{id}/search` | search.use | Нет | Поиск по чанкам конкретной встречи. |
+| POST | `/meetings/{id}/chat` | chat.use | **Да** (cookie) | Q&A по конкретной встрече с citations. Machine Bearer освобождён. |
 
 ### Admin
 
@@ -607,7 +618,7 @@ openssl rand -hex 32
 | Admin user API (`/admin/users`) | **Работает** |
 | Валидация безопасности деплоя | **Работает** — `MEETINGAGENT_DEPLOYMENT_MODE`, startup-валидатор, `GET /admin/security/status` |
 | Admin UI | **Не реализован** — используйте admin API напрямую |
-| Чат в Web UI (браузер) | **Не работает** — UI не передаёт credentials; возвращает 401 после включения RBAC |
+| Чат в Web UI (браузер) | **Работает** — local login + CSRF token flow |
 | Yandex ID / Google / OIDC | **Не реализованы** |
 | Публичная регистрация | **Не планируется в MVP** |
 | Per-user API tokens | **Не реализованы** |

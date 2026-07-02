@@ -19,6 +19,8 @@ The project is intentionally local-first: private documents, transcripts, runtim
 - Project-only search and chat with citations.
 - Source-quality gates and guarded out-of-scope handling.
 - Meeting ingestion, transcription, chunking, and artifact generation.
+- Meeting Workspace UI with media, transcript, artifacts, jobs, readiness, and meeting-scoped Q&A.
+- One-click meeting pipeline profiles for transcript-only, Q&A-ready, default, and full processing.
 - Meeting memo/protocol generation.
 - Decision, action item, risk, and open-question extraction.
 - Local FastAPI API, Web UI, and Telegram adapter.
@@ -71,9 +73,9 @@ Detailed documentation:
 
 ### Package Status
 
-`src/meeting_agent/` is the planned general MeetingAgent package. Most subpackages are currently scaffolds; the implemented shared transcription layer lives in `src/meeting_agent/transcription/`.
+`src/meeting_agent/` is the planned general MeetingAgent package. The implemented shared meeting-processing layers currently include transcription, diarization, and live-transcription helpers.
 
-The production-ready reference runtime currently lives in `src/asu_june_bot/`. Legacy `scripts/01_*` ... `scripts/09_chat.py` are kept for compatibility and migration reference.
+The production-ready reference API/UI runtime currently lives in `src/asu_june_bot/`. Legacy `scripts/01_*` ... `scripts/09_chat.py` are kept for compatibility and migration reference.
 
 ## Public Examples
 
@@ -139,7 +141,7 @@ http://127.0.0.1:8000/
 http://127.0.0.1:8000/ui
 ```
 
-> **Note:** The built-in web UI sends `/chat` without credentials. After RBAC was enabled, the UI chat returns `401`. Use the machine Bearer token directly (curl / PowerShell) until UI auth integration is implemented. See [API and Auth Setup](docs/en/API_AUTH_SETUP.md).
+The built-in web UI supports local login, displays the current auth state, obtains CSRF tokens through `GET /auth/csrf`, and sends authenticated `/chat` requests from the browser. See [API and Auth Setup](docs/en/API_AUTH_SETUP.md).
 
 ### 4. Ask A CLI Question
 
@@ -182,12 +184,32 @@ Important entrypoints:
 .\.venv\Scripts\python.exe scripts\23_diarize_meeting.py --meeting-dir "<meeting-dir>" --dry-run
 .\.venv\Scripts\python.exe scripts\24_merge_transcript_speakers.py --meeting-dir "<meeting-dir>"
 .\.venv\Scripts\python.exe scripts\26_chunk_meeting.py --meeting-dir "<meeting-dir>"
+.\.venv\Scripts\python.exe scripts\27_enrich_meeting_chunks.py --meeting-dir "<meeting-dir>"
+.\.venv\Scripts\python.exe scripts\28_index_meeting_chunks.py --meeting-dir "<meeting-dir>"
 .\.venv\Scripts\python.exe scripts\29_analyze_meeting.py --meeting-dir "<meeting-dir>"
 ```
 
 Speaker diarization is optional and uses an isolated `sherpa-onnx` path by default. Install optional dependencies from `requirements-diarization.txt` and keep downloaded ONNX models under ignored `models/diarization/`.
 
 Runtime meeting outputs may contain private data and should not be committed.
+
+### Meeting Workspace
+
+Processed or partially processed meetings can be reviewed in the browser:
+
+```text
+http://127.0.0.1:8000/meetings/<meeting_id>/workspace
+```
+
+The workspace includes:
+
+- media player and clickable transcript;
+- artifact viewer;
+- pipeline stage controls and readiness map;
+- one-click pipeline profiles through `POST /meetings/{id}/jobs/pipeline`;
+- meeting-scoped search and Q&A with vector retrieval fallback, timestamps, speaker labels, and source citations.
+
+The current product gap is not the basic pipeline, but the next layer of product contracts: artifact manifest, stage error/retry contract, and a smoother upload-to-review UI flow.
 
 ### Live Transcription
 

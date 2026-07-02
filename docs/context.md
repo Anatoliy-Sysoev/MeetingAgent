@@ -1,126 +1,98 @@
 # Текущий Контекст
 
-Обновлено: 2026-06-25.
+Обновлено: 2026-07-02.
 
 ## Now
 
-- active task: MA-GUARD-V2-REGRESSION-TESTS (#104) — loader + regression harness for guard_v2_cases.jsonl
-- branch: 104-guard-v2-regression-tests
+- active task: DOC-CURRENT-STATE-REFRESH (#127) — актуализировать public-safe документацию после Workspace/Q&A/pipeline merges.
+- branch: 127-doc-current-state-refresh.
+- canonical main state: latest merged pipeline/UI work is in `origin/main` through PR #118.
 
-## Done latest (last 4 PRs)
+## Done latest
 
-- MA-GUARD-V2-REGRESSION-TESTS (#104, PR #TBD): `guard_case_loader.py` with `GuardRegressionCase` + `load_guard_cases()` + `case_contains_forbidden_keys()`; committed sample fixture (7 labels, no private data); fixture + runtime regression tests (41 tests, 6 skipped when runtime file absent).
-- MA-GUARD-V2-CASES-EXPORT (#102, PR #103): `GuardCaseExporter`; `scripts/40_export_guard_v2_cases.py`; atomic write; accurate `skipped_unlabeled`; 24 tests.
-- MA-REVIEW-QUEUE (#36, PR #101): `ReviewQueue` + `routes_review.py`; review.manage permission; "Разметка" tab UI; set_label API with CSRF; comment field; XSS-safe DOM rendering; bounded reads.
-- MA-RUNTIME-HARDENING-BUGFIX-PACK-2 (#99, PR #100): `_artifact_map()` + `_runner_media_files()` guards in all 6 runner preflights; `_source_map()` + `_media_files()` guards in MeetingsService (_summary/list_media/get_media_path/find_by_sha256); `_path_variants()` + `re.IGNORECASE` in `_redact_paths()` — covers native/posix/backslash/case variants; 16 new tests.
-- DOC-CODE-REVIEW-REPORT (PR #98, closes #59 partial): `docs/architecture/code_review_2026-06-17.md` created — historical review snapshot, resolution table (H1/H2 + M findings mapped to #84–#91), 4 remaining open LOW findings listed.
-- DOC-REPO-CLEANUP (PR #97, #59): compact context.md/todo.md; TECHNICAL_FILE_RELATIONSHIPS.md updated (06→22_transcribe_meeting.py); API_AUTH_SETUP docs updated (machine_token_weak entropy, trusted_proxy rows).
-- MA-CHAT-PROMPT-SOURCE-BOUNDARY (#90, PR #96): retrieved sources wrapped in `[BEGIN UNTRUSTED SOURCE Sn]` / `[END UNTRUSTED SOURCE Sn]` in both project chat and meeting QA; 23 injection regression tests.
+- MA-WORKSPACE-QA-V2-UI (#113, PR #116): Workspace Q&A/Search показывает `retrieval_mode` (`semantic`/`lexical`) и `citation_label` вида `[00:12:34, Спикер]`; DOM/CSP-гигиена сохранена.
+- MA-MEETING-STAGE-READINESS (#114, PR #117): `GET /meetings/{id}/pipeline/readiness` отдаёт карту стадий `done/ready/blocked`, `can_run`, machine-readable `reason`, required/produced artifacts без абсолютных путей.
+- MA-MEETING-PIPELINE-RUN-ALL (#115, PR #118): `POST /meetings/{id}/jobs/pipeline` запускает последовательные профили `default`, `full`, `transcript_only`, `qa_ready`; готовые стадии skip без `force`; cancel останавливает текущую дочернюю стадию.
+- Issue hygiene: закрыты уже реализованные/superseded issue #33, #44, #45, #63, #68, #78; созданы follow-up issue #119-#127.
 
-## Current main state
+## Current Product State
 
 ### Auth / security
-- machine Bearer token (`MEETINGAGENT_API_TOKEN`) is primary for script/service access; invalid Bearer raises 401 with no cookie fallback
-- local cookie sessions for browser (Argon2id, HttpOnly SameSite=Lax, server-side SQLite sessions)
-- CSRF required for cookie callers on all state-changing routes; Bearer callers exempt
-- RBAC: viewer / editor / admin; unknown role grants nothing
-- `POST /admin/bootstrap` — first-admin creation, loopback-only by default; `MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE` + strong `MEETINGAGENT_BOOTSTRAP_SECRET` to opt in
-- deployment safety validator runs on startup in self_hosted mode
-- `MEETINGAGENT_API_TOKEN` must be high-entropy (≥ 32 chars, not a placeholder/repeated pattern)
-- `MEETINGAGENT_TRUSTED_PROXY_CIDRS` — CIDRs trusted for X-Forwarded-Proto; proto forwarded from other clients is ignored for cookie_secure=auto
-- validation errors are sanitized (no raw input, sensitive field values redacted)
-- search responses do not expose runtime filesystem paths
 
-### Chat / retrieval
-- `POST /search` protected by `search.use`
-- `POST /chat` protected by `chat.use` + CSRF for cookie callers
-- project chat and meeting QA prompts wrap retrieved sources in explicit untrusted source delimiters
-- fake delimiter strings inside retrieved content are neutralized (#108): `core/prompt_safety.neutralize_source_delimiters()` rewrites case/whitespace/newline-obfuscated `[BEGIN|END UNTRUSTED SOURCE ...]` to an inert marker before wrapping
-- citation format `[S1]`, `[S2]` … stable; `citations_basis` field = `cited` / `retrieved` / `null`
-- Web UI chat auth integrated (#107): login panel (`POST /auth/local/login`), auth badge (`GET /auth/me`), CSRF via `GET /auth/csrf` + `X-CSRF-Token` on `POST /chat`; friendly 401/403 message; no web storage, no inline handlers
+- Machine Bearer token (`MEETINGAGENT_API_TOKEN`) остаётся основным способом для скриптов, CLI, Telegram adapter и service-to-service вызовов.
+- Browser path работает через local login: `POST /admin/bootstrap` создаёт первого admin, `POST /auth/local/login` выдаёт HttpOnly session cookie и CSRF token.
+- CSRF обязателен для cookie-authenticated write/action routes; Bearer callers exempt.
+- RBAC: `viewer`, `editor`, `admin`; unknown roles grant nothing.
+- Web UI chat auth интегрирован: login panel, auth badge, `GET /auth/csrf`, `X-CSRF-Token` на `POST /chat`; no localStorage/sessionStorage для credentials/CSRF.
+- Validation errors sanitized; prompt/source delimiter escaping включён; trusted proxy и secret-strength hardening реализованы.
 
-### Meeting pipeline
-- canonical offline ASR: `scripts/22_transcribe_meeting.py` with `--engine faster-whisper --model large-v3-turbo`
-- `scripts/06_transcribe_meeting.py` is a compatibility wrapper only
-- full pipeline stages available via job runner: extract_audio → transcribe → diarize → merge → chunk → enrich → index → analyze
-- meeting artifacts field in meeting.json tolerates null/list/string/missing — normalized to `{}`
-- SRT/VTT exports enforce positive cue duration (≥ 1 ms)
-- Meeting Workspace UI at `GET /meetings/{id}/workspace`
-- `POST /meetings/{id}/search` (search.use) and `POST /meetings/{id}/chat` (chat.use + CSRF) — meeting-scoped retrieval + grounded Q&A
-- Meeting Q&A v2 (#111): semantic vector retrieval (Ollama `bge-m3` cosine, fused 0.6/0.4 with lexical) over meeting chunks; lazy embeddings cache `data/meeting_embeddings_cache.jsonl` (per-chunk, model-keyed); graceful lexical fallback when Ollama/retriever unavailable; `retrieval_mode` = `vector`/`lexical` in responses
-- Q&A citations carry `timestamp_start/end`, `speaker`, `speakers`, `utterance_ids`, `citation_label` (`[00:12:34, Спикер]`); strict `meeting_id` scoping unchanged
+### Meeting processing / Workspace
 
-## API surface (main)
+- Meeting cards живут в ignored runtime `meetings/<meeting_id>/` и не публикуются в Git, если содержат реальные данные.
+- Offline ASR product profile: `faster-whisper large-v3-turbo`, `language=ru`, `compute_type=int8`; `small` остаётся только явным draft/dev CLI выбором.
+- Optional engines: GigaAM как внешний локальный backend; sherpa-onnx для diarization; Vosk для draft live transcription.
+- Job runner поддерживает стадии `extract_audio`, `transcribe`, `diarize`, `merge`, `chunk`, `enrich`, `index`, `analyze`.
+- Workspace UI: media player, clickable transcript, artifact viewer, job controls, readiness map, one-click pipeline profiles, meeting-scoped Search/Q&A.
+- Meeting Q&A v2: vector retrieval over meeting chunks через Ollama `bge-m3`, fusion с lexical, lazy cache `data/meeting_embeddings_cache.jsonl`, graceful lexical fallback.
+- Meeting Q&A citations содержат timestamps, speaker labels, `utterance_ids`, `citation_label`, `citations_basis`; результаты строго scoped по `meeting_id`.
+
+### Project Knowledge Bot
+
+- `src/asu_june_bot/` остаётся production-ready reference runtime для Project Knowledge Bot: API, Web UI, Telegram adapter, retrieval, chat, guardrails, review queue, eval/export harness.
+- Review queue и guard cases export/regression harness реализованы; guard v2 runtime/pure decision API ещё не внедрён.
+- Product split prep завершён документацией; code-level extraction перенесён в #125.
+
+## API Surface Snapshot
 
 ```text
-GET  /meetings                         list meetings
-GET  /meetings/{id}                    meeting card
-GET  /meetings/{id}/transcript         transcript or available:false
-GET  /meetings/{id}/artifacts          artifact metadata list
-GET  /meetings/{id}/artifacts/{name}   text artifact content (bounded read)
-GET  /meetings/{id}/transcript/segments normalized segments [transcripts.read]
-GET  /meetings/{id}/media              media metadata [meetings.read]
-GET  /meetings/{id}/media/{media_id}   stream media Range [meetings.read]
-GET  /meetings/{id}/workspace          Meeting Workspace UI
-POST /meetings/{id}/search             meeting-scoped search [search.use]
-POST /meetings/{id}/chat               meeting-scoped Q&A [chat.use + CSRF cookie]
-GET  /meetings/{id}/jobs/stages        runnable stages [jobs.read]
-GET  /meetings/{id}/pipeline/readiness stage readiness map [jobs.read]
-POST /meetings/{id}/jobs/pipeline      run-all pipeline job [jobs.start + CSRF cookie]
-POST /meetings/{id}/jobs/{stage}       start job [jobs.start + CSRF cookie]
-GET  /meetings/{id}/jobs/{job_id}      job status [jobs.read]
-POST /meetings/{id}/jobs/{job_id}/cancel cancel job [jobs.cancel + CSRF cookie]
-GET  /jobs/active                      active job or {} [jobs.read]
-POST /meetings/ingest                  upload + sha256 dedup [write]
-POST /search                           project corpus search [search.use]
-POST /chat                             project grounded Q&A [chat.use + CSRF cookie]
-GET  /health                           health check
-POST /auth/local/login                 login → session cookie
-GET  /auth/me                          identity + roles [cookie]
-GET  /auth/csrf                        CSRF token for current session [cookie]
-POST /auth/logout                      revoke session [CSRF cookie]
-POST /admin/bootstrap                  create first admin [no auth, loopback only]
-GET  /admin/users                      list users [users.manage]
-GET  /admin/users/{id}                 get user [users.manage]
-POST /admin/users                      create user [users.manage + CSRF]
-PATCH /admin/users/{id}                update user [users.manage + CSRF]
-POST /admin/users/{id}/disable         disable user [users.manage + CSRF]
-POST /admin/users/{id}/enable          enable user [users.manage + CSRF]
-GET  /admin/security/status            deployment safety status [admin]
-GET  /admin/review/chat-runs           list chat runs with labels [review.manage]
-POST /admin/review/chat-runs/{id}/label set label for run [review.manage + CSRF]
-GET  /admin/review/chat-runs/export    export joined runs+labels [review.manage]
+GET  /meetings
+GET  /meetings/{id}
+GET  /meetings/{id}/transcript
+GET  /meetings/{id}/transcript/segments
+GET  /meetings/{id}/artifacts
+GET  /meetings/{id}/artifacts/{name}
+GET  /meetings/{id}/media
+GET  /meetings/{id}/media/{media_id}
+GET  /meetings/{id}/workspace
+POST /meetings/ingest
+POST /meetings/{id}/search
+POST /meetings/{id}/chat
+GET  /meetings/{id}/jobs/stages
+GET  /meetings/{id}/pipeline/readiness
+POST /meetings/{id}/jobs/pipeline
+POST /meetings/{id}/jobs/{stage}
+GET  /meetings/{id}/jobs/{job_id}
+POST /meetings/{id}/jobs/{job_id}/cancel
+GET  /jobs/active
+POST /search
+POST /chat
+GET  /health
+POST /auth/local/login
+GET  /auth/me
+GET  /auth/csrf
+POST /auth/logout
+POST /admin/bootstrap
+GET  /admin/users
+GET  /admin/users/{id}
+POST /admin/users
+PATCH /admin/users/{id}
+POST /admin/users/{id}/disable
+POST /admin/users/{id}/enable
+GET  /admin/security/status
+GET  /admin/review/chat-runs
+POST /admin/review/chat-runs/{id}/label
+GET  /admin/review/chat-runs/export
 ```
-
-### Review queue
-- `data/asu_june_bot/chat_runs.jsonl` — original log, never modified
-- `data/asu_june_bot/chat_run_labels.jsonl` — append-only sidecar; latest record per run_id wins
-- valid labels: `correct`, `false_refuse`, `false_clarify`, `bad_source`, `needs_case`, `off_topic_ok`, `needs_review`
-- `prompt_sources` and source `.path` fields are stripped from all API responses (no prompt internals or filesystem paths)
-- `review.manage` permission assigned to admin role; machine tokens blocked on review routes
-- UI "Разметка" tab at `GET /` or `GET /ui` (admin session required)
-
-### Guard v2 cases export
-- `src/asu_june_bot/evals/guard_cases.py` — `GuardCaseExporter`; reads `chat_runs.jsonl` + sidecar; never mutates either file
-- `scripts/40_export_guard_v2_cases.py` — CLI: `--runs`, `--labels`, `--out`, `--include-correct`, `--limit N`, `--label LABEL`, `--dry-run`
-- Label mapping: `false_refuse`/`false_clarify` → `expected_guard_decision=allow`; `bad_source`/`correct` → observed decision; `needs_case`/`needs_review`/`off_topic_ok` → null + `needs_manual_expected=True`
-- `correct` excluded by default; opt in with `--include-correct`
-- No `prompt_sources`, no source `.path` in output; bounded reads (10 MiB) on both input files
-
-### Guard v2 regression harness
-- `src/asu_june_bot/evals/guard_case_loader.py` — `GuardRegressionCase` dataclass; `load_guard_cases(path, *, strict=True)`; `validate_guard_case_payload()`; `case_contains_forbidden_keys()`
-- `tests/fixtures/evals/guard_v2_cases.sample.jsonl` — committed sample: 7 rows, all labels, no private data, no filesystem paths
-- `tests/asu_june_bot/evals/test_guard_case_loader.py` — unit tests for loader
-- `tests/asu_june_bot/evals/test_guard_v2_regression_cases.py` — fixture regression always runs; runtime `data/asu_june_bot/guard_v2_cases.jsonl` tests skip if file absent
-- guard v2 runtime behavior is NOT implemented; no LLM/network calls in tests
 
 ## Next
 
-- run `scripts/40_export_guard_v2_cases.py` after labeling; runtime tests pick it up automatically
-- deterministic guard assertion layer (requires pure guard API — tracked as future task)
-- #39/#40 auth evolution: per-user tokens or OIDC
+- #119 MA-MEETING-ARTIFACT-CONTRACT — stable artifact manifest for Workspace.
+- #120 MA-MEETING-ERRORS-AND-RETRY — product-grade stage errors, retry, resume.
+- #121 MA-MEETING-WORKSPACE-FLOW — end-to-end upload/run/monitor/review UX.
 
 ## Open decisions / blockers
 
-- guard_v2_cases.jsonl отсутствует — generate via `scripts/40_export_guard_v2_cases.py` after labeling
-- Hotwords: Vosk/live path NOT SUPPORTED; GigaAM NOT SUPPORTED
+- #39/#40 auth evolution: per-user tokens/OIDC/admin console direction remains open.
+- #106 guard pure decision API remains open before guard v2 runtime can be cleanly measured.
+- #122 speaker mapping UI and #123 structured artifacts v2 are required before the meeting product feels complete for non-technical users.
+- Local/private runtime outputs under `meetings/`, `data/`, `logs/`, model caches, transcripts and indexes must remain out of Git.

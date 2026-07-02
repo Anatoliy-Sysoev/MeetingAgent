@@ -1,6 +1,6 @@
 # Архитектура MeetingAgent
 
-Обновлено: 2026-06-15.
+Обновлено: 2026-07-02.
 
 ## Назначение
 
@@ -21,10 +21,8 @@ MeetingAgent — локальный репозиторий проектной п
 | `docs/architecture/TECHNICAL_FILE_RELATIONSHIPS.md` | Диаграммы технических файлов, вызовов, структур и данных MeetingAgent |
 | `docs/architecture/MEETING_ARTIFACTS_PIPELINE.md` | Архитектура генерации итогов встречи MAP -> REDUCE -> RENDER |
 | `docs/architecture/FOLDER_STRUCTURE.md` | Базовая структура папок встреч |
-| `docs/subprojects/asu-june-bot/architecture.md` | Архитектура Project Knowledge Bot |
-| `docs/subprojects/asu-june-bot/TECHNICAL_DIAGRAMS.md` | Диаграммы компонентов, вызовов, объектов и поведения бота |
+| `docs/project_knowledge_bot.md` | Обзор Project Knowledge Bot |
 | `docs/quality/QUERY_FEEDBACK_LOOP.md` | Feedback loop для baseline RAG / dataset helpers |
-| `docs/subprojects/asu-june-bot/QUERY_FEEDBACK_LOOP.md` | Feedback loop целевого Project Knowledge Bot |
 
 ## Контур 1. Baseline RAG v1
 
@@ -100,6 +98,8 @@ Preflight для каждой стадии:
 Pipeline-панель управляет job runner-ом из браузера:
 
 - `GET /meetings/{id}/jobs/stages` — список запускаемых стадий (`jobs.read`); отдаёт все стадии, которые реально умеет runner (`extract_audio`, `transcribe`, `diarize`, `merge`, `chunk`, `enrich`, `index`, `analyze`), отсортированных по `order`, без путей ФС и командных строк;
+- `GET /meetings/{id}/pipeline/readiness` — карта готовности стадий (`done`/`ready`/`blocked`), `can_run`, machine-readable `reason`, required/produced artifacts без путей ФС;
+- `POST /meetings/{id}/jobs/pipeline` — последовательный one-click запуск профилей `default`, `full`, `transcript_only`, `qa_ready`; готовые стадии пропускаются без `force`;
 - Start/Cancel вызывают существующие `POST /meetings/{id}/jobs/{stage}` (`jobs.start`) и `.../cancel` (`jobs.cancel`).
 
 CSRF-поток для браузерных write-действий: при login выставляется non-HttpOnly cookie `ma_session_csrf`; JS получает токен через `GET /auth/csrf` (валидирует cookie против session hash, не создаёт сессию, не раскрывает hash) и шлёт его как `X-CSRF-Token`. Machine Bearer-вызовы CSRF-exempt. CSRF-токен в JS живёт только в памяти, не пишется в DOM/persistent storage. Все динамические значения job/stage рендерятся через DOM API + `textContent`/`dataset` + `addEventListener` (без inline-интерполяции).
@@ -110,16 +110,18 @@ CSP-гигиена: ни один HTML-элемент страницы не не
 
 Панель Q&A workspace-а обращается к meeting-scoped эндпоинтам:
 
-- `POST /meetings/{id}/search` (`search.use`) — лексический поиск по чанкам ОДНОЙ встречи;
+- `POST /meetings/{id}/search` (`search.use`) — поиск по чанкам ОДНОЙ встречи;
 - `POST /meetings/{id}/chat` (`chat.use` + CSRF для cookie, Bearer exempt) — grounded-ответ только по этой встрече, с цитатами.
 
-Реализованы через отдельный `MeetingQAService` (`meetings/qa.py`), сознательно НЕ переиспользующий project `SearchService`/`ChatService`: те запускают project-only `ProjectGuard` (отклонил бы вопросы о встрече) и ищут по проектному корпусу (риск утечки project/global чанков). MeetingQAService читает `data/meeting_chunks.jsonl`, жёстко фильтрует по `meeting_id` ∩ meeting-типам источников (`meeting_chunk`/`meeting_decision`/`meeting_action_item`/`meeting_risk`/`meeting_open_question`), лексически ранжирует (MVP, как `scripts/31_meeting_search.py`) и формирует ответ только по найденным чанкам.
+Реализованы через отдельный `MeetingQAService` (`meetings/qa.py`), сознательно НЕ переиспользующий project `SearchService`/`ChatService`: те запускают project-only `ProjectGuard` (отклонил бы вопросы о встрече) и ищут по проектному корпусу (риск утечки project/global чанков). MeetingQAService читает `data/meeting_chunks.jsonl`, жёстко фильтрует по `meeting_id` ∩ meeting-типам источников (`meeting_chunk`/`meeting_decision`/`meeting_action_item`/`meeting_risk`/`meeting_open_question`) и формирует ответ только по найденным чанкам.
+
+Retrieval v2: если доступен Ollama embedding backend (`bge-m3`), используется semantic vector retrieval с cosine similarity и fusion с lexical score; embeddings лениво кэшируются в `data/meeting_embeddings_cache.jsonl` по `meeting_id + chunk_id + text_sha256 + embedding_model`. Если Ollama/retriever недоступен, endpoint не падает и возвращается к lexical fallback. Ответы содержат `retrieval_mode = "vector"` или `"lexical"`, а Workspace показывает это как `semantic`/`lexical`.
 
 Изоляция и безопасность: неизвестная/небезопасная встреча → 404; отсутствует индекс/файл чанков → 200 с `available:false` и пустыми результатами (не 500); в ответах нет путей ФС и сырых ошибок бэкенда; цитаты только из возвращённых meeting-источников (без галлюцинаций). Форма цитаты: `chunk_id`, `excerpt`, `artifact`, `segment_id`, `speaker`, `start_sec`, `end_sec`. По клику на цитату/результат с `start_sec` плеер перематывается на таймкод. Это контур MeetingAgent Core, изолированный от Project Knowledge Bot.
 
 Цитаты chat-а не завышают доказательную базу: ответ парсится на маркеры `[S#]`, и в `citations` попадают только реально процитированные источники. Поле `citations_basis` различает режимы: `"cited"` — отфильтровано по `[S#]` из ответа; `"retrieved"` — модель не проставила распознаваемых маркеров, поэтому показаны все найденные источники; `null` — ответ не сформирован (refusal). Маркеры на источники вне диапазона (`[S9]` при 2 фрагментах) игнорируются.
 
-Известные ограничения: retrieval лексический (не векторный); `segment_id` пока `null` (чанки — это окна, а не сегменты транскрипта). `data/meeting_chunks.jsonl` наполняется стадией `index` job runner-а.
+Известные ограничения: `segment_id` пока `null` (чанки — это окна, а не сегменты транскрипта); точное сопоставление chunk/utterance -> transcript segment вынесено в #126. `data/meeting_chunks.jsonl` наполняется стадией `index` job runner-а.
 
 ## Контур 3. Project Knowledge Bot
 
@@ -149,7 +151,7 @@ flowchart TD
 - `src/asu_june_bot/observability/`;
 - `scripts/asu_june_bot_*.py`.
 
-Roadmap текущего runtime: **QH-5 -> Telegram smoke -> final QH gate -> Docker**.
+Текущий runtime включает API, Web UI, Telegram adapter, review queue, guard cases export/regression harness и локальную модель по умолчанию `qwen3.5:4b`. Guard v2 runtime остаётся отдельной задачей (#106).
 
 ## Контур 4. Quality / dataset pipeline
 
@@ -175,5 +177,5 @@ flowchart LR
 - Project Knowledge Bot развивается отдельно от старого `scripts/09_chat.py`.
 - `/search` возвращает evidence/context, `/chat` возвращает answer with citations.
 - Внепроектные и mixed-scope запросы отсекаются до retrieval/LLM.
-- Docker не начинается до фактического QH-5 `PASSED`.
+- Docker/local packaging развивается отдельной задачей (#124); runtime outputs и private corpora остаются локальными.
 - Semantic/factual hard-fail не внедряется до накопления достаточного dataset.

@@ -24,7 +24,7 @@ flowchart TD
 
     Bot --> BotSrc["src/asu_june_bot/*"]
     Bot --> BotScripts["scripts/asu_june_bot_*.py"]
-    Bot --> BotDocs["docs/subprojects/asu-june-bot/*"]
+    Bot --> BotDocs["docs/project_knowledge_bot.md + docs/architecture/PRODUCT_BOUNDARIES.md"]
     Bot --> BotEval["eval/cases + tests/asu_june_bot"]
 
     Quality --> QualityDocs["docs/quality/*"]

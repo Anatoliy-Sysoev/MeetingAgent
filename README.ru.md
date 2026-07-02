@@ -35,7 +35,7 @@ documents / audio / video
 
 - `POST /search` для retrieval/context;
 - `POST /chat` для ответов с citations;
-- локальный Web UI;
+- локальный Web UI с login-панелью, auth badge и CSRF-safe chat;
 - Telegram adapter;
 - guardrails для внепроектных, смешанных и unsafe-запросов;
 - quality/eval workflows.
@@ -54,7 +54,7 @@ docs/project_knowledge_bot.md
 
 ### Planned Package
 
-`src/meeting_agent/` — планируемый общий Python-пакет MeetingAgent. Сейчас большинство подпакетов являются scaffold. Production-ready reference runtime находится в `src/asu_june_bot/`; реализованный общий слой транскрибации находится в `src/meeting_agent/transcription/`.
+`src/meeting_agent/` — планируемый общий Python-пакет MeetingAgent. Реализованные общие слои сейчас включают transcription, diarization и live-transcription helpers. Production-ready reference API/UI runtime находится в `src/asu_june_bot/`.
 
 ## Быстрый Старт
 
@@ -94,7 +94,7 @@ http://127.0.0.1:8000/
 http://127.0.0.1:8000/ui
 ```
 
-> **Внимание:** встроенный web UI отправляет `/chat` без учётных данных. После включения RBAC чат в UI возвращает `401`. Используйте machine Bearer token напрямую (curl / PowerShell) до появления auth-интеграции в UI. См. [Настройка API и авторизации](docs/ru/API_AUTH_SETUP.md).
+Встроенный web UI поддерживает локальный login, показывает auth badge, получает CSRF через `GET /auth/csrf` и отправляет authenticated `/chat` из браузера. См. [Настройка API и авторизации](docs/ru/API_AUTH_SETUP.md).
 
 ## Telegram Adapter
 
@@ -123,12 +123,28 @@ meetings/<meeting_id>/
 ```powershell
 .\.venv\Scripts\python.exe scripts\20_ingest_meeting.py --file "<path>" --title "<title>"
 .\.venv\Scripts\python.exe scripts\21_extract_audio.py --meeting-dir "<meeting-dir>"
-.\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py --meeting-dir "<meeting-dir>" --engine faster-whisper
+.\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py --meeting-dir "<meeting-dir>" --engine faster-whisper --model large-v3-turbo --language ru --compute-type int8
+.\.venv\Scripts\python.exe scripts\23_diarize_meeting.py --meeting-dir "<meeting-dir>" --dry-run
+.\.venv\Scripts\python.exe scripts\24_merge_transcript_speakers.py --meeting-dir "<meeting-dir>"
 .\.venv\Scripts\python.exe scripts\26_chunk_meeting.py --meeting-dir "<meeting-dir>"
+.\.venv\Scripts\python.exe scripts\27_enrich_meeting_chunks.py --meeting-dir "<meeting-dir>"
+.\.venv\Scripts\python.exe scripts\28_index_meeting_chunks.py --meeting-dir "<meeting-dir>"
 .\.venv\Scripts\python.exe scripts\29_analyze_meeting.py --meeting-dir "<meeting-dir>"
 ```
 
 Runtime meeting outputs могут содержать приватные данные и не должны попадать в Git.
+
+### Meeting Workspace
+
+Встречу можно смотреть и запускать из браузера:
+
+```text
+http://127.0.0.1:8000/meetings/<meeting_id>/workspace
+```
+
+Workspace включает медиаплеер, кликабельный транскрипт, просмотр артефактов, readiness map, stage controls, one-click pipeline profiles и meeting-scoped Q&A с vector retrieval, таймкодами, speaker labels и citations.
+
+Текущий следующий слой работ: стабильный artifact manifest, продуктовый контракт ошибок/retry и цельный upload-to-review flow.
 
 ## Публичные Примеры
 
