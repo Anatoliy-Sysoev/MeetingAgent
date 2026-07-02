@@ -63,7 +63,7 @@
 
 ## Active
 
-- [ ] (none — awaiting review)
+- [ ] MA-PROMPT-DELIMITER-ESCAPING (#108): neutralize fake source delimiters — branch 108-prompt-delimiter-escaping (awaiting review)
 
 ## Backlog (приоритет сверху вниз)
 

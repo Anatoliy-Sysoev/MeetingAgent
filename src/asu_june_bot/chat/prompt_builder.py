@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from asu_june_bot.core.prompt_safety import neutralize_source_delimiters
+
 from .models import ChatSource
 
 
@@ -154,6 +156,9 @@ class PromptBuilder:
                 extra_meta.append(f"Ссылка: {source_url}")
             extra_meta_text = "\n".join(extra_meta)
             inner = f"[{ref}] {bucket_label}\n{meta_line}\n{extra_meta_text}\n{text}".strip()
+            # Neutralize fake delimiter strings inside untrusted content (#108)
+            # before wrapping in the real source boundary.
+            inner = neutralize_source_delimiters(inner)
             block = f"[BEGIN UNTRUSTED SOURCE {ref}]\n{inner}\n[END UNTRUSTED SOURCE {ref}]"
 
             if used_chars + len(block) > self.max_context_chars and sources:

@@ -35,6 +35,7 @@
 - `POST /search` protected by `search.use`
 - `POST /chat` protected by `chat.use` + CSRF for cookie callers
 - project chat and meeting QA prompts wrap retrieved sources in explicit untrusted source delimiters
+- fake delimiter strings inside retrieved content are neutralized (#108): `core/prompt_safety.neutralize_source_delimiters()` rewrites case/whitespace/newline-obfuscated `[BEGIN|END UNTRUSTED SOURCE ...]` to an inert marker before wrapping
 - citation format `[S1]`, `[S2]` … stable; `citations_basis` field = `cited` / `retrieved` / `null`
 
 ### Meeting pipeline
@@ -120,4 +121,3 @@ GET  /admin/review/chat-runs/export    export joined runs+labels [review.manage]
 - guard_v2_cases.jsonl отсутствует — generate via `scripts/40_export_guard_v2_cases.py` after labeling
 - Hotwords: Vosk/live path NOT SUPPORTED; GigaAM NOT SUPPORTED
 - Web UI chat sends requests without credentials → returns 401 after RBAC; use Bearer token directly until UI auth integration
-- Prompt source delimiter escaping not implemented: adversarial sources could include fake delimiter strings (tracked as future improvement)
