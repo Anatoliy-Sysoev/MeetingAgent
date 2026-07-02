@@ -144,7 +144,15 @@ def _stage_statuses(pipeline: PipelineJobState) -> dict[str, str]:
 
 def test_profiles_defined() -> None:
     assert set(PIPELINE_PROFILES) == {"default", "full", "transcript_only", "qa_ready"}
-    assert PIPELINE_PROFILES["default"] == ["extract_audio", "transcribe", "merge", "chunk", "index"]
+    assert PIPELINE_PROFILES["default"] == [
+        "extract_audio",
+        "transcribe",
+        "merge",
+        "chunk",
+        "enrich",
+        "index",
+    ]
+    assert PIPELINE_PROFILES["qa_ready"] == PIPELINE_PROFILES["default"]
     assert PIPELINE_PROFILES["full"][-1] == "analyze"
 
 
@@ -167,6 +175,18 @@ def test_full_profile_completes_chain(tmp_path: Path, monkeypatch: pytest.Monkey
     pipeline = asyncio.run(_run_and_wait(runner, d, profile="full"))
     assert pipeline.status == "completed"
     assert all(s == "completed" for s in _stage_statuses(pipeline).values())
+
+
+def test_default_profile_reaches_index_after_enrich(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    d = _make_meeting(tmp_path)
+    launched = _patch_subprocess(monkeypatch, d)
+    runner = JobRunner()
+    pipeline = asyncio.run(_run_and_wait(runner, d, profile="default"))
+    assert pipeline.status == "completed"
+    statuses = _stage_statuses(pipeline)
+    assert statuses["enrich"] == "completed"
+    assert statuses["index"] == "completed"
+    assert launched[-2:] == ["27_enrich_meeting_chunks.py", "28_index_meeting_chunks.py"]
 
 
 def test_pipeline_skips_done_stages(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
