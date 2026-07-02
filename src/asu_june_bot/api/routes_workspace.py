@@ -250,6 +250,7 @@ _WORKSPACE_HTML = """\
       font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
     .qa-row { display: flex; gap: 6px; }
     .qa-status { font-size: 12px; color: var(--muted); }
+    .qa-mode { font-size: 11px; color: var(--muted); font-style: italic; }
     .qa-error { font-size: 12px; color: var(--danger); }
     .qa-answer { font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
     .qa-refusal { font-size: 13px; color: var(--muted); font-style: italic; }
@@ -368,6 +369,7 @@ _WORKSPACE_HTML = """\
             <button id="qa-ask-btn">Ask</button>
           </div>
           <div id="qa-chat-status" class="qa-status"></div>
+          <div id="qa-chat-mode" class="qa-mode"></div>
           <div id="qa-chat-error" class="qa-error"></div>
           <div id="qa-answer" class="qa-answer"></div>
           <div id="qa-refusal" class="qa-refusal"></div>
@@ -382,6 +384,7 @@ _WORKSPACE_HTML = """\
             <button id="qa-search-btn">Search</button>
           </div>
           <div id="qa-search-status" class="qa-status"></div>
+          <div id="qa-search-mode" class="qa-mode"></div>
           <div id="qa-search-error" class="qa-error"></div>
           <div id="qa-search-results"></div>
         </div>
@@ -923,10 +926,20 @@ function setText(id, value) {
 
 function qaCiteLine(src) {
   const parts = [];
-  if (src && src.start_sec != null) parts.push(fmtSec(src.start_sec));
-  if (src && src.speaker) parts.push(src.speaker);
+  if (src && src.citation_label) {
+    parts.push(src.citation_label);  // "[00:12:34, Speaker]" from Q&A v2
+  } else {
+    if (src && src.start_sec != null) parts.push(fmtSec(src.start_sec));
+    if (src && src.speaker) parts.push(src.speaker);
+  }
   if (src && src.artifact) parts.push(src.artifact);
   return parts.join(" · ");
+}
+
+function qaModeLabel(mode) {
+  if (mode === "vector") return "retrieval: semantic (vector)";
+  if (mode === "lexical") return "retrieval: lexical";
+  return "";
 }
 
 async function meetingSearch() {
@@ -934,6 +947,7 @@ async function meetingSearch() {
   const query = (input.value || "").trim();
   setText("qa-search-error", "");
   setText("qa-search-status", "");
+  setText("qa-search-mode", "");
   const container = document.getElementById("qa-search-results");
   container.replaceChildren();
   if (!query) return;
@@ -959,6 +973,7 @@ async function meetingSearch() {
   const data = await resp.json();
   const results = Array.isArray(data.results) ? data.results : [];
   setText("qa-search-status", results.length ? "" : "No matches in this meeting.");
+  setText("qa-search-mode", qaModeLabel(data.retrieval_mode));
   for (const r of results) {
     const src = r.source || {};
     const card = document.createElement("div");
@@ -983,6 +998,7 @@ async function askQuestion() {
   const textarea = document.getElementById("qa-question");
   const query = (textarea.value || "").trim();
   setText("qa-chat-error", "");
+  setText("qa-chat-mode", "");
   setText("qa-answer", "");
   setText("qa-refusal", "");
   document.getElementById("qa-citations").replaceChildren();
@@ -1009,6 +1025,7 @@ async function askQuestion() {
   if (!resp) return;  // 401 handled
   if (!resp.ok) { setText("qa-chat-error", await describeError(resp, "Could not get an answer.")); return; }
   const data = await resp.json();
+  setText("qa-chat-mode", qaModeLabel(data.retrieval_mode));
   if (data.answer) {
     setText("qa-answer", data.answer);
   } else if (data.refusal) {
