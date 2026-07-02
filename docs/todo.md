@@ -61,16 +61,16 @@
 - [x] MA-GUARD-V2-CASES-EXPORT (#102, PR #103): `GuardCaseExporter` + `scripts/40_export_guard_v2_cases.py`; label→case mapping; atomic write; accurate `skipped_unlabeled`; 24 tests
 - [x] MA-GUARD-V2-REGRESSION-TESTS (#104): `guard_case_loader.py` + committed sample fixture (7 labels) + loader unit tests + fixture/runtime regression harness; 41 tests, 6 skipped when runtime file absent
 - [x] MA-UI-CHAT-AUTH (#107, PR #109): UI login panel + auth badge + CSRF (`X-CSRF-Token`) on POST /chat; safeJson + friendly 401/403/429; 15 tests
+- [x] MA-PROMPT-DELIMITER-ESCAPING (#108, PR #110): `core/prompt_safety.neutralize_source_delimiters()` in both prompt builders; 14 tests
 
 ## Active
 
-- [ ] MA-PROMPT-DELIMITER-ESCAPING (#108): neutralize fake source delimiters — branch 108-prompt-delimiter-escaping (awaiting merge)
+- [ ] MA-MEETING-QA-V2 (#111): semantic RAG over meeting chunks + utterance-level citations — branch 111-meeting-qa-v2 (awaiting review)
 
 ## Backlog (приоритет сверху вниз)
 
 - run `scripts/40_export_guard_v2_cases.py` after labeling; runtime regression tests pick it up automatically
 - deterministic guard assertion layer (requires pure guard API without retrieval/LLM — future task)
-- Meeting-scoped Q&A v2: vector retrieval over meeting chunks, transcript-segment-level citations (segment_id)
 - #39/#40 auth evolution: per-user tokens или OIDC
 
 ## Dev Roadmap
