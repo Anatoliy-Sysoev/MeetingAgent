@@ -763,6 +763,10 @@ HTML_TEMPLATE = """<!doctype html>
     const loginError = document.getElementById('loginError');
 
     // --------------- Auth ---------------
+    async function safeJson(resp) {
+      try { return await resp.json(); } catch (_) { return null; }
+    }
+
     async function getCsrfToken() {
       try {
         const resp = await fetch('/auth/csrf');
@@ -963,14 +967,23 @@ HTML_TEMPLATE = """<!doctype html>
             include_diagnostics: includeDiagnostics
           })
         });
-        const data = await response.json();
         if (!response.ok) {
           if (response.status === 401 || response.status === 403) {
             renderError('Нет доступа: войдите в систему, чтобы задавать вопросы.');
             await refreshAuthState();
             return;
           }
-          renderError(`HTTP ${response.status}\\n${JSON.stringify(data, null, 2)}`);
+          if (response.status === 429) {
+            renderError('Слишком много запросов. Подождите немного и повторите.');
+            return;
+          }
+          const errBody = await safeJson(response);
+          renderError(`HTTP ${response.status}\\n${errBody ? JSON.stringify(errBody, null, 2) : 'ответ без деталей'}`);
+          return;
+        }
+        const data = await safeJson(response);
+        if (!data) {
+          renderError('Сервер вернул некорректный ответ. Повторите запрос.');
           return;
         }
 

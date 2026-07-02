@@ -90,6 +90,20 @@ def test_unauthorized_chat_shows_friendly_error(ui_html: str) -> None:
     assert "войдите в систему" in ui_html
 
 
+def test_throttled_chat_shows_friendly_error(ui_html: str) -> None:
+    assert "Слишком много запросов" in ui_html
+
+
+def test_error_body_parsed_with_safe_json(ui_html: str) -> None:
+    # Non-JSON responses (e.g. reverse proxy HTML) must not break the error path.
+    assert "async function safeJson(resp)" in ui_html
+    ask_block = ui_html[ui_html.index("async function ask()"):]
+    ask_block = ask_block[: ask_block.index("// --------------- Review tab")]
+    # status is checked before any body parsing; no unguarded response.json()
+    assert ask_block.index("response.ok") < ask_block.index("safeJson(response)")
+    assert "await response.json()" not in ask_block
+
+
 def test_login_handlers_use_add_event_listener(ui_html: str) -> None:
     assert "loginSubmit.addEventListener('click', doLogin)" in ui_html
 
