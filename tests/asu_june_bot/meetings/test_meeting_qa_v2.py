@@ -35,17 +35,19 @@ OTHER_MEETING_ID = "20260621_other"
 class FakeEmbedder:
     """Deterministic embeddings: related phrases share a dominant axis."""
 
-    #        axes: [decision-passport, integration, weather/offtopic]
+    #        axes: [decision-passport, integration, leisure, unrelated]
     VECTORS = {
         # query phrasing
-        "что решили по паспорту проекта?": [1.0, 0.05, 0.0],
+        "что решили по паспорту проекта?": [1.0, 0.05, 0.0, 0.0],
         # weak affinity to the decision axis keeps two chunks above threshold
-        "кто сказал про интеграцию?": [0.5, 1.0, 0.0],
-        "какая погода на марсе?": [0.0, 0.0, 1.0],
+        "кто сказал про интеграцию?": [0.5, 1.0, 0.0, 0.0],
+        "какая погода на марсе?": [0.0, 0.0, 1.0, 0.0],
+        # orthogonal to every chunk — below MIN_VECTOR_SIMILARITY everywhere
+        "какой курс биткоина сегодня?": [0.0, 0.0, 0.0, 1.0],
         # chunk phrasing — no lexical overlap with the queries above
-        "сошлись во мнении: оставляем документ как есть, правки не вносим": [0.9, 0.1, 0.0],
-        "виталий отметил, что стыковка систем через кшд займёт спринт": [0.1, 0.9, 0.0],
-        "обсудили отпуск и планы на лето": [0.0, 0.0, 0.9],
+        "сошлись во мнении: оставляем документ как есть, правки не вносим": [0.9, 0.1, 0.0, 0.0],
+        "виталий отметил, что стыковка систем через кшд займёт спринт": [0.1, 0.9, 0.0, 0.0],
+        "обсудили отпуск и планы на лето": [0.0, 0.0, 0.9, 0.0],
     }
 
     def __init__(self) -> None:
@@ -57,7 +59,7 @@ class FakeEmbedder:
         for phrase, vector in self.VECTORS.items():
             if phrase in key:
                 return list(vector)
-        return [0.1, 0.1, 0.1]  # neutral, low similarity to everything
+        return [0.1, 0.1, 0.1, 0.0]  # neutral, low similarity to everything
 
 
 class FailingEmbedder:
@@ -246,16 +248,14 @@ def test_no_absolute_paths_in_payload(chunks_path: Path, tmp_path: Path) -> None
             assert ".." not in Path(artifact).parts
 
 
-def test_no_relevant_fragments_refusal(chunks_path: Path, tmp_path: Path) -> None:
+def test_no_relevant_fragments_strict_no_context(chunks_path: Path, tmp_path: Path) -> None:
+    """No lexical overlap AND all cosine scores below MIN_VECTOR_SIMILARITY → no_context."""
     svc = _service(chunks_path, tmp_path, embedder=FakeEmbedder(), llm=FakeLLM())
-    payload = svc.chat(MEETING_ID, "Какая погода на Марсе?", top_k=3)
-    # Only the off-topic chunk is similar; it IS about отпуск — vector finds it.
-    # A fully unrelated query with no match refuses with no_context.
-    if payload["status"] == "no_context":
-        assert "нет фрагментов" in payload["refusal"]
-    else:
-        # off-topic chunk matched semantically — acceptable; LLM grounds answer
-        assert payload["status"] == "answered"
+    payload = svc.chat(MEETING_ID, "Какой курс биткоина сегодня?", top_k=3)
+    assert payload["status"] == "no_context"
+    assert payload["retrieval_mode"] == "vector"
+    assert "нет фрагментов" in payload["refusal"]
+    assert payload["citations"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -293,6 +293,68 @@ def test_cache_survives_new_retriever_instance(chunks_path: Path, tmp_path: Path
     )
     svc2.search(MEETING_ID, "Кто сказал про интеграцию?", top_k=2)
     assert second.calls == 1  # chunks loaded from cache; only query embedded
+
+
+def test_cache_not_shared_across_meetings_with_same_chunk_id(tmp_path: Path) -> None:
+    """Identical chunk_id in two meetings must not reuse the other's vector."""
+    rows = [
+        _chunk(MEETING_ID, "same_id", "Сошлись во мнении: оставляем документ как есть, правки не вносим"),
+        _chunk(OTHER_MEETING_ID, "same_id", "Виталий отметил, что стыковка систем через КШД займёт спринт"),
+    ]
+    path = tmp_path / "meeting_chunks.jsonl"
+    with path.open("w", encoding="utf-8") as fh:
+        for row in rows:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+    cache_path = tmp_path / "emb_cache.jsonl"
+    embedder = FakeEmbedder()
+    retriever = MeetingVectorRetriever(embedder, cache_path, embedding_model="fake-model")
+    svc = _service(path, tmp_path, retriever=retriever)
+
+    # Populate the cache with meeting 1's chunk under chunk_id "same_id".
+    r1 = svc.search(MEETING_ID, "Что решили по паспорту проекта?", top_k=3)
+    assert r1["results"] and r1["results"][0]["chunk_id"] == "same_id"
+    calls_after_first = embedder.calls
+
+    # Meeting 2 has the same chunk_id but different text: its own text must be
+    # embedded (cache miss), and the semantic match must be found.
+    r2 = svc.search(OTHER_MEETING_ID, "Кто сказал про интеграцию?", top_k=3)
+    assert embedder.calls > calls_after_first + 1  # query AND m2 chunk embedded
+    assert r2["retrieval_mode"] == "vector"
+    assert r2["results"], "meeting 2 semantic match must not be lost to a stale vector"
+    assert r2["results"][0]["source"]["meeting_id"] == OTHER_MEETING_ID
+
+
+def test_changed_text_reembedded_same_meeting_chunk_id(tmp_path: Path) -> None:
+    """Same meeting_id/chunk_id with changed text re-embeds (new text_sha256)."""
+    path = tmp_path / "meeting_chunks.jsonl"
+    cache_path = tmp_path / "emb_cache.jsonl"
+
+    def write_rows(text: str) -> None:
+        with path.open("w", encoding="utf-8") as fh:
+            fh.write(json.dumps(_chunk(MEETING_ID, "c_1", text), ensure_ascii=False) + "\n")
+
+    write_rows("Сошлись во мнении: оставляем документ как есть, правки не вносим")
+    embedder = FakeEmbedder()
+    retriever = MeetingVectorRetriever(embedder, cache_path, embedding_model="fake-model")
+    svc = _service(path, tmp_path, retriever=retriever)
+    r1 = svc.search(MEETING_ID, "Что решили по паспорту проекта?", top_k=3)
+    assert r1["results"]  # decision text matches
+    calls_after_first = embedder.calls
+
+    # Re-chunk: same chunk_id, new text. Old vector must not be reused.
+    write_rows("Виталий отметил, что стыковка систем через КШД займёт спринт")
+    r2 = svc.search(MEETING_ID, "Кто сказал про интеграцию?", top_k=3)
+    assert embedder.calls > calls_after_first + 1  # changed text re-embedded
+    assert r2["results"], "match on the NEW text expected"
+    # Cache now holds two distinct rows for (meeting, c_1): old and new text_sha256.
+    cache_rows = [
+        json.loads(line)
+        for line in cache_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    shas = {row["text_sha256"] for row in cache_rows if row["chunk_id"] == "c_1"}
+    assert len(shas) == 2  # changed text produced a new cache identity
 
 
 # ---------------------------------------------------------------------------

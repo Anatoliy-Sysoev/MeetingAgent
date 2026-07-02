@@ -13,6 +13,7 @@ No filesystem paths from this module ever reach API responses.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from collections.abc import Callable
@@ -38,11 +39,26 @@ def _dot(a: list[float], b: list[float]) -> float:
     return sum(x * y for x, y in zip(a, b))
 
 
+def _text_sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _cache_key(meeting_id: str, chunk_id: str, text_sha256: str) -> str:
+    return f"{meeting_id}\x00{chunk_id}\x00{text_sha256}"
+
+
 class MeetingVectorRetriever:
     """Cosine-similarity scorer for meeting chunk rows with a JSONL cache.
 
-    Cache row format (compatible with the corpus embeddings cache):
-        {"chunk_id": ..., "embedding_model": ..., "embedding": [...]}
+    Cache identity is (meeting_id, chunk_id, text_sha256, embedding_model):
+    identical chunk_ids in different meetings never share vectors, and a
+    re-chunked meeting whose text changed re-embeds instead of reusing a
+    stale vector.  Rows without meeting_id/text_sha256 (legacy format) are
+    ignored on load.
+
+    Cache row format:
+        {"meeting_id": ..., "chunk_id": ..., "text_sha256": ...,
+         "embedding_model": ..., "embedding": [...]}
     """
 
     def __init__(
@@ -76,25 +92,37 @@ class MeetingVectorRetriever:
                         continue
                     if row.get("embedding_model") != self.embedding_model:
                         continue
+                    meeting_id = row.get("meeting_id")
                     chunk_id = row.get("chunk_id")
+                    text_sha = row.get("text_sha256")
                     embedding = row.get("embedding")
-                    if chunk_id and isinstance(embedding, list):
+                    # Legacy rows without meeting_id/text_sha256 are unsafe to
+                    # reuse (chunk_id collisions, stale text) — skip them.
+                    if not (meeting_id and chunk_id and text_sha):
+                        continue
+                    if isinstance(embedding, list):
                         normalized = _l2_normalize(embedding)
                         if normalized is not None:
-                            cache[str(chunk_id)] = normalized
+                            key = _cache_key(str(meeting_id), str(chunk_id), str(text_sha))
+                            cache[key] = normalized
         self._cache = cache
         return cache
 
-    def _append_to_cache(self, entries: list[tuple[str, list[float]]]) -> None:
+    def _append_to_cache(
+        self, entries: list[tuple[str, str, str, list[float]]]
+    ) -> None:
+        """Append (meeting_id, chunk_id, text_sha256, raw_embedding) rows."""
         if not entries:
             return
         self.cache_path.parent.mkdir(parents=True, exist_ok=True)
         with self.cache_path.open("a", encoding="utf-8") as fh:
-            for chunk_id, embedding in entries:
+            for meeting_id, chunk_id, text_sha, embedding in entries:
                 fh.write(
                     json.dumps(
                         {
+                            "meeting_id": meeting_id,
                             "chunk_id": chunk_id,
+                            "text_sha256": text_sha,
                             "embedding_model": self.embedding_model,
                             "embedding": embedding,
                         },
@@ -124,21 +152,29 @@ class MeetingVectorRetriever:
             return None
 
         cache = self._load_cache()
-        new_entries: list[tuple[str, list[float]]] = []
+        new_entries: list[tuple[str, str, str, list[float]]] = []
         row_vectors: list[list[float] | None] = []
         try:
             for row in rows:
+                meeting_id = str(row.get("meeting_id") or "")
                 chunk_id = str(row.get("chunk_id") or "")
-                vector = cache.get(chunk_id) if chunk_id else None
+                text = str(row.get("text") or "")
+                text_sha = _text_sha256(text)
+                key = (
+                    _cache_key(meeting_id, chunk_id, text_sha)
+                    if meeting_id and chunk_id
+                    else None
+                )
+                vector = cache.get(key) if key else None
                 if vector is None:
-                    raw = self.embed_fn(str(row.get("text") or ""))
+                    raw = self.embed_fn(text)
                     vector = _l2_normalize(raw)
                     if vector is None:
                         row_vectors.append(None)
                         continue
-                    if chunk_id:
-                        cache[chunk_id] = vector
-                        new_entries.append((chunk_id, raw))
+                    if key:
+                        cache[key] = vector
+                        new_entries.append((meeting_id, chunk_id, text_sha, raw))
                 row_vectors.append(vector)
         except Exception:  # noqa: BLE001 — includes OllamaUnavailableError
             return None
