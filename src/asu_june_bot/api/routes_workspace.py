@@ -793,11 +793,35 @@ function manifestEntry(key) {
   return _manifest.artifacts.find((e) => e.artifact_key === key) || null;
 }
 
+let _trackedJobId = null;  // job_id from the last 202 (stage, retry or pipeline)
+
+function _jobIsActive(j) {
+  if (!j || !j.job_id) return false;
+  // pipeline aggregates report "running"; stage jobs "starting"/"running"
+  return j.status === "running" || j.status === "starting";
+}
+
 async function loadActiveJob() {
+  // Prefer polling the exact job we started: survives pipeline gaps between
+  // child stages and never mistakes another meeting's job for ours.
+  if (_trackedJobId) {
+    const resp = await apiFetch(
+      `/meetings/${encodeURIComponent(MEETING_ID)}/jobs/${encodeURIComponent(_trackedJobId)}`
+    );
+    if (resp && resp.ok) {
+      const j = await resp.json();
+      if (_jobIsActive(j)) { _activeJob = j; return; }
+      _trackedJobId = null;  // finished (completed/failed/cancelled)
+      _activeJob = null;
+      return;
+    }
+    _trackedJobId = null;
+  }
   const resp = await apiFetch("/jobs/active");
   if (!resp || !resp.ok) { _activeJob = null; return; }
   const j = await resp.json();
-  _activeJob = (j && j.job_id && j.meeting_id === MEETING_ID) ? j : null;
+  _activeJob = (_jobIsActive(j) && j.meeting_id === MEETING_ID) ? j : null;
+  if (_activeJob) _trackedJobId = _activeJob.job_id;
 }
 
 async function loadMeetingStatus() {
@@ -832,7 +856,10 @@ function renderJobs(status) {
     const jBadge = document.createElement("span");
     jBadge.className = "badge " + (_activeJob.status === "running" ? "warn" : "");
     jBadge.textContent = _activeJob.status || "";
-    aVal.textContent = (_activeJob.stage || "") + " ";
+    const label = _activeJob.kind === "pipeline"
+      ? "pipeline" + (_activeJob.current_stage ? ` (${_activeJob.current_stage})` : "")
+      : (_activeJob.stage || "");
+    aVal.textContent = label + " ";
     aVal.appendChild(jBadge);
   } else {
     aVal.textContent = "None";
@@ -1038,11 +1065,17 @@ async function startStage(stage) {
     );
     if (!resp) return;  // 401 handled
     if (!resp.ok) { setJobsError(await describeError(resp, "Could not start job.")); return; }
+    const started = await safeJobBody(resp);
+    if (started && started.job_id) _trackedJobId = started.job_id;
   } finally {
     _actionInProgress = false;
   }
   await refreshJobs();
   startPolling();
+}
+
+async function safeJobBody(resp) {
+  try { return await resp.json(); } catch (e) { return null; }
 }
 
 async function startPipeline(opts) {
@@ -1066,6 +1099,8 @@ async function startPipeline(opts) {
     );
     if (!resp) return;
     if (!resp.ok) { setJobsError(await describeError(resp, "Could not start pipeline.")); return; }
+    const started = await safeJobBody(resp);
+    if (started && started.job_id) _trackedJobId = started.job_id;
   } finally {
     _actionInProgress = false;
   }
@@ -1090,6 +1125,8 @@ async function retryStage(stage, force) {
     );
     if (!resp) return;
     if (!resp.ok) { setJobsError(await describeError(resp, "Could not retry stage.")); return; }
+    const started = await safeJobBody(resp);
+    if (started && started.job_id) _trackedJobId = started.job_id;
   } finally {
     _actionInProgress = false;
   }
@@ -1191,14 +1228,17 @@ async function meetingSearch() {
   container.replaceChildren();
   if (!query) return;
   setText("qa-search-status", "Searching…");
+  const csrf = await ensureCsrf();
+  if (!csrf) {
+    setText("qa-search-status", "");
+    setText("qa-search-error", "Could not obtain CSRF token. Please log in again.");
+    return;
+  }
   let resp;
   try {
-    const csrf = await ensureCsrf();
-    const headers = { "Content-Type": "application/json" };
-    if (csrf) headers["X-CSRF-Token"] = csrf;
     resp = await apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}/search`, {
       method: "POST",
-      headers,
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
       body: JSON.stringify({ query: query, top_k: 5 }),
     });
   } catch (e) {

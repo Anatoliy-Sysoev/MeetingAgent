@@ -679,8 +679,15 @@ class JobRunner:
         # process actually exits, keeping concurrency=1 intact until then.
         return job
 
-    def get_active(self) -> JobState | None:
-        return self.active_job
+    def get_active(self) -> JobState | PipelineJobState | None:
+        """Return the currently active work item.
+
+        Pipeline-aware (#121 review): while a pipeline runs, the pipeline
+        aggregate is the active job — even between child stages, when no
+        child process occupies the slot.  Falls back to the single-stage
+        active job otherwise.
+        """
+        return self.active_pipeline or self.active_job
 
     # ------------------------------------------------------------------
     # Pipeline (run-all)
