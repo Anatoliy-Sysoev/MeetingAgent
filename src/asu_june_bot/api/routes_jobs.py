@@ -10,6 +10,7 @@ from asu_june_bot.auth.models import Principal
 from asu_june_bot.jobs.runner import (
     PIPELINE_PROFILES,
     STAGE_COMMANDS,
+    read_last_error,
     JobAlreadyRunning,
     JobNotFound,
     JobNotRunning,
@@ -80,7 +81,15 @@ async def pipeline_readiness_map(
 class PipelineRequest(BaseModel):
     profile: str = Field("default", max_length=32)
     force: bool = False
+    # resume=true explicitly continues after a failure: done stages are
+    # skipped and execution starts at the first not-yet-done stage.  This is
+    # also the default behavior; force=true overrides the skip.
+    resume: bool = False
     stages: list[str] | None = Field(None, max_length=16)
+
+
+class RetryRequest(BaseModel):
+    force: bool = False
 
 
 @router.post("/meetings/{meeting_id}/jobs/pipeline", status_code=202)
@@ -114,6 +123,7 @@ async def start_pipeline(
             meeting_dir=meeting_dir,
             profile=body.profile,
             force=body.force,
+            resume=body.resume,
             stages=body.stages,
         )
     except JobAlreadyRunning as exc:
@@ -121,6 +131,50 @@ async def start_pipeline(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return JSONResponse(status_code=202, content=pipeline.as_dict())
+
+
+# ------------------------------------------------------------------
+# POST /meetings/{meeting_id}/jobs/{stage}/retry  — retry one stage (#120)
+# ------------------------------------------------------------------
+
+@router.post("/meetings/{meeting_id}/jobs/{stage}/retry", status_code=202)
+async def retry_stage(
+    meeting_id: str,
+    stage: str,
+    _principal: Annotated[Principal, Depends(require_action_permission("jobs.retry"))],
+    body: RetryRequest | None = None,
+    runner: JobRunner = Depends(_get_runner),
+    service: MeetingsService = Depends(_get_meetings_service),
+) -> JSONResponse:
+    if not _safe_meeting_id(meeting_id):
+        raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
+    if stage not in STAGE_COMMANDS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown stage {stage!r}. Allowed: {sorted(STAGE_COMMANDS)}",
+        )
+    meeting_dir = service.root / meeting_id
+    if not (meeting_dir / "meeting.json").exists():
+        raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
+
+    force = bool(body.force) if body is not None else False
+    # A stage whose output already exists needs an explicit force to re-run.
+    from asu_june_bot.jobs.readiness import _read_card, _stage_done
+
+    if not force and _stage_done(stage, meeting_dir, _read_card(meeting_dir)):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Stage {stage!r} is already done; pass {{\"force\": true}} to re-run.",
+        )
+    try:
+        job = await runner.submit(
+            meeting_id=meeting_id, stage=stage, meeting_dir=meeting_dir
+        )
+    except JobAlreadyRunning as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except PreflightFailed as exc:
+        raise HTTPException(status_code=422, detail=f"Preflight failed: {exc.detail}") from exc
+    return JSONResponse(status_code=202, content=job.as_dict())
 
 
 # ------------------------------------------------------------------
@@ -180,7 +234,9 @@ async def get_job(
             detail=f"Job {job_id!r} does not belong to meeting {meeting_id!r}",
         )
     meeting_dir = service.root / meeting_id
-    return JSONResponse(content=job.as_dict(meeting_status=_read_meeting_status(meeting_dir)))
+    payload = job.as_dict(meeting_status=_read_meeting_status(meeting_dir))
+    payload["last_error"] = read_last_error(meeting_dir)
+    return JSONResponse(content=payload)
 
 
 # ------------------------------------------------------------------
