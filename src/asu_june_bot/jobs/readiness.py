@@ -95,6 +95,8 @@ def pipeline_readiness(meeting_id: str, meeting_dir: Path) -> dict[str, Any]:
         (s for s in STAGE_COMMANDS if s in STAGE_METADATA),
         key=lambda s: STAGE_METADATA[s]["order"],
     )
+    last_error = card.get("last_error") if isinstance(card.get("last_error"), dict) else None
+    failed_stage = str(last_error.get("stage")) if last_error else None
     for stage in ordered:
         meta = STAGE_METADATA[stage]
         done = _stage_done(stage, meeting_dir, card)
@@ -107,6 +109,12 @@ def pipeline_readiness(meeting_id: str, meeting_dir: Path) -> dict[str, Any]:
             state, can_run = "blocked", False
             reason = _BLOCK_TOKENS.get(stage, "prerequisite_missing")
             detail = block_detail
+        elif failed_stage == stage:
+            # Previous run of this stage failed (#120); prerequisites are met,
+            # so the stage can be retried right away.
+            state, can_run = "ready_for_retry", True
+            reason = "previous_failed"
+            detail = str(last_error.get("message") or "previous run failed")
         else:
             state, can_run = "ready", True
             reason = None
