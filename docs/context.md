@@ -89,7 +89,7 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- #119 MA-MEETING-ARTIFACT-CONTRACT — stable artifact manifest for Workspace.
+- #122 MA-SPEAKER-MAPPING-UI — speaker names/roles mapping (next after #121 review).
 
 ## Open decisions / blockers
 
