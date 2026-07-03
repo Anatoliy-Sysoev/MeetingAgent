@@ -171,3 +171,51 @@ def test_dynamic_values_use_dom_apis(html: str) -> None:
 def test_no_web_storage(html: str) -> None:
     assert "localStorage" not in html
     assert "sessionStorage" not in html
+
+
+# ---------------------------------------------------------------------------
+# Review follow-ups (#121): tracked job polling, pipeline-aware activity,
+# meetingSearch CSRF guard
+# ---------------------------------------------------------------------------
+
+def _fn_block(html: str, name: str) -> str:
+    block = html[html.index(f"async function {name}")]
+    block = html[html.index(f"async function {name}"):]
+    return block[: block.index("\n}\n") + 2]
+
+
+def test_started_jobs_track_job_id_from_202(html: str) -> None:
+    for fn in ("startStage", "startPipeline", "retryStage"):
+        block = _fn_block(html, fn)
+        assert "_trackedJobId = started.job_id" in block, fn
+
+
+def test_active_job_polls_tracked_job_endpoint(html: str) -> None:
+    block = _fn_block(html, "loadActiveJob")
+    # poll the specific job first — /meetings/{id}/jobs/{job_id}
+    assert "/jobs/${encodeURIComponent(_trackedJobId)}" in block
+    # /jobs/active is only the fallback discovery path
+    assert block.index("_trackedJobId") < block.index('"/jobs/active"')
+
+
+def test_pipeline_aggregate_counts_as_active(html: str) -> None:
+    block = html[html.index("function _jobIsActive"):]
+    block = block[: block.index("async function loadActiveJob")]
+    assert 'j.status === "running"' in block
+    # renderJobs shows the pipeline kind and its current stage
+    assert '_activeJob.kind === "pipeline"' in html
+    assert "_activeJob.current_stage" in html
+
+
+def test_tracked_job_cleared_when_finished(html: str) -> None:
+    block = _fn_block(html, "loadActiveJob")
+    assert "_trackedJobId = null" in block
+
+
+def test_meeting_search_aborts_without_csrf(html: str) -> None:
+    block = _fn_block(html, "meetingSearch")
+    csrf_check = block.index("if (!csrf)")
+    post_call = block.index('method: "POST"')
+    assert csrf_check < post_call, "CSRF guard must precede the POST"
+    guard = block[csrf_check: block.index("let resp")]
+    assert "return" in guard
