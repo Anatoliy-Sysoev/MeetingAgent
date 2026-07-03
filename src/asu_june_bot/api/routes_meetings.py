@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -10,11 +11,13 @@ from asu_june_bot.api.auth import require_action_permission, require_permission
 from asu_june_bot.api.dependencies import get_meeting_qa_service
 from asu_june_bot.auth.models import Principal
 from asu_june_bot.core.limits import MAX_QUERY_CHARS
+from asu_june_bot.meetings.manifest import build_artifact_manifest
 from asu_june_bot.meetings.qa import MeetingQAService
 from asu_june_bot.meetings.service import (
     ArtifactTooLargeError,
     MeetingCardError,
     MeetingsService,
+    _safe_meeting_id,
 )
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
@@ -106,6 +109,29 @@ def list_artifacts(
     if artifacts is None:
         raise _not_found(meeting_id)
     return {"meeting_id": meeting_id, "artifacts": artifacts}
+
+
+# Declared BEFORE /{meeting_id}/artifacts/{artifact_name} so "manifest" is
+# never captured as an artifact name.
+@router.get("/{meeting_id}/artifacts/manifest")
+def get_artifact_manifest(
+    meeting_id: str,
+    service: MeetingsService = Depends(get_meetings_service),
+    _principal: Annotated[Principal, Depends(require_permission("artifacts.read"))] = ...,
+) -> dict:
+    if not _safe_meeting_id(meeting_id):
+        raise _not_found(meeting_id)
+    meeting_dir = service.root / meeting_id
+    card_path = meeting_dir / "meeting.json"
+    if not card_path.exists():
+        raise _not_found(meeting_id)
+    try:
+        card = json.loads(card_path.read_text(encoding="utf-8"))
+        if not isinstance(card, dict):
+            card = {}
+    except Exception:  # noqa: BLE001 — unreadable card: manifest of defaults
+        card = {}
+    return build_artifact_manifest(meeting_id, meeting_dir, card)
 
 
 @router.get("/{meeting_id}/transcript/segments")

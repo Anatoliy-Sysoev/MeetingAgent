@@ -10,6 +10,8 @@ from typing import Any
 
 import jsonschema
 
+from asu_june_bot.meetings.artifact_catalog import ARTIFACT_DEFAULT_PATHS
+
 SUPPORTED_MEDIA_EXTENSIONS = frozenset({".mp4", ".mp3", ".wav", ".m4a"})
 _VIDEO_EXTENSIONS = frozenset({".mp4"})
 
@@ -393,7 +395,10 @@ class MeetingsService:
             return None
         data = _read_meeting_json(card_path)
         artifacts = _artifact_map(data)
-        rel = artifacts.get(artifact_name)
+        # Fall back to the shared catalog default path (#119) so every
+        # manifest view_url is resolvable even before the pipeline registers
+        # the artifact in meeting.json.
+        rel = artifacts.get(artifact_name) or ARTIFACT_DEFAULT_PATHS.get(artifact_name)
         if not rel:
             return None
         meeting_dir = self._meeting_dir(meeting_id)
