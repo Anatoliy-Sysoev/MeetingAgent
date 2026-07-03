@@ -4,8 +4,8 @@
 
 ## Now
 
-- active task: MA-MEETING-ARTIFACT-CONTRACT (#119) — artifact manifest API.
-- branch: 119-meeting-artifact-contract.
+- active task: MA-MEETING-ERRORS-AND-RETRY (#120) — normalized last_error, stage retry, pipeline resume.
+- branch: 120-meeting-errors-and-retry.
 - canonical main state: latest merged pipeline/UI work is in `origin/main` through PR #118.
 
 ## Done latest
@@ -62,6 +62,7 @@ GET  /meetings/{id}/jobs/stages
 GET  /meetings/{id}/pipeline/readiness
 POST /meetings/{id}/jobs/pipeline
 POST /meetings/{id}/jobs/{stage}
+POST /meetings/{id}/jobs/{stage}/retry
 GET  /meetings/{id}/jobs/{job_id}
 POST /meetings/{id}/jobs/{job_id}/cancel
 GET  /jobs/active
@@ -88,7 +89,6 @@ GET  /admin/review/chat-runs/export
 ## Next
 
 - #119 MA-MEETING-ARTIFACT-CONTRACT — stable artifact manifest for Workspace.
-- #120 MA-MEETING-ERRORS-AND-RETRY — product-grade stage errors, retry, resume.
 - #121 MA-MEETING-WORKSPACE-FLOW — end-to-end upload/run/monitor/review UX.
 
 ## Open decisions / blockers

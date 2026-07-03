@@ -34,7 +34,7 @@
 ## Active / Next
 
 - [ ] MA-MEETING-ARTIFACT-CONTRACT (#119): stable artifact manifest — branch 119-meeting-artifact-contract (awaiting review).
-- [ ] MA-MEETING-ERRORS-AND-RETRY (#120): product-grade stage errors, retry, and resume.
+- [ ] MA-MEETING-ERRORS-AND-RETRY (#120): normalized last_error + stage retry + pipeline resume — branch 120-meeting-errors-and-retry (awaiting review).
 - [ ] MA-MEETING-WORKSPACE-FLOW (#121): end-to-end upload, run, monitor, and review UX.
 
 ## Meeting Product Backlog

@@ -425,6 +425,7 @@ class PipelineJobState:
     stages: list[dict[str, Any]] = field(default_factory=list)
     # per item: {stage, status: pending|skipped|running|completed|failed|cancelled,
     #            job_id, exit_code, reason}
+    resume: bool = False
     current_stage: str | None = None
     finished_at: str | None = None
     _meeting_dir: Path | None = field(default=None, repr=False, compare=False)
@@ -436,6 +437,7 @@ class PipelineJobState:
             "kind": "pipeline",
             "profile": self.profile,
             "force": self.force,
+            "resume": self.resume,
             "status": self.status,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
@@ -453,6 +455,62 @@ async def _create_subprocess(
     stderr: int,
 ) -> Any:
     return await asyncio.create_subprocess_exec(*args, stdout=stdout, stderr=stderr)
+
+
+def _write_last_error(
+    meeting_dir: Path, *, stage: str, job_id: str, exit_code: int | None
+) -> None:
+    """Record a normalized, public-safe last_error in meeting.json (#120).
+
+    Never stores stderr/stack traces/paths — the full redacted stderr tail
+    stays only in the runtime job state.  Failures to update the card are
+    swallowed: error reporting must never break job bookkeeping.
+    """
+    card_path = meeting_dir / "meeting.json"
+    try:
+        card = json.loads(card_path.read_text(encoding="utf-8"))
+        if not isinstance(card, dict):
+            return
+        card["last_error"] = {
+            "stage": stage,
+            "code": "stage_failed",
+            "message": f"Stage '{stage}' failed (exit code {exit_code})",
+            "timestamp": _now_iso(),
+            "job_id": job_id,
+        }
+        card_path.write_text(
+            json.dumps(card, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    except Exception:  # noqa: BLE001
+        return
+
+
+def _clear_last_error(meeting_dir: Path, *, stage: str) -> None:
+    """Remove last_error from meeting.json after the same stage succeeds."""
+    card_path = meeting_dir / "meeting.json"
+    try:
+        card = json.loads(card_path.read_text(encoding="utf-8"))
+        if not isinstance(card, dict):
+            return
+        last = card.get("last_error")
+        if isinstance(last, dict) and last.get("stage") == stage:
+            card.pop("last_error", None)
+            card_path.write_text(
+                json.dumps(card, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+    except Exception:  # noqa: BLE001
+        return
+
+
+def read_last_error(meeting_dir: Path) -> dict[str, Any] | None:
+    """Return the normalized last_error from meeting.json, or None."""
+    card_path = meeting_dir / "meeting.json"
+    try:
+        card = json.loads(card_path.read_text(encoding="utf-8"))
+        last = card.get("last_error") if isinstance(card, dict) else None
+        return last if isinstance(last, dict) else None
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def _read_meeting_status(meeting_dir: Path) -> str | None:
@@ -514,6 +572,19 @@ class JobRunner:
         job.exit_code = proc.returncode
         if job.status not in ("cancelled",):
             job.status = "completed" if proc.returncode == 0 else "failed"
+        # Normalized last_error bookkeeping (#120): failures record a
+        # public-safe error in meeting.json; a later success of the same
+        # stage clears it.  Cancellations do not touch last_error.
+        if job._meeting_dir is not None:
+            if job.status == "failed":
+                _write_last_error(
+                    job._meeting_dir,
+                    stage=job.stage,
+                    job_id=job.job_id,
+                    exit_code=job.exit_code,
+                )
+            elif job.status == "completed":
+                _clear_last_error(job._meeting_dir, stage=job.stage)
         async with self._lock:
             if self.active_job is job:
                 self.active_job = None
@@ -628,6 +699,7 @@ class JobRunner:
         meeting_dir: Path,
         profile: str = "default",
         force: bool = False,
+        resume: bool = False,
         stages: list[str] | None = None,
     ) -> PipelineJobState:
         """Start a sequential pipeline job. Returns its aggregate state.
@@ -651,6 +723,7 @@ class JobRunner:
                 meeting_id=meeting_id,
                 profile=profile if not stages else "custom",
                 force=force,
+                resume=resume,
                 status="running",
                 started_at=_now_iso(),
                 stages=[
