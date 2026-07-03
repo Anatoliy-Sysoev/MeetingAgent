@@ -11,38 +11,8 @@ import datetime
 from pathlib import Path
 from typing import Any
 
+from asu_june_bot.meetings.artifact_catalog import ARTIFACT_CATALOG
 from asu_june_bot.meetings.service import _artifact_map
-
-# Curated catalog: artifact_key → (title, stage, default relative path,
-# content_type).  The meeting card's artifacts map overrides the default
-# path when it names the same key.
-_CATALOG: list[dict[str, Any]] = [
-    {"artifact_key": "segments", "title": "Transcript segments", "stage": "transcribe",
-     "default_path": "transcript/segments.jsonl", "content_type": "jsonl"},
-    {"artifact_key": "transcript_txt", "title": "Transcript (plain text)", "stage": "transcribe",
-     "default_path": "transcript/transcript.txt", "content_type": "text"},
-    {"artifact_key": "diarization", "title": "Diarization", "stage": "diarize",
-     "default_path": "transcript/diarization.jsonl", "content_type": "jsonl"},
-    {"artifact_key": "speaker_transcript", "title": "Speaker transcript", "stage": "merge",
-     "default_path": "transcript/speaker_transcript.jsonl", "content_type": "jsonl"},
-    {"artifact_key": "chunks", "title": "Transcript chunks", "stage": "chunk",
-     "default_path": "transcript/chunks.jsonl", "content_type": "jsonl"},
-    {"artifact_key": "enriched_chunks", "title": "Enriched chunks", "stage": "enrich",
-     "default_path": "artifacts/enriched_chunks.jsonl", "content_type": "jsonl"},
-    {"artifact_key": "memo", "title": "Summary", "stage": "analyze",
-     "default_path": "artifacts/summary.md", "content_type": "markdown"},
-    {"artifact_key": "protocol", "title": "Protocol", "stage": "analyze",
-     "default_path": "artifacts/protocol.md", "content_type": "markdown"},
-    {"artifact_key": "decisions", "title": "Decisions", "stage": "analyze",
-     "default_path": "artifacts/decisions.json", "content_type": "json"},
-    {"artifact_key": "tasks", "title": "Tasks", "stage": "analyze",
-     "default_path": "artifacts/tasks.json", "content_type": "json"},
-    {"artifact_key": "risks", "title": "Risks", "stage": "analyze",
-     "default_path": "artifacts/risks.json", "content_type": "json"},
-    {"artifact_key": "open_questions", "title": "Open questions", "stage": "analyze",
-     "default_path": "artifacts/open_questions.json", "content_type": "json"},
-]
-
 
 def _safe_rel_target(meeting_dir: Path, rel: str) -> Path | None:
     """Resolve rel inside meeting_dir; None on traversal/absolute values."""
@@ -105,7 +75,7 @@ def build_artifact_manifest(
     ``rag.indexed_artifacts`` in the meeting card (no backing file).
     """
     artifacts_map = _artifact_map(card)
-    entries = [_entry(meeting_id, meeting_dir, spec, artifacts_map) for spec in _CATALOG]
+    entries = [_entry(meeting_id, meeting_dir, spec, artifacts_map) for spec in ARTIFACT_CATALOG]
 
     rag = card.get("rag")
     indexed = rag.get("indexed_artifacts") if isinstance(rag, dict) else None
