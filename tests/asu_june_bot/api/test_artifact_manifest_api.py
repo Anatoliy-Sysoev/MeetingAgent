@@ -39,9 +39,9 @@ CARD = {
 }
 
 EXPECTED_KEYS = [
-    "segments", "transcript_txt", "diarization", "speaker_transcript",
-    "chunks", "enriched_chunks", "memo", "protocol", "decisions",
-    "tasks", "risks", "open_questions", "index_status",
+    "segments", "transcript_txt", "transcription_report", "diarization",
+    "speaker_transcript", "chunks", "enriched_chunks", "memo", "protocol",
+    "decisions", "tasks", "risks", "open_questions", "index_status",
 ]
 
 
@@ -206,6 +206,43 @@ def test_api_unreadable_card_returns_default_manifest(tmp_path: Path) -> None:
     resp = client.get(f"/meetings/{MEETING_ID}/artifacts/manifest", headers=AUTH)
     assert resp.status_code == 200
     assert len(resp.json()["artifacts"]) == len(EXPECTED_KEYS)
+
+
+def test_transcription_report_in_catalog(tmp_path: Path) -> None:
+    d = _make_meeting(tmp_path)
+    _touch(d, "transcript/transcription_report.json", "{}")
+    entries = _by_key(build_artifact_manifest(MEETING_ID, d, CARD))
+    report = entries["transcription_report"]
+    assert report["stage"] == "transcribe"
+    assert report["content_type"] == "json"
+    assert report["exists"] is True
+
+
+def test_api_every_view_url_is_servable(tmp_path: Path) -> None:
+    """Every non-null view_url in the manifest must be served by the viewer,
+    including default-path artifacts not registered in meeting.json.artifacts."""
+    d = _make_meeting(tmp_path)  # artifacts map intentionally empty
+    _touch(d, "transcript/segments.jsonl", '{"a":1}\n')
+    _touch(d, "transcript/transcript.txt", "text")
+    _touch(d, "transcript/transcription_report.json", "{}")
+    _touch(d, "transcript/diarization.jsonl", '{"s":1}\n')
+    _touch(d, "transcript/speaker_transcript.jsonl", '{"s":1}\n')
+    _touch(d, "transcript/chunks.jsonl", '{"c":1}\n')
+    _touch(d, "artifacts/enriched_chunks.jsonl", '{"c":1}\n')
+    _touch(d, "artifacts/summary.md", "# S")
+    _touch(d, "artifacts/protocol.md", "# P")
+    _touch(d, "artifacts/decisions.json", "[]")
+    _touch(d, "artifacts/tasks.json", "[]")
+    _touch(d, "artifacts/risks.json", "[]")
+    _touch(d, "artifacts/open_questions.json", "[]")
+    client = _make_client(tmp_path)
+    manifest = client.get(f"/meetings/{MEETING_ID}/artifacts/manifest", headers=AUTH).json()
+    urls = [e["view_url"] for e in manifest["artifacts"] if e["view_url"]]
+    assert len(urls) == len(EXPECTED_KEYS) - 1  # all except index_status
+    for url in urls:
+        resp = client.get(url, headers=AUTH)
+        assert resp.status_code == 200, f"{url} → {resp.status_code}"
+        assert "error" not in resp.json(), f"{url} → {resp.json()}"
 
 
 def test_api_requires_auth(tmp_path: Path) -> None:
