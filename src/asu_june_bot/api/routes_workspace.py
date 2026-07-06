@@ -196,6 +196,29 @@ _WORKSPACE_HTML = """\
     .artifact-name { font-family: monospace; }
     .artifact-size { color: var(--muted); font-size: 11px; margin-left: 6px; }
 
+    /* ---- speaker mapping ---- */
+    .speaker-map-list { display: flex; flex-direction: column; gap: 8px; }
+    .speaker-map-row {
+      display: grid;
+      grid-template-columns: 90px minmax(0, 1fr) minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .speaker-map-label { font-family: monospace; font-size: 12px; color: var(--muted); }
+    .speaker-map-row input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px 8px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .speaker-actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+    .speaker-status { font-size: 12px; color: var(--muted); }
+    .speaker-status.err { color: var(--danger); }
+
     /* ---- artifact viewer ---- */
     .artifact-content {
       background: #f8fafc;
@@ -354,6 +377,20 @@ _WORKSPACE_HTML = """\
       </div>
     </div>
 
+    <!-- Speaker mapping -->
+    <div class="panel">
+      <div class="panel-header">Speaker mapping</div>
+      <div class="panel-body">
+        <div id="speaker-map-panel" class="speaker-map-list">
+          <div class="empty">Loading speakers&hellip;</div>
+        </div>
+        <div class="speaker-actions">
+          <button id="speaker-map-save-btn">Save mapping</button>
+          <span id="speaker-map-status" class="speaker-status"></span>
+        </div>
+      </div>
+    </div>
+
     <!-- Pipeline controls / status -->
     <div class="panel">
       <div class="panel-header">
@@ -419,6 +456,7 @@ const MEETING_ID = "__MEETING_ID__";
 // ---- state ----
 let _player = null;
 let _segments = [];
+let _speakerRows = [];
 // CSRF token is held in this in-memory variable only — never written to the
 // DOM or to any persistent browser storage.
 let _csrfToken = null;
@@ -583,6 +621,10 @@ async function loadTranscript() {
       const spk = _mkEl("span", "seg-speaker");
       spk.textContent = seg.speaker;
       meta.appendChild(spk);
+      if (seg.speaker_role) {
+        const role = document.createTextNode(` (${seg.speaker_role})`);
+        meta.appendChild(role);
+      }
     }
 
     const txt = _mkEl("div", "seg-text");
@@ -631,8 +673,104 @@ function filterSegments(q) {
     if (!q) { el.classList.remove("hidden"); return; }
     const text = (_segments[i]?.text || "").toLowerCase();
     const speaker = (_segments[i]?.speaker || "").toLowerCase();
-    el.classList.toggle("hidden", !text.includes(lower) && !speaker.includes(lower));
+    const speakerLabel = (_segments[i]?.speaker_label || "").toLowerCase();
+    const speakerRole = (_segments[i]?.speaker_role || "").toLowerCase();
+    el.classList.toggle(
+      "hidden",
+      !text.includes(lower) &&
+      !speaker.includes(lower) &&
+      !speakerLabel.includes(lower) &&
+      !speakerRole.includes(lower)
+    );
   });
+}
+
+// ---- speaker mapping ----
+async function loadSpeakerMapping() {
+  const panel = document.getElementById("speaker-map-panel");
+  const status = document.getElementById("speaker-map-status");
+  if (status) {
+    status.textContent = "";
+    status.classList.remove("err");
+  }
+  const resp = await apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}/speakers`);
+  if (!resp) { panel.replaceChildren(); return; }
+  if (!resp.ok) {
+    panel.replaceChildren(_mkEmptyMsg("Speaker mapping not available"));
+    return;
+  }
+  const data = await resp.json();
+  _speakerRows = data.speakers || [];
+  if (_speakerRows.length === 0) {
+    panel.replaceChildren(_mkEmptyMsg("No speaker labels found yet"));
+    return;
+  }
+  const nodes = _speakerRows.map((sp) => {
+    const row = _mkEl("div", "speaker-map-row");
+    row.dataset.speakerLabel = sp.speaker_label;
+
+    const label = _mkEl("div", "speaker-map-label");
+    label.textContent = sp.speaker_label;
+
+    const name = document.createElement("input");
+    name.type = "text";
+    name.maxLength = 120;
+    name.placeholder = "Name";
+    name.value = sp.name || "";
+    name.dataset.field = "name";
+
+    const role = document.createElement("input");
+    role.type = "text";
+    role.maxLength = 120;
+    role.placeholder = "Role";
+    role.value = sp.role || "";
+    role.dataset.field = "role";
+
+    row.append(label, name, role);
+    return row;
+  });
+  panel.replaceChildren(...nodes);
+}
+
+async function saveSpeakerMapping() {
+  const status = document.getElementById("speaker-map-status");
+  if (status) {
+    status.textContent = "";
+    status.classList.remove("err");
+  }
+  const csrf = await ensureCsrf();
+  if (!csrf) {
+    if (status) {
+      status.textContent = "Login required";
+      status.classList.add("err");
+    }
+    return;
+  }
+  const mapping = {};
+  document.querySelectorAll(".speaker-map-row").forEach((row) => {
+    const label = row.dataset.speakerLabel;
+    if (!label) return;
+    const nameInput = row.querySelector('input[data-field="name"]');
+    const roleInput = row.querySelector('input[data-field="role"]');
+    const name = (nameInput?.value || "").trim();
+    const role = (roleInput?.value || "").trim();
+    if (name || role) mapping[label] = { name, role };
+  });
+  const resp = await apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}/speakers/mapping`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+    body: JSON.stringify({ mapping }),
+  });
+  if (!resp) return;
+  if (!resp.ok) {
+    if (status) {
+      status.textContent = "Could not save speaker mapping";
+      status.classList.add("err");
+    }
+    return;
+  }
+  if (status) status.textContent = "Saved";
+  await Promise.all([loadSpeakerMapping(), loadTranscript()]);
 }
 
 // ---- artifacts ----
@@ -1341,6 +1479,7 @@ async function reloadAll() {
     loadMeeting(),
     loadMedia(),
     loadTranscript(),
+    loadSpeakerMapping(),
     loadArtifacts(),
     loadJobs(),
   ]);
@@ -1354,6 +1493,9 @@ if (_segFilter) _segFilter.addEventListener("input", (e) => filterSegments(e.tar
 
 const _closeArtifactBtn = document.getElementById("close-artifact-btn");
 if (_closeArtifactBtn) _closeArtifactBtn.addEventListener("click", closeArtifact);
+
+const _speakerMapSaveBtn = document.getElementById("speaker-map-save-btn");
+if (_speakerMapSaveBtn) _speakerMapSaveBtn.addEventListener("click", saveSpeakerMapping);
 
 const _jobsRefreshBtn = document.getElementById("jobs-refresh-btn");
 if (_jobsRefreshBtn) {

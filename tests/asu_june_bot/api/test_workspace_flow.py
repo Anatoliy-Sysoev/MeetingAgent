@@ -48,6 +48,15 @@ def test_manifest_api_integrated(html: str) -> None:
     assert "loadManifest" in html
 
 
+def test_speaker_mapping_panel_integrated(html: str) -> None:
+    assert 'id="speaker-map-panel"' in html
+    assert 'id="speaker-map-save-btn"' in html
+    assert "/speakers" in html
+    assert "/speakers/mapping" in html
+    assert "loadSpeakerMapping" in html
+    assert "saveSpeakerMapping" in html
+
+
 def test_last_error_shown_public_safe(html: str) -> None:
     # last error text comes from readiness detail (public-safe), via textContent
     assert "jobs-last-error" in html
@@ -156,13 +165,23 @@ def test_pipeline_and_retry_posts_use_ensure_csrf(html: str) -> None:
         assert "ensureCsrf()" in block, fn
 
 
+def test_speaker_mapping_put_uses_csrf_and_aborts_without_token(html: str) -> None:
+    block = html[html.index("async function saveSpeakerMapping"):]
+    block = block[: block.index("\n}\n") + 2]
+    csrf_check = block.index("if (!csrf)")
+    put_call = block.index('method: "PUT"')
+    assert "ensureCsrf()" in block
+    assert "X-CSRF-Token" in block
+    assert csrf_check < put_call
+
+
 def test_no_inline_event_handlers(html: str) -> None:
     assert not re.search(r"<[^>]+\son(click|change|submit|keydown|input)\s*=", html)
 
 
 def test_dynamic_values_use_dom_apis(html: str) -> None:
     # new flow rendering functions must not build HTML strings
-    for fn in ("renderPipelineActions", "renderResults", "updateQaAvailability"):
+    for fn in ("renderPipelineActions", "renderResults", "updateQaAvailability", "loadSpeakerMapping"):
         block = html[html.index(f"function {fn}"):]
         block = block[: block.index("\n}\n") + 2]
         assert "innerHTML" not in block, fn
