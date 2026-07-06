@@ -50,6 +50,19 @@ def _too_large(exc: ArtifactTooLargeError) -> HTTPException:
     )
 
 
+class SpeakerMappingEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(default="", max_length=120)
+    role: str = Field(default="", max_length=120)
+
+
+class SpeakerMappingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mapping: dict[str, SpeakerMappingEntry] = Field(default_factory=dict)
+
+
 @router.get("")
 def list_meetings(
     offset: int = Query(default=0, ge=0),
@@ -109,6 +122,44 @@ def list_artifacts(
     if artifacts is None:
         raise _not_found(meeting_id)
     return {"meeting_id": meeting_id, "artifacts": artifacts}
+
+
+@router.get("/{meeting_id}/speakers")
+def get_speakers(
+    meeting_id: str,
+    service: MeetingsService = Depends(get_meetings_service),
+    _principal: Annotated[Principal, Depends(require_permission("transcripts.read"))] = ...,
+) -> dict:
+    try:
+        result = service.get_speakers(meeting_id)
+    except ArtifactTooLargeError as exc:
+        raise _too_large(exc) from exc
+    except MeetingCardError as exc:
+        raise _invalid_card(exc) from exc
+    if result is None:
+        raise _not_found(meeting_id)
+    return result
+
+
+@router.put("/{meeting_id}/speakers/mapping")
+def update_speaker_mapping(
+    meeting_id: str,
+    payload: SpeakerMappingRequest,
+    service: MeetingsService = Depends(get_meetings_service),
+    _principal: Annotated[Principal, Depends(require_action_permission("meetings.edit"))] = ...,
+) -> dict:
+    try:
+        raw_mapping = {label: entry.model_dump() for label, entry in payload.mapping.items()}
+        result = service.update_speaker_mapping(meeting_id, raw_mapping)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ArtifactTooLargeError as exc:
+        raise _too_large(exc) from exc
+    except MeetingCardError as exc:
+        raise _invalid_card(exc) from exc
+    if result is None:
+        raise _not_found(meeting_id)
+    return result
 
 
 # Declared BEFORE /{meeting_id}/artifacts/{artifact_name} so "manifest" is
