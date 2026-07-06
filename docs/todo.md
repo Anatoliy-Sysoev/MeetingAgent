@@ -1,6 +1,6 @@
 # Todo
 
-Обновлено: 2026-07-02.
+Обновлено: 2026-07-06.
 
 ## Done
 
@@ -32,14 +32,14 @@
 - [x] DOC-CURRENT-STATE-REFRESH (#127): current documentation refresh.
 - [x] MA-MEETING-ARTIFACT-CONTRACT (#119, PR #129): stable artifact manifest + shared catalog resolver.
 - [x] MA-MEETING-ERRORS-AND-RETRY (#120, PR #130): normalized last_error, stage retry, pipeline resume, ready_for_retry readiness.
+- [x] MA-WORKSPACE-FLOW (#121, PR #131): readiness/manifest-driven workspace flow, run/resume/retry controls, result chips, Q&A gating, pipeline-aware polling.
 
 ## Active / Next
 
-- [ ] MA-WORKSPACE-FLOW (#121): readiness/manifest-driven workspace flow — branch 121-workspace-flow (awaiting review).
+- [ ] MA-SPEAKER-MAPPING-UI (#122): map diarized `SPEAKER_XX` labels to names and roles.
 
 ## Meeting Product Backlog
 
-- [ ] MA-SPEAKER-MAPPING-UI (#122): map diarized `SPEAKER_XX` labels to names and roles.
 - [ ] MA-MEETING-STRUCTURED-ARTIFACTS-V2 (#123): source-grounded summary, protocol, decisions, tasks, risks and open questions.
 - [ ] MA-MEETING-PACKAGING-LOCAL (#124): local all-in-one runbook and Docker profile.
 - [ ] MA-MEETING-QA-SEGMENT-CITATIONS (#126): map meeting Q&A citations to transcript segments.

@@ -1,19 +1,21 @@
 # Текущий Контекст
 
-Обновлено: 2026-07-02.
+Обновлено: 2026-07-06.
 
 ## Now
 
-- active task: MA-WORKSPACE-FLOW (#121) — workspace meeting flow: readiness/manifest-driven controls, run/resume/retry, Q&A gating.
-- branch: 121-workspace-flow.
-- canonical main state: latest merged pipeline/UI work is in `origin/main` through PR #118.
+- active task: MA-SPEAKER-MAPPING-UI (#122) — ручное сопоставление `SPEAKER_XX` с именами и ролями.
+- branch: not started yet.
+- canonical main state: latest merged pipeline/UI work is in `origin/main` through PR #131.
 
 ## Done latest
 
 - MA-WORKSPACE-QA-V2-UI (#113, PR #116): Workspace Q&A/Search показывает `retrieval_mode` (`semantic`/`lexical`) и `citation_label` вида `[00:12:34, Спикер]`; DOM/CSP-гигиена сохранена.
 - MA-MEETING-STAGE-READINESS (#114, PR #117): `GET /meetings/{id}/pipeline/readiness` отдаёт карту стадий `done/ready/blocked`, `can_run`, machine-readable `reason`, required/produced artifacts без абсолютных путей.
 - MA-MEETING-PIPELINE-RUN-ALL (#115, PR #118): `POST /meetings/{id}/jobs/pipeline` запускает последовательные профили `default`, `full`, `transcript_only`, `qa_ready`; готовые стадии skip без `force`; cancel останавливает текущую дочернюю стадию.
-- Issue hygiene: закрыты уже реализованные/superseded issue #33, #44, #45, #63, #68, #78; созданы follow-up issue #119-#127.
+- MA-MEETING-ARTIFACT-CONTRACT (#119, PR #129): stable artifact manifest, shared catalog resolver, transcription report entry, default-path artifact serving.
+- MA-MEETING-ERRORS-AND-RETRY (#120, PR #130): normalized public-safe `last_error`, stage retry, pipeline resume, `ready_for_retry` readiness. Issue #120 closed after merge.
+- MA-WORKSPACE-FLOW (#121, PR #131): readiness/manifest-driven Workspace flow, run/resume/retry controls, pipeline-aware polling, Q&A gating, CSRF on every POST. Issue #121 closed after merge.
 
 ## Current Product State
 
@@ -89,7 +91,7 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- #122 MA-SPEAKER-MAPPING-UI — speaker names/roles mapping (next after #121 review).
+- #122 MA-SPEAKER-MAPPING-UI — speaker names/roles mapping.
 
 ## Open decisions / blockers
 
