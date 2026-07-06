@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
 import re
 import shutil
+import tempfile
 from pathlib import Path
 from collections.abc import Mapping
 from typing import Any
@@ -41,6 +43,9 @@ _SCHEMA_PATH = Path(__file__).resolve().parents[3] / "configs" / "schemas" / "me
 
 # Default upper bound on text transcript/artifact reads (bytes, not characters).
 DEFAULT_MAX_TEXT_ARTIFACT_BYTES = 10 * 1024 * 1024  # 10 MiB
+_SPEAKER_LABEL_RE = re.compile(r"^SPEAKER_(?:UNKNOWN|\d{1,4})$")
+_SPEAKER_NAME_MAX_CHARS = 120
+_SPEAKER_ROLE_MAX_CHARS = 120
 
 
 class MeetingCardError(ValueError):
@@ -201,6 +206,60 @@ def _media_files(card: Mapping[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(raw, list):
         return []
     return [item for item in raw if isinstance(item, dict)]
+
+
+def _speaker_mapping(card: Mapping[str, Any]) -> dict[str, dict[str, str]]:
+    raw = card.get("speaker_mapping")
+    if not isinstance(raw, dict):
+        return {}
+    result: dict[str, dict[str, str]] = {}
+    for label, entry in raw.items():
+        if not isinstance(label, str) or not _SPEAKER_LABEL_RE.match(label):
+            continue
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get("name") or "").strip()
+        role = str(entry.get("role") or "").strip()
+        if not name and not role:
+            continue
+        result[label] = {
+            "name": name[:_SPEAKER_NAME_MAX_CHARS],
+            "role": role[:_SPEAKER_ROLE_MAX_CHARS],
+        }
+    return result
+
+
+def _normalize_speaker_mapping(mapping: Mapping[str, Any]) -> dict[str, dict[str, str]]:
+    normalized: dict[str, dict[str, str]] = {}
+    for label, raw_entry in mapping.items():
+        if not isinstance(label, str) or not _SPEAKER_LABEL_RE.match(label):
+            raise ValueError(f"Invalid speaker label: {label!r}")
+        if not isinstance(raw_entry, Mapping):
+            raise ValueError(f"Speaker mapping entry must be an object: {label!r}")
+        name = str(raw_entry.get("name") or "").strip()
+        role = str(raw_entry.get("role") or "").strip()
+        if len(name) > _SPEAKER_NAME_MAX_CHARS:
+            raise ValueError(f"Speaker name is too long: {label!r}")
+        if len(role) > _SPEAKER_ROLE_MAX_CHARS:
+            raise ValueError(f"Speaker role is too long: {label!r}")
+        if not name and not role:
+            continue
+        normalized[label] = {"name": name, "role": role}
+    return normalized
+
+
+def _speaker_display(label: str | None, mapping: Mapping[str, Mapping[str, str]]) -> dict[str, Any]:
+    if not label:
+        return {"speaker": None, "speaker_label": None, "speaker_role": None, "speaker_mapped": False}
+    mapped = mapping.get(label) or {}
+    name = str(mapped.get("name") or "").strip()
+    role = str(mapped.get("role") or "").strip()
+    return {
+        "speaker": name or label,
+        "speaker_label": label,
+        "speaker_role": role or None,
+        "speaker_mapped": bool(name or role),
+    }
 
 
 def _detect_content_type(path: Path) -> str | None:
@@ -502,6 +561,102 @@ class MeetingsService:
             return None
         return abs_path, mime
 
+    def _artifact_path_for(self, meeting_id: str, card: Mapping[str, Any], artifact_name: str) -> Path | None:
+        artifacts = _artifact_map(card)
+        rel = artifacts.get(artifact_name) or ARTIFACT_DEFAULT_PATHS.get(artifact_name)
+        if not rel:
+            return None
+        meeting_dir = self._meeting_dir(meeting_id)
+        abs_path = (meeting_dir / rel).resolve()
+        try:
+            abs_path.relative_to(meeting_dir.resolve())
+        except ValueError:
+            return None
+        if not abs_path.exists() or not abs_path.is_file():
+            return None
+        return abs_path
+
+    def _read_jsonl_artifact(
+        self, meeting_id: str, card: Mapping[str, Any], artifact_name: str
+    ) -> list[dict[str, Any]]:
+        path = self._artifact_path_for(meeting_id, card, artifact_name)
+        if path is None:
+            return []
+        text = self._read_text_bounded(path, artifact_name)
+        rows: list[dict[str, Any]] = []
+        for line in text.splitlines():
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
+        return rows
+
+    def get_speakers(self, meeting_id: str) -> dict[str, Any] | None:
+        if not _safe_meeting_id(meeting_id):
+            return None
+        card_path = self._card_path(meeting_id)
+        if not card_path.exists():
+            return None
+        card = _read_meeting_json(card_path)
+        mapping = _speaker_mapping(card)
+        labels: set[str] = set()
+        for artifact in ("speaker_transcript", "diarization", "segments"):
+            for row in self._read_jsonl_artifact(meeting_id, card, artifact):
+                label = (
+                    row.get("speaker")
+                    or row.get("speaker_id")
+                    or row.get("speaker_label")
+                )
+                if isinstance(label, str) and _SPEAKER_LABEL_RE.match(label):
+                    labels.add(label)
+        labels.update(mapping)
+        speakers: list[dict[str, Any]] = []
+        for label in sorted(labels):
+            display = _speaker_display(label, mapping)
+            speakers.append({
+                "speaker_label": label,
+                "name": str((mapping.get(label) or {}).get("name") or ""),
+                "role": str((mapping.get(label) or {}).get("role") or ""),
+                "display_name": display["speaker"],
+                "mapped": bool(display["speaker_mapped"]),
+            })
+        return {"meeting_id": meeting_id, "speakers": speakers, "mapping": mapping}
+
+    def update_speaker_mapping(
+        self, meeting_id: str, mapping: Mapping[str, Any]
+    ) -> dict[str, Any] | None:
+        if not _safe_meeting_id(meeting_id):
+            return None
+        card_path = self._card_path(meeting_id)
+        if not card_path.exists():
+            return None
+        card = _read_meeting_json(card_path)
+        normalized = _normalize_speaker_mapping(mapping)
+        if normalized:
+            card["speaker_mapping"] = normalized
+        else:
+            card.pop("speaker_mapping", None)
+        card["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=".meeting.",
+            suffix=".json.tmp",
+            dir=str(card_path.parent),
+            text=True,
+        )
+        tmp_path = Path(tmp_name)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(json.dumps(card, ensure_ascii=False, indent=2) + "\n")
+            tmp_path.replace(card_path)
+        except Exception:
+            tmp_path.unlink(missing_ok=True)
+            raise
+        return self.get_speakers(meeting_id)
+
     def get_transcript_segments(self, meeting_id: str) -> dict[str, Any] | None:
         """Return normalized transcript segments for the workspace UI.
 
@@ -516,6 +671,30 @@ class MeetingsService:
         card_path = self._card_path(meeting_id)
         if not card_path.exists():
             return None
+        card = _read_meeting_json(card_path)
+        mapping = _speaker_mapping(card)
+        speaker_rows = self._read_jsonl_artifact(meeting_id, card, "speaker_transcript")
+        if speaker_rows:
+            base: dict[str, Any] = {"meeting_id": meeting_id, "segments": []}
+            normalized = []
+            for i, seg in enumerate(speaker_rows):
+                label = (
+                    seg.get("speaker")
+                    or seg.get("speaker_id")
+                    or seg.get("speaker_label")
+                )
+                speaker = _speaker_display(label if isinstance(label, str) else None, mapping)
+                normalized.append({
+                    "segment_id": str(seg.get("utterance_id") or seg.get("segment_id") or f"seg-{i + 1:06d}"),
+                    "start_sec": _coerce_float(_first_present(seg, "start_sec", "start")),
+                    "end_sec": _coerce_float(_first_present(seg, "end_sec", "end")),
+                    **speaker,
+                    "text": (
+                        seg.get("text") or seg.get("content") or seg.get("transcript") or ""
+                    ),
+                })
+            base["segments"] = normalized
+            return base
         raw = self.get_transcript(meeting_id)
         if raw is None:
             return None
@@ -526,15 +705,17 @@ class MeetingsService:
             return base  # text/json transcript — segment shape not available
         normalized = []
         for i, seg in enumerate(raw.get("segments") or []):
+            label = (
+                seg.get("speaker")
+                or seg.get("speaker_id")
+                or seg.get("speaker_label")
+            )
+            speaker = _speaker_display(label if isinstance(label, str) else None, mapping)
             normalized.append({
                 "segment_id": f"seg-{i + 1:06d}",
                 "start_sec": _coerce_float(_first_present(seg, "start_sec", "start")),
                 "end_sec": _coerce_float(_first_present(seg, "end_sec", "end")),
-                "speaker": (
-                    seg.get("speaker")
-                    or seg.get("speaker_id")
-                    or seg.get("speaker_label")
-                ),
+                **speaker,
                 "text": (
                     seg.get("text") or seg.get("content") or seg.get("transcript") or ""
                 ),
