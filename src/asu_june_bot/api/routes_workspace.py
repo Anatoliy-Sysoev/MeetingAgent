@@ -5,7 +5,7 @@ import json as _json
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from asu_june_bot.meetings.service import MeetingsService, _safe_meeting_id
+from asu_june_bot.meetings.service import _safe_meeting_id
 
 router = APIRouter(tags=["workspace"])
 
@@ -220,6 +220,18 @@ _WORKSPACE_HTML = """\
     }
     .jobs-label { color: var(--muted); }
     .jobs-stages { margin-top: 10px; }
+    .pipeline-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .pipeline-actions button { font-size: 12px; }
+    .pipeline-results { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .result-chip {
+      font-size: 11px; border: 1px solid #cbd5df; border-radius: 999px;
+      padding: 3px 10px; background: #f7f8fa; cursor: pointer;
+    }
+    .stage-state { font-size: 11px; border-radius: 999px; padding: 1px 8px; margin-left: 6px; }
+    .stage-state.done { background: #e7f6ee; color: #1f9d68; }
+    .stage-state.ready { background: #e7f5fd; color: #168ccc; }
+    .stage-state.blocked { background: #f1f3f5; color: #6b7785; }
+    .stage-state.ready_for_retry { background: #fdeeee; color: #c0392b; }
     .stage-row {
       display: flex;
       align-items: center;
@@ -352,8 +364,11 @@ _WORKSPACE_HTML = """\
         <div id="jobs-status" class="jobs-status">
           <div class="empty">Loading&hellip;</div>
         </div>
+        <div id="jobs-last-error" class="err-msg" style="display:none"></div>
         <div id="jobs-error" class="err-msg" style="display:none"></div>
+        <div id="pipeline-actions" class="pipeline-actions"></div>
         <div id="jobs-stages" class="jobs-stages"></div>
+        <div id="pipeline-results" class="pipeline-results"></div>
       </div>
     </div>
 
@@ -368,6 +383,7 @@ _WORKSPACE_HTML = """\
           <div class="qa-row">
             <button id="qa-ask-btn">Ask</button>
           </div>
+          <div id="qa-availability" class="qa-mode"></div>
           <div id="qa-chat-status" class="qa-status"></div>
           <div id="qa-chat-mode" class="qa-mode"></div>
           <div id="qa-chat-error" class="qa-error"></div>
@@ -749,11 +765,63 @@ async function loadStages() {
   _stages = Array.isArray(d.stages) ? d.stages : [];
 }
 
+let _readiness = {};      // stage -> readiness entry
+let _manifest = null;      // artifacts manifest payload
+let _failedStage = null;   // stage with state=ready_for_retry
+
+async function loadReadiness() {
+  const resp = await apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}/pipeline/readiness`);
+  _readiness = {};
+  _failedStage = null;
+  if (!resp || !resp.ok) return;
+  const d = await resp.json();
+  for (const st of (Array.isArray(d.stages) ? d.stages : [])) {
+    _readiness[st.stage] = st;
+    if (st.state === "ready_for_retry") _failedStage = st.stage;
+  }
+}
+
+async function loadManifest() {
+  const resp = await apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}/artifacts/manifest`);
+  _manifest = null;
+  if (!resp || !resp.ok) return;
+  _manifest = await resp.json();
+}
+
+function manifestEntry(key) {
+  if (!_manifest || !Array.isArray(_manifest.artifacts)) return null;
+  return _manifest.artifacts.find((e) => e.artifact_key === key) || null;
+}
+
+let _trackedJobId = null;  // job_id from the last 202 (stage, retry or pipeline)
+
+function _jobIsActive(j) {
+  if (!j || !j.job_id) return false;
+  // pipeline aggregates report "running"; stage jobs "starting"/"running"
+  return j.status === "running" || j.status === "starting";
+}
+
 async function loadActiveJob() {
+  // Prefer polling the exact job we started: survives pipeline gaps between
+  // child stages and never mistakes another meeting's job for ours.
+  if (_trackedJobId) {
+    const resp = await apiFetch(
+      `/meetings/${encodeURIComponent(MEETING_ID)}/jobs/${encodeURIComponent(_trackedJobId)}`
+    );
+    if (resp && resp.ok) {
+      const j = await resp.json();
+      if (_jobIsActive(j)) { _activeJob = j; return; }
+      _trackedJobId = null;  // finished (completed/failed/cancelled)
+      _activeJob = null;
+      return;
+    }
+    _trackedJobId = null;
+  }
   const resp = await apiFetch("/jobs/active");
   if (!resp || !resp.ok) { _activeJob = null; return; }
   const j = await resp.json();
-  _activeJob = (j && j.job_id && j.meeting_id === MEETING_ID) ? j : null;
+  _activeJob = (_jobIsActive(j) && j.meeting_id === MEETING_ID) ? j : null;
+  if (_activeJob) _trackedJobId = _activeJob.job_id;
 }
 
 async function loadMeetingStatus() {
@@ -788,7 +856,10 @@ function renderJobs(status) {
     const jBadge = document.createElement("span");
     jBadge.className = "badge " + (_activeJob.status === "running" ? "warn" : "");
     jBadge.textContent = _activeJob.status || "";
-    aVal.textContent = (_activeJob.stage || "") + " ";
+    const label = _activeJob.kind === "pipeline"
+      ? "pipeline" + (_activeJob.current_stage ? ` (${_activeJob.current_stage})` : "")
+      : (_activeJob.stage || "");
+    aVal.textContent = label + " ";
     aVal.appendChild(jBadge);
   } else {
     aVal.textContent = "None";
@@ -810,11 +881,27 @@ function renderJobs(status) {
     statusEl.appendChild(cancelBtn);
   }
 
-  // Stage list with Start buttons
+  // Last error (public-safe detail from readiness previous_failed)
+  const lastErrEl = document.getElementById("jobs-last-error");
+  const failedEntry = _failedStage ? _readiness[_failedStage] : null;
+  if (failedEntry) {
+    lastErrEl.style.display = "";
+    lastErrEl.textContent =
+      `Last error in stage "${_failedStage}": ${failedEntry.detail || "previous run failed"}`;
+  } else {
+    lastErrEl.style.display = "none";
+    lastErrEl.textContent = "";
+  }
+
+  renderPipelineActions();
+
+  // Stage list with readiness-gated controls
   const stagesEl = document.getElementById("jobs-stages");
   stagesEl.textContent = "";
   const canStart = _permissions.has("jobs.start");
+  const canRetry = _permissions.has("jobs.retry");
   for (const st of _stages) {
+    const ready = _readiness[st.stage] || null;
     const row = document.createElement("div");
     row.className = "stage-row";
 
@@ -823,25 +910,145 @@ function renderJobs(status) {
     const label = document.createElement("div");
     label.className = "stage-label";
     label.textContent = st.label || st.stage;
+    if (ready) {
+      const state = document.createElement("span");
+      state.className = "stage-state " + ready.state;
+      state.textContent = ready.state.replace(/_/g, " ");
+      label.appendChild(state);
+    }
     const desc = document.createElement("div");
     desc.className = "stage-desc";
-    desc.textContent = st.description || "";
+    if (ready && ready.state === "blocked") {
+      desc.textContent = ready.detail || ready.reason || "blocked";
+    } else {
+      desc.textContent = st.description || "";
+    }
     info.append(label, desc);
 
     const actions = document.createElement("div");
     actions.className = "stage-actions";
-    const startBtn = document.createElement("button");
-    startBtn.className = "primary";
-    startBtn.textContent = "Start";
-    startBtn.dataset.stage = st.stage;
-    startBtn.disabled = !canStart || _activeJob !== null || _actionInProgress;
-    if (!canStart) startBtn.title = "Permission required: jobs.start";
-    else if (_activeJob !== null) startBtn.title = "Another job is already running";
-    startBtn.addEventListener("click", () => startStage(startBtn.dataset.stage));
-    actions.appendChild(startBtn);
+    if (ready && ready.state === "done") {
+      // Re-running a finished stage is an explicit force action, never default.
+      const forceBtn = document.createElement("button");
+      forceBtn.textContent = "Force rerun";
+      forceBtn.dataset.stage = st.stage;
+      forceBtn.disabled = !canRetry || _activeJob !== null || _actionInProgress;
+      forceBtn.title = !canRetry
+        ? "Permission required: jobs.retry"
+        : "Stage output already exists; this re-runs it from scratch";
+      forceBtn.addEventListener("click", () => retryStage(forceBtn.dataset.stage, true));
+      actions.appendChild(forceBtn);
+    } else if (ready && ready.state === "ready_for_retry") {
+      const retryBtn = document.createElement("button");
+      retryBtn.className = "primary";
+      retryBtn.textContent = "Retry";
+      retryBtn.dataset.stage = st.stage;
+      retryBtn.disabled = !canRetry || _activeJob !== null || _actionInProgress;
+      if (!canRetry) retryBtn.title = "Permission required: jobs.retry";
+      retryBtn.addEventListener("click", () => retryStage(retryBtn.dataset.stage, false));
+      actions.appendChild(retryBtn);
+    } else {
+      const startBtn = document.createElement("button");
+      startBtn.className = "primary";
+      startBtn.textContent = "Start";
+      startBtn.dataset.stage = st.stage;
+      const blocked = ready ? ready.can_run === false : false;
+      startBtn.disabled = !canStart || blocked || _activeJob !== null || _actionInProgress;
+      if (!canStart) startBtn.title = "Permission required: jobs.start";
+      else if (blocked) startBtn.title = ready.detail || "Stage is blocked";
+      else if (_activeJob !== null) startBtn.title = "Another job is already running";
+      startBtn.addEventListener("click", () => startStage(startBtn.dataset.stage));
+      actions.appendChild(startBtn);
+    }
 
     row.append(info, actions);
     stagesEl.appendChild(row);
+  }
+
+  renderResults();
+  updateQaAvailability();
+}
+
+// Pipeline-level actions: run full, resume, retry failed stage.
+function renderPipelineActions() {
+  const box = document.getElementById("pipeline-actions");
+  box.textContent = "";
+  const canStart = _permissions.has("jobs.start");
+  const canRetry = _permissions.has("jobs.retry");
+  const busy = _activeJob !== null || _actionInProgress;
+
+  const states = Object.values(_readiness);
+  const anyDone = states.some((s) => s.state === "done");
+  const anyPending = states.some((s) => s.state !== "done");
+
+  const runBtn = document.createElement("button");
+  runBtn.className = "primary";
+  runBtn.textContent = "Run full pipeline";
+  runBtn.disabled = !canStart || busy;
+  if (!canStart) runBtn.title = "Permission required: jobs.start";
+  runBtn.addEventListener("click", () => startPipeline({ profile: "full" }));
+  box.appendChild(runBtn);
+
+  if (anyDone && anyPending) {
+    const resumeBtn = document.createElement("button");
+    resumeBtn.textContent = "Resume pipeline";
+    resumeBtn.disabled = !canStart || busy;
+    resumeBtn.title = "Continue: done stages are skipped, execution starts at the first pending stage";
+    resumeBtn.addEventListener("click", () => startPipeline({ profile: "full", resume: true }));
+    box.appendChild(resumeBtn);
+  }
+
+  if (_failedStage) {
+    const retryBtn = document.createElement("button");
+    retryBtn.textContent = "Retry failed stage";
+    retryBtn.dataset.stage = _failedStage;
+    retryBtn.disabled = !canRetry || busy;
+    if (!canRetry) retryBtn.title = "Permission required: jobs.retry";
+    retryBtn.addEventListener("click", () => retryStage(retryBtn.dataset.stage, false));
+    box.appendChild(retryBtn);
+  }
+}
+
+// Quick links to results that already exist (manifest-driven).
+function renderResults() {
+  const box = document.getElementById("pipeline-results");
+  box.textContent = "";
+  const targets = [
+    { key: "segments", label: "Transcript", panel: "transcript-list" },
+    { key: "speaker_transcript", label: "Speaker transcript", panel: "artifacts-panel" },
+    { key: "memo", label: "Summary", panel: "artifacts-panel" },
+    { key: "protocol", label: "Protocol", panel: "artifacts-panel" },
+    { key: "tasks", label: "Tasks", panel: "artifacts-panel" },
+  ];
+  for (const tgt of targets) {
+    const entry = manifestEntry(tgt.key);
+    if (!entry || !entry.exists) continue;
+    const chip = document.createElement("button");
+    chip.className = "result-chip";
+    chip.textContent = tgt.label + " ✓";
+    chip.dataset.panel = tgt.panel;
+    chip.addEventListener("click", () => {
+      const panel = document.getElementById(chip.dataset.panel);
+      if (panel) panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    box.appendChild(chip);
+  }
+}
+
+// Meeting Q&A works only after the meeting is indexed.
+function updateQaAvailability() {
+  const idx = manifestEntry("index_status");
+  const chunks = manifestEntry("chunks");
+  const available = Boolean((idx && idx.exists) || (chunks && chunks.exists));
+  const hint = document.getElementById("qa-availability");
+  const askBtn = document.getElementById("qa-ask-btn");
+  const searchBtn = document.getElementById("qa-search-btn");
+  if (askBtn) askBtn.disabled = !available;
+  if (searchBtn) searchBtn.disabled = !available;
+  if (hint) {
+    hint.textContent = available
+      ? ""
+      : "Q&A becomes available after the meeting is chunked and indexed (run the pipeline).";
   }
 }
 
@@ -858,6 +1065,68 @@ async function startStage(stage) {
     );
     if (!resp) return;  // 401 handled
     if (!resp.ok) { setJobsError(await describeError(resp, "Could not start job.")); return; }
+    const started = await safeJobBody(resp);
+    if (started && started.job_id) _trackedJobId = started.job_id;
+  } finally {
+    _actionInProgress = false;
+  }
+  await refreshJobs();
+  startPolling();
+}
+
+async function safeJobBody(resp) {
+  try { return await resp.json(); } catch (e) { return null; }
+}
+
+async function startPipeline(opts) {
+  if (_actionInProgress) return;
+  setJobsError("");
+  const csrf = await ensureCsrf();
+  if (!csrf) { setJobsError("Could not obtain CSRF token. Please log in again."); return; }
+  _actionInProgress = true;
+  try {
+    const resp = await apiFetch(
+      `/meetings/${encodeURIComponent(MEETING_ID)}/jobs/pipeline`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        body: JSON.stringify({
+          profile: opts.profile || "full",
+          resume: Boolean(opts.resume),
+          force: Boolean(opts.force),
+        }),
+      }
+    );
+    if (!resp) return;
+    if (!resp.ok) { setJobsError(await describeError(resp, "Could not start pipeline.")); return; }
+    const started = await safeJobBody(resp);
+    if (started && started.job_id) _trackedJobId = started.job_id;
+  } finally {
+    _actionInProgress = false;
+  }
+  await refreshJobs();
+  startPolling();
+}
+
+async function retryStage(stage, force) {
+  if (_actionInProgress) return;
+  setJobsError("");
+  const csrf = await ensureCsrf();
+  if (!csrf) { setJobsError("Could not obtain CSRF token. Please log in again."); return; }
+  _actionInProgress = true;
+  try {
+    const resp = await apiFetch(
+      `/meetings/${encodeURIComponent(MEETING_ID)}/jobs/${encodeURIComponent(stage)}/retry`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        body: JSON.stringify({ force: Boolean(force) }),
+      }
+    );
+    if (!resp) return;
+    if (!resp.ok) { setJobsError(await describeError(resp, "Could not retry stage.")); return; }
+    const started = await safeJobBody(resp);
+    if (started && started.job_id) _trackedJobId = started.job_id;
   } finally {
     _actionInProgress = false;
   }
@@ -885,15 +1154,22 @@ async function cancelActiveJob(jobId) {
 }
 
 async function refreshJobs() {
+  const hadActive = _activeJob !== null;
   const [status] = await Promise.all([
     loadMeetingStatus(),
     loadActiveJob(),
+    loadReadiness(),
+    loadManifest(),
   ]);
   renderJobs(status);
-  // Stop polling once no job is active.
+  // Stop polling once no job is active; refresh result panels after a job
+  // finished so new transcript/artifacts appear without a manual reload.
   if (!_activeJob && _pollTimer) {
     clearInterval(_pollTimer);
     _pollTimer = null;
+  }
+  if (hadActive && _activeJob === null) {
+    await Promise.all([loadTranscript(), loadArtifacts()]);
   }
 }
 
@@ -952,11 +1228,17 @@ async function meetingSearch() {
   container.replaceChildren();
   if (!query) return;
   setText("qa-search-status", "Searching…");
+  const csrf = await ensureCsrf();
+  if (!csrf) {
+    setText("qa-search-status", "");
+    setText("qa-search-error", "Could not obtain CSRF token. Please log in again.");
+    return;
+  }
   let resp;
   try {
     resp = await apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}/search`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
       body: JSON.stringify({ query: query, top_k: 5 }),
     });
   } catch (e) {

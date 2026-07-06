@@ -402,6 +402,31 @@ def test_api_requires_auth(tmp_path: Path) -> None:
     assert resp.status_code == 401
 
 
+def test_get_active_is_pipeline_aware(tmp_path: Path) -> None:
+    """While a pipeline runs (even between child stages), get_active() and
+    GET /jobs/active must report the pipeline aggregate, not None (#121)."""
+    _make_meeting(tmp_path)
+    client, runner = _make_client(tmp_path)
+    pipeline = PipelineJobState(
+        job_id="p-active", meeting_id=MEETING_ID, profile="default", force=False,
+        status="running", started_at="now",
+        stages=[{"stage": "chunk", "status": "running", "job_id": None,
+                 "exit_code": None, "reason": None}],
+    )
+    runner.active_pipeline = pipeline
+    assert runner.active_job is None  # gap between child stages
+    assert runner.get_active() is pipeline
+    resp = client.get("/jobs/active", headers=AUTH)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["kind"] == "pipeline"
+    assert body["job_id"] == "p-active"
+    assert body["status"] == "running"
+    # child stage job takes precedence only when a pipeline is not active
+    runner.active_pipeline = None
+    assert runner.get_active() is None
+
+
 def test_api_pipeline_not_captured_as_stage(tmp_path: Path) -> None:
     """POST /jobs/pipeline must hit the pipeline route, not /jobs/{stage}."""
     _make_meeting(tmp_path)

@@ -30,12 +30,12 @@
 - [x] MA-MEETING-STAGE-READINESS (#114): readiness map API.
 - [x] MA-MEETING-PIPELINE-RUN-ALL (#115): one-click sequential pipeline job.
 - [x] DOC-CURRENT-STATE-REFRESH (#127): current documentation refresh.
+- [x] MA-MEETING-ARTIFACT-CONTRACT (#119, PR #129): stable artifact manifest + shared catalog resolver.
+- [x] MA-MEETING-ERRORS-AND-RETRY (#120, PR #130): normalized last_error, stage retry, pipeline resume, ready_for_retry readiness.
 
 ## Active / Next
 
-- [ ] MA-MEETING-ARTIFACT-CONTRACT (#119): stable artifact manifest — branch 119-meeting-artifact-contract (awaiting review).
-- [ ] MA-MEETING-ERRORS-AND-RETRY (#120): normalized last_error + stage retry + pipeline resume — branch 120-meeting-errors-and-retry (awaiting review).
-- [ ] MA-MEETING-WORKSPACE-FLOW (#121): end-to-end upload, run, monitor, and review UX.
+- [ ] MA-WORKSPACE-FLOW (#121): readiness/manifest-driven workspace flow — branch 121-workspace-flow (awaiting review).
 
 ## Meeting Product Backlog
 

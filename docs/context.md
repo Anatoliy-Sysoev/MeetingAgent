@@ -4,8 +4,8 @@
 
 ## Now
 
-- active task: MA-MEETING-ERRORS-AND-RETRY (#120) — normalized last_error, stage retry, pipeline resume.
-- branch: 120-meeting-errors-and-retry.
+- active task: MA-WORKSPACE-FLOW (#121) — workspace meeting flow: readiness/manifest-driven controls, run/resume/retry, Q&A gating.
+- branch: 121-workspace-flow.
 - canonical main state: latest merged pipeline/UI work is in `origin/main` through PR #118.
 
 ## Done latest
@@ -33,6 +33,7 @@
 - Optional engines: GigaAM как внешний локальный backend; sherpa-onnx для diarization; Vosk для draft live transcription.
 - Job runner поддерживает стадии `extract_audio`, `transcribe`, `diarize`, `merge`, `chunk`, `enrich`, `index`, `analyze`.
 - Workspace UI: media player, clickable transcript, artifact viewer, job controls, readiness map, one-click pipeline profiles, meeting-scoped Search/Q&A.
+- Workspace flow (#121): state panel (status + active job + public-safe last error), readiness-gated stage buttons (blocked → disabled with reason; done → explicit Force rerun; failed → Retry), pipeline actions (Run full / Resume when partially done / Retry failed stage), manifest-driven result chips (Transcript/Speaker transcript/Summary/Protocol/Tasks), Q&A disabled until chunks/index exist, panels auto-refresh after a job finishes; CSRF on every POST.
 - Meeting Q&A v2: vector retrieval over meeting chunks через Ollama `bge-m3`, fusion с lexical, lazy cache `data/meeting_embeddings_cache.jsonl`, graceful lexical fallback.
 - Meeting Q&A citations содержат timestamps, speaker labels, `utterance_ids`, `citation_label`, `citations_basis`; результаты строго scoped по `meeting_id`.
 
@@ -88,8 +89,7 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- #119 MA-MEETING-ARTIFACT-CONTRACT — stable artifact manifest for Workspace.
-- #121 MA-MEETING-WORKSPACE-FLOW — end-to-end upload/run/monitor/review UX.
+- #122 MA-SPEAKER-MAPPING-UI — speaker names/roles mapping (next after #121 review).
 
 ## Open decisions / blockers
 
