@@ -144,11 +144,21 @@ def extract_json_object(text: str) -> dict[str, Any]:
 
 def source_ref(chunk: dict[str, Any], quote: str | None = None, score: float = 0.75) -> dict[str, Any]:
     text = " ".join(str(quote or chunk.get("text") or "").split())[:500]
+    start = float(chunk.get("start") or 0)
+    end = float(chunk.get("end") or chunk.get("start") or 0)
+    speakers = [str(value) for value in (chunk.get("speakers") or []) if str(value).strip()]
+    utterance_ids = [str(value) for value in (chunk.get("utterance_ids") or []) if str(value).strip()]
     return {
         "kind": "rag_source",
         "path": "transcript/chunks.jsonl",
-        "start": float(chunk.get("start") or 0),
-        "end": float(chunk.get("end") or chunk.get("start") or 0),
+        "chunk_id": str(chunk.get("chunk_id") or ""),
+        "start": start,
+        "end": end,
+        "timecode_start": format_time(start),
+        "timecode_end": format_time(end),
+        "speakers": speakers,
+        "speaker_names": speakers,
+        "utterance_ids": utterance_ids,
         "quote": text,
         "score": max(0.0, min(1.0, float(score))),
     }
@@ -384,6 +394,56 @@ def source_chunk(item: dict[str, Any], chunks: list[dict[str, Any]], fallback_in
     return chunks[min(fallback_index, len(chunks) - 1)]
 
 
+def _speaker_mapping(meeting: dict[str, Any]) -> dict[str, dict[str, str]]:
+    raw = meeting.get("speaker_mapping")
+    if not isinstance(raw, dict):
+        return {}
+    mapping: dict[str, dict[str, str]] = {}
+    for label, value in raw.items():
+        if not isinstance(label, str) or not isinstance(value, dict):
+            continue
+        name = str(value.get("name") or "").strip()
+        role = str(value.get("role") or "").strip()
+        if name or role:
+            mapping[label] = {"name": name, "role": role}
+    return mapping
+
+
+def speaker_names_for(chunk: dict[str, Any], meeting: dict[str, Any]) -> list[str]:
+    mapping = _speaker_mapping(meeting)
+    names: list[str] = []
+    for label in chunk.get("speakers") or []:
+        label_text = str(label)
+        mapped = mapping.get(label_text) or {}
+        names.append(str(mapped.get("name") or label_text))
+    return names
+
+
+def enrich_source_ref(ref: dict[str, Any], chunk: dict[str, Any], meeting: dict[str, Any]) -> dict[str, Any]:
+    enriched = dict(ref)
+    enriched["speaker_names"] = speaker_names_for(chunk, meeting)
+    if "speakers" not in enriched:
+        enriched["speakers"] = [str(value) for value in (chunk.get("speakers") or [])]
+    if "utterance_ids" not in enriched:
+        enriched["utterance_ids"] = [str(value) for value in (chunk.get("utterance_ids") or [])]
+    return {key: value for key, value in enriched.items() if value not in (None, [], "")}
+
+
+def confidence_for_item(item: dict[str, Any], default: float = 0.72) -> float:
+    value = item.get("confidence")
+    try:
+        confidence = float(value)
+    except (TypeError, ValueError):
+        confidence = default
+    return round(max(0.0, min(1.0, confidence)), 3)
+
+
+def review_flag(item: dict[str, Any], confidence: float) -> bool:
+    if "needs_review" in item:
+        return bool(item.get("needs_review"))
+    return confidence < 0.75
+
+
 def clean_optional_string(value: Any) -> str | None:
     if value is None:
         return None
@@ -393,14 +453,29 @@ def clean_optional_string(value: Any) -> str | None:
     return text
 
 
-def normalize_items(kind: str, raw_items: list[Any], chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def normalize_items(
+    kind: str,
+    raw_items: list[Any],
+    chunks: list[dict[str, Any]],
+    meeting: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    meeting = meeting or {}
     items: list[dict[str, Any]] = []
     for index, raw in enumerate(raw_items, start=1):
         if not isinstance(raw, dict):
             continue
         item = dict(raw)
         chunk = source_chunk(item, chunks, index - 1)
-        ref = source_ref(chunk, item.get("decision") or item.get("description") or item.get("question") or item.get("title"))
+        confidence = confidence_for_item(item)
+        ref = enrich_source_ref(
+            source_ref(
+                chunk,
+                item.get("decision") or item.get("description") or item.get("question") or item.get("title"),
+                score=confidence,
+            ),
+            chunk,
+            meeting,
+        )
         prefix = ID_PREFIXES[kind]
         if kind == "decisions":
             text = clean_optional_string(item.get("decision") or item.get("title"))
@@ -413,7 +488,8 @@ def normalize_items(kind: str, raw_items: list[Any], chunks: list[dict[str, Any]
                 "rationale": clean_optional_string(item.get("rationale")),
                 "status": item.get("status") if item.get("status") in {"proposed", "accepted", "rejected", "superseded"} else "proposed",
                 "source_refs": [ref],
-                "needs_review": bool(item.get("needs_review", True)),
+                "confidence": confidence,
+                "needs_review": review_flag(item, confidence),
             }
         elif kind == "tasks":
             title = clean_optional_string(item.get("title") or item.get("description"))
@@ -428,7 +504,8 @@ def normalize_items(kind: str, raw_items: list[Any], chunks: list[dict[str, Any]
                 "status": item.get("status") if item.get("status") in {"open", "in_progress", "done", "blocked", "cancelled"} else "open",
                 "priority": item.get("priority") if item.get("priority") in {"low", "normal", "high"} else "normal",
                 "source_refs": [ref],
-                "needs_review": bool(item.get("needs_review", True)),
+                "confidence": confidence,
+                "needs_review": review_flag(item, confidence),
             }
         elif kind == "risks":
             desc = clean_optional_string(item.get("description") or item.get("title"))
@@ -444,7 +521,8 @@ def normalize_items(kind: str, raw_items: list[Any], chunks: list[dict[str, Any]
                 "owner": clean_optional_string(item.get("owner")),
                 "status": item.get("status") if item.get("status") in {"open", "monitoring", "mitigated", "closed"} else "open",
                 "source_refs": [ref],
-                "needs_review": bool(item.get("needs_review", True)),
+                "confidence": confidence,
+                "needs_review": review_flag(item, confidence),
             }
         else:
             question = clean_optional_string(item.get("question"))
@@ -459,7 +537,8 @@ def normalize_items(kind: str, raw_items: list[Any], chunks: list[dict[str, Any]
                 "status": item.get("status") if item.get("status") in {"open", "answered", "closed"} else "open",
                 "answer": clean_optional_string(item.get("answer")),
                 "source_refs": [ref],
-                "needs_review": bool(item.get("needs_review", True)),
+                "confidence": confidence,
+                "needs_review": review_flag(item, confidence),
             }
         items.append({key: value for key, value in row.items() if value is not None})
     return items
@@ -485,7 +564,32 @@ def artifact_doc(kind: str, meeting_id: str, generated_at: str, items: list[dict
     return {"schema_version": 1, "meeting_id": meeting_id, "generated_at": generated_at, "items": items}
 
 
+def ref_label(ref: dict[str, Any]) -> str:
+    timecode = str(ref.get("timecode_start") or format_time(float(ref.get("start") or 0)))
+    speakers = ref.get("speaker_names") or ref.get("speakers") or []
+    speaker_text = ", ".join(str(value) for value in speakers if str(value).strip())
+    return f"{timecode}, {speaker_text}" if speaker_text else timecode
+
+
+def review_label(item: dict[str, Any]) -> str:
+    confidence = item.get("confidence")
+    confidence_text = f"{float(confidence):.2f}" if isinstance(confidence, int | float) else "n/a"
+    review = "needs_review" if item.get("needs_review") else "ok"
+    return f"confidence={confidence_text}; {review}"
+
+
+def summary_sources(reduced: dict[str, Any], chunks: list[dict[str, Any]], meeting: dict[str, Any]) -> list[dict[str, Any]]:
+    bullets = [str(value).strip() for value in (reduced.get("summary_bullets") or []) if str(value).strip()]
+    refs: list[dict[str, Any]] = []
+    for index, _bullet in enumerate(bullets[:10]):
+        chunk = chunks[min(index, len(chunks) - 1)]
+        refs.append(enrich_source_ref(source_ref(chunk, score=0.68), chunk, meeting))
+    return refs
+
+
 def render_summary(meeting: dict[str, Any], reduced: dict[str, Any], docs: dict[str, dict[str, Any]]) -> str:
+    chunks_for_summary = reduced.get("_source_chunks") or []
+    summary_refs = summary_sources(reduced, chunks_for_summary, meeting) if chunks_for_summary else []
     lines = [
         f"# Summary: {meeting['title']}",
         "",
@@ -498,7 +602,11 @@ def render_summary(meeting: dict[str, Any], reduced: dict[str, Any], docs: dict[
     ]
     bullets = reduced.get("summary_bullets") or []
     if bullets:
-        lines.extend(f"- {bullet}" for bullet in bullets[:10])
+        for index, bullet in enumerate(bullets[:10]):
+            if index < len(summary_refs):
+                lines.append(f"- [{ref_label(summary_refs[index])}] {bullet}")
+            else:
+                lines.append(f"- {bullet}")
     else:
         lines.append("- Краткое резюме не выделено моделью.")
     for title, key in (("Решения", "decisions"), ("Задачи", "tasks"), ("Риски", "risks"), ("Открытые вопросы", "open_questions")):
@@ -510,7 +618,7 @@ def render_summary(meeting: dict[str, Any], reduced: dict[str, Any], docs: dict[
         for item in items:
             ref = item["source_refs"][0]
             label = item.get("decision") or item.get("description") or item.get("question") or item.get("title")
-            lines.append(f"- [{format_time(ref['start'])}] {label}")
+            lines.append(f"- [{ref_label(ref)}] {label} ({review_label(item)})")
     return "\n".join(lines) + "\n"
 
 
@@ -527,25 +635,34 @@ def render_protocol(meeting: dict[str, Any], docs: dict[str, dict[str, Any]]) ->
         "",
     ]
     decisions = docs["decisions"]["items"]
-    lines.extend(f"- {item['decision_id']} [{format_time(item['source_refs'][0]['start'])}] {item['decision']}" for item in decisions)
+    lines.extend(
+        f"- {item['decision_id']} [{ref_label(item['source_refs'][0])}] {item['decision']} ({review_label(item)})"
+        for item in decisions
+    )
     if not decisions:
         lines.append("- Не выявлены.")
     lines.extend(["", "## 3. Задачи", ""])
     tasks = docs["tasks"]["items"]
     lines.extend(
-        f"- {item['task_id']} [{format_time(item['source_refs'][0]['start'])}] {item['title']} | owner: {item.get('owner', 'не указан')} | due: {item.get('due_date', 'не указан')}"
+        f"- {item['task_id']} [{ref_label(item['source_refs'][0])}] {item['title']} | owner: {item.get('owner', 'не указан')} | due: {item.get('due_date', 'не указан')} | {review_label(item)}"
         for item in tasks
     )
     if not tasks:
         lines.append("- Не выявлены.")
     lines.extend(["", "## 4. Риски", ""])
     risks = docs["risks"]["items"]
-    lines.extend(f"- {item['risk_id']} [{format_time(item['source_refs'][0]['start'])}] {item['description']}" for item in risks)
+    lines.extend(
+        f"- {item['risk_id']} [{ref_label(item['source_refs'][0])}] {item['description']} ({review_label(item)})"
+        for item in risks
+    )
     if not risks:
         lines.append("- Не выявлены.")
     lines.extend(["", "## 5. Открытые вопросы", ""])
     questions = docs["open_questions"]["items"]
-    lines.extend(f"- {item['question_id']} [{format_time(item['source_refs'][0]['start'])}] {item['question']}" for item in questions)
+    lines.extend(
+        f"- {item['question_id']} [{ref_label(item['source_refs'][0])}] {item['question']} ({review_label(item)})"
+        for item in questions
+    )
     if not questions:
         lines.append("- Не выявлены.")
     return "\n".join(lines) + "\n"
@@ -596,13 +713,14 @@ def run(args: argparse.Namespace) -> int:
         cfg = load_config()
         partials = run_map(meeting, chunks, meeting_dir / "artifacts" / "_partials" / "llm_map_reduce", args, cfg)
         reduced = merge_partials(partials)
+        reduced["_source_chunks"] = chunks
         generated_at = now_iso()
         docs = {
             key: artifact_doc(
                 key,
                 str(meeting["meeting_id"]),
                 generated_at,
-                normalize_items(key, reduced.get(key) or [], chunks),
+                normalize_items(key, reduced.get(key) or [], chunks, meeting),
             )
             for key in SCHEMA_FILES
         }

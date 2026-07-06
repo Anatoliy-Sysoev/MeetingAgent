@@ -4,9 +4,9 @@
 
 ## Now
 
-- active task: MA-SPEAKER-MAPPING-UI (#122) — implemented on branch `122-speaker-mapping-ui`, awaiting review/PR.
-- branch: `122-speaker-mapping-ui`.
-- canonical main state: latest merged pipeline/UI work is in `origin/main` through PR #131.
+- active task: MA-MEETING-STRUCTURED-ARTIFACTS-V2 (#123) — implemented on branch `123-meeting-structured-artifacts-v2`, awaiting review/PR.
+- branch: `123-meeting-structured-artifacts-v2`.
+- canonical main state: PR #132 speaker mapping merged into `origin/main`.
 
 ## Done latest
 
@@ -16,7 +16,8 @@
 - MA-MEETING-ARTIFACT-CONTRACT (#119, PR #129): stable artifact manifest, shared catalog resolver, transcription report entry, default-path artifact serving.
 - MA-MEETING-ERRORS-AND-RETRY (#120, PR #130): normalized public-safe `last_error`, stage retry, pipeline resume, `ready_for_retry` readiness. Issue #120 closed after merge.
 - MA-WORKSPACE-FLOW (#121, PR #131): readiness/manifest-driven Workspace flow, run/resume/retry controls, pipeline-aware polling, Q&A gating, CSRF on every POST. Issue #121 closed after merge.
-- MA-SPEAKER-MAPPING-UI (#122): manual `SPEAKER_XX` -> name/role mapping in `meeting.json`, speaker discovery API, Workspace editor and mapped transcript display.
+- MA-SPEAKER-MAPPING-UI (#122, PR #132): manual `SPEAKER_XX` -> name/role mapping in `meeting.json`, speaker discovery API, Workspace editor and mapped transcript display.
+- MA-MEETING-STRUCTURED-ARTIFACTS-V2 (#123): structured JSON artifacts now include source-grounded `confidence`, `needs_review`, chunk/timecode, speaker names and utterance refs; summary/protocol render source labels.
 
 ## Current Product State
 
@@ -38,6 +39,7 @@
 - Workspace UI: media player, clickable transcript, artifact viewer, job controls, readiness map, one-click pipeline profiles, meeting-scoped Search/Q&A.
 - Workspace flow (#121): state panel (status + active job + public-safe last error), readiness-gated stage buttons (blocked → disabled with reason; done → explicit Force rerun; failed → Retry), pipeline actions (Run full / Resume when partially done / Retry failed stage), manifest-driven result chips (Transcript/Speaker transcript/Summary/Protocol/Tasks), Q&A disabled until chunks/index exist, panels auto-refresh after a job finishes; CSRF on every POST.
 - Speaker mapping (#122): `meeting.json.speaker_mapping` stores real names/roles for diarized labels; `GET /meetings/{id}/speakers` discovers labels from diarization/transcript artifacts; `PUT /meetings/{id}/speakers/mapping` requires `meetings.edit` + CSRF; Workspace transcript shows mapped names while preserving `speaker_label`.
+- Structured artifacts (#123): analyze stage keeps decisions/tasks/risks/open_questions source-grounded with `source_refs[]` that include `chunk_id`, timecodes, speakers, mapped speaker names and `utterance_ids`; each item carries `confidence` and `needs_review`; markdown summary/protocol surface the same source labels.
 - Meeting Q&A v2: vector retrieval over meeting chunks через Ollama `bge-m3`, fusion с lexical, lazy cache `data/meeting_embeddings_cache.jsonl`, graceful lexical fallback.
 - Meeting Q&A citations содержат timestamps, speaker labels, `utterance_ids`, `citation_label`, `citations_basis`; результаты строго scoped по `meeting_id`.
 
@@ -95,11 +97,12 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- #123 MA-MEETING-STRUCTURED-ARTIFACTS-V2 — source-grounded summary/protocol/decisions/tasks/risks/open questions.
+- #124 MA-MEETING-PACKAGING-LOCAL — local all-in-one runbook and Docker profile.
+- #126 MA-MEETING-QA-SEGMENT-CITATIONS — map meeting Q&A citations to transcript segments.
 
 ## Open decisions / blockers
 
 - #39/#40 auth evolution: per-user tokens/OIDC/admin console direction remains open.
 - #106 guard pure decision API remains open before guard v2 runtime can be cleanly measured.
-- #123 structured artifacts v2 is the next product gap before meeting outputs feel complete for non-technical users.
+- #124 packaging and #126 segment-level Q&A citations remain before the local meeting product is convenient to hand off to non-technical users.
 - Local/private runtime outputs under `meetings/`, `data/`, `logs/`, model caches, transcripts and indexes must remain out of Git.
