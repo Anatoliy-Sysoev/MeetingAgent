@@ -146,6 +146,13 @@ def text_for_artifact(meeting: dict[str, Any], artifact_key: str, item: dict[str
         parts.append(f"Мера: {item.get('mitigation')}")
     if item.get("rationale"):
         parts.append(f"Обоснование: {item.get('rationale')}")
+    if item.get("confidence") is not None:
+        parts.append(f"Уверенность: {float(item.get('confidence')):.2f}")
+    if item.get("needs_review") is not None:
+        parts.append(f"Требует проверки: {bool(item.get('needs_review'))}")
+    speakers = ref.get("speaker_names") or ref.get("speakers") or []
+    if speakers:
+        parts.append(f"Спикеры: {', '.join(str(value) for value in speakers)}")
     parts.extend(["", body])
     if ref.get("quote"):
         parts.extend(["", f"Цитата: {ref.get('quote')}"])
@@ -192,6 +199,10 @@ def to_index_rows(meeting_dir: Path, meeting: dict[str, Any], artifact_key: str,
                 "owner": item.get("owner"),
                 "due_date": item.get("due_date"),
                 "needs_review": item.get("needs_review"),
+                "confidence": item.get("confidence"),
+                "speaker_names": ref.get("speaker_names") or [],
+                "speakers": ref.get("speakers") or [],
+                "utterance_ids": ref.get("utterance_ids") or [],
                 "source_refs": item.get("source_refs") or [],
                 "chars": len(text),
                 "indexed_at": now_iso(),
