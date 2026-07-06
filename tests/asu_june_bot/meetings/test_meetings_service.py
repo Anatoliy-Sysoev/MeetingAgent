@@ -49,6 +49,14 @@ def make_card(tmp_path: Path, meeting_id: str = "2026-01-15__kickoff", data: dic
     return meeting_dir
 
 
+def _write_jsonl(path: Path, rows: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+
+
 # ------------------------------------------------------------------
 # list_meetings
 # ------------------------------------------------------------------
@@ -669,3 +677,85 @@ def test_dedup_scan_malformed_source_does_not_raise(tmp_path: Path) -> None:
     svc = MeetingsService(tmp_path)
     result = svc.find_by_sha256("aabbccdd")
     assert result is None
+
+
+# ------------------------------------------------------------------
+# speaker mapping
+# ------------------------------------------------------------------
+
+
+def test_get_speakers_discovers_speaker_transcript_labels(tmp_path: Path) -> None:
+    meeting_dir = make_card(tmp_path)
+    _write_jsonl(
+        meeting_dir / "transcript" / "speaker_transcript.jsonl",
+        [
+            {"utterance_id": "utt-1", "speaker": "SPEAKER_02", "start": 0, "end": 1, "text": "B"},
+            {"utterance_id": "utt-2", "speaker": "SPEAKER_01", "start": 1, "end": 2, "text": "A"},
+        ],
+    )
+    svc = MeetingsService(tmp_path)
+
+    result = svc.get_speakers("2026-01-15__kickoff")
+
+    assert result is not None
+    assert [s["speaker_label"] for s in result["speakers"]] == ["SPEAKER_01", "SPEAKER_02"]
+    assert result["speakers"][0]["display_name"] == "SPEAKER_01"
+
+
+def test_update_speaker_mapping_persists_to_meeting_json(tmp_path: Path) -> None:
+    meeting_dir = make_card(tmp_path)
+    _write_jsonl(
+        meeting_dir / "transcript" / "speaker_transcript.jsonl",
+        [{"speaker": "SPEAKER_01", "start": 0, "end": 1, "text": "Hello"}],
+    )
+    svc = MeetingsService(tmp_path)
+
+    result = svc.update_speaker_mapping(
+        "2026-01-15__kickoff",
+        {"SPEAKER_01": {"name": "Анатолий Сысоев", "role": "PO"}},
+    )
+
+    assert result is not None
+    assert result["mapping"] == {"SPEAKER_01": {"name": "Анатолий Сысоев", "role": "PO"}}
+    card = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
+    assert card["speaker_mapping"]["SPEAKER_01"]["name"] == "Анатолий Сысоев"
+    assert card["speaker_mapping"]["SPEAKER_01"]["role"] == "PO"
+    assert card["updated_at"] != VALID_CARD["updated_at"]
+
+
+def test_update_speaker_mapping_rejects_unknown_label(tmp_path: Path) -> None:
+    make_card(tmp_path)
+    svc = MeetingsService(tmp_path)
+
+    with pytest.raises(ValueError, match="Invalid speaker label"):
+        svc.update_speaker_mapping("2026-01-15__kickoff", {"ADMIN": {"name": "Bad"}})
+
+
+def test_transcript_segments_apply_speaker_mapping_and_preserve_label(tmp_path: Path) -> None:
+    meeting_dir = make_card(
+        tmp_path,
+        data={"speaker_mapping": {"SPEAKER_01": {"name": "Денис Белецкий", "role": "Lead"}}},
+    )
+    _write_jsonl(
+        meeting_dir / "transcript" / "speaker_transcript.jsonl",
+        [
+            {
+                "utterance_id": "utt-000001",
+                "speaker": "SPEAKER_01",
+                "start": 12.5,
+                "end": 14.0,
+                "text": "Коллеги, начинаем.",
+            }
+        ],
+    )
+    svc = MeetingsService(tmp_path)
+
+    result = svc.get_transcript_segments("2026-01-15__kickoff")
+
+    assert result is not None
+    segment = result["segments"][0]
+    assert segment["segment_id"] == "utt-000001"
+    assert segment["speaker"] == "Денис Белецкий"
+    assert segment["speaker_label"] == "SPEAKER_01"
+    assert segment["speaker_role"] == "Lead"
+    assert segment["speaker_mapped"] is True

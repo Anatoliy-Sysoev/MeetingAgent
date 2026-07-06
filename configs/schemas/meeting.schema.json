@@ -59,6 +59,27 @@
       },
       "uniqueItems": true
     },
+    "speaker_mapping": {
+      "type": "object",
+      "description": "Ручное сопоставление технических SPEAKER_XX меток с реальными именами и ролями.",
+      "propertyNames": {
+        "pattern": "^SPEAKER_(?:UNKNOWN|\\d{1,4})$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "role": {
+            "type": "string",
+            "maxLength": 120
+          }
+        }
+      }
+    },
     "source": {
       "type": "object",
       "additionalProperties": false,
