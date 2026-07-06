@@ -4,9 +4,9 @@
 
 ## Now
 
-- active task: MA-MEETING-STRUCTURED-ARTIFACTS-V2 (#123) — implemented on branch `123-meeting-structured-artifacts-v2`, awaiting review/PR.
-- branch: `123-meeting-structured-artifacts-v2`.
-- canonical main state: PR #132 speaker mapping merged into `origin/main`.
+- active task: MA-MEETING-QA-SEGMENT-CITATIONS (#126) — implemented on branch `126-meeting-qa-segment-citations`, awaiting review/PR.
+- branch: `126-meeting-qa-segment-citations`.
+- canonical main state: PR #133 structured artifacts merged into `origin/main`.
 
 ## Done latest
 
@@ -17,7 +17,8 @@
 - MA-MEETING-ERRORS-AND-RETRY (#120, PR #130): normalized public-safe `last_error`, stage retry, pipeline resume, `ready_for_retry` readiness. Issue #120 closed after merge.
 - MA-WORKSPACE-FLOW (#121, PR #131): readiness/manifest-driven Workspace flow, run/resume/retry controls, pipeline-aware polling, Q&A gating, CSRF on every POST. Issue #121 closed after merge.
 - MA-SPEAKER-MAPPING-UI (#122, PR #132): manual `SPEAKER_XX` -> name/role mapping in `meeting.json`, speaker discovery API, Workspace editor and mapped transcript display.
-- MA-MEETING-STRUCTURED-ARTIFACTS-V2 (#123): structured JSON artifacts now include source-grounded `confidence`, `needs_review`, chunk/timecode, speaker names and utterance refs; summary/protocol render source labels.
+- MA-MEETING-STRUCTURED-ARTIFACTS-V2 (#123, PR #133): structured JSON artifacts now include source-grounded `confidence`, `needs_review`, chunk/timecode, speaker names and utterance refs; summary/protocol render source labels.
+- MA-MEETING-QA-SEGMENT-CITATIONS (#126): meeting Q&A/search source refs now resolve chunk/utterance citations to exact transcript segment targets when available (`segment_id`, `segment_refs[]`, precise `start_sec/end_sec`, mapped speaker fields); missing transcripts fall back to chunk-level citations.
 
 ## Current Product State
 
@@ -41,7 +42,7 @@
 - Speaker mapping (#122): `meeting.json.speaker_mapping` stores real names/roles for diarized labels; `GET /meetings/{id}/speakers` discovers labels from diarization/transcript artifacts; `PUT /meetings/{id}/speakers/mapping` requires `meetings.edit` + CSRF; Workspace transcript shows mapped names while preserving `speaker_label`.
 - Structured artifacts (#123): analyze stage keeps decisions/tasks/risks/open_questions source-grounded with `source_refs[]` that include `chunk_id`, timecodes, speakers, mapped speaker names and `utterance_ids`; each item carries `confidence` and `needs_review`; markdown summary/protocol surface the same source labels.
 - Meeting Q&A v2: vector retrieval over meeting chunks через Ollama `bge-m3`, fusion с lexical, lazy cache `data/meeting_embeddings_cache.jsonl`, graceful lexical fallback.
-- Meeting Q&A citations содержат timestamps, speaker labels, `utterance_ids`, `citation_label`, `citations_basis`; результаты строго scoped по `meeting_id`.
+- Meeting Q&A citations содержат timestamps, speaker labels, `utterance_ids`, `citation_label`, `citations_basis`; когда доступен transcript/speaker_transcript, citations дополнительно содержат exact `segment_id`, `segment_refs[]` и точный target для клика в Workspace; результаты строго scoped по `meeting_id`.
 
 ### Project Knowledge Bot
 
@@ -98,11 +99,10 @@ GET  /admin/review/chat-runs/export
 ## Next
 
 - #124 MA-MEETING-PACKAGING-LOCAL — local all-in-one runbook and Docker profile.
-- #126 MA-MEETING-QA-SEGMENT-CITATIONS — map meeting Q&A citations to transcript segments.
 
 ## Open decisions / blockers
 
 - #39/#40 auth evolution: per-user tokens/OIDC/admin console direction remains open.
 - #106 guard pure decision API remains open before guard v2 runtime can be cleanly measured.
-- #124 packaging and #126 segment-level Q&A citations remain before the local meeting product is convenient to hand off to non-technical users.
+- #124 packaging remains before the local meeting product is convenient to hand off to non-technical users.
 - Local/private runtime outputs under `meetings/`, `data/`, `logs/`, model caches, transcripts and indexes must remain out of Git.

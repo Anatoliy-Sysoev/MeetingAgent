@@ -71,6 +71,62 @@ class FakeMeetingsService:
     def get_meeting(self, meeting_id: str):
         return {"meeting_id": meeting_id} if meeting_id in (MEETING_ID, OTHER_MEETING_ID) else None
 
+    def get_transcript_segments(self, meeting_id: str):
+        if meeting_id == MEETING_ID:
+            return {
+                "meeting_id": meeting_id,
+                "segments": [
+                    {
+                        "segment_id": "u_101",
+                        "start_sec": 755.25,
+                        "end_sec": 759.8,
+                        "speaker": "Денис Белецкий",
+                        "speaker_label": "SPEAKER_01",
+                        "speaker_role": "Lead",
+                        "speaker_mapped": True,
+                        "text": "Сошлись во мнении.",
+                    },
+                    {
+                        "segment_id": "u_102",
+                        "start_sec": 760.0,
+                        "end_sec": 766.0,
+                        "speaker": "Торбик Виталий",
+                        "speaker_label": "SPEAKER_02",
+                        "speaker_role": None,
+                        "speaker_mapped": True,
+                        "text": "Оставляем документ как есть, правки не вносим.",
+                    },
+                    {
+                        "segment_id": "u_201",
+                        "start_sec": 1510.4,
+                        "end_sec": 1518.0,
+                        "speaker": "Торбик Виталий",
+                        "speaker_label": "SPEAKER_02",
+                        "speaker_role": None,
+                        "speaker_mapped": True,
+                        "text": "Стыковка систем через КШД займёт спринт.",
+                    },
+                ],
+            }
+        return {"meeting_id": meeting_id, "segments": []}
+
+
+class FakeMeetingsServiceWithoutSegments(FakeMeetingsService):
+    def get_transcript_segments(self, meeting_id: str):
+        return {"meeting_id": meeting_id, "segments": []}
+
+
+class MutableSpeakerMeetingsService(FakeMeetingsService):
+    def __init__(self) -> None:
+        self.speaker = "Первый спикер"
+
+    def get_transcript_segments(self, meeting_id: str):
+        payload = super().get_transcript_segments(meeting_id)
+        for segment in payload.get("segments") or []:
+            if segment.get("segment_id") == "u_101":
+                segment["speaker"] = self.speaker
+        return payload
+
 
 class FakeLLM:
     def __init__(self, answer: str = "Решение зафиксировано [S1].") -> None:
@@ -213,7 +269,7 @@ def test_chat_reports_retrieval_mode_on_fallback(chunks_path: Path, tmp_path: Pa
 # Citations
 # ---------------------------------------------------------------------------
 
-def test_citations_carry_timestamp_speaker_utterances(chunks_path: Path, tmp_path: Path) -> None:
+def test_citations_carry_exact_segment_refs(chunks_path: Path, tmp_path: Path) -> None:
     svc = _service(chunks_path, tmp_path, embedder=FakeEmbedder(), llm=FakeLLM("Ответ [S1]."))
     payload = svc.chat(MEETING_ID, "Что решили по паспорту проекта?", top_k=2)
     assert payload["status"] == "answered"
@@ -221,11 +277,88 @@ def test_citations_carry_timestamp_speaker_utterances(chunks_path: Path, tmp_pat
     assert len(payload["citations"]) == 1
     citation = payload["citations"][0]
     assert citation["chunk_id"] == "c_dec"
-    assert citation["timestamp_start"] == "00:12:34"
-    assert citation["speaker"] == "Торбик Виталий"
-    assert citation["speakers"] == ["Торбик Виталий"]
+    assert citation["citation_granularity"] == "segment"
+    assert citation["segment_id"] == "u_101"
+    assert citation["segment_ids"] == ["u_101", "u_102"]
+    assert citation["timestamp_start"] == "00:12:35"
+    assert citation["start_sec"] == 755.25
+    assert citation["speaker"] == "Денис Белецкий"
+    assert citation["speaker_label"] == "SPEAKER_01"
+    assert citation["speaker_role"] == "Lead"
+    assert citation["speakers"] == ["Денис Белецкий", "Торбик Виталий"]
     assert citation["utterance_ids"] == ["u_101", "u_102"]
-    assert citation["citation_label"] == "[00:12:34, Торбик Виталий]"
+    assert citation["citation_label"] == "[00:12:35, Денис Белецкий]"
+    assert citation["segment_refs"][0]["segment_id"] == "u_101"
+    assert citation["segment_refs"][1]["segment_id"] == "u_102"
+
+
+def test_search_source_carries_exact_segment_target(chunks_path: Path, tmp_path: Path) -> None:
+    svc = _service(chunks_path, tmp_path, embedder=FakeEmbedder())
+    result = svc.search(MEETING_ID, "Кто сказал про интеграцию?", top_k=2)
+    assert result["results"][0]["chunk_id"] == "c_int"
+    source = result["results"][0]["source"]
+    assert source["citation_granularity"] == "segment"
+    assert source["segment_id"] == "u_201"
+    assert source["timestamp_start"] == "00:25:10"
+    assert source["start_sec"] == 1510.4
+    assert source["speaker"] == "Торбик Виталий"
+    assert source["segment_refs"] == [
+        {
+            "segment_id": "u_201",
+            "start_sec": 1510.4,
+            "end_sec": 1518.0,
+            "timestamp_start": "00:25:10",
+            "timestamp_end": "00:25:18",
+            "speaker": "Торбик Виталий",
+            "speaker_label": "SPEAKER_02",
+            "speaker_role": None,
+            "speaker_mapped": True,
+            "text_preview": "Стыковка систем через КШД займёт спринт.",
+        }
+    ]
+
+
+def test_citation_falls_back_to_chunk_when_segments_missing(
+    chunks_path: Path,
+    tmp_path: Path,
+) -> None:
+    svc = MeetingQAService(
+        meetings_service=FakeMeetingsServiceWithoutSegments(),
+        llm_client=FakeLLM("Ответ [S1]."),
+        meeting_chunks_path=chunks_path,
+        vector_retriever=MeetingVectorRetriever(
+            FakeEmbedder(), tmp_path / "emb_cache.jsonl", embedding_model="fake-model"
+        ),
+    )
+    payload = svc.chat(MEETING_ID, "Что решили по паспорту проекта?", top_k=2)
+    citation = payload["citations"][0]
+    assert citation["citation_granularity"] == "chunk"
+    assert citation["segment_id"] is None
+    assert citation["segment_refs"] == []
+    assert citation["timestamp_start"] == "00:12:34"
+    assert citation["start_sec"] == 754.0
+
+
+def test_segment_refs_refresh_after_speaker_mapping_change(
+    chunks_path: Path,
+    tmp_path: Path,
+) -> None:
+    meetings = MutableSpeakerMeetingsService()
+    svc = MeetingQAService(
+        meetings_service=meetings,
+        llm_client=FakeLLM("Ответ [S1]."),
+        meeting_chunks_path=chunks_path,
+        vector_retriever=MeetingVectorRetriever(
+            FakeEmbedder(), tmp_path / "emb_cache.jsonl", embedding_model="fake-model"
+        ),
+    )
+
+    first = svc.chat(MEETING_ID, "Что решили по паспорту проекта?", top_k=2)
+    assert first["citations"][0]["speaker"] == "Первый спикер"
+
+    meetings.speaker = "Обновлённый спикер"
+    second = svc.chat(MEETING_ID, "Что решили по паспорту проекта?", top_k=2)
+    assert second["citations"][0]["speaker"] == "Обновлённый спикер"
 
 
 def test_citations_only_for_used_sources(chunks_path: Path, tmp_path: Path) -> None:

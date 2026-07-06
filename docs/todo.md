@@ -35,6 +35,7 @@
 - [x] MA-WORKSPACE-FLOW (#121, PR #131): readiness/manifest-driven workspace flow, run/resume/retry controls, result chips, Q&A gating, pipeline-aware polling.
 - [x] MA-SPEAKER-MAPPING-UI (#122): manual `SPEAKER_XX` -> name/role mapping, API endpoints, Workspace editor and mapped transcript display.
 - [x] MA-MEETING-STRUCTURED-ARTIFACTS-V2 (#123): source-grounded summary/protocol and structured decisions/tasks/risks/open questions with speaker refs, confidence and needs_review.
+- [x] MA-MEETING-QA-SEGMENT-CITATIONS (#126): meeting Q&A/search citations resolve to exact transcript segment refs when available, with chunk-level fallback.
 
 ## Active / Next
 
@@ -42,7 +43,6 @@
 
 ## Meeting Product Backlog
 
-- [ ] MA-MEETING-QA-SEGMENT-CITATIONS (#126): map meeting Q&A citations to transcript segments.
 - [ ] Add anonymization pipeline for sensitive transcripts (#22).
 - [ ] Add evaluation benchmark for meeting summaries (#24).
 
