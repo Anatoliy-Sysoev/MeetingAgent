@@ -476,6 +476,32 @@ def test_analyze_extractive_creates_artifacts(tmp_path: Path) -> None:
         assert "items" in parsed, f"JSON artifact missing 'items' key: {rel}"
 
 
+def test_analyze_extractive_artifacts_are_source_grounded(tmp_path: Path) -> None:
+    meeting_dir = build_meeting_dir(tmp_path)
+    _seed_indexed(meeting_dir)
+
+    mod = _import_script("analyze")
+    mod.run(mod.parse_args(["--meeting-dir", str(meeting_dir), "--mode", "extractive", "--force"]))
+
+    tasks = json.loads((meeting_dir / "artifacts" / "tasks.json").read_text(encoding="utf-8"))
+    assert tasks["items"], "seeded meeting should produce at least one task"
+    item = tasks["items"][0]
+    assert "confidence" in item
+    assert "needs_review" in item
+    ref = item["source_refs"][0]
+    assert ref["chunk_id"]
+    assert ref["timecode_start"]
+    assert ref["timecode_end"]
+    assert ref["speakers"]
+    assert ref["utterance_ids"]
+
+    summary = (meeting_dir / "artifacts" / "summary.md").read_text(encoding="utf-8")
+    protocol = (meeting_dir / "artifacts" / "protocol.md").read_text(encoding="utf-8")
+    assert "confidence=" in summary
+    assert "needs_review" in summary or "ok" in summary
+    assert "confidence=" in protocol
+
+
 def test_analyze_extractive_updates_processing_status(tmp_path: Path) -> None:
     meeting_dir = build_meeting_dir(tmp_path)
     _seed_indexed(meeting_dir)
