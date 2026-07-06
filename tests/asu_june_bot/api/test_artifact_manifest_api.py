@@ -7,7 +7,6 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -89,11 +88,12 @@ def test_missing_artifacts_reported_absent(tmp_path: Path) -> None:
 
 def test_existing_artifact_has_metadata_and_urls(tmp_path: Path) -> None:
     d = _make_meeting(tmp_path)
-    _touch(d, "transcript/segments.jsonl", '{"a":1}\n')
+    rel = "transcript/segments.jsonl"
+    _touch(d, rel, '{"a":1}\n')
     entries = _by_key(build_artifact_manifest(MEETING_ID, d, CARD))
     seg = entries["segments"]
     assert seg["exists"] is True
-    assert seg["size_bytes"] == len('{"a":1}\n')
+    assert seg["size_bytes"] == (d / rel).stat().st_size
     assert seg["updated_at"] is not None
     assert seg["view_url"] == f"/meetings/{MEETING_ID}/artifacts/segments"
     assert seg["download_url"] == seg["view_url"]
