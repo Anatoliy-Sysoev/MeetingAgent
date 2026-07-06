@@ -204,14 +204,14 @@ _WORKSPACE_HTML = """\
       gap: 8px;
       align-items: center;
       padding: 8px 0;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid var(--line);
     }
     .speaker-map-label { font-family: monospace; font-size: 12px; color: var(--muted); }
     .speaker-map-row input {
       width: 100%;
       box-sizing: border-box;
       padding: 6px 8px;
-      border: 1px solid var(--border);
+      border: 1px solid var(--line);
       border-radius: 4px;
       font-size: 12px;
     }
