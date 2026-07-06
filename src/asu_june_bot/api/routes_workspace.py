@@ -5,7 +5,7 @@ import json as _json
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from asu_june_bot.meetings.service import MeetingsService, _safe_meeting_id
+from asu_june_bot.meetings.service import _safe_meeting_id
 
 router = APIRouter(tags=["workspace"])
 
