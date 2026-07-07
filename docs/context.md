@@ -4,9 +4,9 @@
 
 ## Now
 
-- active task: MA-PRODUCT-SPLIT-PHASE-1 (#125) — implemented on branch `125-product-split-phase-1`, awaiting review/PR.
-- branch: `125-product-split-phase-1`.
-- canonical main state: PR #135 local packaging merged into `origin/main`.
+- active task: MA-GUARD-PURE-DECISION-API (#106) — implemented on branch `106-guard-pure-decision-api`, awaiting review/PR.
+- branch: `106-guard-pure-decision-api`.
+- canonical main state: PR #136 product split phase 1 merged into `origin/main`.
 
 ## Done latest
 
@@ -20,7 +20,8 @@
 - MA-MEETING-STRUCTURED-ARTIFACTS-V2 (#123, PR #133): structured JSON artifacts now include source-grounded `confidence`, `needs_review`, chunk/timecode, speaker names and utterance refs; summary/protocol render source labels.
 - MA-MEETING-QA-SEGMENT-CITATIONS (#126, PR #134): meeting Q&A/search source refs now resolve chunk/utterance citations to exact transcript segment targets when available (`segment_id`, `segment_refs[]`, precise `start_sec/end_sec`, mapped speaker fields); missing transcripts fall back to chunk-level citations.
 - MA-MEETING-PACKAGING-LOCAL (#124, PR #135): local/Docker runbook, API container healthcheck and `scripts/42_local_preflight.py` for Docker, Ollama/model, ffmpeg and optional ASR dependency checks.
-- MA-PRODUCT-SPLIT-PHASE-1 (#125): shared config/limits/prompt-safety/hashing/JSONL/path-filter/LLM helpers extracted into `meeting_agent.shared`; meeting-owned Q&A/vector/scripts import shared modules directly; old bot package imports remain compatibility shims.
+- MA-PRODUCT-SPLIT-PHASE-1 (#125, PR #136): shared config/limits/prompt-safety/hashing/JSONL/path-filter/LLM helpers extracted into `meeting_agent.shared`; meeting-owned Q&A/vector/scripts import shared modules directly; old bot package imports remain compatibility shims.
+- MA-GUARD-PURE-DECISION-API (#106): pure `asu_june_bot.guard.evaluate_guard_decision()` adapter over existing `guardrails/` pipeline; no behavior change, no retrieval/LLM/network/disk I/O; fixture/runtime eval integration added.
 
 ## Current Product State
 
@@ -49,7 +50,7 @@
 ### Project Knowledge Bot
 
 - `src/asu_june_bot/` остаётся production-ready reference runtime для Project Knowledge Bot: API, Web UI, Telegram adapter, retrieval, chat, guardrails, review queue, eval/export harness.
-- Review queue и guard cases export/regression harness реализованы; guard v2 runtime/pure decision API ещё не внедрён.
+- Review queue, guard cases export/regression harness and pure guard decision API are implemented; guard v2 runtime behavior changes remain out of scope.
 - Product split prep завершён документацией; code-level extraction перенесён в #125.
 
 ## API Surface Snapshot
@@ -100,12 +101,12 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- #106 MA-GUARD-PURE-DECISION-API — deterministic guard decision API for regression tests.
 - #39/#40 auth evolution/admin console decision and implementation.
+- Meeting Product Backlog: anonymization (#22), meeting-summary benchmark (#24), public sample dataset (#19), quickstart/docs/release automation (#20/#21/#23/#25/#26).
 
 ## Open decisions / blockers
 
 - #39/#40 auth evolution: per-user tokens/OIDC/admin console direction remains open.
-- #106 guard pure decision API remains open before guard v2 runtime can be cleanly measured.
+- Guard pure decision API is available for deterministic tests; future guard behavior changes must use it as a measurement boundary.
 - Local preflight can fail until Ollama is running and exposes `bge-m3` + `qwen3.5:4b` through the active model store.
 - Local/private runtime outputs under `meetings/`, `data/`, `logs/`, model caches, transcripts and indexes must remain out of Git.
