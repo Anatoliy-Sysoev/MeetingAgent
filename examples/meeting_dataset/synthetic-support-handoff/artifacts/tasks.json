@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "meeting_id": "2026-01-15__synthetic-support-handoff",
+  "generated_at": "2026-01-15T10:05:00+00:00",
+  "items": [
+    {
+      "task_id": "TASK-001",
+      "title": "Prepare operator checklist",
+      "description": "Prepare the operator checklist by Friday and include a completed example.",
+      "owner": "Support Lead",
+      "due_date": "2026-01-16",
+      "status": "open",
+      "priority": "normal",
+      "source_refs": [
+        {
+          "kind": "transcript_segment",
+          "path": "transcript/segments.jsonl",
+          "chunk_id": "synthetic-support-handoff-chunk-001",
+          "segment_index": 3,
+          "start": 24.0,
+          "end": 36.0,
+          "timecode_start": "00:00:24",
+          "timecode_end": "00:00:36",
+          "speakers": ["SPEAKER_02"],
+          "speaker_names": ["Support Lead"],
+          "utterance_ids": ["utt-000003"],
+          "quote": "I will prepare the operator checklist by Friday and include a completed example.",
+          "score": 1.0
+        }
+      ],
+      "confidence": 0.96,
+      "needs_review": false
+    }
+  ]
+}
