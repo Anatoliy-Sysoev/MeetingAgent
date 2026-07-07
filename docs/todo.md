@@ -53,7 +53,7 @@
 
 ## Active / Next
 
-- [ ] Close old external documentation PRs: #27 and #28 superseded, #92 incorporated.
+- [x] Close old external documentation PRs: #27 and #28 superseded, #92 incorporated.
 
 ## Meeting Product Backlog
 

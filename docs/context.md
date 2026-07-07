@@ -4,9 +4,9 @@
 
 ## Now
 
-- active task: WINDOWS-UTF8-DOC-NOTE (#92) — conflict-free replacement branch `92-windows-utf8-note`, awaiting PR.
-- branch: `92-windows-utf8-note`.
-- canonical main state: PR #147 GitHub Pages documentation site merged into `origin/main`.
+- active task: none. Public OSS issues are closed and old external docs PRs were triaged.
+- branch: `docs-final-status-cleanup`.
+- canonical main state: PR #148 Windows UTF-8 documentation note merged into `origin/main`.
 
 ## Done latest
 
@@ -112,7 +112,7 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- Meeting Product Backlog: public OSS docs/tasks complete; old external docs PRs #27/#28/#92 are being closed as superseded/incorporated.
+- Meeting Product Backlog: public OSS docs/tasks complete; no open GitHub issues remain.
 
 ## Open decisions / blockers
 
