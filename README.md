@@ -271,6 +271,8 @@ docker compose --profile diarization build diarization
 ```
 
 See [Docker documentation](docs/docker.md).
+For a repeatable local machine setup, run preflight first and follow
+[Local Packaging Runbook](docs/operations/LOCAL_PACKAGING.md).
 
 ## Authentication
 

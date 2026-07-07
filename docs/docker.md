@@ -30,6 +30,16 @@ ASU_JUNE_BOT_TELEGRAM_TOKEN=...
 ASU_JUNE_BOT_ALLOWED_CHAT_IDS=...
 ```
 
+Перед запуском на новом ПК выполнить preflight:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe scripts\42_local_preflight.py --mode docker
+```
+
+Подробный runbook: [Local Packaging Runbook](operations/LOCAL_PACKAGING.md).
+
 ## Запуск API
 
 ```powershell
@@ -40,6 +50,7 @@ docker compose up api
 Проверка:
 
 ```powershell
+docker compose ps
 Invoke-RestMethod http://localhost:8000/health
 ```
 
