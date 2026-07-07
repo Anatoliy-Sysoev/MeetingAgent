@@ -134,6 +134,8 @@ meetings/<meeting_id>/
 
 Runtime meeting outputs могут содержать приватные данные и не должны попадать в Git.
 
+Для воспроизводимого публичного пути от transcript до protocol см. [Transcript to protocol quickstart](docs/operations/TRANSCRIPT_TO_PROTOCOL_QUICKSTART.md).
+
 ### Meeting Workspace
 
 Встречу можно смотреть и запускать из браузера:
