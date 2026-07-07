@@ -4,7 +4,12 @@ Updated: 2026-07-02.
 
 This document defines the intended product split between **MeetingAgent Core** and **Project Knowledge Bot**, classifies current files by ownership, and provides a phased migration plan. No code moves are performed in this task.
 
-Status: documentation prep is complete and the original prep issue is closed. Code-level extraction starts with #125 (`MA-PRODUCT-SPLIT-PHASE-1`) and must preserve existing route paths and compatibility shims.
+Status: documentation prep is complete and the original prep issue is closed.
+Code-level extraction Phase 1 is implemented by #125
+(`MA-PRODUCT-SPLIT-PHASE-1`): shared config, limits, prompt-safety,
+hashing, JSONL, path filters and LLM client helpers now live under
+`meeting_agent.shared`, while old `asu_june_bot.core/*` and `asu_june_bot.llm/*`
+imports remain compatibility shims.
 
 ---
 
@@ -138,21 +143,21 @@ Utilities consumed by both products. No dedicated process or public API — dist
 | `api/routes_ui.py` | PKB | Bot UI route |
 | `auth/` (entire directory) | SH | Auth domain model, RBAC, sessions, throttle — shared security primitive, not bot-only |
 | `chat/` (entire directory) | PKB | Grounded answer generation, prompt builder, validators |
-| `core/config.py` | SH | Config loading shared by both products |
+| `core/config.py` | SH | Compatibility shim to `meeting_agent.shared.config` |
 | `core/corpus.py` | PKB | Corpus switching — bot concern |
-| `core/hashing.py` | SH | SHA-256 / ID generation utilities |
-| `core/jsonl.py` | SH | JSONL read/write helpers |
-| `core/limits.py` | SH | Schema/size limit constants and parsers |
-| `core/path_filters.py` | SH | File exclusion patterns (used by corpus build) |
+| `core/hashing.py` | SH | Compatibility shim to `meeting_agent.shared.hashing` |
+| `core/jsonl.py` | SH | Compatibility shim to `meeting_agent.shared.jsonl` |
+| `core/limits.py` | SH | Compatibility shim to `meeting_agent.shared.limits` |
+| `core/path_filters.py` | SH | Compatibility shim to `meeting_agent.shared.path_filters` |
 | `eval/` (entire directory) | PKB | Bot-specific eval framework and quality pipeline |
 | `guardrails/` (entire directory) | PKB | Scope classifier, project guard, output policy |
 | `health/service.py` | PKB | PKB-specific health: checks corpus indices, Ollama, chunks/cache |
 | `ingestion/models.py` | PKB | Project/corpus document ingestion models |
 | `ingestion/utils.py` | PKB | Project/corpus document ingestion utilities |
 | `jobs/runner.py` | MA | Async subprocess job runner |
-| `llm/client.py` | SH | LLM client interface |
-| `llm/ollama_common.py` | SH | Ollama common utilities |
-| `llm/ollama_openai.py` | SH | Ollama OpenAI-compat adapter |
+| `llm/client.py` | SH | Compatibility shim to `meeting_agent.shared.llm.client` |
+| `llm/ollama_common.py` | SH | Compatibility shim to `meeting_agent.shared.llm.ollama_common` |
+| `llm/ollama_openai.py` | SH | Compatibility shim to `meeting_agent.shared.llm.ollama_openai` |
 | `meetings/service.py` | MA | Meeting card read/write service |
 | `observability/chat_runs.py` | PKB | Bot chat run logging |
 | `qh/release_gate.py` | PKB | Quality/health gate for bot corpus |
@@ -168,8 +173,9 @@ Utilities consumed by both products. No dedicated process or public API — dist
 | `diarization/` | MA | Active: sherpa backend, speaker assignment |
 | `live_transcription/` | MA | Active: real-time VAD, exporters |
 | `api/` | MA | Placeholder — future MeetingAgent HTTP layer |
-| `config/` | SH | Placeholder — future config module |
-| `core/` | SH | Placeholder — future shared utilities |
+| `shared/` | SH | Active shared utilities: config, limits, prompt safety, hashing, JSONL, path filters, LLM adapters |
+| `config/` | SH | Placeholder — future config domain if split further |
+| `core/` | SH | Placeholder — future domain-neutral core if split further |
 | `ingest/` | MA | Placeholder — future ingest domain |
 | `meetings/` | MA | Placeholder — future meeting domain |
 | `rag/` | ? | Placeholder — decide scope (meeting search vs. bot RAG) |

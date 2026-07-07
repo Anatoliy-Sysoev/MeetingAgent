@@ -16,7 +16,7 @@ if str(SRC_DIR) not in sys.path:
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-from asu_june_bot.core.config import load_config, resolve_work_path  # noqa: E402
+from meeting_agent.shared.config import load_config, resolve_work_path  # noqa: E402
 
 
 DEFAULT_CHUNKS_PATH = "data/meeting_chunks.jsonl"

@@ -20,8 +20,8 @@ if str(SRC_DIR) not in sys.path:
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-from asu_june_bot.core.config import load_config  # noqa: E402
-from asu_june_bot.llm.ollama_common import normalize_llm_answer  # noqa: E402
+from meeting_agent.shared.config import load_config  # noqa: E402
+from meeting_agent.shared.llm.ollama_common import normalize_llm_answer  # noqa: E402
 
 
 ARTIFACT_PATHS = {

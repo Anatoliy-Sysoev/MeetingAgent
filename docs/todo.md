@@ -36,11 +36,11 @@
 - [x] MA-SPEAKER-MAPPING-UI (#122): manual `SPEAKER_XX` -> name/role mapping, API endpoints, Workspace editor and mapped transcript display.
 - [x] MA-MEETING-STRUCTURED-ARTIFACTS-V2 (#123): source-grounded summary/protocol and structured decisions/tasks/risks/open questions with speaker refs, confidence and needs_review.
 - [x] MA-MEETING-QA-SEGMENT-CITATIONS (#126): meeting Q&A/search citations resolve to exact transcript segment refs when available, with chunk-level fallback.
-- [x] MA-MEETING-PACKAGING-LOCAL (#124): local all-in-one runbook, Docker healthcheck and preflight CLI for Docker/Ollama/models/ffmpeg/optional ASR — 6e5d5ad.
+- [x] MA-MEETING-PACKAGING-LOCAL (#124): local all-in-one runbook, Docker healthcheck and preflight CLI for Docker/Ollama/models/ffmpeg/optional ASR — 2be1f89.
+- [x] MA-PRODUCT-SPLIT-PHASE-1 (#125): shared utilities extracted into `meeting_agent.shared`; meeting-owned code imports shared layer directly; old bot imports remain compatibility shims — pending commit.
 
 ## Active / Next
 
-- [ ] MA-PRODUCT-SPLIT-PHASE-1 (#125): extract shared utilities before separating Project Knowledge Bot.
 - [ ] MA-GUARD-PURE-DECISION-API (#106): deterministic guard decision API for regression tests.
 
 ## Meeting Product Backlog
