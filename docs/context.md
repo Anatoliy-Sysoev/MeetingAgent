@@ -4,9 +4,9 @@
 
 ## Now
 
-- active task: MA-GUARD-PURE-DECISION-API (#106) — implemented on branch `106-guard-pure-decision-api`, awaiting review/PR.
-- branch: `106-guard-pure-decision-api`.
-- canonical main state: PR #136 product split phase 1 merged into `origin/main`.
+- active task: MA-ADR-AUTH-PROVIDERS (#39) — implemented on branch `39-auth-providers-adr`, awaiting review/PR.
+- branch: `39-auth-providers-adr`.
+- canonical main state: PR #137 guard pure decision API merged into `origin/main`.
 
 ## Done latest
 
@@ -22,6 +22,7 @@
 - MA-MEETING-PACKAGING-LOCAL (#124, PR #135): local/Docker runbook, API container healthcheck and `scripts/42_local_preflight.py` for Docker, Ollama/model, ffmpeg and optional ASR dependency checks.
 - MA-PRODUCT-SPLIT-PHASE-1 (#125, PR #136): shared config/limits/prompt-safety/hashing/JSONL/path-filter/LLM helpers extracted into `meeting_agent.shared`; meeting-owned Q&A/vector/scripts import shared modules directly; old bot package imports remain compatibility shims.
 - MA-GUARD-PURE-DECISION-API (#106): pure `asu_june_bot.guard.evaluate_guard_decision()` adapter over existing `guardrails/` pipeline; no behavior change, no retrieval/LLM/network/disk I/O; fixture/runtime eval integration added.
+- MA-ADR-AUTH-PROVIDERS (#39): ADR-0039 defines provider-agnostic browser auth adapters, Yandex ID as first planned external provider, local RBAC as authoritative, and `MEETINGAGENT_API_TOKEN` as separate machine/API fallback.
 
 ## Current Product State
 
@@ -101,7 +102,7 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- #39/#40 auth evolution/admin console decision and implementation.
+- #40 admin console contract/implementation.
 - Meeting Product Backlog: anonymization (#22), meeting-summary benchmark (#24), public sample dataset (#19), quickstart/docs/release automation (#20/#21/#23/#25/#26).
 
 ## Open decisions / blockers

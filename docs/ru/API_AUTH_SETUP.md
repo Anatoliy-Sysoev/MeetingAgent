@@ -16,6 +16,7 @@
 - Для браузерных сессий: используйте `POST /admin/bootstrap`, чтобы создать первого администратора, затем `POST /auth/local/login`.
 - Публичная регистрация отсутствует и не планируется в MVP.
 - UI управления пользователями пока не реализован — управляйте пользователями через admin API.
+- Внешние browser providers являются planned adapter layer. ADR-0039 фиксирует Yandex ID как первый planned provider, при этом локальный RBAC остаётся главным источником прав.
 
 ### Замечание о встроенном Web UI
 
@@ -619,7 +620,7 @@ openssl rand -hex 32
 | Валидация безопасности деплоя | **Работает** — `MEETINGAGENT_DEPLOYMENT_MODE`, startup-валидатор, `GET /admin/security/status` |
 | Admin UI | **Не реализован** — используйте admin API напрямую |
 | Чат в Web UI (браузер) | **Работает** — local login + CSRF token flow |
-| Yandex ID / Google / OIDC | **Не реализованы** |
+| Yandex ID / Google / OIDC | **Запланированы** — см. `docs/architecture/ADR-0039-auth-providers.md`; локальный RBAC остаётся главным источником прав |
 | Публичная регистрация | **Не планируется в MVP** |
 | Per-user API tokens | **Не реализованы** |
 | Сброс пароля | **Не реализован** |

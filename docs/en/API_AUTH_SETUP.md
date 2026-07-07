@@ -16,6 +16,7 @@ This means:
 - For browser sessions: use `POST /admin/bootstrap` to create the first admin, then `POST /auth/local/login`.
 - Public registration does not exist and is not planned for the MVP.
 - Admin user-management UI is not implemented — manage users via the admin API.
+- External browser providers are a planned adapter layer. ADR-0039 defines Yandex ID as the first planned provider while keeping local RBAC authoritative.
 
 ### Web UI note
 
@@ -618,7 +619,7 @@ openssl rand -hex 32
 | Deployment safety validation | **Working** — `MEETINGAGENT_DEPLOYMENT_MODE`, startup validator, `GET /admin/security/status` |
 | Admin UI | **Not implemented** — use the admin API directly |
 | Web UI chat (browser) | **Working** — local login + CSRF token flow |
-| Yandex ID / Google / OIDC | **Not implemented** |
+| Yandex ID / Google / OIDC | **Planned** — see `docs/architecture/ADR-0039-auth-providers.md`; local RBAC remains authoritative |
 | Public registration | **Not planned for MVP** |
 | Per-user API tokens | **Not implemented** |
 | Password reset | **Not implemented** |

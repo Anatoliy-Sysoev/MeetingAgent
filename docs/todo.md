@@ -39,10 +39,11 @@
 - [x] MA-MEETING-PACKAGING-LOCAL (#124): local all-in-one runbook, Docker healthcheck and preflight CLI for Docker/Ollama/models/ffmpeg/optional ASR — 2be1f89.
 - [x] MA-PRODUCT-SPLIT-PHASE-1 (#125, PR #136): shared utilities extracted into `meeting_agent.shared`; meeting-owned code imports shared layer directly; old bot imports remain compatibility shims.
 - [x] MA-GUARD-PURE-DECISION-API (#106): pure deterministic `evaluate_guard_decision()` API for regression tests, wrapping existing guard behavior without retrieval/LLM/network/chat orchestration.
+- [x] MA-ADR-AUTH-PROVIDERS (#39): ADR-0039 defines provider-agnostic browser auth, Yandex ID as first planned external provider, local RBAC as authoritative and machine token as separate fallback.
 
 ## Active / Next
 
-- [ ] Pick next open issue after #106 merge: auth/admin (#39/#40), anonymization (#22), summary eval (#24), public samples/docs/release automation (#19/#20/#21/#23/#25/#26).
+- [ ] MA-ADMIN-CONSOLE (#40): admin UI/API contract and implementation direction.
 
 ## Meeting Product Backlog
 
@@ -51,7 +52,6 @@
 
 ## Project Knowledge Bot / Guard / Auth Backlog
 
-- [ ] MA-ADR-AUTH-PROVIDERS (#39): decide provider evolution, per-user tokens, OIDC/local provider roadmap.
 - [ ] MA-ADMIN-CONSOLE (#40): define/implement admin UI for users, roles, settings, jobs, audit and health.
 
 ## Documentation / OSS Backlog

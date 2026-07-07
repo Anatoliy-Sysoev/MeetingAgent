@@ -182,3 +182,21 @@
 - зависимости остаются в `requirements-live.txt`, а не в основном `requirements.txt`;
 - первый реализованный режим Silero VAD работает для `--input-wav`, где можно заранее получить speech windows;
 - microphone/system-loopback streaming VAD остается следующим шагом, потому что нужно сохранить корректные live таймкоды и endpointing.
+
+## 2026-07-07 - Auth Providers Через Локальный RBAC
+
+Решение: внешние browser identity providers должны только аутентифицировать пользователя, а права в MeetingAgent остаются локальными ролями `viewer`, `editor`, `admin`; machine/API fallback остаётся отдельным `MEETINGAGENT_API_TOKEN`.
+
+Почему:
+
+- browser users и scripts/automation имеют разные threat models;
+- внешний provider email/subject не должен автоматически давать `editor` или `admin`;
+- CLI, Telegram adapter, локальные smoke/eval workflows должны продолжать работать через Bearer token без OAuth;
+- будущие Yandex ID, Telegram, Google, Microsoft Entra или Keycloak providers должны подключаться как adapters без переписывания RBAC.
+
+Следствия:
+
+- текущий local login остаётся рабочим MVP/self-hosted вариантом;
+- Yandex ID фиксируется как первый planned external provider, но не как единственный возможный provider;
+- admin console должна требовать browser user session + local `admin`, а machine token не должен открывать admin UI;
+- подробный ADR: `docs/architecture/ADR-0039-auth-providers.md`.
