@@ -82,6 +82,7 @@ tests/asu_june_bot/**/*ntk*
 *.sqlite3
 *.db
 *.parquet
+*.private.json
 
 # Public quality docs are curated manually; private eval datasets/reports stay local.
 docs/quality/**
