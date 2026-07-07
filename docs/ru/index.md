@@ -13,8 +13,8 @@ MeetingAgent — local-first инструмент для проектной па
 
 ## Политики
 
-- [Политика безопасности](../../SECURITY.ru.md)
-- [Как участвовать](../../CONTRIBUTING.ru.md)
+- [Политика безопасности](https://github.com/Anatoliy-Sysoev/MeetingAgent/blob/main/SECURITY.ru.md)
+- [Как участвовать](https://github.com/Anatoliy-Sysoev/MeetingAgent/blob/main/CONTRIBUTING.ru.md)
 - [Политика переводов](../translation_policy.md)
 
 ## Политики

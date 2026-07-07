@@ -48,10 +48,11 @@
 - [x] CODEX-SECURITY-REVIEW-CHECKLIST (#21): public AI-assisted security review checklist linked from SECURITY and PR template.
 - [x] RELEASE-WORKFLOW-CHANGELOG (#23): release checklist, reusable changelog format, bilingual changelog validator and manual release-validation workflow.
 - [x] DOCS-PARITY (#25): bilingual parity guide plus tests for paired docs, language switches and public example parity.
+- [x] GITHUB-PAGES-DOCS (#26): MkDocs Material documentation site config, local build instructions and GitHub Pages workflow.
 
 ## Active / Next
 
-- [ ] Pick next open issue: GitHub Pages documentation site (#26).
+- [ ] Triage old external documentation PRs (#27, #28, #92) now that local replacement tasks are merged.
 
 ## Meeting Product Backlog
 
@@ -62,7 +63,6 @@
 
 ## Documentation / OSS Backlog
 
-- [ ] Add GitHub Pages documentation site (#26).
 
 ## Operating Rules
 

@@ -4,9 +4,9 @@
 
 ## Now
 
-- active task: DOCS-PARITY (#25) — implemented on branch `25-docs-parity`, awaiting PR.
-- branch: `25-docs-parity`.
-- canonical main state: PR #145 release workflow validation merged into `origin/main`.
+- active task: GITHUB-PAGES-DOCS (#26) — implemented on branch `26-github-pages-docs`, awaiting PR.
+- branch: `26-github-pages-docs`.
+- canonical main state: PR #146 documentation parity merged into `origin/main`.
 
 ## Done latest
 
@@ -31,6 +31,7 @@
 - CODEX-SECURITY-REVIEW-CHECKLIST (#21): public checklist for AI-assisted security review; linked from `SECURITY.md`, `SECURITY.ru.md` and PR template.
 - RELEASE-WORKFLOW-CHANGELOG (#23): documented release checklist, reusable changelog format, bilingual changelog validator and manual GitHub Actions release-validation workflow.
 - DOCS-PARITY (#25): added bilingual documentation parity guide and tests that enforce paired `docs/en`/`docs/ru` files, language switches and public example parity.
+- GITHUB-PAGES-DOCS (#26): added MkDocs Material config, docs landing page, local docs build dependencies and GitHub Pages deployment workflow.
 
 ## Current Product State
 
@@ -110,7 +111,7 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- Meeting Product Backlog: GitHub Pages documentation site (#26).
+- Meeting Product Backlog: public OSS docs/tasks complete; old external docs PRs need triage.
 
 ## Open decisions / blockers
 
