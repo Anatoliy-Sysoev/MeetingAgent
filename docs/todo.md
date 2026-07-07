@@ -50,12 +50,16 @@
 - [x] DOCS-PARITY (#25): bilingual parity guide plus tests for paired docs, language switches and public example parity.
 - [x] GITHUB-PAGES-DOCS (#26): MkDocs Material documentation site config, local build instructions and GitHub Pages workflow.
 - [x] WINDOWS-UTF8-DOC-NOTE (#92): useful external PR note incorporated into Docker docs with conflict-free wording.
+- [x] MA-MEETINGAGENT-HOME-UI: `/MeetingAgent` primary product shell with meeting registry, upload form, pipeline launch actions, active job panel and separate `/ui` Project Knowledge Bot tab.
 
 ## Active / Next
 
 - [x] Close old external documentation PRs: #27 and #28 superseded, #92 incorporated.
 
 ## Meeting Product Backlog
+
+- [ ] MA-MEETINGAGENT-ASR-ENGINE-UI — add UI/API option for choosing GigaAM vs faster-whisper during transcription pipeline launch.
+- [ ] MA-MEETINGAGENT-UI-MOCKUPS — approve target mockups for registry, upload wizard, processing monitor and meeting card before deeper UI refactor.
 
 
 ## Project Knowledge Bot / Guard / Auth Backlog

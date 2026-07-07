@@ -4,9 +4,9 @@
 
 ## Now
 
-- active task: none. Public OSS issues are closed and old external docs PRs were triaged.
-- branch: `docs-final-status-cleanup`.
-- canonical main state: PR #148 Windows UTF-8 documentation note merged into `origin/main`.
+- active task: MA-MEETINGAGENT-HOME-UI — new primary MeetingAgent shell at `/MeetingAgent`.
+- branch: `main`.
+- canonical main state: local UI shell work is ahead of `origin/main` until committed.
 
 ## Done latest
 
@@ -33,6 +33,7 @@
 - DOCS-PARITY (#25): added bilingual documentation parity guide and tests that enforce paired `docs/en`/`docs/ru` files, language switches and public example parity.
 - GITHUB-PAGES-DOCS (#26): added MkDocs Material config, docs landing page, local docs build dependencies and GitHub Pages deployment workflow.
 - WINDOWS-UTF8-DOC-NOTE (#92): incorporated the useful external PR note into `docs/docker.md`; PowerShell smoke sessions should set UTF-8 output and `PYTHONIOENCODING=utf-8`.
+- MA-MEETINGAGENT-HOME-UI: added `/MeetingAgent` as the primary product page with meeting registry, upload form, transcript/full pipeline launch actions, active job panel and separate navigation to `/ui` for the Project Knowledge Bot.
 
 ## Current Product State
 
@@ -112,7 +113,8 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- Meeting Product Backlog: public OSS docs/tasks complete; no open GitHub issues remain.
+- Polish `/MeetingAgent` visual design and split monolithic HTML into maintainable frontend assets after mockups are approved.
+- Add UI-level ASR engine selection for GigaAM vs faster-whisper; current `/MeetingAgent` pipeline launch uses the existing runner default `faster-whisper large-v3-turbo`.
 
 ## Open decisions / blockers
 
@@ -122,3 +124,4 @@ GET  /admin/review/chat-runs/export
 - Transcript anonymization is heuristic and requires manual review before publishing anonymized examples or eval fixtures; see `docs/operations/TRANSCRIPT_ANONYMIZATION.md`.
 - Meeting summary benchmark is deterministic and lexical by design; it is a smoke gate, not a semantic judge. Reports under `eval/reports/` stay runtime-only.
 - Local/private runtime outputs under `meetings/`, `data/`, `logs/`, model caches, transcripts and indexes must remain out of Git.
+- `/MeetingAgent` is now the intended product entrypoint; `/ui` remains the separate Project Knowledge Bot surface.
