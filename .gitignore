@@ -88,6 +88,7 @@ tests/asu_june_bot/**/*ntk*
 docs/quality/**
 !docs/quality/
 !docs/quality/README.md
+!docs/quality/MEETING_SUMMARY_BENCHMARK.md
 !docs/quality/rag_eval_report_template.md
 !docs/quality/synthetic_seed_queries.jsonl
 
