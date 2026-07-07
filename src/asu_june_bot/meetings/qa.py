@@ -109,6 +109,27 @@ def _make_preview(text: str, max_chars: int = 280) -> str:
     return collapsed[: max_chars - 3].rstrip() + "..."
 
 
+def _format_timecode(seconds: float | None) -> str | None:
+    if seconds is None:
+        return None
+    total = max(0, int(seconds))
+    hours = total // 3600
+    minutes = (total % 3600) // 60
+    secs = total % 60
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
+def _interval_overlap(
+    start_a: float | None,
+    end_a: float | None,
+    start_b: float | None,
+    end_b: float | None,
+) -> float:
+    if start_a is None or end_a is None or start_b is None or end_b is None:
+        return 0.0
+    return max(0.0, min(end_a, end_b) - max(start_a, start_b))
+
+
 class MeetingQAService:
     """Semantic + lexical search and grounded chat scoped to a single meeting.
 
@@ -139,6 +160,7 @@ class MeetingQAService:
             Path(meeting_chunks_path) if meeting_chunks_path is not None else None
         )
         self.vector_retriever = vector_retriever or build_meeting_vector_retriever(config)
+        self._segment_ref_cache: dict[str, list[dict[str, Any]]] = {}
 
     # -- chunk loading ------------------------------------------------------
 
@@ -254,11 +276,138 @@ class MeetingQAService:
         speaker = self._speaker(row) or "спикер неизвестен"
         return f"[{ts}, {speaker}]"
 
+    def _segment_refs_for_meeting(self, meeting_id: str) -> list[dict[str, Any]]:
+        """Return normalized transcript segment refs, cached per meeting.
+
+        Meeting chunks are larger windows, while the workspace player jumps to
+        transcript segments.  This resolver upgrades chunk/utterance citations
+        to exact transcript segment targets when the transcript is available.
+        """
+        if meeting_id in self._segment_ref_cache:
+            return self._segment_ref_cache[meeting_id]
+        refs: list[dict[str, Any]] = []
+        getter = getattr(self.meetings_service, "get_transcript_segments", None)
+        if callable(getter):
+            try:
+                payload = getter(meeting_id)
+            except Exception:
+                payload = None
+            if isinstance(payload, dict):
+                for seg in payload.get("segments") or []:
+                    if not isinstance(seg, dict):
+                        continue
+                    segment_id = str(seg.get("segment_id") or "").strip()
+                    start = _coerce_float(seg.get("start_sec"))
+                    end = _coerce_float(seg.get("end_sec"))
+                    if not segment_id or start is None:
+                        continue
+                    text = str(seg.get("text") or "")
+                    refs.append({
+                        "segment_id": segment_id,
+                        "start_sec": start,
+                        "end_sec": end,
+                        "timestamp_start": _format_timecode(start),
+                        "timestamp_end": _format_timecode(end),
+                        "speaker": seg.get("speaker"),
+                        "speaker_label": seg.get("speaker_label"),
+                        "speaker_role": seg.get("speaker_role"),
+                        "speaker_mapped": bool(seg.get("speaker_mapped")),
+                        "text_preview": _make_preview(text, max_chars=180),
+                    })
+        refs.sort(
+            key=lambda item: (
+                item.get("start_sec") or 0.0,
+                str(item.get("segment_id") or ""),
+            )
+        )
+        self._segment_ref_cache[meeting_id] = refs
+        return refs
+
+    def _matching_segment_refs(
+        self,
+        row: dict[str, Any],
+        meeting_id: str,
+    ) -> list[dict[str, Any]]:
+        refs = self._segment_refs_for_meeting(meeting_id)
+        if not refs:
+            return []
+
+        by_id = {str(ref.get("segment_id")): ref for ref in refs if ref.get("segment_id")}
+        matched: list[dict[str, Any]] = []
+        for utterance_id in self._utterance_ids(row):
+            ref = by_id.get(utterance_id)
+            if ref is not None and ref not in matched:
+                matched.append(ref)
+        if matched:
+            return matched
+
+        row_start = _coerce_float(row.get("start"))
+        row_end = _coerce_float(row.get("end"))
+        overlapped = [
+            (
+                _interval_overlap(
+                    row_start,
+                    row_end,
+                    _coerce_float(ref.get("start_sec")),
+                    _coerce_float(ref.get("end_sec")),
+                ),
+                ref,
+            )
+            for ref in refs
+        ]
+        matched = [ref for overlap, ref in overlapped if overlap > 0]
+        if matched:
+            return matched
+        return []
+
+    def _with_segment_target(
+        self,
+        base: dict[str, Any],
+        row: dict[str, Any],
+        meeting_id: str,
+    ) -> dict[str, Any]:
+        segment_refs = self._matching_segment_refs(row, meeting_id)
+        if not segment_refs:
+            base["citation_granularity"] = "chunk"
+            base["segment_refs"] = []
+            return base
+
+        primary = segment_refs[0]
+        speaker = primary.get("speaker") or base.get("speaker")
+        segment_speakers = []
+        for ref in segment_refs:
+            value = ref.get("speaker")
+            if value and value not in segment_speakers:
+                segment_speakers.append(value)
+        timestamp_start = primary.get("timestamp_start") or base.get("timestamp_start")
+        timestamp_end = primary.get("timestamp_end") or base.get("timestamp_end")
+        base.update({
+            "citation_granularity": "segment",
+            "segment_id": primary.get("segment_id"),
+            "segment_ids": [
+                ref.get("segment_id") for ref in segment_refs if ref.get("segment_id")
+            ],
+            "segment_refs": segment_refs,
+            "timestamp_start": timestamp_start,
+            "timestamp_end": timestamp_end,
+            "start_sec": primary.get("start_sec"),
+            "end_sec": primary.get("end_sec"),
+            "speaker": speaker,
+            "speakers": segment_speakers or base.get("speakers") or [],
+            "speaker_label": primary.get("speaker_label"),
+            "speaker_role": primary.get("speaker_role"),
+            "speaker_mapped": bool(primary.get("speaker_mapped")),
+            "citation_label": (
+                f"[{timestamp_start or '??:??:??'}, {speaker or 'спикер неизвестен'}]"
+            ),
+        })
+        return base
+
     def _source_ref(self, row: dict[str, Any], meeting_id: str) -> dict[str, Any]:
-        return {
+        ref = {
             "meeting_id": meeting_id,
             "artifact": self._artifact_ref(row, meeting_id),
-            "segment_id": None,  # chunks are windows, not transcript segments
+            "segment_id": None,
             "utterance_ids": self._utterance_ids(row),
             "speaker": self._speaker(row),
             "speakers": self._speakers(row),
@@ -268,6 +417,7 @@ class MeetingQAService:
             "end_sec": _coerce_float(row.get("end")),
             "citation_label": self._citation_label(row),
         }
+        return self._with_segment_target(ref, row, meeting_id)
 
     def _ranked_rows(
         self, meeting_id: str, query: str, top_k: int
@@ -324,6 +474,9 @@ class MeetingQAService:
             return None
         if self.meetings_service.get_meeting(meeting_id) is None:
             return None
+        # Speaker mapping can be edited from Workspace while the API process is
+        # alive; refresh segment refs per request but keep per-request reuse.
+        self._segment_ref_cache.pop(meeting_id, None)
 
         path_exists = self._chunks_path().exists()
         ranked, retrieval_mode = self._ranked_rows(meeting_id, query, top_k)
@@ -350,6 +503,7 @@ class MeetingQAService:
             return None
         if self.meetings_service.get_meeting(meeting_id) is None:
             return None
+        self._segment_ref_cache.pop(meeting_id, None)
 
         ranked, retrieval_mode = self._ranked_rows(meeting_id, query, top_k)
         if not ranked:
@@ -435,7 +589,7 @@ class MeetingQAService:
         )
 
     def _citation(self, row: dict[str, Any], meeting_id: str) -> dict[str, Any]:
-        return {
+        citation = {
             "chunk_id": str(row.get("chunk_id") or ""),
             "excerpt": _make_preview(str(row.get("text") or "")),
             "artifact": self._artifact_ref(row, meeting_id),
@@ -449,6 +603,7 @@ class MeetingQAService:
             "end_sec": _coerce_float(row.get("end")),
             "citation_label": self._citation_label(row),
         }
+        return self._with_segment_target(citation, row, meeting_id)
 
     @staticmethod
     def _chat_payload(
