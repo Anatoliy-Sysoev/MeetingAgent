@@ -4,9 +4,9 @@
 
 ## Now
 
-- active task: MA-ADMIN-CONSOLE (#40) — implemented on branch `40-admin-console-contract`, awaiting review/PR.
-- branch: `40-admin-console-contract`.
-- canonical main state: PR #138 auth providers ADR merged into `origin/main`.
+- active task: MA-TRANSCRIPT-ANONYMIZATION (#22) — implemented on branch `22-transcript-anonymization`, awaiting PR.
+- branch: `22-transcript-anonymization`.
+- canonical main state: PR #139 admin console contract merged into `origin/main`.
 
 ## Done latest
 
@@ -24,6 +24,7 @@
 - MA-GUARD-PURE-DECISION-API (#106): pure `asu_june_bot.guard.evaluate_guard_decision()` adapter over existing `guardrails/` pipeline; no behavior change, no retrieval/LLM/network/disk I/O; fixture/runtime eval integration added.
 - MA-ADR-AUTH-PROVIDERS (#39): ADR-0039 defines provider-agnostic browser auth adapters, Yandex ID as first planned external provider, local RBAC as authoritative, and `MEETINGAGENT_API_TOKEN` as separate machine/API fallback.
 - MA-ADMIN-CONSOLE (#40): admin console contract defines Users/Roles, Access Settings, Jobs, Meetings Admin, Audit/Diagnostics and Runtime Settings surfaces; current admin API coverage and planned follow-up endpoints are documented.
+- MA-TRANSCRIPT-ANONYMIZATION (#22): local transcript anonymization CLI for JSONL/Markdown, public-safe replacement report, optional private mapping, custom terms and meeting speaker-mapping terms.
 
 ## Current Product State
 
@@ -103,12 +104,12 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- Meeting Product Backlog: anonymization (#22), meeting-summary benchmark (#24), public sample dataset (#19), quickstart/docs/release automation (#20/#21/#23/#25/#26).
-- Meeting Product Backlog: anonymization (#22), meeting-summary benchmark (#24), public sample dataset (#19), quickstart/docs/release automation (#20/#21/#23/#25/#26).
+- Meeting Product Backlog: meeting-summary benchmark (#24), public sample dataset (#19), quickstart/docs/release automation (#20/#21/#23/#25/#26).
 
 ## Open decisions / blockers
 
 - Admin console contract is defined; dedicated admin UI, aggregate jobs/audit/settings endpoints and destructive meeting admin actions remain future implementation work.
 - Guard pure decision API is available for deterministic tests; future guard behavior changes must use it as a measurement boundary.
 - Local preflight can fail until Ollama is running and exposes `bge-m3` + `qwen3.5:4b` through the active model store.
+- Transcript anonymization is heuristic and requires manual review before publishing anonymized examples or eval fixtures; see `docs/operations/TRANSCRIPT_ANONYMIZATION.md`.
 - Local/private runtime outputs under `meetings/`, `data/`, `logs/`, model caches, transcripts and indexes must remain out of Git.

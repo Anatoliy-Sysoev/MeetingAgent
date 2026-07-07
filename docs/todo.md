@@ -41,14 +41,14 @@
 - [x] MA-GUARD-PURE-DECISION-API (#106): pure deterministic `evaluate_guard_decision()` API for regression tests, wrapping existing guard behavior without retrieval/LLM/network/chat orchestration.
 - [x] MA-ADR-AUTH-PROVIDERS (#39): ADR-0039 defines provider-agnostic browser auth, Yandex ID as first planned external provider, local RBAC as authoritative and machine token as separate fallback.
 - [x] MA-ADMIN-CONSOLE (#40): admin console IA/API contract for users/roles, access settings, jobs, meetings admin, audit/diagnostics and runtime settings.
+- [x] MA-TRANSCRIPT-ANONYMIZATION (#22): local JSONL/Markdown transcript anonymization CLI, public-safe report, optional private mapping and custom terms.
 
 ## Active / Next
 
-- [ ] Pick next open issue: anonymization (#22), meeting summary eval (#24), public samples/docs/release automation (#19/#20/#21/#23/#25/#26).
+- [ ] Pick next open issue: meeting summary eval (#24), public samples/docs/release automation (#19/#20/#21/#23/#25/#26).
 
 ## Meeting Product Backlog
 
-- [ ] Add anonymization pipeline for sensitive transcripts (#22).
 - [ ] Add evaluation benchmark for meeting summaries (#24).
 
 ## Project Knowledge Bot / Guard / Auth Backlog
