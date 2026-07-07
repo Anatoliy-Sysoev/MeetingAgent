@@ -53,6 +53,8 @@ MeetingAgent может использовать локальные и внеш�
 
 ## Checklist Для Maintainer
 
+Для Codex/AI-assisted review используйте подробный [Codex Security Review Checklist](docs/security/CODEX_SECURITY_REVIEW_CHECKLIST.md).
+
 Перед merge security-sensitive изменений:
 
 - запустить релевантные tests и smoke checks;
