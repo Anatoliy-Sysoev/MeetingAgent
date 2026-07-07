@@ -1,0 +1,37 @@
+name: Release Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version without leading v, for example 0.1.0"
+        required: true
+        default: "0.1.0"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}/src:${{ github.workspace }}/scripts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Validate release notes
+        run: python scripts/45_validate_release_notes.py --version "${{ inputs.version }}"
+
+      - name: Compile Python files
+        run: python -m compileall scripts src tests
+
+      - name: Run tests
+        run: python -m pytest -q
