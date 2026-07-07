@@ -47,10 +47,11 @@
 - [x] TRANSCRIPT-TO-PROTOCOL-QUICKSTART (#20): public sample transcript-to-protocol CLI guide with e2e smoke over the synthetic dataset.
 - [x] CODEX-SECURITY-REVIEW-CHECKLIST (#21): public AI-assisted security review checklist linked from SECURITY and PR template.
 - [x] RELEASE-WORKFLOW-CHANGELOG (#23): release checklist, reusable changelog format, bilingual changelog validator and manual release-validation workflow.
+- [x] DOCS-PARITY (#25): bilingual parity guide plus tests for paired docs, language switches and public example parity.
 
 ## Active / Next
 
-- [ ] Pick next open issue: docs parity/GitHub Pages (#25/#26).
+- [ ] Pick next open issue: GitHub Pages documentation site (#26).
 
 ## Meeting Product Backlog
 
@@ -61,7 +62,6 @@
 
 ## Documentation / OSS Backlog
 
-- [ ] Improve English/Russian documentation parity (#25).
 - [ ] Add GitHub Pages documentation site (#26).
 
 ## Operating Rules

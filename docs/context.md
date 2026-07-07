@@ -4,9 +4,9 @@
 
 ## Now
 
-- active task: RELEASE-WORKFLOW-CHANGELOG (#23) — implemented on branch `23-release-workflow-changelog`, awaiting PR.
-- branch: `23-release-workflow-changelog`.
-- canonical main state: PR #144 Codex security review checklist merged into `origin/main`.
+- active task: DOCS-PARITY (#25) — implemented on branch `25-docs-parity`, awaiting PR.
+- branch: `25-docs-parity`.
+- canonical main state: PR #145 release workflow validation merged into `origin/main`.
 
 ## Done latest
 
@@ -30,6 +30,7 @@
 - TRANSCRIPT-TO-PROTOCOL-QUICKSTART (#20): reproducible public guide from sample `segments.jsonl` through import, merge, chunk, enrich and extractive analyze; e2e test runs the documented flow.
 - CODEX-SECURITY-REVIEW-CHECKLIST (#21): public checklist for AI-assisted security review; linked from `SECURITY.md`, `SECURITY.ru.md` and PR template.
 - RELEASE-WORKFLOW-CHANGELOG (#23): documented release checklist, reusable changelog format, bilingual changelog validator and manual GitHub Actions release-validation workflow.
+- DOCS-PARITY (#25): added bilingual documentation parity guide and tests that enforce paired `docs/en`/`docs/ru` files, language switches and public example parity.
 
 ## Current Product State
 
@@ -109,7 +110,7 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- Meeting Product Backlog: docs parity/GitHub Pages (#25/#26).
+- Meeting Product Backlog: GitHub Pages documentation site (#26).
 
 ## Open decisions / blockers
 

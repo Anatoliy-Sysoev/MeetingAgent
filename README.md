@@ -291,6 +291,7 @@ See [API and Auth Setup](docs/en/API_AUTH_SETUP.md) for the full reference: toke
 - [Contributing guide](CONTRIBUTING.md)
 - [Architecture index](docs/architecture/ARCHITECTURE.md)
 - [Release process](docs/operations/RELEASE_PROCESS.md)
+- [Documentation parity](docs/en/documentation_parity.md)
 - [Current project context](docs/context.md)
 - [Decisions](docs/decisions.md)
 - [TODO](docs/todo.md)

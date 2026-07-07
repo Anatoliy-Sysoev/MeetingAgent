@@ -17,6 +17,10 @@ MeetingAgent — local-first инструмент для проектной па
 - [Как участвовать](../../CONTRIBUTING.ru.md)
 - [Политика переводов](../translation_policy.md)
 
+## Политики
+
+- [Паритет документации](documentation_parity.md)
+
 ## Reference Implementation
 
 Project Knowledge Bot — reference implementation source-grounded project search and chat:

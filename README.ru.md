@@ -173,6 +173,7 @@ API использует machine Bearer token (`MEETINGAGENT_API_TOKEN`) для 
 - [Privacy and data](docs/security/PRIVACY_AND_DATA.md)
 - [Meeting pipeline](docs/operations/MEETING_PIPELINE.md)
 - [Release process](docs/operations/RELEASE_PROCESS.md)
+- [Паритет документации](docs/ru/documentation_parity.md)
 
 ## Разработка
 
