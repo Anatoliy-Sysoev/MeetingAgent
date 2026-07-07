@@ -4,9 +4,9 @@
 
 ## Now
 
-- active task: CODEX-SECURITY-REVIEW-CHECKLIST (#21) — implemented on branch `21-codex-security-review-checklist`, awaiting PR.
-- branch: `21-codex-security-review-checklist`.
-- canonical main state: PR #143 transcript-to-protocol quickstart merged into `origin/main`.
+- active task: RELEASE-WORKFLOW-CHANGELOG (#23) — implemented on branch `23-release-workflow-changelog`, awaiting PR.
+- branch: `23-release-workflow-changelog`.
+- canonical main state: PR #144 Codex security review checklist merged into `origin/main`.
 
 ## Done latest
 
@@ -29,6 +29,7 @@
 - PUBLIC-SAMPLE-MEETING-DATASET (#19): `examples/meeting_dataset/synthetic-support-handoff/` contains a schema-valid synthetic meeting card, transcript JSONL/Markdown and expected summary/protocol/structured artifacts with source refs.
 - TRANSCRIPT-TO-PROTOCOL-QUICKSTART (#20): reproducible public guide from sample `segments.jsonl` through import, merge, chunk, enrich and extractive analyze; e2e test runs the documented flow.
 - CODEX-SECURITY-REVIEW-CHECKLIST (#21): public checklist for AI-assisted security review; linked from `SECURITY.md`, `SECURITY.ru.md` and PR template.
+- RELEASE-WORKFLOW-CHANGELOG (#23): documented release checklist, reusable changelog format, bilingual changelog validator and manual GitHub Actions release-validation workflow.
 
 ## Current Product State
 
@@ -108,7 +109,7 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- Meeting Product Backlog: docs/release automation (#23/#25/#26).
+- Meeting Product Backlog: docs parity/GitHub Pages (#25/#26).
 
 ## Open decisions / blockers
 

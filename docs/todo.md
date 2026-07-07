@@ -46,10 +46,11 @@
 - [x] PUBLIC-SAMPLE-MEETING-DATASET (#19): schema-valid synthetic meeting card with transcript, speaker transcript, expected summary/protocol and structured artifacts.
 - [x] TRANSCRIPT-TO-PROTOCOL-QUICKSTART (#20): public sample transcript-to-protocol CLI guide with e2e smoke over the synthetic dataset.
 - [x] CODEX-SECURITY-REVIEW-CHECKLIST (#21): public AI-assisted security review checklist linked from SECURITY and PR template.
+- [x] RELEASE-WORKFLOW-CHANGELOG (#23): release checklist, reusable changelog format, bilingual changelog validator and manual release-validation workflow.
 
 ## Active / Next
 
-- [ ] Pick next open issue: docs/release automation (#23/#25/#26).
+- [ ] Pick next open issue: docs parity/GitHub Pages (#25/#26).
 
 ## Meeting Product Backlog
 
@@ -60,7 +61,6 @@
 
 ## Documentation / OSS Backlog
 
-- [ ] Add release workflow and changelog automation (#23).
 - [ ] Improve English/Russian documentation parity (#25).
 - [ ] Add GitHub Pages documentation site (#26).
 
