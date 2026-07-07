@@ -4,9 +4,9 @@
 
 ## Now
 
-- active task: MA-MEETING-SUMMARY-BENCHMARK (#24) — implemented on branch `24-meeting-summary-benchmark`, awaiting PR.
-- branch: `24-meeting-summary-benchmark`.
-- canonical main state: PR #140 transcript anonymization merged into `origin/main`.
+- active task: PUBLIC-SAMPLE-MEETING-DATASET (#19) — implemented on branch `19-public-sample-meeting-dataset`, awaiting PR.
+- branch: `19-public-sample-meeting-dataset`.
+- canonical main state: PR #141 meeting summary benchmark merged into `origin/main`.
 
 ## Done latest
 
@@ -26,6 +26,7 @@
 - MA-ADMIN-CONSOLE (#40): admin console contract defines Users/Roles, Access Settings, Jobs, Meetings Admin, Audit/Diagnostics and Runtime Settings surfaces; current admin API coverage and planned follow-up endpoints are documented.
 - MA-TRANSCRIPT-ANONYMIZATION (#22): local transcript anonymization CLI for JSONL/Markdown, public-safe replacement report, optional private mapping, custom terms and meeting speaker-mapping terms.
 - MA-MEETING-SUMMARY-BENCHMARK (#24): public synthetic meeting-summary benchmark cases and deterministic evaluator for summary/protocol + decisions/tasks/risks/open_questions source-grounding.
+- PUBLIC-SAMPLE-MEETING-DATASET (#19): `examples/meeting_dataset/synthetic-support-handoff/` contains a schema-valid synthetic meeting card, transcript JSONL/Markdown and expected summary/protocol/structured artifacts with source refs.
 
 ## Current Product State
 
@@ -105,7 +106,7 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- Meeting Product Backlog: public sample dataset (#19), quickstart/docs/release automation (#20/#21/#23/#25/#26).
+- Meeting Product Backlog: quickstart/docs/release automation (#20/#21/#23/#25/#26).
 
 ## Open decisions / blockers
 

@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "meeting_id": "2026-01-15__synthetic-support-handoff",
+  "generated_at": "2026-01-15T10:05:00+00:00",
+  "items": [
+    {
+      "risk_id": "RISK-001",
+      "title": "Missing test access",
+      "description": "Without test access, operators cannot verify request status before escalation.",
+      "impact": "medium",
+      "probability": "medium",
+      "mitigation": "Assign an access owner and publish the approval time.",
+      "status": "open",
+      "source_refs": [
+        {
+          "kind": "transcript_segment",
+          "path": "transcript/segments.jsonl",
+          "chunk_id": "synthetic-support-handoff-chunk-001",
+          "segment_index": 4,
+          "start": 36.0,
+          "end": 48.0,
+          "timecode_start": "00:00:36",
+          "timecode_end": "00:00:48",
+          "speakers": ["SPEAKER_03"],
+          "speaker_names": ["Engineer"],
+          "utterance_ids": ["utt-000004"],
+          "quote": "Risk: without test access, operators cannot verify request status before escalation.",
+          "score": 1.0
+        }
+      ],
+      "confidence": 0.95,
+      "needs_review": false
+    }
+  ]
+}

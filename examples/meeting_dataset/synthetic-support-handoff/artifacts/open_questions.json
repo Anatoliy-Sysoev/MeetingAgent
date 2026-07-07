@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "meeting_id": "2026-01-15__synthetic-support-handoff",
+  "generated_at": "2026-01-15T10:05:00+00:00",
+  "items": [
+    {
+      "question_id": "Q-001",
+      "question": "Who grants test access and what approval time should be promised?",
+      "context": "The team identified test access as necessary for support operators to verify request status.",
+      "status": "open",
+      "source_refs": [
+        {
+          "kind": "transcript_segment",
+          "path": "transcript/segments.jsonl",
+          "chunk_id": "synthetic-support-handoff-chunk-001",
+          "segment_index": 5,
+          "start": 48.0,
+          "end": 58.0,
+          "timecode_start": "00:00:48",
+          "timecode_end": "00:00:58",
+          "speakers": ["SPEAKER_01"],
+          "speaker_names": ["Analyst"],
+          "utterance_ids": ["utt-000005"],
+          "quote": "Open question: who grants test access and what approval time should we promise?",
+          "score": 1.0
+        }
+      ],
+      "confidence": 0.94,
+      "needs_review": false
+    }
+  ]
+}
