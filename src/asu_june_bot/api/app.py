@@ -16,6 +16,7 @@ from asu_june_bot.api.routes_chat import router as chat_router
 from asu_june_bot.api.routes_health import router as health_router
 from asu_june_bot.api.routes_ingest import router as ingest_router
 from asu_june_bot.api.routes_jobs import router as jobs_router
+from asu_june_bot.api.routes_meetingagent_ui import router as meetingagent_ui_router
 from asu_june_bot.api.routes_meetings import router as meetings_router
 from asu_june_bot.api.routes_search import router as search_router
 from asu_june_bot.api.routes_ui import router as ui_router
@@ -38,6 +39,7 @@ def create_app() -> FastAPI:
     app.middleware("http")(request_context_middleware)
     register_error_handlers(app)
     app.include_router(ui_router)
+    app.include_router(meetingagent_ui_router)
     app.include_router(workspace_router)
     app.include_router(health_router)
     app.include_router(auth_router)
