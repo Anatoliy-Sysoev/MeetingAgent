@@ -42,14 +42,14 @@
 - [x] MA-ADR-AUTH-PROVIDERS (#39): ADR-0039 defines provider-agnostic browser auth, Yandex ID as first planned external provider, local RBAC as authoritative and machine token as separate fallback.
 - [x] MA-ADMIN-CONSOLE (#40): admin console IA/API contract for users/roles, access settings, jobs, meetings admin, audit/diagnostics and runtime settings.
 - [x] MA-TRANSCRIPT-ANONYMIZATION (#22): local JSONL/Markdown transcript anonymization CLI, public-safe report, optional private mapping and custom terms.
+- [x] MA-MEETING-SUMMARY-BENCHMARK (#24): public synthetic meeting-summary benchmark and deterministic artifact evaluator for provider comparison.
 
 ## Active / Next
 
-- [ ] Pick next open issue: meeting summary eval (#24), public samples/docs/release automation (#19/#20/#21/#23/#25/#26).
+- [ ] Pick next open issue: public samples/docs/release automation (#19/#20/#21/#23/#25/#26).
 
 ## Meeting Product Backlog
 
-- [ ] Add evaluation benchmark for meeting summaries (#24).
 
 ## Project Knowledge Bot / Guard / Auth Backlog
 

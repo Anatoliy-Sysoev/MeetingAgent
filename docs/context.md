@@ -4,9 +4,9 @@
 
 ## Now
 
-- active task: MA-TRANSCRIPT-ANONYMIZATION (#22) — implemented on branch `22-transcript-anonymization`, awaiting PR.
-- branch: `22-transcript-anonymization`.
-- canonical main state: PR #139 admin console contract merged into `origin/main`.
+- active task: MA-MEETING-SUMMARY-BENCHMARK (#24) — implemented on branch `24-meeting-summary-benchmark`, awaiting PR.
+- branch: `24-meeting-summary-benchmark`.
+- canonical main state: PR #140 transcript anonymization merged into `origin/main`.
 
 ## Done latest
 
@@ -25,6 +25,7 @@
 - MA-ADR-AUTH-PROVIDERS (#39): ADR-0039 defines provider-agnostic browser auth adapters, Yandex ID as first planned external provider, local RBAC as authoritative, and `MEETINGAGENT_API_TOKEN` as separate machine/API fallback.
 - MA-ADMIN-CONSOLE (#40): admin console contract defines Users/Roles, Access Settings, Jobs, Meetings Admin, Audit/Diagnostics and Runtime Settings surfaces; current admin API coverage and planned follow-up endpoints are documented.
 - MA-TRANSCRIPT-ANONYMIZATION (#22): local transcript anonymization CLI for JSONL/Markdown, public-safe replacement report, optional private mapping, custom terms and meeting speaker-mapping terms.
+- MA-MEETING-SUMMARY-BENCHMARK (#24): public synthetic meeting-summary benchmark cases and deterministic evaluator for summary/protocol + decisions/tasks/risks/open_questions source-grounding.
 
 ## Current Product State
 
@@ -104,7 +105,7 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- Meeting Product Backlog: meeting-summary benchmark (#24), public sample dataset (#19), quickstart/docs/release automation (#20/#21/#23/#25/#26).
+- Meeting Product Backlog: public sample dataset (#19), quickstart/docs/release automation (#20/#21/#23/#25/#26).
 
 ## Open decisions / blockers
 
@@ -112,4 +113,5 @@ GET  /admin/review/chat-runs/export
 - Guard pure decision API is available for deterministic tests; future guard behavior changes must use it as a measurement boundary.
 - Local preflight can fail until Ollama is running and exposes `bge-m3` + `qwen3.5:4b` through the active model store.
 - Transcript anonymization is heuristic and requires manual review before publishing anonymized examples or eval fixtures; see `docs/operations/TRANSCRIPT_ANONYMIZATION.md`.
+- Meeting summary benchmark is deterministic and lexical by design; it is a smoke gate, not a semantic judge. Reports under `eval/reports/` stay runtime-only.
 - Local/private runtime outputs under `meetings/`, `data/`, `logs/`, model caches, transcripts and indexes must remain out of Git.
