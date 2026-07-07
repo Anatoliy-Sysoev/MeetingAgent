@@ -75,6 +75,7 @@ tests/asu_june_bot/**/*ntk*
 # Local indexes, caches, and database files
 *.jsonl
 !eval/cases/*.jsonl
+!examples/**/*.jsonl
 !tests/**/*.jsonl
 tests/asu_june_bot/guard_v2_cases.jsonl
 tests/asu_june_bot/**/*ntk*

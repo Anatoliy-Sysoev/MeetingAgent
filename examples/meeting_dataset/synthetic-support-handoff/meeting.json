@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "meeting_id": "2026-01-15__synthetic-support-handoff",
+  "title": "Synthetic Support Handoff",
+  "date": "2026-01-15",
+  "start_time": "10:00:00+00:00",
+  "duration_minutes": 1,
+  "source": {
+    "kind": "offline_record",
+    "notes": "Synthetic transcript-only public example. No real recording is included."
+  },
+  "processing_status": "indexed",
+  "participants": [
+    "Analyst",
+    "Support Lead",
+    "Engineer"
+  ],
+  "speaker_mapping": {
+    "SPEAKER_01": {
+      "name": "Analyst",
+      "role": "Meeting facilitator"
+    },
+    "SPEAKER_02": {
+      "name": "Support Lead",
+      "role": "Operations owner"
+    },
+    "SPEAKER_03": {
+      "name": "Engineer",
+      "role": "Implementation owner"
+    }
+  },
+  "artifacts": {
+    "segments": "transcript/segments.jsonl",
+    "speaker_transcript": "transcript/speaker_transcript.jsonl",
+    "transcript": "transcript/transcript.md",
+    "memo": "artifacts/summary.md",
+    "protocol": "artifacts/protocol.md",
+    "decisions": "artifacts/decisions.json",
+    "tasks": "artifacts/tasks.json",
+    "risks": "artifacts/risks.json",
+    "open_questions": "artifacts/open_questions.json"
+  },
+  "classification": {
+    "summary": "Synthetic support handoff sample.",
+    "needs_review": false,
+    "confidence": 1.0
+  },
+  "links": {},
+  "retention": {
+    "policy": "default",
+    "reason": "Public synthetic sample."
+  },
+  "rag": {
+    "index_policy": "do_not_index",
+    "no_index_artifacts": [
+      "transcript/segments.jsonl",
+      "transcript/speaker_transcript.jsonl"
+    ]
+  },
+  "created_at": "2026-01-15T10:00:00+00:00",
+  "updated_at": "2026-01-15T10:05:00+00:00"
+}
