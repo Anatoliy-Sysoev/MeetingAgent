@@ -148,6 +148,7 @@ Workspace включает медиаплеер, кликабельный тра
 
 ## Публичные Примеры
 
+- [Synthetic meeting dataset](examples/meeting_dataset/README.md)
 - [Sample transcript](examples/ru/sample_transcript.md)
 - [Sample protocol](examples/ru/sample_protocol.md)
 - [Sample summary](examples/ru/sample_summary.md)

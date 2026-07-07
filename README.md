@@ -81,6 +81,7 @@ The production-ready reference API/UI runtime currently lives in `src/asu_june_b
 
 Synthetic examples are available for a safe first look at the meeting artifact format:
 
+- [Synthetic meeting dataset](examples/meeting_dataset/README.md)
 - [Sample transcript](examples/en/sample_transcript.md)
 - [Sample protocol](examples/en/sample_protocol.md)
 - [Sample summary](examples/en/sample_summary.md)

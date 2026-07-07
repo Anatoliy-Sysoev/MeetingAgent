@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "meeting_id": "2026-01-15__synthetic-support-handoff",
+  "generated_at": "2026-01-15T10:05:00+00:00",
+  "items": [
+    {
+      "decision_id": "DEC-001",
+      "title": "Use one incident intake template",
+      "decision": "First-line support will use one incident intake template for all pilot requests.",
+      "rationale": "A single template keeps incident intake consistent during the pilot.",
+      "status": "accepted",
+      "source_refs": [
+        {
+          "kind": "transcript_segment",
+          "path": "transcript/segments.jsonl",
+          "chunk_id": "synthetic-support-handoff-chunk-001",
+          "segment_index": 2,
+          "start": 12.0,
+          "end": 24.0,
+          "timecode_start": "00:00:12",
+          "timecode_end": "00:00:24",
+          "speakers": ["SPEAKER_01"],
+          "speaker_names": ["Analyst"],
+          "utterance_ids": ["utt-000002"],
+          "quote": "Decision: first-line support will use one incident intake template for all pilot requests.",
+          "score": 1.0
+        }
+      ],
+      "confidence": 0.98,
+      "needs_review": false
+    }
+  ]
+}
