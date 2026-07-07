@@ -45,10 +45,11 @@
 - [x] MA-MEETING-SUMMARY-BENCHMARK (#24): public synthetic meeting-summary benchmark and deterministic artifact evaluator for provider comparison.
 - [x] PUBLIC-SAMPLE-MEETING-DATASET (#19): schema-valid synthetic meeting card with transcript, speaker transcript, expected summary/protocol and structured artifacts.
 - [x] TRANSCRIPT-TO-PROTOCOL-QUICKSTART (#20): public sample transcript-to-protocol CLI guide with e2e smoke over the synthetic dataset.
+- [x] CODEX-SECURITY-REVIEW-CHECKLIST (#21): public AI-assisted security review checklist linked from SECURITY and PR template.
 
 ## Active / Next
 
-- [ ] Pick next open issue: docs/release automation (#21/#23/#25/#26).
+- [ ] Pick next open issue: docs/release automation (#23/#25/#26).
 
 ## Meeting Product Backlog
 
@@ -59,7 +60,6 @@
 
 ## Documentation / OSS Backlog
 
-- [ ] Add Codex security review checklist (#21).
 - [ ] Add release workflow and changelog automation (#23).
 - [ ] Improve English/Russian documentation parity (#25).
 - [ ] Add GitHub Pages documentation site (#26).

@@ -53,6 +53,8 @@ MeetingAgent can use local and external model providers. Review provider configu
 
 ## Maintainer Checklist
 
+For Codex/AI-assisted reviews, use the detailed [Codex Security Review Checklist](docs/security/CODEX_SECURITY_REVIEW_CHECKLIST.md).
+
 Before merging security-sensitive changes:
 
 - run relevant tests and smoke checks;
