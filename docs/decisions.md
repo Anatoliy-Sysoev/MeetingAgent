@@ -200,3 +200,20 @@
 - Yandex ID фиксируется как первый planned external provider, но не как единственный возможный provider;
 - admin console должна требовать browser user session + local `admin`, а machine token не должен открывать admin UI;
 - подробный ADR: `docs/architecture/ADR-0039-auth-providers.md`.
+
+## 2026-07-07 - Admin Console Как Отдельная Admin Surface
+
+Решение: admin console должен быть отдельной browser-user surface для `admin` роли, а не расширением machine/API токена.
+
+Почему:
+
+- machine token нужен для automation, CLI и service-to-service, а не для интерактивного управления пользователями;
+- user/role changes, token rotation, destructive meeting actions и diagnostics требуют audit trail и явных подтверждений;
+- текущий admin API уже покрывает users/security status, но UI и aggregate jobs/audit/settings должны развиваться по отдельному контракту.
+
+Следствия:
+
+- machine principal не получает admin UI доступ по умолчанию;
+- admin mutations требуют cookie session + CSRF;
+- admin API/UI не должны возвращать raw secrets, OAuth tokens, session tokens, local paths или raw tracebacks;
+- контракт: `docs/architecture/ADMIN_CONSOLE.md`.

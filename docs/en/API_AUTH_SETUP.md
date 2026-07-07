@@ -617,7 +617,7 @@ openssl rand -hex 32
 | First-admin bootstrap (`POST /admin/bootstrap`) | **Working** |
 | Admin user API (`/admin/users`) | **Working** |
 | Deployment safety validation | **Working** — `MEETINGAGENT_DEPLOYMENT_MODE`, startup validator, `GET /admin/security/status` |
-| Admin UI | **Not implemented** — use the admin API directly |
+| Admin UI | **Contract defined** — see `docs/architecture/ADMIN_CONSOLE.md`; use the admin API directly until UI implementation |
 | Web UI chat (browser) | **Working** — local login + CSRF token flow |
 | Yandex ID / Google / OIDC | **Planned** — see `docs/architecture/ADR-0039-auth-providers.md`; local RBAC remains authoritative |
 | Public registration | **Not planned for MVP** |
