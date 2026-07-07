@@ -15,3 +15,4 @@
 
 Does this change touch local files, transcripts, API keys, external model providers, exports, Telegram, Web UI, Docker, or guardrails?
 
+If yes, use the [Codex Security Review Checklist](../docs/security/CODEX_SECURITY_REVIEW_CHECKLIST.md) and summarize the result here.
