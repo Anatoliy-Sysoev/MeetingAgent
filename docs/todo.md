@@ -40,10 +40,11 @@
 - [x] MA-PRODUCT-SPLIT-PHASE-1 (#125, PR #136): shared utilities extracted into `meeting_agent.shared`; meeting-owned code imports shared layer directly; old bot imports remain compatibility shims.
 - [x] MA-GUARD-PURE-DECISION-API (#106): pure deterministic `evaluate_guard_decision()` API for regression tests, wrapping existing guard behavior without retrieval/LLM/network/chat orchestration.
 - [x] MA-ADR-AUTH-PROVIDERS (#39): ADR-0039 defines provider-agnostic browser auth, Yandex ID as first planned external provider, local RBAC as authoritative and machine token as separate fallback.
+- [x] MA-ADMIN-CONSOLE (#40): admin console IA/API contract for users/roles, access settings, jobs, meetings admin, audit/diagnostics and runtime settings.
 
 ## Active / Next
 
-- [ ] MA-ADMIN-CONSOLE (#40): admin UI/API contract and implementation direction.
+- [ ] Pick next open issue: anonymization (#22), meeting summary eval (#24), public samples/docs/release automation (#19/#20/#21/#23/#25/#26).
 
 ## Meeting Product Backlog
 
@@ -52,7 +53,7 @@
 
 ## Project Knowledge Bot / Guard / Auth Backlog
 
-- [ ] MA-ADMIN-CONSOLE (#40): define/implement admin UI for users, roles, settings, jobs, audit and health.
+- [ ] Implement dedicated admin UI page and aggregate admin jobs/audit/settings endpoints (follow-up to #40; create issue before coding).
 
 ## Documentation / OSS Backlog
 

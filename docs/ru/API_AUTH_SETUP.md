@@ -618,7 +618,7 @@ openssl rand -hex 32
 | Первичная регистрация администратора (`POST /admin/bootstrap`) | **Работает** |
 | Admin user API (`/admin/users`) | **Работает** |
 | Валидация безопасности деплоя | **Работает** — `MEETINGAGENT_DEPLOYMENT_MODE`, startup-валидатор, `GET /admin/security/status` |
-| Admin UI | **Не реализован** — используйте admin API напрямую |
+| Admin UI | **Контракт определён** — см. `docs/architecture/ADMIN_CONSOLE.md`; до реализации UI используйте admin API напрямую |
 | Чат в Web UI (браузер) | **Работает** — local login + CSRF token flow |
 | Yandex ID / Google / OIDC | **Запланированы** — см. `docs/architecture/ADR-0039-auth-providers.md`; локальный RBAC остаётся главным источником прав |
 | Публичная регистрация | **Не планируется в MVP** |
