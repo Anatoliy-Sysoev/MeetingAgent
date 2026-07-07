@@ -1,0 +1,76 @@
+site_name: MeetingAgent
+site_description: Local-first meeting intelligence and project memory tool
+repo_url: https://github.com/Anatoliy-Sysoev/MeetingAgent
+repo_name: Anatoliy-Sysoev/MeetingAgent
+docs_dir: docs
+site_dir: site
+exclude_docs: |
+  private/**
+  internal/**
+  subprojects/**
+  product/**
+  references/**
+  quality/DATASET_PIPELINE_STATUS.md
+  quality/EVALUATION_PLAN.md
+  quality/QUERY_FEEDBACK_LOOP.md
+  quality/ntk_*.md
+  quality/project_only_chatbot_smoke_questions.md
+  quality/rag_eval_baseline_*.md
+  quality/rag_eval_questions.md
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - search.suggest
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - tables
+  - fenced_code
+
+nav:
+  - Home: index.md
+  - English:
+      - Overview: en/index.md
+      - Quickstart: en/quickstart.md
+      - Architecture: en/architecture.md
+      - API and Auth: en/API_AUTH_SETUP.md
+      - Agent Workflows: en/agents.md
+      - Roadmap: en/roadmap.md
+      - Documentation Parity: en/documentation_parity.md
+  - Русский:
+      - Обзор: ru/index.md
+      - Быстрый старт: ru/quickstart.md
+      - Архитектура: ru/architecture.md
+      - API и авторизация: ru/API_AUTH_SETUP.md
+      - Работа агентов: ru/agents.md
+      - Дорожная карта: ru/roadmap.md
+      - Паритет документации: ru/documentation_parity.md
+  - Operations:
+      - Meeting Pipeline: operations/MEETING_PIPELINE.md
+      - Transcript to Protocol: operations/TRANSCRIPT_TO_PROTOCOL_QUICKSTART.md
+      - Release Process: operations/RELEASE_PROCESS.md
+      - Local Packaging: operations/LOCAL_PACKAGING.md
+      - Ollama Runtime: operations/OLLAMA_LOCAL_RUNTIME.md
+  - Architecture:
+      - Architecture Index: architecture/ARCHITECTURE.md
+      - Product Boundaries: architecture/PRODUCT_BOUNDARIES.md
+  - Security:
+      - Privacy and Data: security/PRIVACY_AND_DATA.md
+      - Codex Security Review: security/CODEX_SECURITY_REVIEW_CHECKLIST.md
+  - Quality:
+      - Quality Policy: quality/README.md
+  - Project:
+      - Current Context: context.md
+      - Decisions: decisions.md
+      - TODO: todo.md
+      - Translation Policy: translation_policy.md
