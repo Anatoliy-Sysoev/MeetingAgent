@@ -1,7 +1,3 @@
-from __future__ import annotations
+"""Compatibility shim for shared MeetingAgent hashing helpers."""
 
-import hashlib
-
-
-def stable_id(value: str, length: int = 24) -> str:
-    return hashlib.sha256(str(value).encode("utf-8", errors="replace")).hexdigest()[:length]
+from meeting_agent.shared.hashing import *  # noqa: F401,F403

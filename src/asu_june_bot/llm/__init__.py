@@ -1,5 +1,5 @@
-"""LLM clients for Asu June Bot."""
+"""Compatibility shim for shared MeetingAgent LLM contracts."""
 
-from .client import LLMClient, LLMRequest, LLMResponse, LLMError
+from meeting_agent.shared.llm import LLMClient, LLMError, LLMRequest, LLMResponse
 
 __all__ = ["LLMClient", "LLMRequest", "LLMResponse", "LLMError"]

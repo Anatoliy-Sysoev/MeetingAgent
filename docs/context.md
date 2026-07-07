@@ -4,9 +4,9 @@
 
 ## Now
 
-- active task: MA-MEETING-PACKAGING-LOCAL (#124) — implemented on branch `124-meeting-packaging-local`, awaiting review/PR.
-- branch: `124-meeting-packaging-local`.
-- canonical main state: PR #134 segment-level Q&A citations merged into `origin/main`.
+- active task: MA-PRODUCT-SPLIT-PHASE-1 (#125) — implemented on branch `125-product-split-phase-1`, awaiting review/PR.
+- branch: `125-product-split-phase-1`.
+- canonical main state: PR #135 local packaging merged into `origin/main`.
 
 ## Done latest
 
@@ -19,7 +19,8 @@
 - MA-SPEAKER-MAPPING-UI (#122, PR #132): manual `SPEAKER_XX` -> name/role mapping in `meeting.json`, speaker discovery API, Workspace editor and mapped transcript display.
 - MA-MEETING-STRUCTURED-ARTIFACTS-V2 (#123, PR #133): structured JSON artifacts now include source-grounded `confidence`, `needs_review`, chunk/timecode, speaker names and utterance refs; summary/protocol render source labels.
 - MA-MEETING-QA-SEGMENT-CITATIONS (#126, PR #134): meeting Q&A/search source refs now resolve chunk/utterance citations to exact transcript segment targets when available (`segment_id`, `segment_refs[]`, precise `start_sec/end_sec`, mapped speaker fields); missing transcripts fall back to chunk-level citations.
-- MA-MEETING-PACKAGING-LOCAL (#124): local/Docker runbook, API container healthcheck and `scripts/42_local_preflight.py` for Docker, Ollama/model, ffmpeg and optional ASR dependency checks.
+- MA-MEETING-PACKAGING-LOCAL (#124, PR #135): local/Docker runbook, API container healthcheck and `scripts/42_local_preflight.py` for Docker, Ollama/model, ffmpeg and optional ASR dependency checks.
+- MA-PRODUCT-SPLIT-PHASE-1 (#125): shared config/limits/prompt-safety/hashing/JSONL/path-filter/LLM helpers extracted into `meeting_agent.shared`; meeting-owned Q&A/vector/scripts import shared modules directly; old bot package imports remain compatibility shims.
 
 ## Current Product State
 
@@ -99,8 +100,8 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- #125 MA-PRODUCT-SPLIT-PHASE-1 — extract shared utilities before separating Project Knowledge Bot.
 - #106 MA-GUARD-PURE-DECISION-API — deterministic guard decision API for regression tests.
+- #39/#40 auth evolution/admin console decision and implementation.
 
 ## Open decisions / blockers
 
