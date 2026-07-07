@@ -4,9 +4,9 @@
 
 ## Now
 
-- active task: TRANSCRIPT-TO-PROTOCOL-QUICKSTART (#20) — implemented on branch `20-transcript-to-protocol-quickstart`, awaiting PR.
-- branch: `20-transcript-to-protocol-quickstart`.
-- canonical main state: PR #142 public sample meeting dataset merged into `origin/main`.
+- active task: CODEX-SECURITY-REVIEW-CHECKLIST (#21) — implemented on branch `21-codex-security-review-checklist`, awaiting PR.
+- branch: `21-codex-security-review-checklist`.
+- canonical main state: PR #143 transcript-to-protocol quickstart merged into `origin/main`.
 
 ## Done latest
 
@@ -28,6 +28,7 @@
 - MA-MEETING-SUMMARY-BENCHMARK (#24): public synthetic meeting-summary benchmark cases and deterministic evaluator for summary/protocol + decisions/tasks/risks/open_questions source-grounding.
 - PUBLIC-SAMPLE-MEETING-DATASET (#19): `examples/meeting_dataset/synthetic-support-handoff/` contains a schema-valid synthetic meeting card, transcript JSONL/Markdown and expected summary/protocol/structured artifacts with source refs.
 - TRANSCRIPT-TO-PROTOCOL-QUICKSTART (#20): reproducible public guide from sample `segments.jsonl` through import, merge, chunk, enrich and extractive analyze; e2e test runs the documented flow.
+- CODEX-SECURITY-REVIEW-CHECKLIST (#21): public checklist for AI-assisted security review; linked from `SECURITY.md`, `SECURITY.ru.md` and PR template.
 
 ## Current Product State
 
@@ -107,7 +108,7 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- Meeting Product Backlog: docs/release automation (#21/#23/#25/#26).
+- Meeting Product Backlog: docs/release automation (#23/#25/#26).
 
 ## Open decisions / blockers
 
