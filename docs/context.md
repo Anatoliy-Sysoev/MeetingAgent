@@ -4,9 +4,9 @@
 
 ## Now
 
-- active task: GITHUB-PAGES-DOCS (#26) — implemented on branch `26-github-pages-docs`, awaiting PR.
-- branch: `26-github-pages-docs`.
-- canonical main state: PR #146 documentation parity merged into `origin/main`.
+- active task: WINDOWS-UTF8-DOC-NOTE (#92) — conflict-free replacement branch `92-windows-utf8-note`, awaiting PR.
+- branch: `92-windows-utf8-note`.
+- canonical main state: PR #147 GitHub Pages documentation site merged into `origin/main`.
 
 ## Done latest
 
@@ -32,6 +32,7 @@
 - RELEASE-WORKFLOW-CHANGELOG (#23): documented release checklist, reusable changelog format, bilingual changelog validator and manual GitHub Actions release-validation workflow.
 - DOCS-PARITY (#25): added bilingual documentation parity guide and tests that enforce paired `docs/en`/`docs/ru` files, language switches and public example parity.
 - GITHUB-PAGES-DOCS (#26): added MkDocs Material config, docs landing page, local docs build dependencies and GitHub Pages deployment workflow.
+- WINDOWS-UTF8-DOC-NOTE (#92): incorporated the useful external PR note into `docs/docker.md`; PowerShell smoke sessions should set UTF-8 output and `PYTHONIOENCODING=utf-8`.
 
 ## Current Product State
 
@@ -111,7 +112,7 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- Meeting Product Backlog: public OSS docs/tasks complete; old external docs PRs need triage.
+- Meeting Product Backlog: public OSS docs/tasks complete; old external docs PRs #27/#28/#92 are being closed as superseded/incorporated.
 
 ## Open decisions / blockers
 
