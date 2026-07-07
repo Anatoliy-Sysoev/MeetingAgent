@@ -4,9 +4,9 @@
 
 ## Now
 
-- active task: PUBLIC-SAMPLE-MEETING-DATASET (#19) — implemented on branch `19-public-sample-meeting-dataset`, awaiting PR.
-- branch: `19-public-sample-meeting-dataset`.
-- canonical main state: PR #141 meeting summary benchmark merged into `origin/main`.
+- active task: TRANSCRIPT-TO-PROTOCOL-QUICKSTART (#20) — implemented on branch `20-transcript-to-protocol-quickstart`, awaiting PR.
+- branch: `20-transcript-to-protocol-quickstart`.
+- canonical main state: PR #142 public sample meeting dataset merged into `origin/main`.
 
 ## Done latest
 
@@ -27,6 +27,7 @@
 - MA-TRANSCRIPT-ANONYMIZATION (#22): local transcript anonymization CLI for JSONL/Markdown, public-safe replacement report, optional private mapping, custom terms and meeting speaker-mapping terms.
 - MA-MEETING-SUMMARY-BENCHMARK (#24): public synthetic meeting-summary benchmark cases and deterministic evaluator for summary/protocol + decisions/tasks/risks/open_questions source-grounding.
 - PUBLIC-SAMPLE-MEETING-DATASET (#19): `examples/meeting_dataset/synthetic-support-handoff/` contains a schema-valid synthetic meeting card, transcript JSONL/Markdown and expected summary/protocol/structured artifacts with source refs.
+- TRANSCRIPT-TO-PROTOCOL-QUICKSTART (#20): reproducible public guide from sample `segments.jsonl` through import, merge, chunk, enrich and extractive analyze; e2e test runs the documented flow.
 
 ## Current Product State
 
@@ -106,7 +107,7 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- Meeting Product Backlog: quickstart/docs/release automation (#20/#21/#23/#25/#26).
+- Meeting Product Backlog: docs/release automation (#21/#23/#25/#26).
 
 ## Open decisions / blockers
 

@@ -12,13 +12,34 @@ from jsonschema import Draft202012Validator
 
 
 SEMANTIC_MARKERS = {
-    "decision": ("решили", "решение", "согласовали", "принимаем", "фиксируем"),
-    "action_item": ("задача", "надо", "нужно", "сделать", "подготовить", "проверить", "ответственный"),
-    "risk": ("риск", "проблема", "заблокировано", "не успеем", "опасность"),
-    "open_question": ("вопрос", "уточнить", "непонятно", "осталось открытым", "обсудить"),
-    "requirement_change": ("требование", "изменение", "доработать", "поменять", "правка"),
-    "status_update": ("статус", "готово", "в работе", "прогресс", "завершили"),
-    "issue": ("дефект", "инцидент", "ошибка", "не работает", "проблема"),
+    "decision": ("решили", "решение", "согласовали", "принимаем", "фиксируем", "decision", "agreed"),
+    "action_item": (
+        "задача",
+        "надо",
+        "нужно",
+        "сделать",
+        "подготовить",
+        "проверить",
+        "ответственный",
+        "action",
+        "task",
+        "prepare",
+        "will",
+    ),
+    "risk": ("риск", "проблема", "заблокировано", "не успеем", "опасность", "risk", "blocked"),
+    "open_question": (
+        "вопрос",
+        "уточнить",
+        "непонятно",
+        "осталось открытым",
+        "обсудить",
+        "open question",
+        "question",
+        "clarify",
+    ),
+    "requirement_change": ("требование", "изменение", "доработать", "поменять", "правка", "requirement", "change"),
+    "status_update": ("статус", "готово", "в работе", "прогресс", "завершили", "status", "done", "progress"),
+    "issue": ("дефект", "инцидент", "ошибка", "не работает", "проблема", "issue", "incident", "error"),
 }
 ENTITY_RE = re.compile(
     r"\b(?:ФТТ|ПМИ|ЦТА|ПР|AD|LDAP|LDAPS|JWT|OAuth|OIDC|MDR|КШД|СОИ|DOWNSTREAM_SYSTEM|CUSTOMER|PROJECT_SYSTEM|PROJECT_SYSTEM|ППО|СПО)\b",
@@ -140,11 +161,25 @@ def extract_candidates(text: str, semantic_type: str, timestamp: float) -> dict[
         lowered = sentence.lower()
         source_ref = {"timecode_start": timestamp, "note": "heuristic_chunk_enrichment"}
         if semantic_type == "decision" or any(marker in lowered for marker in SEMANTIC_MARKERS["decision"]):
-            result["decisions"].append({"text": sentence, "confidence": 0.55, "source_refs": [source_ref]})
+            result["decisions"].append(
+                {
+                    "title": sentence[:120],
+                    "decision": sentence,
+                    "confidence": 0.55,
+                    "source_refs": [source_ref],
+                }
+            )
         if semantic_type == "action_item" or any(marker in lowered for marker in SEMANTIC_MARKERS["action_item"]):
             result["action_items"].append({"task": sentence, "owner": None, "due_date": None, "confidence": 0.5, "source_refs": [source_ref]})
         if semantic_type == "risk" or any(marker in lowered for marker in SEMANTIC_MARKERS["risk"]):
-            result["risks"].append({"risk": sentence, "confidence": 0.5, "source_refs": [source_ref]})
+            result["risks"].append(
+                {
+                    "title": sentence[:120],
+                    "description": sentence,
+                    "confidence": 0.5,
+                    "source_refs": [source_ref],
+                }
+            )
         if semantic_type == "open_question" or "?" in sentence or any(marker in lowered for marker in SEMANTIC_MARKERS["open_question"]):
             result["open_questions"].append({"question": sentence, "confidence": 0.5, "source_refs": [source_ref]})
     return result

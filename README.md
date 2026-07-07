@@ -194,6 +194,8 @@ Speaker diarization is optional and uses an isolated `sherpa-onnx` path by defau
 
 Runtime meeting outputs may contain private data and should not be committed.
 
+For a reproducible public transcript-to-protocol run, see [Transcript to protocol quickstart](docs/operations/TRANSCRIPT_TO_PROTOCOL_QUICKSTART.md).
+
 ### Meeting Workspace
 
 Processed or partially processed meetings can be reviewed in the browser:
