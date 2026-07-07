@@ -16,6 +16,7 @@ MeetingAgent is a local-first project memory and meeting intelligence tool.
 - [Security policy](../../SECURITY.md)
 - [Contributing guide](../../CONTRIBUTING.md)
 - [Translation policy](../translation_policy.md)
+- [Documentation parity](documentation_parity.md)
 
 ## Reference Implementation
 
