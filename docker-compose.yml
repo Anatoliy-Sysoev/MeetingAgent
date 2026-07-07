@@ -23,6 +23,12 @@ services:
       - ./watched_folder:/app/watched_folder
       - ./config.docker.yaml:/app/config.docker.yaml:ro
     command: ["python", "scripts/asu_june_bot_api.py", "--host", "0.0.0.0", "--port", "8000"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   bot:
     image: meetingagent:local

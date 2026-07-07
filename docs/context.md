@@ -1,12 +1,12 @@
 # Текущий Контекст
 
-Обновлено: 2026-07-06.
+Обновлено: 2026-07-07.
 
 ## Now
 
-- active task: MA-MEETING-QA-SEGMENT-CITATIONS (#126) — implemented on branch `126-meeting-qa-segment-citations`, awaiting review/PR.
-- branch: `126-meeting-qa-segment-citations`.
-- canonical main state: PR #133 structured artifacts merged into `origin/main`.
+- active task: MA-MEETING-PACKAGING-LOCAL (#124) — implemented on branch `124-meeting-packaging-local`, awaiting review/PR.
+- branch: `124-meeting-packaging-local`.
+- canonical main state: PR #134 segment-level Q&A citations merged into `origin/main`.
 
 ## Done latest
 
@@ -18,7 +18,8 @@
 - MA-WORKSPACE-FLOW (#121, PR #131): readiness/manifest-driven Workspace flow, run/resume/retry controls, pipeline-aware polling, Q&A gating, CSRF on every POST. Issue #121 closed after merge.
 - MA-SPEAKER-MAPPING-UI (#122, PR #132): manual `SPEAKER_XX` -> name/role mapping in `meeting.json`, speaker discovery API, Workspace editor and mapped transcript display.
 - MA-MEETING-STRUCTURED-ARTIFACTS-V2 (#123, PR #133): structured JSON artifacts now include source-grounded `confidence`, `needs_review`, chunk/timecode, speaker names and utterance refs; summary/protocol render source labels.
-- MA-MEETING-QA-SEGMENT-CITATIONS (#126): meeting Q&A/search source refs now resolve chunk/utterance citations to exact transcript segment targets when available (`segment_id`, `segment_refs[]`, precise `start_sec/end_sec`, mapped speaker fields); missing transcripts fall back to chunk-level citations.
+- MA-MEETING-QA-SEGMENT-CITATIONS (#126, PR #134): meeting Q&A/search source refs now resolve chunk/utterance citations to exact transcript segment targets when available (`segment_id`, `segment_refs[]`, precise `start_sec/end_sec`, mapped speaker fields); missing transcripts fall back to chunk-level citations.
+- MA-MEETING-PACKAGING-LOCAL (#124): local/Docker runbook, API container healthcheck and `scripts/42_local_preflight.py` for Docker, Ollama/model, ffmpeg and optional ASR dependency checks.
 
 ## Current Product State
 
@@ -98,11 +99,12 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- #124 MA-MEETING-PACKAGING-LOCAL — local all-in-one runbook and Docker profile.
+- #125 MA-PRODUCT-SPLIT-PHASE-1 — extract shared utilities before separating Project Knowledge Bot.
+- #106 MA-GUARD-PURE-DECISION-API — deterministic guard decision API for regression tests.
 
 ## Open decisions / blockers
 
 - #39/#40 auth evolution: per-user tokens/OIDC/admin console direction remains open.
 - #106 guard pure decision API remains open before guard v2 runtime can be cleanly measured.
-- #124 packaging remains before the local meeting product is convenient to hand off to non-technical users.
+- Local preflight can fail until Ollama is running and exposes `bge-m3` + `qwen3.5:4b` through the active model store.
 - Local/private runtime outputs under `meetings/`, `data/`, `logs/`, model caches, transcripts and indexes must remain out of Git.
