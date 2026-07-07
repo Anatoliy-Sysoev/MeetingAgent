@@ -17,9 +17,9 @@ import re
 from pathlib import Path
 from typing import Any
 
-from asu_june_bot.core.config import resolve_work_path
-from asu_june_bot.core.prompt_safety import neutralize_source_delimiters
-from asu_june_bot.llm import LLMClient, LLMError, LLMRequest
+from meeting_agent.shared.config import resolve_work_path
+from meeting_agent.shared.prompt_safety import neutralize_source_delimiters
+from meeting_agent.shared.llm import LLMClient, LLMError, LLMRequest
 from asu_june_bot.meetings.service import MeetingsService, _safe_meeting_id
 from asu_june_bot.meetings.vector_index import (
     MeetingVectorRetriever,

@@ -20,7 +20,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from asu_june_bot.llm.ollama_common import ollama_embed
+from meeting_agent.shared.llm.ollama_common import ollama_embed
 
 EmbedFn = Callable[[str], list[float]]
 
@@ -215,7 +215,7 @@ def build_meeting_vector_retriever(
         paths_cfg = config.get("paths") if isinstance(config.get("paths"), dict) else {}
         configured = paths_cfg.get("meeting_embeddings_cache") if isinstance(paths_cfg, dict) else None
         raw_path = configured or DEFAULT_MEETING_EMBEDDINGS_CACHE
-        from asu_june_bot.core.config import resolve_work_path
+        from meeting_agent.shared.config import resolve_work_path
 
         cache_path = resolve_work_path(config, raw_path)
     return MeetingVectorRetriever(_embed, cache_path, embedding_model=model)

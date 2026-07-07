@@ -10,7 +10,7 @@ from starlette.responses import FileResponse
 from asu_june_bot.api.auth import require_action_permission, require_permission
 from asu_june_bot.api.dependencies import get_meeting_qa_service
 from asu_june_bot.auth.models import Principal
-from asu_june_bot.core.limits import MAX_QUERY_CHARS
+from meeting_agent.shared.limits import MAX_QUERY_CHARS
 from asu_june_bot.meetings.manifest import build_artifact_manifest
 from asu_june_bot.meetings.qa import MeetingQAService
 from asu_june_bot.meetings.service import (

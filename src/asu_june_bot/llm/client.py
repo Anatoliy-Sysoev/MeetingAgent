@@ -1,31 +1,3 @@
-from __future__ import annotations
+"""Compatibility shim for shared MeetingAgent LLM client contracts."""
 
-from dataclasses import dataclass, field
-from typing import Protocol
-
-
-class LLMError(RuntimeError):
-    pass
-
-
-@dataclass(slots=True)
-class LLMRequest:
-    prompt: str
-    system_prompt: str | None = None
-    model: str | None = None
-    temperature: float = 0.0
-    max_tokens: int = 1400
-    timeout_sec: int = 300
-
-
-@dataclass(slots=True)
-class LLMResponse:
-    text: str
-    model: str | None = None
-    finish_reason: str | None = None
-    raw: dict = field(default_factory=dict)
-
-
-class LLMClient(Protocol):
-    def generate(self, request: LLMRequest) -> LLMResponse:
-        ...
+from meeting_agent.shared.llm.client import *  # noqa: F401,F403
