@@ -3,7 +3,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
+import tempfile
+import time
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -58,16 +62,64 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     with path.open("r", encoding="utf-8") as fh:
         for line in fh:
             stripped = line.strip()
-            if stripped:
-                rows.append(json.loads(stripped))
+            if not stripped:
+                continue
+            try:
+                row = json.loads(stripped)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
     return rows
 
 
 def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="\n") as fh:
-        for row in rows:
-            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=str(path.parent),
+        text=True,
+    )
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
+            for row in rows:
+                fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        finally:
+            raise
+
+
+@contextmanager
+def index_lock(path: Path, *, timeout_seconds: float = 30.0):
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + timeout_seconds
+    fd: int | None = None
+    while True:
+        try:
+            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, f"{os.getpid()}\n".encode("ascii"))
+            break
+        except FileExistsError as exc:
+            if time.monotonic() >= deadline:
+                raise IndexMeetingError(
+                    f"Timed out waiting for meeting index lock: {lock_path.name}",
+                    stage="meeting_index_lock",
+                ) from exc
+            time.sleep(0.1)
+    try:
+        yield
+    finally:
+        if fd is not None:
+            os.close(fd)
+        lock_path.unlink(missing_ok=True)
 
 
 def _safe_resolve(meeting_dir: Path, rel_value: str) -> Path | None:
@@ -146,8 +198,9 @@ def to_index_chunk(meeting_dir: Path, meeting: dict[str, Any], chunk: dict[str, 
 
 
 def upsert_rows(output_path: Path, meeting_id: str, new_rows: list[dict[str, Any]]) -> None:
-    existing = [row for row in read_jsonl(output_path) if row.get("meeting_id") != meeting_id]
-    write_jsonl(output_path, existing + new_rows)
+    with index_lock(output_path):
+        existing = [row for row in read_jsonl(output_path) if row.get("meeting_id") != meeting_id]
+        write_jsonl(output_path, existing + new_rows)
 
 
 def update_meeting(meeting: dict[str, Any], output_path: Path) -> None:

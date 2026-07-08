@@ -419,6 +419,18 @@ def test_chat_llm_unavailable_controlled_response(tmp_path: Path) -> None:
     assert "provider down" not in resp.text  # no backend error leaked
 
 
+def test_chat_malformed_short_llm_fragment_returns_no_answer(tmp_path: Path) -> None:
+    client, _repo, _llm = make_client(tmp_path, llm=FakeLLM("На"))
+    resp = client.post(f"/meetings/{MEETING_ID}/chat", json={"query": "бюджет"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "no_answer"
+    assert body["answer"] is None
+    assert body["refusal"]
+    assert body["citations"] == []
+    assert body["citations_basis"] is None
+
+
 # ------------------------------------------------------------------
 # Workspace UI
 # ------------------------------------------------------------------
