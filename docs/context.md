@@ -4,9 +4,9 @@
 
 ## Now
 
-- active task: merge small MeetingAgent follow-up PRs (#151, #152, #153, #154) after #150 landed.
-- branch: `codex/152-speaker-transcript-mapped-txt` while resolving PR #155 against current `origin/main`.
-- canonical main state: `/MeetingAgent` shell and ASR engine selector are pushed; current work is public-safe follow-up cleanup.
+- active task: MA-MEETING-QA-BAD-ANSWER-FALLBACK (#151) — reject malformed short LLM fragments in meeting Q&A.
+- branch: `codex/151-meeting-qa-bad-answer-fallback`.
+- canonical main state: `/MeetingAgent` shell and ASR engine selector are pushed; current work is a small follow-up PR.
 
 ## Done latest
 
@@ -36,6 +36,7 @@
 - MA-MEETINGAGENT-HOME-UI: added `/MeetingAgent` as the primary product page with meeting registry, upload form, transcript/full pipeline launch actions, active job panel and separate navigation to `/ui` for the Project Knowledge Bot.
 - MA-UI-ASR-ENGINE-SELECTOR (#150): `/MeetingAgent` upload/pipeline flow exposes ASR engine selection (`faster-whisper` default or `gigaam`) and sends it to the pipeline API as `asr_engine`.
 - MA-SPEAKER-TRANSCRIPT-MAPPED-TXT (#152): `transcript/speaker_transcript.txt` renders saved speaker names/roles from `meeting.json.speaker_mapping`, while `speaker_transcript.jsonl` keeps stable technical `SPEAKER_XX` labels for downstream chunking/indexing.
+- MA-MEETING-QA-BAD-ANSWER-FALLBACK (#151): meeting-scoped Q&A now treats degenerate one-word/fragment LLM outputs as controlled `no_answer` instead of successful `answered`.
 
 ## Current Product State
 
@@ -117,7 +118,6 @@ GET  /admin/review/chat-runs/export
 ## Next
 
 - Polish `/MeetingAgent` visual design and split monolithic HTML into maintainable frontend assets after mockups are approved.
-- Add Meeting Q&A answer validation/fallback so short malformed model outputs do not surface as successful answers.
 - Make meeting index updates atomic/locked to prevent JSONL corruption under overlapping index jobs.
 - Improve `/MeetingAgent` visual consistency after mockups are approved.
 
