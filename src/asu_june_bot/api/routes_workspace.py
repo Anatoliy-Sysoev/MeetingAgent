@@ -325,9 +325,9 @@ _WORKSPACE_HTML = """\
 
 <div id="auth-overlay">
   <div class="auth-box">
-    <h2>Login required</h2>
-    <p>You must be logged in to view this meeting.</p>
-    <a href="/"><button class="primary">Go to login</button></a>
+    <h2 id="auth-overlay-title">Login required</h2>
+    <p id="auth-overlay-detail">You must be logged in to view this meeting.</p>
+    <a href="/"><button class="primary">Open login</button></a>
   </div>
 </div>
 
@@ -336,6 +336,7 @@ _WORKSPACE_HTML = """\
   <div class="title" id="hdr-title">Loading&hellip;</div>
   <div class="meta" id="hdr-date"></div>
   <span class="badge" id="hdr-status"></span>
+  <span class="badge" id="hdr-auth">Checking auth...</span>
   <button id="hdr-refresh-btn" title="Refresh">&#8635; Refresh</button>
 </div>
 
@@ -467,8 +468,24 @@ let _pollTimer = null;
 let _actionInProgress = false;
 
 // ---- auth ----
-function show401() {
+function showAuthOverlay(title, detail) {
+  document.getElementById("auth-overlay-title").textContent = title || "Login required";
+  document.getElementById("auth-overlay-detail").textContent =
+    detail || "You must be logged in to view this meeting.";
   document.getElementById("auth-overlay").classList.add("visible");
+}
+
+function hideAuthOverlay() {
+  document.getElementById("auth-overlay").classList.remove("visible");
+}
+
+function show401() {
+  const auth = document.getElementById("hdr-auth");
+  if (auth) {
+    auth.textContent = "Not signed in";
+    auth.className = "badge warn";
+  }
+  showAuthOverlay("Login required", "Your session is missing or expired. Open login and sign in again.");
 }
 
 async function apiFetch(url, opts) {
@@ -881,15 +898,31 @@ async function safeDetail(resp) {
 async function loadPermissions() {
   const resp = await fetch("/auth/me");
   if (resp.status === 401) { show401(); _permissions = new Set(); return; }
-  if (!resp.ok) { _permissions = new Set(); return; }
+  if (!resp.ok) {
+    _permissions = new Set();
+    const auth = document.getElementById("hdr-auth");
+    if (auth) {
+      auth.textContent = "Auth unavailable";
+      auth.className = "badge warn";
+    }
+    return;
+  }
   const d = await resp.json();
   _permissions = new Set(Array.isArray(d.permissions) ? d.permissions : []);
+  hideAuthOverlay();
+  const auth = document.getElementById("hdr-auth");
+  if (auth) {
+    const label = d.email || "signed in";
+    auth.textContent = `Signed in: ${label}`;
+    auth.className = "badge ok";
+  }
 }
 
 async function ensureCsrf() {
   if (_csrfToken) return _csrfToken;
   const resp = await fetch("/auth/csrf");
   if (resp.status === 401) { show401(); return null; }
+  if (resp.status === 403) { return null; }
   if (!resp.ok) return null;
   const d = await resp.json();
   _csrfToken = d.csrf_token || null;
