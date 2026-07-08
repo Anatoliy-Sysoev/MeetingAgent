@@ -104,6 +104,30 @@ def test_audio_present_unblocks_transcribe(tmp_path: Path) -> None:
     assert stages["extract_audio"]["reason"] == "already_done"
 
 
+def test_diarize_blocked_when_optional_runtime_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    d = _make_meeting(tmp_path)
+    _touch(d, "source/audio_16k_mono.wav")
+    import asu_june_bot.jobs.runner as runner_mod
+
+    monkeypatch.setitem(
+        runner_mod.STAGE_COMMANDS["diarize"],
+        "preflight",
+        lambda _meeting_dir: (
+            "sherpa-onnx diarization dependencies are not installed "
+            "(sherpa_onnx). Install them in an isolated env with "
+            "requirements-diarization.txt."
+        ),
+    )
+
+    stages = _stage_map(pipeline_readiness(MEETING_ID, d))
+    assert stages["diarize"]["state"] == "blocked"
+    assert stages["diarize"]["can_run"] is False
+    assert stages["diarize"]["reason"] == "diarization_runtime_missing"
+    assert "requirements-diarization.txt" in stages["diarize"]["detail"]
+
+
 def test_transcript_unblocks_merge(tmp_path: Path) -> None:
     d = _make_meeting(tmp_path)
     _touch(d, "transcript/segments.jsonl")

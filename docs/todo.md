@@ -57,6 +57,7 @@
 - [x] MA-MEETING-QA-BAD-ANSWER-FALLBACK (#151): malformed short Meeting Q&A LLM fragments return controlled `no_answer`, not successful `answered`.
 - [x] MA-MEETING-INDEX-ATOMIC-UPDATES (#153): meeting chunks/artifacts index upserts skip malformed runtime JSONL lines and write through lock + atomic replace.
 - [x] MA-WORKSPACE-AUTH-STATE-CLARITY (#154): Workspace header shows explicit auth state and CSRF 403 does not trigger misleading login overlay.
+- [x] MA-DIARIZATION-RUNTIME-PREFLIGHT (#160): diarization dry-run/readiness/job preflight checks optional sherpa-onnx runtime deps and blocks the UI stage with `diarization_runtime_missing` instead of producing repeated failed jobs.
 
 ## Active / Next
 

@@ -87,6 +87,12 @@ def _stage_blocked_reason(stage: str, meeting_dir: Path) -> str | None:
     return None
 
 
+def _block_reason_token(stage: str, detail: str | None) -> str:
+    if stage == "diarize" and detail and "diarization dependencies are not installed" in detail:
+        return "diarization_runtime_missing"
+    return _BLOCK_TOKENS.get(stage, "prerequisite_missing")
+
+
 def pipeline_readiness(meeting_id: str, meeting_dir: Path) -> dict[str, Any]:
     """Build the readiness map for all runnable stages of one meeting."""
     card = _read_card(meeting_dir)
@@ -107,7 +113,7 @@ def pipeline_readiness(meeting_id: str, meeting_dir: Path) -> dict[str, Any]:
             detail = "stage output already exists; re-run requires force"
         elif block_detail is not None:
             state, can_run = "blocked", False
-            reason = _BLOCK_TOKENS.get(stage, "prerequisite_missing")
+            reason = _block_reason_token(stage, block_detail)
             detail = block_detail
         elif failed_stage == stage:
             # Previous run of this stage failed (#120); prerequisites are met,
