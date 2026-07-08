@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -45,6 +46,27 @@ def validate_model_paths(config: SherpaDiarizationConfig) -> None:
     if missing:
         joined = ", ".join(str(path) for path in missing)
         raise SherpaDiarizationError(f"Missing diarization model file(s): {joined}")
+
+
+def validate_runtime_dependencies() -> None:
+    """Validate optional sherpa-onnx diarization runtime dependencies.
+
+    This is intentionally a lightweight import-spec check so API readiness can
+    call it without importing heavy native libraries. The actual backend still
+    imports the modules at execution time in ``_import_runtime``.
+    """
+    missing = [
+        module_name
+        for module_name in ("numpy", "sherpa_onnx", "soundfile")
+        if importlib.util.find_spec(module_name) is None
+    ]
+    if missing:
+        joined = ", ".join(missing)
+        raise SherpaDiarizationError(
+            "sherpa-onnx diarization dependencies are not installed "
+            f"({joined}). Install them in an isolated env with "
+            "requirements-diarization.txt."
+        )
 
 
 def _import_runtime():
