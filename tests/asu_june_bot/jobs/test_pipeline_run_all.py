@@ -26,6 +26,7 @@ from asu_june_bot.jobs.runner import (  # noqa: E402
     JobAlreadyRunning,
     JobRunner,
     PipelineJobState,
+    stage_base_args,
 )
 from asu_june_bot.meetings.service import MeetingsService  # noqa: E402
 
@@ -154,6 +155,16 @@ def test_profiles_defined() -> None:
     ]
     assert PIPELINE_PROFILES["qa_ready"] == PIPELINE_PROFILES["default"]
     assert PIPELINE_PROFILES["full"][-1] == "analyze"
+
+
+def test_transcribe_stage_base_args_select_asr_engine() -> None:
+    assert stage_base_args("transcribe") == [
+        "--engine",
+        "faster-whisper",
+        "--model",
+        "large-v3-turbo",
+    ]
+    assert stage_base_args("transcribe", {"asr_engine": "gigaam"}) == ["--engine", "gigaam"]
 
 
 def test_pipeline_runs_stages_in_order(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -354,6 +365,22 @@ def test_api_returns_single_job_id(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     status = client.get(f"/meetings/{MEETING_ID}/jobs/{body['job_id']}", headers=AUTH)
     assert status.status_code == 200
     assert status.json()["kind"] == "pipeline"
+
+
+def test_api_pipeline_accepts_asr_engine_option(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    d = _make_meeting(tmp_path)
+    _patch_subprocess(monkeypatch, d)
+    monkeypatch.setattr(runner_mod.shutil, "which", lambda name: "/usr/bin/ffmpeg")
+    client, _runner = _make_client(tmp_path)
+
+    resp = client.post(
+        f"/meetings/{MEETING_ID}/jobs/pipeline",
+        headers=AUTH,
+        json={"profile": "transcript_only", "asr_engine": "gigaam"},
+    )
+
+    assert resp.status_code == 202
+    assert resp.json()["stage_options"] == {"transcribe": {"asr_engine": "gigaam"}}
 
 
 def test_api_invalid_profile_422(tmp_path: Path) -> None:
