@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -81,6 +81,7 @@ async def pipeline_readiness_map(
 class PipelineRequest(BaseModel):
     profile: str = Field("default", max_length=32)
     force: bool = False
+    asr_engine: Literal["faster-whisper", "gigaam"] = "faster-whisper"
     # resume=true explicitly continues after a failure: done stages are
     # skipped and execution starts at the first not-yet-done stage.  This is
     # also the default behavior; force=true overrides the skip.
@@ -90,6 +91,10 @@ class PipelineRequest(BaseModel):
 
 class RetryRequest(BaseModel):
     force: bool = False
+
+
+class StageStartRequest(BaseModel):
+    asr_engine: Literal["faster-whisper", "gigaam"] = "faster-whisper"
 
 
 @router.post("/meetings/{meeting_id}/jobs/pipeline", status_code=202)
@@ -125,6 +130,7 @@ async def start_pipeline(
             force=body.force,
             resume=body.resume,
             stages=body.stages,
+            stage_options={"transcribe": {"asr_engine": body.asr_engine}},
         )
     except JobAlreadyRunning as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -186,6 +192,7 @@ async def start_job(
     meeting_id: str,
     stage: str,
     _principal: Annotated[Principal, Depends(require_action_permission("jobs.start"))],
+    body: StageStartRequest | None = None,
     runner: JobRunner = Depends(_get_runner),
     service: MeetingsService = Depends(_get_meetings_service),
 ) -> JSONResponse:
@@ -202,7 +209,10 @@ async def start_job(
 
     try:
         job = await runner.submit(
-            meeting_id=meeting_id, stage=stage, meeting_dir=meeting_dir
+            meeting_id=meeting_id,
+            stage=stage,
+            meeting_dir=meeting_dir,
+            stage_options={"asr_engine": body.asr_engine} if body and stage == "transcribe" else None,
         )
     except JobAlreadyRunning as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

@@ -361,9 +361,15 @@ MEETINGAGENT_HTML = """<!doctype html>
                     <option value="full">Запустить полный pipeline</option>
                   </select>
                 </label>
+                <label>Движок транскрибации
+                  <select id="asrEngine">
+                    <option value="faster-whisper">faster-whisper large-v3-turbo</option>
+                    <option value="gigaam">GigaAM</option>
+                  </select>
+                </label>
                 <div class="panel-note">
-                  Сейчас pipeline использует продуктовый ASR: faster-whisper large-v3-turbo.
-                  GigaAM доступен в CLI/backend, но отдельный выбор движка в UI будет следующим шагом.
+                  faster-whisper — продуктовый локальный профиль по умолчанию.
+                  GigaAM требует заранее подготовленного локального optional runtime.
                 </div>
                 <div class="actions">
                   <button class="primary" id="uploadSubmit" type="submit">Загрузить</button>
@@ -676,6 +682,11 @@ MEETINGAGENT_HTML = """<!doctype html>
       }
     }
 
+    function selectedAsrEngine() {
+      const select = byId("asrEngine");
+      return select ? select.value : "faster-whisper";
+    }
+
     async function startPipeline(meetingId, profile) {
       state.csrf = state.csrf || await getCsrfToken();
       if (!state.csrf) {
@@ -689,7 +700,7 @@ MEETINGAGENT_HTML = """<!doctype html>
             "Content-Type": "application/json",
             "X-CSRF-Token": state.csrf
           },
-          body: JSON.stringify({ profile })
+          body: JSON.stringify({ profile, asr_engine: selectedAsrEngine() })
         });
         const data = await safeJson(resp);
         showMessage(`Pipeline запущен: ${data.job_id || data.pipeline_id || profile}`, "ok");
