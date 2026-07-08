@@ -51,6 +51,7 @@
 - [x] GITHUB-PAGES-DOCS (#26): MkDocs Material documentation site config, local build instructions and GitHub Pages workflow.
 - [x] WINDOWS-UTF8-DOC-NOTE (#92): useful external PR note incorporated into Docker docs with conflict-free wording.
 - [x] MA-MEETINGAGENT-HOME-UI: `/MeetingAgent` primary product shell with meeting registry, upload form, pipeline launch actions, active job panel and separate `/ui` Project Knowledge Bot tab.
+- [x] MA-MEETING-LAST-ERROR-SCHEMA-FIX: `meeting.json.last_error` accepts runner `code`/`job_id`, so failed API jobs no longer block direct CLI recovery/validation.
 
 ## Active / Next
 

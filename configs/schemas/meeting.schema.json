@@ -427,6 +427,14 @@
           "type": "string",
           "minLength": 1
         },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "job_id": {
+          "type": "string",
+          "minLength": 1
+        },
         "type": {
           "type": "string"
         },

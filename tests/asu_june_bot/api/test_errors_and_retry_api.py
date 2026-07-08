@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -132,6 +133,29 @@ def test_failed_stage_writes_normalized_last_error(
     assert last["job_id"] == job.job_id
     assert last["timestamp"]
     assert "exit code" in last["message"]
+
+
+def test_normalized_last_error_matches_meeting_schema(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    d = _make_meeting(tmp_path)
+    _patch_subprocess(monkeypatch, d, fail_scripts={"21_extract_audio.py"})
+    runner = JobRunner()
+    asyncio.run(_run_stage_and_wait(runner, d, "extract_audio"))
+    schema = json.loads((ROOT / "configs" / "schemas" / "meeting.schema.json").read_text(encoding="utf-8"))
+    card = _read_card(d)
+    card.update(
+        {
+            "participants": [],
+            "classification": {},
+            "links": {},
+            "retention": {"policy": "default"},
+            "created_at": "2026-03-04T10:00:00+00:00",
+            "updated_at": "2026-03-04T10:00:00+00:00",
+        }
+    )
+    Draft202012Validator.check_schema(schema)
+    Draft202012Validator(schema).validate(card)
 
 
 def test_last_error_contains_no_paths_or_traces(
