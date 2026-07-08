@@ -119,6 +119,11 @@ def _patch_subprocess(
 
     monkeypatch.setattr(runner_mod, "_create_subprocess", fake_subprocess)
     monkeypatch.setattr(runner_mod.shutil, "which", lambda name: "/usr/bin/ffmpeg")
+    monkeypatch.setitem(
+        runner_mod.STAGE_COMMANDS["diarize"],
+        "preflight",
+        lambda _meeting_dir: None,
+    )
     return launched
 
 

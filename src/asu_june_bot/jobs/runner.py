@@ -136,6 +136,24 @@ def _index_preflight(meeting_dir: Path) -> str | None:
     return "enriched_chunks.jsonl not found; run enrich first"
 
 
+def _diarize_preflight(meeting_dir: Path) -> str | None:
+    """Return an error if optional diarization runtime is unavailable."""
+    if not (meeting_dir / "source" / "audio_16k_mono.wav").exists():
+        return "normalized audio not found; run extract_audio first"
+    try:
+        from meeting_agent.diarization.sherpa_backend import (
+            SherpaDiarizationError,
+            validate_runtime_dependencies,
+        )
+
+        validate_runtime_dependencies()
+    except SherpaDiarizationError as exc:
+        return str(exc)
+    except Exception as exc:  # noqa: BLE001
+        return f"diarization runtime preflight failed: {exc}"
+    return None
+
+
 def _analyze_preflight(meeting_dir: Path) -> str | None:
     err, data = _read_card(meeting_dir)
     if err:
@@ -173,6 +191,7 @@ STAGE_COMMANDS: dict[str, dict[str, Any]] = {
         "script": _ROOT / "scripts" / "23_diarize_meeting.py",
         "base_args": [],
         "supports_dry_run": True,
+        "preflight": _diarize_preflight,
     },
     "merge": {
         "script": _ROOT / "scripts" / "24_merge_transcript_speakers.py",
@@ -653,6 +672,11 @@ class JobRunner:
 
         try:
             # Preflight
+            preflight_fn = cfg.get("preflight")
+            if preflight_fn is not None:
+                err = preflight_fn(meeting_dir)
+                if err:
+                    raise PreflightFailed(err)
             if supports_dry_run:
                 proc = await _create_subprocess(
                     *cmd, "--dry-run",
@@ -663,13 +687,6 @@ class JobRunner:
                 if proc.returncode != 0:
                     detail = (stderr_bytes or b"").decode("utf-8", errors="replace").strip()
                     raise PreflightFailed(detail or "dry-run failed")
-            else:
-                preflight_fn = cfg.get("preflight")
-                if preflight_fn is not None:
-                    err = preflight_fn(meeting_dir)
-                    if err:
-                        raise PreflightFailed(err)
-
             # Launch real process
             proc = await _create_subprocess(
                 *cmd,
