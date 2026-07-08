@@ -206,6 +206,22 @@ STAGE_COMMANDS: dict[str, dict[str, Any]] = {
     },
 }
 
+ASR_ENGINE_ARGS: dict[str, list[str]] = {
+    "faster-whisper": ["--engine", "faster-whisper", "--model", "large-v3-turbo"],
+    "gigaam": ["--engine", "gigaam"],
+}
+
+
+def stage_base_args(stage: str, options: dict[str, Any] | None = None) -> list[str]:
+    cfg = STAGE_COMMANDS[stage]
+    if stage != "transcribe":
+        return list(cfg["base_args"])
+    engine = str((options or {}).get("asr_engine") or "faster-whisper")
+    args = ASR_ENGINE_ARGS.get(engine)
+    if args is None:
+        raise ValueError(f"Unsupported ASR engine: {engine!r}")
+    return list(args)
+
 # UI-facing metadata for each runnable stage. Keys MUST be a subset of
 # STAGE_COMMANDS — only stages the runner can actually execute are surfaced,
 # so the workspace never offers a button for an unimplemented stage.
@@ -426,6 +442,7 @@ class PipelineJobState:
     # per item: {stage, status: pending|skipped|running|completed|failed|cancelled,
     #            job_id, exit_code, reason}
     resume: bool = False
+    stage_options: dict[str, dict[str, Any]] = field(default_factory=dict)
     current_stage: str | None = None
     finished_at: str | None = None
     _meeting_dir: Path | None = field(default=None, repr=False, compare=False)
@@ -438,6 +455,11 @@ class PipelineJobState:
             "profile": self.profile,
             "force": self.force,
             "resume": self.resume,
+            "stage_options": {
+                stage: dict(options)
+                for stage, options in self.stage_options.items()
+                if options
+            },
             "status": self.status,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
@@ -600,13 +622,17 @@ class JobRunner:
         meeting_id: str,
         stage: str,
         meeting_dir: Path,
+        stage_options: dict[str, Any] | None = None,
         _from_pipeline: bool = False,
     ) -> JobState:
         if self.active_pipeline is not None and not _from_pipeline:
             raise JobAlreadyRunning("A pipeline job is already running. Cancel it first.")
         cfg = STAGE_COMMANDS[stage]
         script: Path = cfg["script"]
-        base_args: list[str] = cfg["base_args"]
+        try:
+            base_args = stage_base_args(stage, stage_options)
+        except ValueError as exc:
+            raise PreflightFailed(str(exc)) from exc
         supports_dry_run: bool = cfg["supports_dry_run"]
 
         cmd = [sys.executable, str(script), "--meeting-dir", str(meeting_dir), *base_args]
@@ -708,6 +734,7 @@ class JobRunner:
         force: bool = False,
         resume: bool = False,
         stages: list[str] | None = None,
+        stage_options: dict[str, dict[str, Any]] | None = None,
     ) -> PipelineJobState:
         """Start a sequential pipeline job. Returns its aggregate state.
 
@@ -731,6 +758,7 @@ class JobRunner:
                 profile=profile if not stages else "custom",
                 force=force,
                 resume=resume,
+                stage_options=stage_options or {},
                 status="running",
                 started_at=_now_iso(),
                 stages=[
@@ -781,6 +809,7 @@ class JobRunner:
                         meeting_id=pstate.meeting_id,
                         stage=stage,
                         meeting_dir=meeting_dir,
+                        stage_options=pstate.stage_options.get(stage),
                         _from_pipeline=True,
                     )
                 except PreflightFailed as exc:
