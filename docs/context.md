@@ -4,8 +4,8 @@
 
 ## Now
 
-- active task: MA-MEETING-QA-BAD-ANSWER-FALLBACK (#151) — reject malformed short LLM fragments in meeting Q&A.
-- branch: `codex/151-meeting-qa-bad-answer-fallback`.
+- active task: MA-MEETING-INDEX-ATOMIC-UPDATES (#153) — make runtime meeting index upserts atomic and resilient to bad JSONL lines.
+- branch: `codex/153-meeting-index-atomic-updates`.
 - canonical main state: `/MeetingAgent` shell and ASR engine selector are pushed; current work is a small follow-up PR.
 
 ## Done latest
@@ -37,6 +37,7 @@
 - MA-UI-ASR-ENGINE-SELECTOR (#150): `/MeetingAgent` upload/pipeline flow exposes ASR engine selection (`faster-whisper` default or `gigaam`) and sends it to the pipeline API as `asr_engine`.
 - MA-SPEAKER-TRANSCRIPT-MAPPED-TXT (#152): `transcript/speaker_transcript.txt` renders saved speaker names/roles from `meeting.json.speaker_mapping`, while `speaker_transcript.jsonl` keeps stable technical `SPEAKER_XX` labels for downstream chunking/indexing.
 - MA-MEETING-QA-BAD-ANSWER-FALLBACK (#151): meeting-scoped Q&A now treats degenerate one-word/fragment LLM outputs as controlled `no_answer` instead of successful `answered`.
+- MA-MEETING-INDEX-ATOMIC-UPDATES (#153): meeting chunk/artifact index upserts now skip malformed runtime JSONL lines and write `data/meeting_chunks.jsonl` through lock + temp file + `os.replace`.
 
 ## Current Product State
 
