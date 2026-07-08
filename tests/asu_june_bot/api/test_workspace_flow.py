@@ -35,6 +35,7 @@ def test_state_panel_elements_present(html: str) -> None:
     assert 'id="pipeline-actions"' in html
     assert 'id="jobs-stages"' in html
     assert 'id="pipeline-results"' in html
+    assert 'id="hdr-auth"' in html
 
 
 def test_readiness_api_integrated(html: str) -> None:
@@ -238,3 +239,20 @@ def test_meeting_search_aborts_without_csrf(html: str) -> None:
     assert csrf_check < post_call, "CSRF guard must precede the POST"
     guard = block[csrf_check: block.index("let resp")]
     assert "return" in guard
+
+
+def test_workspace_auth_state_is_explicit_and_not_only_overlay(html: str) -> None:
+    assert "Checking auth..." in html
+    assert "Signed in:" in html
+    assert "Not signed in" in html
+    assert "hideAuthOverlay()" in html
+
+
+def test_csrf_403_does_not_show_login_overlay(html: str) -> None:
+    block = html[html.index("async function ensureCsrf"):]
+    block = block[: block.index("\n}\n") + 2]
+    assert "resp.status === 401" in block
+    assert "show401()" in block
+    assert "resp.status === 403" in block
+    csrf_forbidden = block[block.index("resp.status === 403"):]
+    assert "show401()" not in csrf_forbidden
