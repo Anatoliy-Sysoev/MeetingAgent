@@ -56,14 +56,15 @@
 - [x] MA-SPEAKER-TRANSCRIPT-MAPPED-TXT (#152): human-readable `speaker_transcript.txt` uses saved speaker names/roles; JSONL keeps stable technical labels.
 - [x] MA-MEETING-QA-BAD-ANSWER-FALLBACK (#151): malformed short Meeting Q&A LLM fragments return controlled `no_answer`, not successful `answered`.
 - [x] MA-MEETING-INDEX-ATOMIC-UPDATES (#153): meeting chunks/artifacts index upserts skip malformed runtime JSONL lines and write through lock + atomic replace.
+- [x] MA-WORKSPACE-AUTH-STATE-CLARITY (#154): Workspace header shows explicit auth state and CSRF 403 does not trigger misleading login overlay.
 
 ## Active / Next
 
-- [ ] MA-WORKSPACE-AUTH-STATE-CLARITY (#154): make workspace auth/login state consistent when a session is already active.
+- [ ] MA-MEETINGAGENT-UI-MOCKUPS: approve target mockups for registry, upload wizard, processing monitor and meeting card before deeper UI refactor.
 
 ## Meeting Product Backlog
 
-- [ ] MA-MEETINGAGENT-UI-MOCKUPS — approve target mockups for registry, upload wizard, processing monitor and meeting card before deeper UI refactor.
+- [ ] MA-MEETINGAGENT-UI-REFACTOR: split monolithic inline Workspace/MeetingAgent HTML into maintainable frontend assets after mockups are approved.
 
 
 ## Project Knowledge Bot / Guard / Auth Backlog
