@@ -44,6 +44,7 @@ _TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9]{2,}")
 
 # Matches source references the model is asked to emit, e.g. [S1], [S2].
 _CITATION_REF_RE = re.compile(r"\[[Ss](\d+)\]")
+_WORD_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9]{2,}")
 
 _SYSTEM_PROMPT = (
     "Ты ассистент по конкретной встрече. Отвечай ТОЛЬКО на основе переданных "
@@ -535,7 +536,7 @@ class MeetingQAService:
             )
 
         answer = (llm_response.text or "").strip()
-        if not answer or _has_no_answer_marker(answer):
+        if not answer or _has_no_answer_marker(answer) or _is_malformed_answer(answer):
             return self._chat_payload(
                 meeting_id,
                 status="no_answer",
@@ -635,3 +636,18 @@ def _has_no_answer_marker(text: str) -> bool:
     from asu_june_bot.chat.answer_validator import has_no_answer_marker
 
     return has_no_answer_marker(text)
+
+
+def _is_malformed_answer(text: str) -> bool:
+    """Reject obvious generation fragments before marking a response answered.
+
+    Meeting Q&A is allowed to fall back from cited sources to retrieved sources,
+    so missing ``[S#]`` markers alone is not an error.  This check only catches
+    degenerate outputs such as a single particle/word ("На") that otherwise look
+    non-empty and would be surfaced as successful answers.
+    """
+    without_citations = _CITATION_REF_RE.sub(" ", text or "")
+    words = _WORD_RE.findall(without_citations)
+    if _CITATION_REF_RE.search(text or "") and words:
+        return False
+    return len(without_citations.strip()) < 4 or len(words) < 2
