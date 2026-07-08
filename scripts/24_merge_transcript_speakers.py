@@ -97,6 +97,31 @@ def format_time(seconds: float) -> str:
     return f"{total // 3600:02d}:{(total % 3600) // 60:02d}:{total % 60:02d}"
 
 
+def normalize_speaker_mapping(meeting: dict[str, Any]) -> dict[str, dict[str, str]]:
+    raw_mapping = meeting.get("speaker_mapping")
+    if not isinstance(raw_mapping, dict):
+        return {}
+
+    mapping: dict[str, dict[str, str]] = {}
+    for label, raw_entry in raw_mapping.items():
+        if not isinstance(label, str) or not isinstance(raw_entry, dict):
+            continue
+        name = str(raw_entry.get("name") or "").strip()
+        role = str(raw_entry.get("role") or "").strip()
+        if name or role:
+            mapping[label] = {"name": name, "role": role}
+    return mapping
+
+
+def display_speaker(label: str, mapping: dict[str, dict[str, str]]) -> str:
+    entry = mapping.get(label) or {}
+    name = entry.get("name") or label
+    role = entry.get("role") or ""
+    if role:
+        return f"{name} ({role})"
+    return name
+
+
 def build_utterances(
     segments: list[dict[str, Any]],
     diarization_intervals: list[Any] | None = None,
@@ -152,13 +177,23 @@ def build_utterances(
     return utterances
 
 
-def build_text(utterances: list[dict[str, Any]]) -> str:
+def build_text(
+    utterances: list[dict[str, Any]],
+    *,
+    speaker_mapping: dict[str, dict[str, str]] | None = None,
+) -> str:
+    mapping = speaker_mapping or {}
     lines = ["# Speaker transcript", ""]
     for utterance in utterances:
+        speaker_label = str(
+            utterance.get("speaker")
+            or utterance.get("speaker_name")
+            or DEFAULT_SPEAKER
+        )
         lines.append(
             "[{time}] {speaker}: {text}".format(
                 time=format_time(float(utterance["start"])),
-                speaker=utterance["speaker_name"],
+                speaker=display_speaker(speaker_label, mapping),
                 text=utterance["text"],
             )
         )
@@ -231,7 +266,10 @@ def run(args: argparse.Namespace) -> int:
             min_overlap_ratio=args.min_overlap_ratio,
         )
         write_jsonl(output_jsonl, utterances)
-        output_txt.write_text(build_text(utterances), encoding="utf-8")
+        output_txt.write_text(
+            build_text(utterances, speaker_mapping=normalize_speaker_mapping(meeting)),
+            encoding="utf-8",
+        )
         update_meeting(meeting)
         validate_schema(meeting, schema_path)
         write_json_atomic(meeting_path, meeting)
