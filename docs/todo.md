@@ -53,11 +53,11 @@
 - [x] MA-MEETINGAGENT-HOME-UI: `/MeetingAgent` primary product shell with meeting registry, upload form, pipeline launch actions, active job panel and separate `/ui` Project Knowledge Bot tab.
 - [x] MA-MEETING-LAST-ERROR-SCHEMA-FIX: `meeting.json.last_error` accepts runner `code`/`job_id`, so failed API jobs no longer block direct CLI recovery/validation.
 - [x] MA-UI-ASR-ENGINE-SELECTOR (#150): `/MeetingAgent` upload/pipeline flow can choose `faster-whisper` or `gigaam` and passes the choice to the runner API.
+- [x] MA-SPEAKER-TRANSCRIPT-MAPPED-TXT (#152): human-readable `speaker_transcript.txt` uses saved speaker names/roles; JSONL keeps stable technical labels.
 - [x] MA-MEETING-QA-BAD-ANSWER-FALLBACK (#151): malformed short Meeting Q&A LLM fragments return controlled `no_answer`, not successful `answered`.
 
 ## Active / Next
 
-- [ ] MA-SPEAKER-TRANSCRIPT-MAPPED-TXT (#152): make human-readable `speaker_transcript.txt` use saved speaker names/roles while JSONL keeps stable labels.
 - [ ] MA-MEETING-INDEX-ATOMIC-UPDATES (#153): make meeting chunk index updates atomic/locked and resilient to invalid JSONL lines.
 - [ ] MA-WORKSPACE-AUTH-STATE-CLARITY (#154): make workspace auth/login state consistent when a session is already active.
 
