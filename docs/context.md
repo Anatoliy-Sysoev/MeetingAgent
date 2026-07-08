@@ -1,12 +1,12 @@
 # Текущий Контекст
 
-Обновлено: 2026-07-07.
+Обновлено: 2026-07-08.
 
 ## Now
 
-- active task: MA-MEETINGAGENT-HOME-UI — new primary MeetingAgent shell at `/MeetingAgent`.
-- branch: `main`.
-- canonical main state: local UI shell work is ahead of `origin/main` until committed.
+- active task: MA-MEETING-INDEX-ATOMIC-UPDATES (#153) — make runtime meeting index upserts atomic and resilient to bad JSONL lines.
+- branch: `codex/153-meeting-index-atomic-updates`.
+- canonical main state: `/MeetingAgent` shell is pushed; current work is a small follow-up PR.
 
 ## Done latest
 
@@ -34,6 +34,7 @@
 - GITHUB-PAGES-DOCS (#26): added MkDocs Material config, docs landing page, local docs build dependencies and GitHub Pages deployment workflow.
 - WINDOWS-UTF8-DOC-NOTE (#92): incorporated the useful external PR note into `docs/docker.md`; PowerShell smoke sessions should set UTF-8 output and `PYTHONIOENCODING=utf-8`.
 - MA-MEETINGAGENT-HOME-UI: added `/MeetingAgent` as the primary product page with meeting registry, upload form, transcript/full pipeline launch actions, active job panel and separate navigation to `/ui` for the Project Knowledge Bot.
+- MA-MEETING-INDEX-ATOMIC-UPDATES (#153): meeting chunk/artifact index upserts now skip malformed runtime JSONL lines and write `data/meeting_chunks.jsonl` through lock + temp file + `os.replace`.
 
 ## Current Product State
 
