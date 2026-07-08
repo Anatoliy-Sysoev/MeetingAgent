@@ -39,6 +39,10 @@ def test_meetingagent_ui_starts_pipeline_profiles(html: str) -> None:
     assert "transcript_only" in html
     assert '"full"' in html
     assert "large-v3-turbo" in html
+    assert 'id="asrEngine"' in html
+    assert 'value="faster-whisper"' in html
+    assert 'value="gigaam"' in html
+    assert "asr_engine: selectedAsrEngine()" in html
 
 
 def test_meetingagent_ui_uses_csrf_for_mutating_requests(html: str) -> None:
