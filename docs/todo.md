@@ -1,6 +1,6 @@
 # Todo
 
-Обновлено: 2026-07-07.
+Обновлено: 2026-07-08.
 
 ## Done
 
@@ -52,10 +52,14 @@
 - [x] WINDOWS-UTF8-DOC-NOTE (#92): useful external PR note incorporated into Docker docs with conflict-free wording.
 - [x] MA-MEETINGAGENT-HOME-UI: `/MeetingAgent` primary product shell with meeting registry, upload form, pipeline launch actions, active job panel and separate `/ui` Project Knowledge Bot tab.
 - [x] MA-MEETING-LAST-ERROR-SCHEMA-FIX: `meeting.json.last_error` accepts runner `code`/`job_id`, so failed API jobs no longer block direct CLI recovery/validation.
+- [x] MA-SPEAKER-TRANSCRIPT-MAPPED-TXT (#152): human-readable `speaker_transcript.txt` uses saved speaker names/roles; JSONL keeps stable technical labels.
 
 ## Active / Next
 
-- [x] Close old external documentation PRs: #27 and #28 superseded, #92 incorporated.
+- [ ] MA-MEETING-QA-BAD-ANSWER-FALLBACK (#151): validate generated meeting Q&A answers and fall back to extractive/no-answer output for malformed short responses.
+- [ ] MA-MEETING-INDEX-ATOMIC-UPDATES (#153): make meeting chunk index updates atomic/locked and resilient to invalid JSONL lines.
+- [ ] MA-UI-ASR-ENGINE-SELECTOR (#150): expose GigaAM vs faster-whisper choice in the UI pipeline flow.
+- [ ] MA-WORKSPACE-AUTH-STATE-CLARITY (#154): make workspace auth/login state consistent when a session is already active.
 
 ## Meeting Product Backlog
 

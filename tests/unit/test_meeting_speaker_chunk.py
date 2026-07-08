@@ -159,6 +159,40 @@ def test_merge_transcript_speakers_uses_diarization_overlap(tmp_path: Path) -> N
     assert utterances[1]["speaker_overlap_ratio"] == 1.0
 
 
+def test_merge_transcript_speakers_text_uses_saved_speaker_mapping(tmp_path: Path) -> None:
+    meeting_dir = make_meeting_with_segments(tmp_path)
+    diarization_path = meeting_dir / "transcript" / "diarization.jsonl"
+    rows = [
+        {"speaker": "SPEAKER_00", "start": 0.0, "end": 10.0, "backend": "test"},
+        {"speaker": "SPEAKER_01", "start": 10.0, "end": 130.0, "backend": "test"},
+    ]
+    with diarization_path.open("w", encoding="utf-8", newline="\n") as fh:
+        for row in rows:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    meeting = read_json(meeting_dir / "meeting.json")
+    meeting["artifacts"]["diarization"] = "transcript/diarization.jsonl"
+    meeting["speaker_mapping"] = {
+        "SPEAKER_00": {"name": "Анатолий Сысоев", "role": "PO"},
+        "SPEAKER_01": {"name": "Татьяна Числовская", "role": ""},
+    }
+    (meeting_dir / "meeting.json").write_text(
+        json.dumps(meeting, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    code = merge_speakers.run(merge_args(meeting_dir))
+
+    assert code == 0
+    utterances = read_jsonl(meeting_dir / "transcript" / "speaker_transcript.jsonl")
+    assert utterances[0]["speaker"] == "SPEAKER_00"
+    assert utterances[0]["speaker_name"] == "SPEAKER_00"
+    transcript_text = (meeting_dir / "transcript" / "speaker_transcript.txt").read_text(
+        encoding="utf-8"
+    )
+    assert "[00:00:00] Анатолий Сысоев (PO): Первый сегмент." in transcript_text
+    assert "[00:00:10] Татьяна Числовская: Второй сегмент." in transcript_text
+
+
 def test_merge_transcript_speakers_keeps_unknown_below_overlap_threshold(tmp_path: Path) -> None:
     meeting_dir = make_meeting_with_segments(tmp_path)
     diarization_path = meeting_dir / "transcript" / "diarization.jsonl"
