@@ -6,7 +6,7 @@
 
 - active task: MA-MEETING-QA-BAD-ANSWER-FALLBACK (#151) — reject malformed short LLM fragments in meeting Q&A.
 - branch: `codex/151-meeting-qa-bad-answer-fallback`.
-- canonical main state: `/MeetingAgent` shell is pushed; current work is a small follow-up PR.
+- canonical main state: `/MeetingAgent` shell and ASR engine selector are pushed; current work is a small follow-up PR.
 
 ## Done latest
 
@@ -34,6 +34,7 @@
 - GITHUB-PAGES-DOCS (#26): added MkDocs Material config, docs landing page, local docs build dependencies and GitHub Pages deployment workflow.
 - WINDOWS-UTF8-DOC-NOTE (#92): incorporated the useful external PR note into `docs/docker.md`; PowerShell smoke sessions should set UTF-8 output and `PYTHONIOENCODING=utf-8`.
 - MA-MEETINGAGENT-HOME-UI: added `/MeetingAgent` as the primary product page with meeting registry, upload form, transcript/full pipeline launch actions, active job panel and separate navigation to `/ui` for the Project Knowledge Bot.
+- MA-UI-ASR-ENGINE-SELECTOR (#150): `/MeetingAgent` upload/pipeline flow exposes ASR engine selection (`faster-whisper` default or `gigaam`) and sends it to the pipeline API as `asr_engine`.
 - MA-MEETING-QA-BAD-ANSWER-FALLBACK (#151): meeting-scoped Q&A now treats degenerate one-word/fragment LLM outputs as controlled `no_answer` instead of successful `answered`.
 
 ## Current Product State
@@ -116,8 +117,8 @@ GET  /admin/review/chat-runs/export
 ## Next
 
 - Polish `/MeetingAgent` visual design and split monolithic HTML into maintainable frontend assets after mockups are approved.
-- Add UI-level ASR engine selection for GigaAM vs faster-whisper; current `/MeetingAgent` pipeline launch uses the existing runner default `faster-whisper large-v3-turbo`.
 - Make meeting index updates atomic/locked to prevent JSONL corruption under overlapping index jobs.
+- Improve `/MeetingAgent` visual consistency after mockups are approved.
 
 ## Open decisions / blockers
 
