@@ -18,7 +18,7 @@ if str(SRC) not in sys.path:
 
 from asu_june_bot.llm import LLMResponse  # noqa: E402
 from asu_june_bot.llm.ollama_common import OllamaUnavailableError  # noqa: E402
-from asu_june_bot.meetings.qa import MeetingQAService  # noqa: E402
+from asu_june_bot.meetings.qa import MeetingQAService, _is_malformed_answer  # noqa: E402
 from asu_june_bot.meetings.vector_index import (  # noqa: E402
     MeetingVectorRetriever,
     build_meeting_vector_retriever,
@@ -389,6 +389,22 @@ def test_no_relevant_fragments_strict_no_context(chunks_path: Path, tmp_path: Pa
     assert payload["retrieval_mode"] == "vector"
     assert "нет фрагментов" in payload["refusal"]
     assert payload["citations"] == []
+
+
+def test_malformed_llm_fragment_is_no_answer(chunks_path: Path, tmp_path: Path) -> None:
+    svc = _service(chunks_path, tmp_path, embedder=FakeEmbedder(), llm=FakeLLM("На"))
+    payload = svc.chat(MEETING_ID, "Что решили по паспорту проекта?", top_k=2)
+    assert payload["status"] == "no_answer"
+    assert payload["answer"] is None
+    assert payload["refusal"]
+    assert payload["citations"] == []
+    assert payload["citations_basis"] is None
+
+
+def test_answer_fragment_validator_keeps_normal_uncited_answer() -> None:
+    assert _is_malformed_answer("На") is True
+    assert _is_malformed_answer("Ответ без ссылок на источники.") is False
+    assert _is_malformed_answer("Бюджет увеличен [S1].") is False
 
 
 # ---------------------------------------------------------------------------
