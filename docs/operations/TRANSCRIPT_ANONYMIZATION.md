@@ -46,7 +46,7 @@ Markdown input пишет `anonymized_transcript.md`.
 - русскоязычные ФИО эвристикой;
 - внутренние идентификаторы вида `FTT-MA-08`.
 
-Если указан `--meeting-dir`, имена из `meeting.json.speaker_mapping` также добавляются как person terms. Технические labels (`SPEAKER_01`, `segment_id`, `utterance_id`, `chunk_id`) сохраняются, чтобы таймкоды и ссылки не ломались.
+Если указан `--meeting-dir`, имена из `meeting.json.speaker_mapping` также добавляются как person terms. Технические labels (`SPEAKER_01`, `segment_id`, `utterance_id`, `chunk_id`) сохраняются, чтобы таймкоды и ссылки не ломались. Если в `speaker`, `speakers` или `source` попали реальные имена или локальные пути, они анонимизируются; без обработки остаются только технические speaker labels и audio-source labels `MIX`/`MIC`/`SYS`.
 
 ## Custom terms
 
@@ -78,7 +78,7 @@ python scripts/43_anonymize_transcript.py --input transcript\segments.jsonl --te
 
 ## Reports
 
-`anonymization_report.json` public-safe: он содержит placeholder, kind, count и `original_sha256`, но не содержит исходные значения.
+`anonymization_report.json` public-safe: он содержит только placeholder, kind и count. Исходные значения и их hashes в public report не пишутся, потому что unsalted hashes для email/телефонов/ФИО могут быть обратимы по словарю.
 
 Если нужен локальный trace для ручной проверки, включите:
 
@@ -86,7 +86,7 @@ python scripts/43_anonymize_transcript.py --input transcript\segments.jsonl --te
 python scripts/43_anonymize_transcript.py --input transcript\segments.jsonl --write-private-map
 ```
 
-Это создаст `anonymization_mapping.private.json` с оригинальными значениями. Файл приватный, не публикуется и игнорируется Git через `*.private.json`.
+Это создаст `anonymization_mapping.private.json` с оригинальными значениями и `original_sha256`. Файл приватный, не публикуется и игнорируется Git через `*.private.json`.
 
 ## Safety limits
 

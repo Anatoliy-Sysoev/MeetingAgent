@@ -32,7 +32,7 @@ CARD = {
     "meeting_id": MEETING_ID,
     "title": "Readiness Meeting",
     "date": "2026-02-02",
-    "status": "new",
+    "processing_status": "new",
     "participants": [],
     "source": {"kind": "offline_record", "media_files": []},
     "artifacts": {},
@@ -180,6 +180,14 @@ def test_payload_shape_and_no_paths(tmp_path: Path) -> None:
                     "required_artifacts", "produced_artifacts"):
             assert key in stage
         assert stage["state"] in ("done", "ready", "blocked")
+
+
+def test_readiness_status_uses_processing_status_not_legacy_status(tmp_path: Path) -> None:
+    d = _make_meeting(tmp_path, {"processing_status": "summarized", "status": "stale"})
+
+    payload = pipeline_readiness(MEETING_ID, d)
+
+    assert payload["status"] == "summarized"
 
 
 def test_stages_sorted_by_order(tmp_path: Path) -> None:

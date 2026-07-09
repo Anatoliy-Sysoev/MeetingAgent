@@ -4,9 +4,9 @@
 
 ## Now
 
-- active task: harden diarization readiness/runtime preflight (#160).
-- branch: `codex/160-diarization-runtime-preflight`.
-- current local check: meeting `2026-07-08__zobova-nomer-dogovora` recovered from failed diarization state to `summarized`; diarization is now reported as blocked when optional runtime deps are absent.
+- active task: harden privacy/runtime public surfaces (#162).
+- branch: `codex/162-privacy-runtime-hardening`.
+- current check: P1/P2 findings from the July 9 review are being fixed in code/tests/docs; open PR list is empty.
 
 ## Done latest
 
@@ -40,6 +40,7 @@
 - MA-MEETING-INDEX-ATOMIC-UPDATES (#153): meeting chunk/artifact index upserts now skip malformed runtime JSONL lines and write `data/meeting_chunks.jsonl` through lock + temp file + `os.replace`.
 - MA-WORKSPACE-AUTH-STATE-CLARITY (#154): Workspace header shows signed-in/auth-unavailable/not-signed-in state; 403 CSRF failures no longer show the login-required overlay as if the session were absent.
 - MA-DIARIZATION-RUNTIME-PREFLIGHT (#160): sherpa-onnx diarization now checks optional runtime dependencies during dry-run/readiness/job preflight; missing `sherpa_onnx` blocks the UI stage with `diarization_runtime_missing` instead of allowing a failed job.
+- MA-PRIVACY-RUNTIME-HARDENING (#162): transcript anonymizer no longer emits original hashes in public reports, real speaker/source values are anonymized, meeting index rows avoid absolute `source_path`, preflight errors are path-redacted, job last_error writes are atomic, readiness status uses `processing_status`.
 
 ## Current Product State
 
@@ -130,7 +131,7 @@ GET  /admin/review/chat-runs/export
 - Admin console contract is defined; dedicated admin UI, aggregate jobs/audit/settings endpoints and destructive meeting admin actions remain future implementation work.
 - Guard pure decision API is available for deterministic tests; future guard behavior changes must use it as a measurement boundary.
 - Local preflight can fail until Ollama is running and exposes `bge-m3` + `qwen3.5:4b` through the active model store.
-- Transcript anonymization is heuristic and requires manual review before publishing anonymized examples or eval fixtures; see `docs/operations/TRANSCRIPT_ANONYMIZATION.md`.
+- Transcript anonymization is heuristic and requires manual review before publishing anonymized examples or eval fixtures; public reports contain placeholders/counts only, while private mappings are opt-in local files; see `docs/operations/TRANSCRIPT_ANONYMIZATION.md`.
 - Meeting summary benchmark is deterministic and lexical by design; it is a smoke gate, not a semantic judge. Reports under `eval/reports/` stay runtime-only.
 - Local/private runtime outputs under `meetings/`, `data/`, `logs/`, model caches, transcripts and indexes must remain out of Git.
 - `/MeetingAgent` is now the intended product entrypoint; `/ui` remains the separate Project Knowledge Bot surface.

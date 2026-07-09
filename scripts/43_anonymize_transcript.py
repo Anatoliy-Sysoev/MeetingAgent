@@ -106,6 +106,16 @@ def ensure_can_write(paths: dict[str, Path], force: bool) -> None:
         raise AnonymizeTranscriptError(f"Output already exists; use --force: {joined}")
 
 
+def display_path(path: Path) -> str:
+    resolved = path.resolve()
+    for base in (Path.cwd().resolve(), ROOT.resolve()):
+        try:
+            return resolved.relative_to(base).as_posix()
+        except ValueError:
+            continue
+    return resolved.name
+
+
 def write_private_mapping(path: Path, anonymizer: TranscriptAnonymizer) -> None:
     payload = {
         "warning": "Private mapping contains original sensitive values. Do not commit or publish.",
@@ -182,12 +192,12 @@ def run(args: argparse.Namespace) -> int:
         write_private_mapping(private_map_path, anonymizer)
 
     print("anonymization complete")
-    print(f"input: {input_path}")
+    print(f"input: {display_path(input_path)}")
     for key, path in paths.items():
-        print(f"{key}: {path}")
-    print(f"report: {report_path}")
+        print(f"{key}: {display_path(path)}")
+    print(f"report: {display_path(report_path)}")
     if args.write_private_map:
-        print(f"private_map: {private_map_path}")
+        print(f"private_map: {display_path(private_map_path)}")
     print(f"replacements: {report['replacements_count']}")
     return 0
 
