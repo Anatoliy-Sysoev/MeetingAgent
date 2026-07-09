@@ -4,9 +4,9 @@
 
 ## Now
 
-- active coding task: none recorded in GitHub; PR #161 is merged into `main`.
-- canonical main state: `66437c02e68712e9e1698dd113e836b485a26da5` / `Block diarization when optional deps are missing (#161)`.
-- next product focus: approve `/MeetingAgent` target mockups, then split monolithic inline Workspace/MeetingAgent HTML into maintainable frontend assets.
+- active coding task: MA-LIVE-AUDIO-CAPTURE-V1 (#164).
+- branch: `codex/164-live-audio-capture-v1`.
+- next product focus: wire real Windows WASAPI loopback capture, streaming VAD and Live UI after the source preflight contract.
 
 ## Done latest
 
@@ -40,6 +40,7 @@
 - MA-MEETING-INDEX-ATOMIC-UPDATES (#153): meeting chunk/artifact index upserts now skip malformed runtime JSONL lines and write `data/meeting_chunks.jsonl` through lock + temp file + `os.replace`.
 - MA-WORKSPACE-AUTH-STATE-CLARITY (#154): Workspace header shows signed-in/auth-unavailable/not-signed-in state; 403 CSRF failures no longer show the login-required overlay as if the session were absent.
 - MA-DIARIZATION-RUNTIME-PREFLIGHT (#160, PR #161): sherpa-onnx diarization now checks optional runtime dependencies during dry-run/readiness/job preflight; missing `sherpa_onnx` blocks the UI stage with `diarization_runtime_missing` instead of allowing a failed job.
+- MA-LIVE-AUDIO-CAPTURE-V1 (#164): live CLI can list/preflight local audio sources; `MIC`/`SYS`/`MIX` source contract is explicit; unavailable `sounddevice`/loopback returns machine-readable reasons; `SYS` no longer silently runs as microphone capture.
 
 ## Current Product State
 
@@ -57,6 +58,7 @@
 - Meeting cards живут в ignored runtime `meetings/<meeting_id>/` и не публикуются в Git, если содержат реальные данные.
 - Offline ASR product profile: `faster-whisper large-v3-turbo`, `language=ru`, `compute_type=int8`; `small` остаётся только явным draft/dev CLI выбором.
 - Optional engines: GigaAM как внешний локальный backend; sherpa-onnx для diarization; Vosk для draft live transcription.
+- Live transcription source preflight: `scripts/33_live_transcribe_meeting.py --list-audio-sources` lists local devices; `--preflight-source --source MIC|SYS|MIX` reports availability without starting capture. `SYS` requires Windows WASAPI loopback and remains blocked in the runtime backend until loopback capture/resampling is wired; `--input-wav` stays available for deterministic SYS/MIX smoke runs.
 - Job runner поддерживает стадии `extract_audio`, `transcribe`, `diarize`, `merge`, `chunk`, `enrich`, `index`, `analyze`.
 - Diarization is optional-runtime gated: if sherpa-onnx dependencies are not installed in the active API environment, readiness returns `blocked` / `diarization_runtime_missing` and the Workspace should not start the stage. Use the isolated diarization environment or install `requirements-diarization.txt` before enabling it.
 - Workspace UI: media player, clickable transcript, artifact viewer, job controls, readiness map, one-click pipeline profiles, meeting-scoped Search/Q&A.
@@ -121,8 +123,9 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
+- Implement MA-LIVE-LOOPBACK-CAPTURE-V1: actual Windows WASAPI loopback capture with 48 kHz/stereo -> 16 kHz/mono/int16 conversion.
+- Implement MA-LIVE-UI-V1: start/stop live session UI, partial/final transcript view and offline refinement action.
 - Approve target `/MeetingAgent` mockups for registry, upload wizard, processing monitor and meeting card before deeper UI refactor.
-- After mockups are approved, split monolithic inline Workspace/MeetingAgent HTML into maintainable frontend assets.
 - Keep optional diarization runtime isolated unless `requirements-diarization.txt` is intentionally installed in the active API environment.
 
 ## Open decisions / blockers
@@ -134,3 +137,4 @@ GET  /admin/review/chat-runs/export
 - Meeting summary benchmark is deterministic and lexical by design; it is a smoke gate, not a semantic judge. Reports under `eval/reports/` stay runtime-only.
 - Local/private runtime outputs under `meetings/`, `data/`, `logs/`, model caches, transcripts and indexes must remain out of Git.
 - `/MeetingAgent` is now the intended product entrypoint; `/ui` remains the separate Project Knowledge Bot surface.
+- Live transcription is still draft-only: Vosk/MIC/file-smoke paths exist, but production SYS loopback capture, streaming Silero VAD and browser Live UI are not complete.

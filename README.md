@@ -241,6 +241,16 @@ Dry-run:
   --dry-run
 ```
 
+List and preflight local live audio sources without starting capture:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py --list-audio-sources
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py --preflight-source --source MIC
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py --preflight-source --source SYS
+```
+
+`MIC` uses local input devices. `SYS` requires Windows WASAPI loopback and is guarded by preflight; the current backend does not silently treat `SYS` as a microphone. Use `--input-wav` for deterministic SYS/MIX smoke runs until runtime loopback capture is wired.
+
 Deterministic smoke from a prepared mono 16 kHz WAV:
 
 ```powershell

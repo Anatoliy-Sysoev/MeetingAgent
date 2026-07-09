@@ -1,6 +1,6 @@
 # Todo
 
-Обновлено: 2026-07-08.
+Обновлено: 2026-07-09.
 
 ## Done
 
@@ -58,9 +58,12 @@
 - [x] MA-MEETING-INDEX-ATOMIC-UPDATES (#153): meeting chunks/artifacts index upserts skip malformed runtime JSONL lines and write through lock + atomic replace.
 - [x] MA-WORKSPACE-AUTH-STATE-CLARITY (#154): Workspace header shows explicit auth state and CSRF 403 does not trigger misleading login overlay.
 - [x] MA-DIARIZATION-RUNTIME-PREFLIGHT (#160): diarization dry-run/readiness/job preflight checks optional sherpa-onnx runtime deps and blocks the UI stage with `diarization_runtime_missing` instead of producing repeated failed jobs.
+- [x] MA-LIVE-AUDIO-CAPTURE-V1 (#164): live source discovery/preflight for `MIC`/`SYS`/`MIX`, explicit `sounddevice`/loopback reasons, and guarded SYS runtime behavior.
 
 ## Active / Next
 
+- [ ] MA-LIVE-LOOPBACK-CAPTURE-V1: implement actual Windows WASAPI loopback capture and resample 48 kHz/stereo to Vosk-ready 16 kHz/mono/int16.
+- [ ] MA-LIVE-UI-V1: add browser start/stop live session UI with partial/final transcript view and offline refinement action.
 - [ ] MA-MEETINGAGENT-UI-MOCKUPS: approve target mockups for registry, upload wizard, processing monitor and meeting card before deeper UI refactor.
 
 ## Meeting Product Backlog
