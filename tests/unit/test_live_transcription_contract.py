@@ -8,7 +8,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from meeting_agent.live_transcription import LiveSegment, LiveSessionReport, write_live_artifacts
+from meeting_agent.live_transcription import LiveSegment, LiveSessionReport, preflight_audio_source, write_live_artifacts
+from meeting_agent.live_transcription.audio_capture import AudioSourcePreflight, list_audio_devices
 from meeting_agent.live_transcription.vad import SpeechWindow, block_overlaps_speech
 from meeting_agent.live_transcription.vosk_backend import VoskLiveConfig, transcribe_vosk_live
 
@@ -43,6 +44,96 @@ def minimal_meeting() -> dict:
         "created_at": "2026-06-08T10:00:00+03:00",
         "updated_at": "2026-06-08T10:00:00+03:00",
     }
+
+
+class FakeSoundDevice:
+    @staticmethod
+    def query_hostapis():
+        return [{"name": "Windows WASAPI"}, {"name": "MME"}]
+
+    @staticmethod
+    def query_devices():
+        return [
+            {
+                "name": "Microphone Array",
+                "hostapi": 0,
+                "max_input_channels": 2,
+                "max_output_channels": 0,
+                "default_samplerate": 48000.0,
+            },
+            {
+                "name": "Speakers",
+                "hostapi": 0,
+                "max_input_channels": 0,
+                "max_output_channels": 2,
+                "default_samplerate": 48000.0,
+            },
+        ]
+
+
+class OutputOnlyNoWasapiSoundDevice:
+    @staticmethod
+    def query_hostapis():
+        return [{"name": "MME"}]
+
+    @staticmethod
+    def query_devices():
+        return [
+            {
+                "name": "Speakers",
+                "hostapi": 0,
+                "max_input_channels": 0,
+                "max_output_channels": 2,
+                "default_samplerate": 48000.0,
+            }
+        ]
+
+
+def test_audio_device_listing_marks_wasapi_loopback_candidates() -> None:
+    devices = list_audio_devices(sd_module=FakeSoundDevice)
+
+    assert [device.name for device in devices] == ["Microphone Array", "Speakers"]
+    assert devices[0].supports_loopback is False
+    assert devices[1].supports_loopback is True
+
+
+def test_audio_preflight_reports_sounddevice_missing() -> None:
+    result = preflight_audio_source("MIC", sd_module=False)
+
+    assert result.available is False
+    assert result.reason == "sounddevice_missing"
+
+
+def test_audio_preflight_mic_available() -> None:
+    result = preflight_audio_source("MIC", sd_module=FakeSoundDevice, system_name="Windows")
+
+    assert result.available is True
+    assert result.reason is None
+    assert result.devices[0].name == "Microphone Array"
+    assert result.sample_rate == 16000
+    assert result.channels == 1
+    assert result.dtype == "int16"
+
+
+def test_audio_preflight_sys_requires_wasapi_loopback() -> None:
+    result = preflight_audio_source("SYS", sd_module=OutputOnlyNoWasapiSoundDevice, system_name="Windows")
+
+    assert result.available is False
+    assert result.reason == "sys_loopback_device_missing"
+
+
+def test_audio_preflight_sys_is_windows_only() -> None:
+    result = preflight_audio_source("SYS", sd_module=FakeSoundDevice, system_name="Linux")
+
+    assert result.available is False
+    assert result.reason == "sys_loopback_windows_only"
+
+
+def test_audio_preflight_mix_available_when_mic_available() -> None:
+    result = preflight_audio_source("MIX", sd_module=FakeSoundDevice, system_name="Linux")
+
+    assert result.available is True
+    assert result.reason is None
 
 
 def test_live_artifacts_export_jsonl_text_subtitles_and_report(tmp_path: Path) -> None:
@@ -130,6 +221,77 @@ def test_live_cli_dry_run_validates_meeting_contract(tmp_path: Path, capsys) -> 
     assert "dry-run ok" in capsys.readouterr().out
 
 
+def test_live_cli_lists_audio_sources_without_meeting_or_model(monkeypatch, capsys) -> None:
+    cli = load_live_cli()
+
+    class Device:
+        def to_dict(self):
+            return {"index": 0, "name": "Microphone Array", "hostapi": "Windows WASAPI"}
+
+    monkeypatch.setattr(cli, "list_audio_devices", lambda: [Device()])
+
+    exit_code = cli.main_with_argv(["--list-audio-sources"])
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["devices"][0]["name"] == "Microphone Array"
+
+
+def test_live_cli_preflights_source_without_meeting_or_model(monkeypatch, capsys) -> None:
+    cli = load_live_cli()
+    monkeypatch.setattr(
+        cli,
+        "preflight_audio_source",
+        lambda source: AudioSourcePreflight(source=source, available=False, reason="sounddevice_missing"),
+    )
+
+    exit_code = cli.main_with_argv(["--preflight-source", "--source", "SYS"])
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["source"] == "SYS"
+    assert payload["available"] is False
+    assert payload["reason"] == "sounddevice_missing"
+
+
+def test_live_cli_refuses_unavailable_runtime_audio_source(tmp_path: Path, monkeypatch, capsys) -> None:
+    cli = load_live_cli()
+    meeting_dir = tmp_path / "2026-06-08__live-smoke"
+    meeting_dir.mkdir()
+    (meeting_dir / "meeting.json").write_text(json.dumps(minimal_meeting(), ensure_ascii=False), encoding="utf-8")
+    model_dir = tmp_path / "vosk-model-small-ru-0.22"
+    model_dir.mkdir()
+    monkeypatch.setattr(
+        cli,
+        "preflight_audio_source",
+        lambda source: AudioSourcePreflight(source=source, available=False, reason="sounddevice_missing"),
+    )
+
+    exit_code = cli.main_with_argv(["--meeting-dir", str(meeting_dir), "--model-path", str(model_dir)])
+
+    assert exit_code == 1
+    assert "sounddevice_missing" in capsys.readouterr().err
+
+
+def test_live_cli_refuses_sys_loopback_runtime_until_backend_is_wired(tmp_path: Path, monkeypatch, capsys) -> None:
+    cli = load_live_cli()
+    meeting_dir = tmp_path / "2026-06-08__live-smoke"
+    meeting_dir.mkdir()
+    (meeting_dir / "meeting.json").write_text(json.dumps(minimal_meeting(), ensure_ascii=False), encoding="utf-8")
+    model_dir = tmp_path / "vosk-model-small-ru-0.22"
+    model_dir.mkdir()
+    monkeypatch.setattr(
+        cli,
+        "preflight_audio_source",
+        lambda source: AudioSourcePreflight(source=source, available=True),
+    )
+
+    exit_code = cli.main_with_argv(["--meeting-dir", str(meeting_dir), "--model-path", str(model_dir), "--source", "SYS"])
+
+    assert exit_code == 1
+    assert "SYS loopback capture is detected but not implemented" in capsys.readouterr().err
+
+
 def test_live_cli_refuses_overwrite_without_force(tmp_path: Path, capsys) -> None:
     cli = load_live_cli()
     meeting_dir = tmp_path / "2026-06-08__live-smoke"
@@ -186,6 +348,7 @@ def test_live_cli_writes_artifacts_and_updates_meeting_json(tmp_path: Path, monk
         )()
 
     monkeypatch.setattr(cli, "transcribe_vosk_live", fake_transcribe)
+    monkeypatch.setattr(cli, "preflight_audio_source", lambda source: AudioSourcePreflight(source=source, available=True))
 
     exit_code = cli.main_with_argv(
         [
@@ -218,6 +381,8 @@ def test_live_cli_allows_multiple_sources_without_overwrite(tmp_path: Path, monk
     meeting_path.write_text(json.dumps(minimal_meeting(), ensure_ascii=False), encoding="utf-8")
     model_dir = tmp_path / "vosk-model-small-ru-0.22"
     model_dir.mkdir()
+    wav_path = tmp_path / "audio_16k_mono.wav"
+    wav_path.write_bytes(b"fake")
 
     def fake_transcribe(config):
         return type(
@@ -243,8 +408,8 @@ def test_live_cli_allows_multiple_sources_without_overwrite(tmp_path: Path, monk
 
     monkeypatch.setattr(cli, "transcribe_vosk_live", fake_transcribe)
 
-    assert cli.main_with_argv(["--meeting-dir", str(meeting_dir), "--model-path", str(model_dir), "--source", "MIC"]) == 0
-    assert cli.main_with_argv(["--meeting-dir", str(meeting_dir), "--model-path", str(model_dir), "--source", "SYS"]) == 0
+    assert cli.main_with_argv(["--meeting-dir", str(meeting_dir), "--model-path", str(model_dir), "--source", "MIC", "--input-wav", str(wav_path)]) == 0
+    assert cli.main_with_argv(["--meeting-dir", str(meeting_dir), "--model-path", str(model_dir), "--source", "SYS", "--input-wav", str(wav_path)]) == 0
 
     meeting = json.loads(meeting_path.read_text(encoding="utf-8"))
     assert meeting["artifacts"]["live_segments_mic"] == "transcript/live/live_segments.MIC.jsonl"
