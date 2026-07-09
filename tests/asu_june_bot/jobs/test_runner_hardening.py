@@ -18,7 +18,10 @@ from asu_june_bot.jobs.runner import (  # noqa: E402
     _index_preflight,
     _analyze_preflight,
     _path_variants,
+    _public_error_detail,
     _redact_paths,
+    _write_last_error,
+    _clear_last_error,
 )
 
 
@@ -124,3 +127,31 @@ def test_path_variants_includes_posix_and_backslash(tmp_path):
     posix = native.replace("\\", "/")
     assert posix in variants
     assert native in variants
+
+
+def test_public_error_detail_redacts_unknown_absolute_paths(tmp_path: Path) -> None:
+    detail = "failed at C:\\Users\\Secret\\Documents\\meeting.json and /home/user/private.txt"
+
+    result = _public_error_detail(detail, meeting_dir=tmp_path)
+
+    assert "C:\\Users\\Secret" not in result
+    assert "/home/user" not in result
+    assert result.count("<path>") == 2
+
+
+def test_last_error_writes_and_clears_atomically(tmp_path: Path) -> None:
+    meeting_dir = tmp_path / "mtg"
+    meeting_dir.mkdir()
+    card_path = meeting_dir / "meeting.json"
+    card_path.write_text(json.dumps({"meeting_id": "mtg"}, ensure_ascii=False), encoding="utf-8")
+
+    _write_last_error(meeting_dir, stage="chunk", job_id="job-1", exit_code=1)
+    written = json.loads(card_path.read_text(encoding="utf-8"))
+    assert written["last_error"]["stage"] == "chunk"
+    assert written["last_error"]["job_id"] == "job-1"
+    assert not list(meeting_dir.glob(".meeting.json.*.tmp"))
+
+    _clear_last_error(meeting_dir, stage="chunk")
+    cleared = json.loads(card_path.read_text(encoding="utf-8"))
+    assert "last_error" not in cleared
+    assert not list(meeting_dir.glob(".meeting.json.*.tmp"))

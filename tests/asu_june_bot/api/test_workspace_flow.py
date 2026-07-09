@@ -182,7 +182,13 @@ def test_no_inline_event_handlers(html: str) -> None:
 
 def test_dynamic_values_use_dom_apis(html: str) -> None:
     # new flow rendering functions must not build HTML strings
-    for fn in ("renderPipelineActions", "renderResults", "updateQaAvailability", "loadSpeakerMapping"):
+    for fn in (
+        "loadMedia",
+        "renderPipelineActions",
+        "renderResults",
+        "updateQaAvailability",
+        "loadSpeakerMapping",
+    ):
         block = html[html.index(f"function {fn}"):]
         block = block[: block.index("\n}\n") + 2]
         assert "innerHTML" not in block, fn

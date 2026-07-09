@@ -140,6 +140,6 @@ def pipeline_readiness(meeting_id: str, meeting_dir: Path) -> dict[str, Any]:
         )
     return {
         "meeting_id": meeting_id,
-        "status": card.get("status"),
+        "status": card.get("processing_status"),
         "stages": stages,
     }

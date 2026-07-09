@@ -27,12 +27,12 @@ class Replacement:
             "kind": self.kind,
             "placeholder": self.placeholder,
             "count": self.count,
-            "original_sha256": self.original_sha256,
         }
 
     def private_dict(self) -> dict[str, Any]:
         data = self.public_dict()
         data["original"] = self.original
+        data["original_sha256"] = self.original_sha256
         return data
 
 
@@ -69,17 +69,17 @@ _PERSON_RE = re.compile(
 )
 _IDENTIFIER_RE = re.compile(r"(?<!\[)\b[А-ЯA-Z]{2,}[A-ZА-Я0-9]*(?:[-_./][A-ZА-Я0-9]{2,})+\b")
 _PLACEHOLDER_RE = re.compile(r"^\[(?:PERSON|ORG|PATH|URL|EMAIL|PHONE|ID)_\d{3}\]$")
+_TECHNICAL_SPEAKER_RE = re.compile(r"^(?:SPEAKER_(?:UNKNOWN|\d{1,4})|UNKNOWN)$")
+_SAFE_SOURCE_LABELS = {"MIX", "MIC", "SYS"}
 _PRESERVE_STRING_KEYS = {
     "segment_id",
     "utterance_id",
     "chunk_id",
-    "speaker",
     "speaker_label",
-    "source",
     "engine",
     "language",
 }
-_PRESERVE_LIST_KEYS = {"speakers", "utterance_ids", "segment_ids", "chunk_ids"}
+_PRESERVE_LIST_KEYS = {"utterance_ids", "segment_ids", "chunk_ids"}
 
 
 def _kind_label(kind: str) -> str:
@@ -103,6 +103,14 @@ def _normalize_kind(kind: str) -> str:
 
 def _clean_term(value: Any) -> str:
     return " ".join(str(value or "").split())
+
+
+def _is_safe_speaker_label(value: str) -> bool:
+    return bool(_TECHNICAL_SPEAKER_RE.fullmatch(value.strip()))
+
+
+def _is_safe_source_label(value: str) -> bool:
+    return value.strip().upper() in _SAFE_SOURCE_LABELS
 
 
 def _iter_custom_terms(custom_terms: Mapping[str, Iterable[str]]) -> list[tuple[str, str]]:
@@ -150,6 +158,19 @@ class TranscriptAnonymizer:
     def anonymize_value(self, value: Any, *, key: str | None = None) -> Any:
         if key in _PRESERVE_STRING_KEYS | _PRESERVE_LIST_KEYS:
             return value
+        if key == "speaker":
+            if isinstance(value, str) and _is_safe_speaker_label(value):
+                return value
+            return self.anonymize_value(value)
+        if key == "source":
+            if isinstance(value, str) and _is_safe_source_label(value):
+                return value
+            return self.anonymize_value(value)
+        if key == "speakers" and isinstance(value, list):
+            return [
+                item if isinstance(item, str) and _is_safe_speaker_label(item) else self.anonymize_value(item)
+                for item in value
+            ]
         if isinstance(value, str):
             return self.anonymize_text(value)
         if isinstance(value, list):
@@ -284,7 +305,7 @@ def build_report(
         "replacements": [item.public_dict() for item in sorted(anonymizer.replacements.values(), key=lambda item: item.placeholder)],
         "warnings": [
             "Heuristic anonymization is not a privacy guarantee; manually review output before publication.",
-            "Public report stores hashes, not original sensitive values.",
+            "Public report stores placeholders and counts only; original values and hashes are private-map only.",
             *anonymizer.warnings,
         ],
     }

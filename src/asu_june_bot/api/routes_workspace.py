@@ -544,36 +544,52 @@ async function loadMeeting() {
 async function loadMedia() {
   const panel = document.getElementById("media-panel");
   const resp = await apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}/media`);
-  if (!resp) { panel.innerHTML = ""; return; }
-  if (!resp.ok) { panel.innerHTML = `<div class="empty">No media</div>`; return; }
+  if (!resp) { panel.replaceChildren(); return; }
+  if (!resp.ok) { panel.replaceChildren(_mkEmptyMsg("No media")); return; }
   const data = await resp.json();
   const items = data.media || [];
   if (items.length === 0) {
-    panel.innerHTML = `<div class="empty">No media files found</div>`;
+    panel.replaceChildren(_mkEmptyMsg("No media files found"));
     return;
   }
 
   const isVideo = items[0].media_type.startsWith("video/");
   const tag = isVideo ? "video" : "audio";
   const src = `/meetings/${encodeURIComponent(MEETING_ID)}/media/${items[0].media_id}`;
-
-  let selectorHtml = "";
+  const nodes = [];
   if (items.length > 1) {
-    selectorHtml = `<div class="media-selector" id="media-sel">` +
-      items.map((m, i) =>
-        `<button class="media-switch-btn ${i===0?"active":""}" data-media-id="${esc(m.media_id)}">`
-        + `${esc(m.filename)} (${fmtBytes(m.size_bytes)})</button>`
-      ).join("") + `</div>`;
+    const selector = _mkEl("div", "media-selector");
+    selector.id = "media-sel";
+    items.forEach((m, i) => {
+      const btn = _mkEl("button", "media-switch-btn" + (i === 0 ? " active" : ""));
+      btn.type = "button";
+      btn.setAttribute("data-media-id", String(m.media_id || ""));
+      btn.textContent = `${m.filename || "media"} (${fmtBytes(m.size_bytes)})`;
+      selector.appendChild(btn);
+    });
+    nodes.push(selector);
   }
 
-  panel.innerHTML = selectorHtml +
-    `<div class="player-wrap">
-      <${tag} id="media-player" controls preload="metadata"
-        src="${src}">
-        Your browser does not support ${tag} playback.
-      </${tag}>
-    </div>` +
-    (items[0].duration_sec ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">Duration: ${fmtSec(items[0].duration_sec)}</div>` : "");
+  const wrap = _mkEl("div", "player-wrap");
+  const player = document.createElement(tag);
+  player.id = "media-player";
+  player.controls = true;
+  player.preload = "metadata";
+  player.src = src;
+  player.textContent = `Your browser does not support ${tag} playback.`;
+  wrap.appendChild(player);
+  nodes.push(wrap);
+
+  if (items[0].duration_sec) {
+    const duration = document.createElement("div");
+    duration.style.fontSize = "11px";
+    duration.style.color = "var(--muted)";
+    duration.style.marginTop = "4px";
+    duration.textContent = `Duration: ${fmtSec(items[0].duration_sec)}`;
+    nodes.push(duration);
+  }
+
+  panel.replaceChildren(...nodes);
 
   panel.querySelectorAll(".media-switch-btn").forEach(btn => {
     btn.addEventListener("click", () => switchMedia(btn.dataset.mediaId));
