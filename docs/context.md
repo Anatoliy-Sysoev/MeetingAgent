@@ -1,12 +1,12 @@
 # Текущий Контекст
 
-Обновлено: 2026-07-08.
+Обновлено: 2026-07-09.
 
 ## Now
 
-- active task: harden diarization readiness/runtime preflight (#160).
-- branch: `codex/160-diarization-runtime-preflight`.
-- current local check: meeting `2026-07-08__zobova-nomer-dogovora` recovered from failed diarization state to `summarized`; diarization is now reported as blocked when optional runtime deps are absent.
+- active coding task: none recorded in GitHub; PR #161 is merged into `main`.
+- canonical main state: `66437c02e68712e9e1698dd113e836b485a26da5` / `Block diarization when optional deps are missing (#161)`.
+- next product focus: approve `/MeetingAgent` target mockups, then split monolithic inline Workspace/MeetingAgent HTML into maintainable frontend assets.
 
 ## Done latest
 
@@ -39,7 +39,7 @@
 - MA-MEETING-QA-BAD-ANSWER-FALLBACK (#151): meeting-scoped Q&A now treats degenerate one-word/fragment LLM outputs as controlled `no_answer` instead of successful `answered`.
 - MA-MEETING-INDEX-ATOMIC-UPDATES (#153): meeting chunk/artifact index upserts now skip malformed runtime JSONL lines and write `data/meeting_chunks.jsonl` through lock + temp file + `os.replace`.
 - MA-WORKSPACE-AUTH-STATE-CLARITY (#154): Workspace header shows signed-in/auth-unavailable/not-signed-in state; 403 CSRF failures no longer show the login-required overlay as if the session were absent.
-- MA-DIARIZATION-RUNTIME-PREFLIGHT (#160): sherpa-onnx diarization now checks optional runtime dependencies during dry-run/readiness/job preflight; missing `sherpa_onnx` blocks the UI stage with `diarization_runtime_missing` instead of allowing a failed job.
+- MA-DIARIZATION-RUNTIME-PREFLIGHT (#160, PR #161): sherpa-onnx diarization now checks optional runtime dependencies during dry-run/readiness/job preflight; missing `sherpa_onnx` blocks the UI stage with `diarization_runtime_missing` instead of allowing a failed job.
 
 ## Current Product State
 
@@ -121,9 +121,9 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- Polish `/MeetingAgent` visual design and split monolithic HTML into maintainable frontend assets after mockups are approved.
-- Make meeting index updates atomic/locked to prevent JSONL corruption under overlapping index jobs.
-- Improve `/MeetingAgent` visual consistency after mockups are approved.
+- Approve target `/MeetingAgent` mockups for registry, upload wizard, processing monitor and meeting card before deeper UI refactor.
+- After mockups are approved, split monolithic inline Workspace/MeetingAgent HTML into maintainable frontend assets.
+- Keep optional diarization runtime isolated unless `requirements-diarization.txt` is intentionally installed in the active API environment.
 
 ## Open decisions / blockers
 
