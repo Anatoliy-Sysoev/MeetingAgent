@@ -1,6 +1,13 @@
 project_root: /app/watched_folder
 work_root: /app
 
+security:
+  allowed_hosts:
+    - localhost
+    - 127.0.0.1
+    - "::1"
+    - api
+
 ollama:
   base_url: http://host.docker.internal:11434
   chat_base_url: http://host.docker.internal:11434/v1

@@ -19,7 +19,6 @@ from fastapi.testclient import TestClient  # noqa: E402
 from asu_june_bot.api.app import create_app  # noqa: E402
 from asu_june_bot.api.bootstrap_policy import (  # noqa: E402
     BOOTSTRAP_TOKEN_HEADER,
-    MIN_BOOTSTRAP_SECRET_LENGTH,
     BootstrapPolicy,
     build_bootstrap_policy,
     is_local_request,
@@ -227,11 +226,9 @@ def test_bootstrap_error_response_does_not_echo_secret(repo: AuthRepository) -> 
 def test_local_peer_bypasses_policy_entirely(repo: AuthRepository) -> None:
     """A request from 127.0.0.1 is allowed regardless of policy settings."""
     from asu_june_bot.api.routes_admin import _enforce_bootstrap_policy
-    from fastapi import HTTPException
-
     mock_request = MagicMock()
     mock_request.client.host = "127.0.0.1"
-    mock_request.headers.get = MagicMock(return_value="")
+    mock_request.headers.get = lambda key, default="": "localhost:8000" if key.lower() == "host" else default
 
     # Even with allow_remote=False (default), local request passes
     policy = BootstrapPolicy(allow_remote=False)
@@ -246,7 +243,7 @@ def test_nonlocal_peer_with_allow_remote_false_raises(repo: AuthRepository) -> N
 
     mock_request = MagicMock()
     mock_request.client.host = "203.0.113.42"
-    mock_request.headers.get = MagicMock(return_value="")
+    mock_request.headers.get = lambda key, default="": "localhost:8000" if key.lower() == "host" else default
 
     policy = BootstrapPolicy(allow_remote=False)
     with pytest.raises(HTTPException) as exc_info:
@@ -262,8 +259,33 @@ def test_nonlocal_loopback_variants_also_local() -> None:
     for local_host in ("127.0.0.1", "::1", "::ffff:127.0.0.1"):
         mock_request = MagicMock()
         mock_request.client.host = local_host
-        mock_request.headers.get = MagicMock(return_value="")
+        mock_request.headers.get = lambda key, default="": "localhost:8000" if key.lower() == "host" else default
         _enforce_bootstrap_policy(mock_request, policy)  # must not raise
+
+
+@pytest.mark.parametrize("host", ["localhost", "localhost:8000", "127.0.0.1:8000", "[::1]:8000"])
+def test_loopback_peer_requires_trusted_local_host(host: str) -> None:
+    from asu_june_bot.api.routes_admin import _enforce_bootstrap_policy
+
+    request = MagicMock()
+    request.client.host = "127.0.0.1"
+    request.headers.get = lambda key, default="": host if key.lower() == "host" else default
+
+    _enforce_bootstrap_policy(request, BootstrapPolicy(allow_remote=False))
+
+
+@pytest.mark.parametrize("host", ["attacker.example", "127.0.0.1.evil", "", "localhost:bad"])
+def test_loopback_peer_with_untrusted_host_does_not_get_local_bypass(host: str) -> None:
+    from asu_june_bot.api.routes_admin import _enforce_bootstrap_policy
+    from fastapi import HTTPException
+
+    request = MagicMock()
+    request.client.host = "127.0.0.1"
+    request.headers.get = lambda key, default="": host if key.lower() == "host" else default
+
+    with pytest.raises(HTTPException) as exc_info:
+        _enforce_bootstrap_policy(request, BootstrapPolicy(allow_remote=False))
+    assert exc_info.value.status_code == 403
 
 
 # ------------------------------------------------------------------
@@ -276,6 +298,8 @@ def _make_proxy_request(peer_host: str, forwarded_header: str, forwarded_value: 
     mock_request.client.host = peer_host
 
     def headers_get(key: str, default: str = "") -> str:
+        if key.lower() == "host":
+            return "localhost:8000"
         if key.lower() == forwarded_header.lower():
             return forwarded_value
         return default
@@ -329,6 +353,8 @@ def test_loopback_behind_proxy_allow_remote_valid_secret_passes() -> None:
     mock_request.client.host = "127.0.0.1"
 
     def headers_get(key: str, default: str = "") -> str:
+        if key.lower() == "host":
+            return "localhost:8000"
         if key.lower() == "x-forwarded-for":
             return "203.0.113.10"
         if key == BOOTSTRAP_TOKEN_HEADER:
@@ -349,6 +375,8 @@ def test_loopback_behind_proxy_allow_remote_missing_secret_returns_403() -> None
     mock_request.client.host = "127.0.0.1"
 
     def headers_get(key: str, default: str = "") -> str:
+        if key.lower() == "host":
+            return "localhost:8000"
         if key.lower() == "x-forwarded-for":
             return "203.0.113.10"
         return default
