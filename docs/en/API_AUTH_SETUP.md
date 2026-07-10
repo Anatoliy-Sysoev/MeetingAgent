@@ -185,7 +185,7 @@ Text artifact size limit: **10 MiB** (configurable via `meetings.max_text_artifa
 
 | Request origin | Default behavior | How to override |
 |---|---|---|
-| **Localhost** (127.0.0.1, ::1) | Allowed without any secret | No configuration needed |
+| **Localhost** (loopback peer + localhost/loopback Host) | Allowed without any secret | No configuration needed |
 | **Non-local** (LAN, container, remote) | **Blocked** (returns 403) | Set `allow_remote=true` + `secret` (see below) |
 
 For non-local bootstrap, the operator must explicitly enable it and provide a strong one-time secret:
@@ -209,7 +209,7 @@ For non-local bootstrap, the operator must explicitly enable it and provide a st
 
 3. After the first admin is created, **remove or unset** `MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE` and `MEETINGAGENT_BOOTSTRAP_SECRET`. The secret is not needed again.
 
-The secret is never logged, audited, returned, or stored. IP detection uses the direct peer address only — `X-Forwarded-For` is not trusted for client IP identification. If any forwarded proxy headers are present the local bypass is suppressed: the request must provide a valid `X-Bootstrap-Token`.
+The secret is never logged, audited, returned, or stored. Local bypass requires both a direct loopback peer and a trusted local `Host` header. A foreign/malformed Host or any forwarded proxy header suppresses the bypass: the request must provide a valid `X-Bootstrap-Token`. This prevents a browser DNS-rebinding request from treating an attacker-controlled origin as localhost.
 
 Bootstrap endpoints:
 
@@ -653,7 +653,7 @@ The validator (`src/asu_june_bot/auth/deployment_safety.py`) checks:
 | `machine_token_missing` | `MEETINGAGENT_API_TOKEN` not set | error |
 | `machine_token_weak` | `MEETINGAGENT_API_TOKEN` is missing sufficient strength: too short, placeholder-like, repeated character, or repeated block pattern | error |
 | `session_cookie_insecure` | `auth.cookie_secure = false` in config | error |
-| `cors_wildcard_self_hosted` | No `security.allowed_hosts` or `security.allowed_origins` configured | warning |
+| `trusted_hosts_missing` | No `security.allowed_hosts` or `MEETINGAGENT_ALLOWED_HOSTS` configured | error |
 | `bootstrap_policy_unsafe` | `allow_remote=true` without a strong bootstrap secret | error |
 | `trusted_proxy_no_cidrs` | `cookie_secure: auto` set without any `trusted_proxy_cidrs` | warning |
 | `invalid_trusted_proxy_cidrs` | One or more values in `trusted_proxy_cidrs` are not valid CIDRs | error |
@@ -665,7 +665,7 @@ In `local` mode, the same checks produce `warning` or `info` findings and never 
 1. Set `MEETINGAGENT_DEPLOYMENT_MODE=self_hosted` in `.env`.
 2. Set a strong machine/API token: `MEETINGAGENT_API_TOKEN=<random ≥ 32 chars>`.
 3. Set `auth.cookie_secure: auto` or `true` in `config.yaml` (never `false`).
-4. Configure `security.allowed_hosts` / `security.allowed_origins` in `config.yaml`, or ensure your reverse proxy enforces host/origin restrictions.
+4. Configure `security.allowed_hosts` in `config.yaml` or `MEETINGAGENT_ALLOWED_HOSTS` in `.env` with the actual DNS names. The application enforces this allowlist even behind a proxy.
 5. Use HTTPS or a trusted reverse proxy for all browser access.
 6. Run first-admin bootstrap through the local-only path or use `MEETINGAGENT_BOOTSTRAP_SECRET`.
 7. Confirm `.env` is not committed to version control (it is in `.gitignore`).
@@ -686,14 +686,14 @@ Returns deployment mode and redacted findings. **Never** includes raw token valu
   "deployment_mode": "self_hosted",
   "findings": [
     {
-      "code": "cors_wildcard_self_hosted",
-      "severity": "warning",
-      "message": "No security.allowed_hosts or security.allowed_origins are configured...",
-      "setting": "security.allowed_hosts / security.allowed_origins"
+      "code": "trusted_hosts_missing",
+      "severity": "error",
+      "message": "No security.allowed_hosts or MEETINGAGENT_ALLOWED_HOSTS are configured...",
+      "setting": "security.allowed_hosts / MEETINGAGENT_ALLOWED_HOSTS"
     }
   ],
-  "error_count": 0,
-  "warning_count": 1
+  "error_count": 1,
+  "warning_count": 0
 }
 ```
 
@@ -718,16 +718,12 @@ These are separate principals. A valid session cookie does **not** compensate fo
 
 ### Host and origin controls
 
-MeetingAgent does not include built-in CORS or TrustedHost middleware. For self-hosted deployments, host/origin enforcement must be provided by the reverse proxy (nginx, Caddy, etc.) or load balancer in front of the app.
-
-To suppress the `cors_wildcard_self_hosted` warning, configure explicit lists in `config.yaml`:
+MeetingAgent enforces a built-in Host-header allowlist before routing HTTP or WebSocket requests. Safe localhost values are always included. Self-hosted deployments must add every public/internal DNS name in `config.yaml` or `MEETINGAGENT_ALLOWED_HOSTS` (comma-separated):
 
 ```yaml
 security:
   allowed_hosts:
     - meetingagent.internal
-  allowed_origins:
-    - https://meetingagent.internal
 ```
 
-These values are currently used only for the safety validator finding. Middleware enforcement is a future roadmap item.
+Do not include schemes, paths, ports, or the unrestricted `*` wildcard. A leading subdomain wildcard such as `*.internal.example` is supported. CORS is not enabled by default; browser UI is expected to use the same origin unless an explicit, separately reviewed CORS policy is added.

@@ -63,8 +63,8 @@ def _normalize_cookie_secure(value: Any) -> str:
     )
 
 
-def build_app_state() -> AppState:
-    config = load_config()
+def build_app_state(config: dict[str, Any] | None = None) -> AppState:
+    config = load_config() if config is None else config
     check_and_fail_if_unsafe(config)  # fails closed in self_hosted mode on unsafe config
     search_service = SearchService(config=config)
     ollama_cfg = config.get("ollama", {}) if isinstance(config.get("ollama"), dict) else {}

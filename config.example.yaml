@@ -1,6 +1,14 @@
 project_root: "%USERPROFILE%/Desktop/PROJECT_DOCUMENTS"
 work_root: "%USERPROFILE%/Desktop/AI/MeetingAgent"
 
+security:
+  # Host header allowlist. Local defaults are always included.
+  # Add the real DNS name before exposing the API through a reverse proxy.
+  allowed_hosts:
+    - localhost
+    - 127.0.0.1
+    - "::1"
+
 ollama:
   base_url: "http://localhost:11434"
   embedding_model: "bge-m3"
@@ -173,7 +181,8 @@ exclude_extensions:
 # Authentication settings.
 auth:
   # Bootstrap safety for self-hosted / non-local deployments.
-  # By default, POST /admin/bootstrap accepts requests only from localhost.
+  # By default, POST /admin/bootstrap accepts only a direct loopback peer with
+  # a localhost/loopback Host header. Foreign Host headers never get bypass.
   # To allow bootstrap from a non-local address, set allow_remote: true AND
   # provide a strong secret. The secret must be sent in the X-Bootstrap-Token
   # header. Both settings can also be set via environment variables

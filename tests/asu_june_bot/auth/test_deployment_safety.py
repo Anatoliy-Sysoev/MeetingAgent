@@ -230,30 +230,55 @@ def test_cookie_secure_true_no_finding() -> None:
 # 4. CORS / host checks
 # ===========================================================================
 
-def test_no_cors_config_is_warning_in_self_hosted() -> None:
+def test_no_allowed_hosts_is_error_in_self_hosted() -> None:
     env = {"MEETINGAGENT_DEPLOYMENT_MODE": "self_hosted", "MEETINGAGENT_API_TOKEN": STRONG_TOKEN}
     findings = validate_deployment_safety({}, env)
-    assert "cors_wildcard_self_hosted" in _warning_codes(findings)
+    assert "trusted_hosts_missing" in _error_codes(findings)
 
 
-def test_no_cors_config_not_finding_in_local() -> None:
+def test_no_allowed_hosts_not_finding_in_local() -> None:
     findings = validate_deployment_safety({}, {"MEETINGAGENT_API_TOKEN": STRONG_TOKEN})
     codes = _finding_codes(findings)
-    assert "cors_wildcard_self_hosted" not in codes
+    assert "trusted_hosts_missing" not in codes
 
 
-def test_allowed_hosts_suppresses_cors_warning() -> None:
+def test_allowed_hosts_satisfies_self_hosted_policy() -> None:
     cfg = {"security": {"allowed_hosts": ["example.internal"]}}
     env = {"MEETINGAGENT_DEPLOYMENT_MODE": "self_hosted", "MEETINGAGENT_API_TOKEN": STRONG_TOKEN}
     codes = _finding_codes(validate_deployment_safety(cfg, env))
-    assert "cors_wildcard_self_hosted" not in codes
+    assert "trusted_hosts_missing" not in codes
 
 
-def test_allowed_origins_suppresses_cors_warning() -> None:
+def test_allowed_origins_do_not_replace_host_policy() -> None:
     cfg = {"security": {"allowed_origins": ["https://example.internal"]}}
     env = {"MEETINGAGENT_DEPLOYMENT_MODE": "self_hosted", "MEETINGAGENT_API_TOKEN": STRONG_TOKEN}
     codes = _finding_codes(validate_deployment_safety(cfg, env))
-    assert "cors_wildcard_self_hosted" not in codes
+    assert "trusted_hosts_missing" in codes
+
+
+def test_allowed_hosts_environment_satisfies_self_hosted_policy() -> None:
+    env = {
+        "MEETINGAGENT_DEPLOYMENT_MODE": "self_hosted",
+        "MEETINGAGENT_API_TOKEN": STRONG_TOKEN,
+        "MEETINGAGENT_ALLOWED_HOSTS": "meeting.example",
+    }
+
+    codes = _finding_codes(validate_deployment_safety({}, env))
+
+    assert "trusted_hosts_missing" not in codes
+
+
+def test_self_hosted_without_allowed_hosts_fails_startup() -> None:
+    env = {
+        "MEETINGAGENT_DEPLOYMENT_MODE": "self_hosted",
+        "MEETINGAGENT_API_TOKEN": STRONG_TOKEN,
+    }
+    cfg = {"auth": {"cookie_secure": "true"}}
+
+    with pytest.raises(DeploymentSafetyError) as exc_info:
+        check_and_fail_if_unsafe(cfg, env)
+
+    assert "trusted_hosts_missing" in str(exc_info.value)
 
 
 # ===========================================================================
@@ -459,8 +484,6 @@ def test_security_status_requires_auth(tmp_path: Path) -> None:
 
 
 def test_security_status_requires_admin_not_viewer(tmp_path: Path) -> None:
-    from asu_june_bot.auth.passwords import hash_password
-
     client, admin_svc = _make_admin_client(tmp_path)
     admin_svc.create_user(email="viewer@example.com", password="pass12345678", roles=["viewer"], actor_id="sys")
     resp = client.post("/auth/local/login", json={"email": "viewer@example.com", "password": "pass12345678"})

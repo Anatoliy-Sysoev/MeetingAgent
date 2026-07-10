@@ -1,11 +1,9 @@
-from __future__ import annotations
-
 """Bootstrap safety policy for self-hosted deployments.
 
-Local requests (127.0.0.1, ::1) with no forwarded proxy headers are permitted
-for first-run bootstrap without a secret.  If forwarded headers are present the
-direct peer is a reverse proxy, not the real client, so the local bypass does
-NOT apply and the normal policy is enforced.
+Local requests (127.0.0.1, ::1) with a trusted local Host header and no
+forwarded proxy headers are permitted for first-run bootstrap without a
+secret. If the Host is non-local/malformed or forwarded headers are present,
+the local bypass does NOT apply and the normal policy is enforced.
 
 Non-local requests require explicit operator opt-in via:
   - MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE=true  (or auth.bootstrap.allow_remote in config)
@@ -16,6 +14,8 @@ The direct peer address (request.client.host) is used for locality detection.
 Forwarded/proxy headers are read only to detect proxy presence (to disable the
 local bypass), never to identify the real client IP.
 """
+
+from __future__ import annotations
 
 import os
 import secrets

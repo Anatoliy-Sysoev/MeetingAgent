@@ -185,7 +185,7 @@ Machine principal имеет: `meetings.upload`, `meetings.read`, `artifacts.rea
 
 | Источник запроса | Поведение по умолчанию | Как переопределить |
 |---|---|---|
-| **Localhost** (127.0.0.1, ::1) | Разрешён без секрета | Настройка не нужна |
+| **Localhost** (loopback peer + локальный Host) | Разрешён без секрета | Настройка не нужна |
 | **Не-локальный** (LAN, контейнер, удалённо) | **Заблокирован** (возвращает 403) | Установите `allow_remote=true` + `secret` (см. ниже) |
 
 Для не-локального bootstrap оператор должен явно включить его и предоставить одноразовый секрет:
@@ -209,7 +209,7 @@ Machine principal имеет: `meetings.upload`, `meetings.read`, `artifacts.rea
 
 3. После создания первого администратора **удалите или сбросьте** `MEETINGAGENT_BOOTSTRAP_ALLOW_REMOTE` и `MEETINGAGENT_BOOTSTRAP_SECRET`. Секрет больше не нужен.
 
-Секрет никогда не записывается в логи, аудит, не возвращается в ответах и не сохраняется. Определение IP использует адрес прямого пира — `X-Forwarded-For` не используется для идентификации клиента. Если в запросе присутствуют заголовки прокси (Forwarded, X-Forwarded-For), локальный bypass подавляется: запрос должен предоставить корректный `X-Bootstrap-Token`.
+Секрет никогда не записывается в логи, аудит, не возвращается в ответах и не сохраняется. Локальный bypass требует одновременно прямой loopback peer и доверенный локальный заголовок `Host`. Чужой/некорректный Host или любой proxy header подавляет bypass: запрос должен предоставить корректный `X-Bootstrap-Token`. Это защищает пустой локальный instance от browser DNS rebinding.
 
 Bootstrap-эндпоинт:
 
@@ -652,7 +652,7 @@ MEETINGAGENT_API_TOKEN=<сгенерируйте: python -c "import secrets; pri
 | `machine_token_missing` | `MEETINGAGENT_API_TOKEN` не задан | error |
 | `machine_token_weak` | `MEETINGAGENT_API_TOKEN` недостаточно надёжен: слишком короткий, похож на placeholder, повтор одного символа или повтор короткого блока | error |
 | `session_cookie_insecure` | `auth.cookie_secure = false` в конфиге | error |
-| `cors_wildcard_self_hosted` | Не настроены `security.allowed_hosts` или `security.allowed_origins` | warning |
+| `trusted_hosts_missing` | Не настроены `security.allowed_hosts` или `MEETINGAGENT_ALLOWED_HOSTS` | error |
 | `bootstrap_policy_unsafe` | `allow_remote=true` без надёжного bootstrap-секрета | error |
 | `trusted_proxy_no_cidrs` | `cookie_secure: auto` задан без `trusted_proxy_cidrs` | warning |
 | `invalid_trusted_proxy_cidrs` | Одно или несколько значений `trusted_proxy_cidrs` не является валидным CIDR | error |
@@ -664,7 +664,7 @@ MEETINGAGENT_API_TOKEN=<сгенерируйте: python -c "import secrets; pri
 1. Установите `MEETINGAGENT_DEPLOYMENT_MODE=self_hosted` в `.env`.
 2. Установите надёжный токен: `MEETINGAGENT_API_TOKEN=<случайная строка ≥ 32 символов>`.
 3. Установите `auth.cookie_secure: auto` или `true` в `config.yaml` (не `false`).
-4. Настройте `security.allowed_hosts` / `security.allowed_origins` в `config.yaml` или убедитесь, что reverse proxy ограничивает допустимые хосты/источники.
+4. Настройте `security.allowed_hosts` в `config.yaml` или `MEETINGAGENT_ALLOWED_HOSTS` в `.env`, указав реальные DNS-имена. Приложение проверяет allowlist и за reverse proxy.
 5. Используйте HTTPS или доверенный reverse proxy для всего браузерного доступа.
 6. Запустите bootstrap первого администратора через локальный путь или используйте `MEETINGAGENT_BOOTSTRAP_SECRET`.
 7. Убедитесь, что `.env` не зафиксирован в VCS (он в `.gitignore`).
@@ -701,16 +701,12 @@ GET /admin/security/status
 
 ### Контроль хостов и источников
 
-MeetingAgent не включает встроенный CORS или TrustedHost middleware. Для self-hosted деплоев ограничения хостов/источников должны обеспечиваться reverse proxy (nginx, Caddy и т.п.) перед приложением.
-
-Чтобы убрать warning `cors_wildcard_self_hosted`, задайте явные списки в `config.yaml`:
+MeetingAgent до маршрутизации HTTP/WebSocket проверяет встроенный Host allowlist. Безопасные localhost-значения включены всегда. Для self-hosted добавьте каждое публичное/внутреннее DNS-имя в `config.yaml` или comma-separated `MEETINGAGENT_ALLOWED_HOSTS`:
 
 ```yaml
 security:
   allowed_hosts:
     - meetingagent.internal
-  allowed_origins:
-    - https://meetingagent.internal
 ```
 
-Эти значения в текущей реализации используются только в валидаторе нарушений. Применение middleware — элемент roadmap.
+Нельзя указывать scheme, path, port или unrestricted wildcard `*`. Поддерживается только leading subdomain wildcard, например `*.internal.example`. CORS по умолчанию не включён: browser UI должен использовать same origin, пока отдельная CORS policy не будет явно спроектирована и проверена.

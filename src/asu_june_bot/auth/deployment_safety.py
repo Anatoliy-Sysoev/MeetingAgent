@@ -25,7 +25,7 @@ deployment_mode_unknown          Unknown value for deployment mode.
 machine_token_missing            MEETINGAGENT_API_TOKEN not set.
 machine_token_weak               MEETINGAGENT_API_TOKEN present but too short, placeholder, or low-entropy.
 session_cookie_insecure          cookie_secure explicitly set to "false" in self_hosted mode.
-cors_wildcard_self_hosted        No host/origin controls; operator must configure reverse proxy.
+trusted_hosts_missing            No explicit self-hosted Host allowlist configured.
 bootstrap_policy_unsafe          allow_remote=true but weak/missing bootstrap secret.
 trusted_proxy_no_cidrs           cookie_secure=auto in self_hosted but no trusted proxy CIDRs configured.
 invalid_trusted_proxy_cidrs      One or more configured trusted_proxy_cidrs are not valid CIDR notation.
@@ -38,7 +38,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from asu_june_bot.auth.secret_strength import (
-    is_placeholder as _is_placeholder,  # re-exported for backward-compat
+    is_placeholder as _is_placeholder,  # noqa: F401 - backward-compatible re-export
     validate_secret_strength,
 )
 from asu_june_bot.auth.trusted_proxy import (
@@ -187,29 +187,26 @@ def _check_cookie_security(
 
 
 def _check_cors_hosts(
-    config: dict[str, Any], mode: str
+    config: dict[str, Any], env: Mapping[str, str], mode: str
 ) -> list[SafetyFinding]:
-    """MeetingAgent has no built-in CORS/TrustedHost middleware.
-
-    In self_hosted mode emit a warning reminding operators that host/origin
-    controls must be provided by the reverse proxy.
-    """
+    """Require an explicit TrustedHost policy for self-hosted deployments."""
     findings: list[SafetyFinding] = []
     security_cfg = config.get("security") or {}
-    has_hosts = bool(security_cfg.get("allowed_hosts"))
-    has_origins = bool(security_cfg.get("allowed_origins"))
+    has_hosts = bool(
+        security_cfg.get("allowed_hosts")
+        or str(env.get("MEETINGAGENT_ALLOWED_HOSTS") or "").strip()
+    )
 
-    if mode == "self_hosted" and not (has_hosts or has_origins):
+    if mode == "self_hosted" and not has_hosts:
         findings.append(SafetyFinding(
-            code="cors_wildcard_self_hosted",
-            severity="warning",
+            code="trusted_hosts_missing",
+            severity="error",
             message=(
-                "No security.allowed_hosts or security.allowed_origins are configured. "
-                "MeetingAgent does not include built-in CORS or TrustedHost middleware. "
-                "Ensure your reverse proxy enforces host/origin restrictions before "
-                "exposing this instance to non-local traffic."
+                "No security.allowed_hosts or MEETINGAGENT_ALLOWED_HOSTS are configured. "
+                "Self-hosted mode requires an explicit host allowlist in addition to "
+                "the built-in localhost defaults."
             ),
-            setting="security.allowed_hosts / security.allowed_origins",
+            setting="security.allowed_hosts / MEETINGAGENT_ALLOWED_HOSTS",
         ))
 
     return findings
@@ -340,7 +337,7 @@ def validate_deployment_safety(
 
     findings.extend(_check_machine_token(env, mode))
     findings.extend(_check_cookie_security(config, mode))
-    findings.extend(_check_cors_hosts(config, mode))
+    findings.extend(_check_cors_hosts(config, env, mode))
     findings.extend(_check_bootstrap_policy(config, env, mode))
     findings.extend(_check_trusted_proxy_policy(config, env, mode))
 
