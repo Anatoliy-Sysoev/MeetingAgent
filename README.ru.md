@@ -102,7 +102,9 @@ http://127.0.0.1:8000/ui
 .\scripts\asu_june_bot_start_telegram.ps1
 ```
 
-Токен хранится только в локальном `.env`.
+Telegram token и `MEETINGAGENT_API_TOKEN` хранятся только в локальном `.env`.
+Обязательно укажите `ASU_JUNE_BOT_ALLOWED_CHAT_IDS`: без allowlist адаптер
+запускается только при явном небезопасном opt-in `ASU_JUNE_BOT_ALLOW_ALL_CHAT_IDS=true`.
 
 ## Обработка Встреч
 

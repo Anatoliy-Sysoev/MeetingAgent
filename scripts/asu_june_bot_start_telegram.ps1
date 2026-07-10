@@ -2,6 +2,7 @@
 param(
     [string]$ChatApiUrl = "http://127.0.0.1:8000/chat",
     [string]$AllowedChatIds = $env:ASU_JUNE_BOT_ALLOWED_CHAT_IDS,
+    [switch]$AllowAllChatIds,
     [int]$TopK = 5,
     [string]$Model = "qwen3.5:4b",
     [int]$MaxTokens = 700,
@@ -37,6 +38,21 @@ if (-not $env:ASU_JUNE_BOT_TELEGRAM_TOKEN) {
     }
 }
 
+if (-not $env:MEETINGAGENT_API_TOKEN) {
+    $secureApiToken = Read-Host "MeetingAgent API Bearer token" -AsSecureString
+    if ($secureApiToken.Length -eq 0) {
+        throw "MeetingAgent API token is required"
+    }
+
+    $apiBstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureApiToken)
+    try {
+        $env:MEETINGAGENT_API_TOKEN = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($apiBstr)
+    }
+    finally {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($apiBstr)
+    }
+}
+
 $env:ASU_JUNE_BOT_CHAT_API_URL = $ChatApiUrl
 $env:ASU_JUNE_BOT_TELEGRAM_TOP_K = [string]$TopK
 $env:ASU_JUNE_BOT_TELEGRAM_MODEL = $Model
@@ -47,6 +63,13 @@ if ($AllowedChatIds) {
     $env:ASU_JUNE_BOT_ALLOWED_CHAT_IDS = $AllowedChatIds
 }
 
+if ($AllowAllChatIds) {
+    $env:ASU_JUNE_BOT_ALLOW_ALL_CHAT_IDS = "true"
+}
+elseif (-not $AllowedChatIds -and $env:ASU_JUNE_BOT_ALLOW_ALL_CHAT_IDS -ne "true") {
+    throw "Set ASU_JUNE_BOT_ALLOWED_CHAT_IDS or pass -AllowAllChatIds explicitly"
+}
+
 Write-Host "Starting Telegram adapter over $ChatApiUrl"
-Write-Host "Token is read from process environment and is not passed as a command-line argument."
+Write-Host "Tokens are read from process environment and are not passed as command-line arguments."
 & $pythonExe $telegramScript

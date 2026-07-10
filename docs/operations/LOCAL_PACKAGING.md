@@ -185,7 +185,11 @@ docker compose run --rm api python scripts/28_index_meeting_chunks.py --meeting-
 ```text
 ASU_JUNE_BOT_TELEGRAM_TOKEN=...
 ASU_JUNE_BOT_ALLOWED_CHAT_IDS=...
+MEETINGAGENT_API_TOKEN=<strong API Bearer token>
 ```
+
+Bot startup is fail-closed: it requires both the API Bearer token and either
+an allowlist or an explicit `ASU_JUNE_BOT_ALLOW_ALL_CHAT_IDS=true` development opt-in.
 
 Запуск:
 

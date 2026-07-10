@@ -61,9 +61,9 @@
 
 ## Active / Next
 
-- [~] SEC-P0-PUBLIC-TREE-CLEANUP (#166): remove customer-specific material from current public HEAD and add regression guards.
+- [x] SEC-P0-PUBLIC-TREE-CLEANUP (#166, PR #182): current public HEAD cleaned; private corpus overlays and privacy regression guards added — dd4d0a4.
 - [ ] SEC-P0-GIT-HISTORY-PURGE (#167): purge deleted private blobs after backup and explicit force-push approval.
-- [ ] MA-TELEGRAM-AUTH-HARDENING (#168): authenticate bot API calls and fail closed.
+- [~] MA-TELEGRAM-AUTH-HARDENING (#168): authenticate bot API calls and fail closed.
 - [ ] MA-BOOTSTRAP-HOST-VALIDATION (#169): enforce local Host/TrustedHost policy.
 - [ ] MA-HEALTH-RESPONSE-HARDENING (#170): split public liveness and admin diagnostics.
 - [ ] MA-CONTAINER-DEPLOYMENT-HARDENING (#171): safe build context, non-root runtime and localhost binding.

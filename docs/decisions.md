@@ -1,5 +1,21 @@
 # Решения
 
+## 2026-07-10 - Telegram Adapter Fail-Closed
+
+Решение: Telegram adapter обращается к защищённому `/chat` только с machine Bearer token из `MEETINGAGENT_API_TOKEN`. Доступ к Telegram по умолчанию запрещён без `ASU_JUNE_BOT_ALLOWED_CHAT_IDS`; allow-all требует отдельного явного opt-in.
+
+Почему:
+
+- после включения API auth запросы Telegram без Bearer token всегда получают 401;
+- публичный Telegram token без chat allowlist превращает private project assistant в доступный извне сервис;
+- raw HTTP bodies, local paths и exception URLs не должны пересылаться пользователям или попадать в console logs вместе с Telegram token.
+
+Следствия:
+
+- bot startup завершается fail-closed при placeholder/missing token или access policy;
+- Telegram errors и health messages используют bounded public-safe fields;
+- Docker and PowerShell получают secrets только из process environment / ignored `.env`.
+
 ## 2026-07-10 - Public Tree И Private Config Overlays
 
 Решение: публичный Git содержит только synthetic/default corpus configuration. Customer-specific corpus profiles and vocabulary хранятся в ignored `configs/asu_june_bot/*.local.yaml`; loader накладывает local overlay поверх публичного YAML.

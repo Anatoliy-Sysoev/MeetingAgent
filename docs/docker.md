@@ -28,7 +28,13 @@ Copy-Item .env.example .env
 ```text
 ASU_JUNE_BOT_TELEGRAM_TOKEN=...
 ASU_JUNE_BOT_ALLOWED_CHAT_IDS=...
+MEETINGAGENT_API_TOKEN=<тот же сильный Bearer token, который использует API>
 ```
+
+Telegram adapter отправляет `Authorization: Bearer` на защищённый `/chat`.
+Без `MEETINGAGENT_API_TOKEN` или allowlist контейнер бота завершается fail-closed.
+Разрешение всех chat IDs возможно только явным
+`ASU_JUNE_BOT_ALLOW_ALL_CHAT_IDS=true` и не рекомендуется.
 
 ## Windows и UTF-8
 
