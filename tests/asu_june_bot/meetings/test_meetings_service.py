@@ -712,13 +712,13 @@ def test_update_speaker_mapping_persists_to_meeting_json(tmp_path: Path) -> None
 
     result = svc.update_speaker_mapping(
         "2026-01-15__kickoff",
-        {"SPEAKER_01": {"name": "Анатолий Сысоев", "role": "PO"}},
+        {"SPEAKER_01": {"name": "Иван Иванов", "role": "PO"}},
     )
 
     assert result is not None
-    assert result["mapping"] == {"SPEAKER_01": {"name": "Анатолий Сысоев", "role": "PO"}}
+    assert result["mapping"] == {"SPEAKER_01": {"name": "Иван Иванов", "role": "PO"}}
     card = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
-    assert card["speaker_mapping"]["SPEAKER_01"]["name"] == "Анатолий Сысоев"
+    assert card["speaker_mapping"]["SPEAKER_01"]["name"] == "Иван Иванов"
     assert card["speaker_mapping"]["SPEAKER_01"]["role"] == "PO"
     assert card["updated_at"] != VALID_CARD["updated_at"]
 
@@ -734,7 +734,7 @@ def test_update_speaker_mapping_rejects_unknown_label(tmp_path: Path) -> None:
 def test_transcript_segments_apply_speaker_mapping_and_preserve_label(tmp_path: Path) -> None:
     meeting_dir = make_card(
         tmp_path,
-        data={"speaker_mapping": {"SPEAKER_01": {"name": "Денис Белецкий", "role": "Lead"}}},
+        data={"speaker_mapping": {"SPEAKER_01": {"name": "Алексей Петров", "role": "Lead"}}},
     )
     _write_jsonl(
         meeting_dir / "transcript" / "speaker_transcript.jsonl",
@@ -755,7 +755,7 @@ def test_transcript_segments_apply_speaker_mapping_and_preserve_label(tmp_path: 
     assert result is not None
     segment = result["segments"][0]
     assert segment["segment_id"] == "utt-000001"
-    assert segment["speaker"] == "Денис Белецкий"
+    assert segment["speaker"] == "Алексей Петров"
     assert segment["speaker_label"] == "SPEAKER_01"
     assert segment["speaker_role"] == "Lead"
     assert segment["speaker_mapped"] is True

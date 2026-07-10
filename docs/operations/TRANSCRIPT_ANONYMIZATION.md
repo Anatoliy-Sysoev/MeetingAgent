@@ -56,7 +56,7 @@ Markdown input пишет `anonymized_transcript.md`.
 python scripts/43_anonymize_transcript.py `
   --input transcript\segments.jsonl `
   --term person="Иван Петров" `
-  --term org="НОВАТЭК" `
+  --term org="АльфаСофт" `
   --term identifier="Паспорт проекта"
 ```
 
@@ -65,7 +65,7 @@ python scripts/43_anonymize_transcript.py `
 ```json
 {
   "person": ["Иван Петров"],
-  "org": ["НОВАТЭК"],
+  "org": ["АльфаСофт"],
   "identifier": ["Паспорт проекта"]
 }
 ```

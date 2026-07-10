@@ -1,5 +1,22 @@
 # Решения
 
+## 2026-07-10 - Public Tree И Private Config Overlays
+
+Решение: публичный Git содержит только synthetic/default corpus configuration. Customer-specific corpus profiles and vocabulary хранятся в ignored `configs/asu_june_bot/*.local.yaml`; loader накладывает local overlay поверх публичного YAML.
+
+Почему:
+
+- ignore rules не защищают данные, которые уже были tracked;
+- customer-specific eval questions, transcript excerpts, names и corpus paths не являются частью OSS-продукта;
+- локальный overlay сохраняет private runtime без dirty tracked config;
+- очистка текущего дерева и переписывание опубликованной Git history имеют разный риск и выполняются отдельными задачами.
+
+Следствия:
+
+- `docs/quality/` ограничен curated allowlist и synthetic fixtures;
+- public-safety regression test проверяет allowlist, known private markers и literal Windows user-profile paths;
+- history purge выполняется только после backup и явного согласования force-push.
+
 ## 2026-05-06 - Одна Папка, Один Git-Репозиторий
 
 Решение: каждый пет-проект получает отдельную папку и отдельный Git-репозиторий.
@@ -144,7 +161,7 @@
 Следствия:
 
 - перед meeting analysis, API или bot smoke нужно проверять `ollama list` и `/api/tags`;
-- дубли `C:\Users\<user>\.ollama\models` и `C:\ollama_models` не удаляются автоматически;
+- дубли `%USERPROFILE%\.ollama\models` и `C:\ollama_models` не удаляются автоматически;
 - очистку дублей делать только после ручного подтверждения, что `C:\ollama-models` используется активным `ollama serve`.
 
 ## 2026-06-08 - Vosk Как Первый Live ASR Backend

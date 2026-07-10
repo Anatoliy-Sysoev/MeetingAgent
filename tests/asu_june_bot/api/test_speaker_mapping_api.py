@@ -158,20 +158,20 @@ def test_update_mapping_persists_and_transcript_uses_names(tmp_path: Path) -> No
 
     resp = client.put(
         f"/meetings/{MEETING_ID}/speakers/mapping",
-        json={"mapping": {"SPEAKER_01": {"name": "Денис Белецкий", "role": "Lead"}}},
+        json={"mapping": {"SPEAKER_01": {"name": "Алексей Петров", "role": "Lead"}}},
         cookies={"ma_session": cookie},
         headers={"X-CSRF-Token": csrf},
     )
 
     assert resp.status_code == 200, resp.text
-    assert resp.json()["mapping"]["SPEAKER_01"]["name"] == "Денис Белецкий"
+    assert resp.json()["mapping"]["SPEAKER_01"]["name"] == "Алексей Петров"
     transcript = client.get(
         f"/meetings/{MEETING_ID}/transcript/segments",
         headers={"Authorization": f"Bearer {TOKEN}"},
     )
     assert transcript.status_code == 200
     segment = transcript.json()["segments"][0]
-    assert segment["speaker"] == "Денис Белецкий"
+    assert segment["speaker"] == "Алексей Петров"
     assert segment["speaker_label"] == "SPEAKER_01"
     assert segment["speaker_role"] == "Lead"
 

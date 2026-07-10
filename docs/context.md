@@ -1,14 +1,19 @@
 # Текущий Контекст
 
-Обновлено: 2026-07-09.
+Обновлено: 2026-07-10.
 
 ## Now
 
-- active coding task: none recorded in GitHub; PR #161 is merged into `main`.
-- canonical main state: `66437c02e68712e9e1698dd113e836b485a26da5` / `Block diarization when optional deps are missing (#161)`.
-- next product focus: approve `/MeetingAgent` target mockups, then split monolithic inline Workspace/MeetingAgent HTML into maintainable frontend assets.
+- active coding task: SEC-P0-PUBLIC-TREE-CLEANUP (#166) on `codex/166-public-tree-cleanup`.
+- canonical review base: `1c2c426ef33299f1bae51b1eefa402622fe224d0` / `Sync rolling context after PR 161`.
+- next security focus: merge current-tree cleanup, then coordinate Git-history purge (#167) and fix Telegram/API auth (#168).
 
 ## Done latest
+
+- Repository acquisition/security audit: full pytest 1269 passed / 13 skipped; compileall, Docker Compose config and strict MkDocs build passed; dependency, Bandit, Ruff, dead-code, coverage, Git-history and manual API/auth/pipeline/RAG/UI reviews completed.
+- SEC-P0-PUBLIC-TREE-CLEANUP (#166): removed tracked customer-specific eval/reference outputs and private model-comparison script; replaced real names and project queries with synthetic fixtures; public corpus/hotword defaults are generic.
+- Private corpus configuration now uses ignored `configs/asu_june_bot/*.local.yaml` overlays; public-safety tests enforce the quality-doc allowlist, known private-marker absence and path hygiene.
+- Confirmed follow-up risks are tracked in GitHub issues #167-#181; destructive history rewrite remains explicitly separate and requires owner approval.
 
 - MA-WORKSPACE-QA-V2-UI (#113, PR #116): Workspace Q&A/Search показывает `retrieval_mode` (`semantic`/`lexical`) и `citation_label` вида `[00:12:34, Спикер]`; DOM/CSP-гигиена сохранена.
 - MA-MEETING-STAGE-READINESS (#114, PR #117): `GET /meetings/{id}/pipeline/readiness` отдаёт карту стадий `done/ready/blocked`, `can_run`, machine-readable `reason`, required/produced artifacts без абсолютных путей.
@@ -121,12 +126,14 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- Approve target `/MeetingAgent` mockups for registry, upload wizard, processing monitor and meeting card before deeper UI refactor.
-- After mockups are approved, split monolithic inline Workspace/MeetingAgent HTML into maintainable frontend assets.
-- Keep optional diarization runtime isolated unless `requirements-diarization.txt` is intentionally installed in the active API environment.
+- SEC-P0-GIT-HISTORY-PURGE (#167): backup, verify and coordinate the force rewrite; do not execute implicitly.
+- MA-TELEGRAM-AUTH-HARDENING (#168): authenticate `/chat`, fail closed and redact bot errors.
+- MA-BOOTSTRAP-HOST-VALIDATION (#169) and MA-HEALTH-RESPONSE-HARDENING (#170).
 
 ## Open decisions / blockers
 
+- #167 rewrites published history and invalidates old clones; it is blocked on explicit owner approval and a verified backup.
+- PR #163 for #162 is currently conflict-dirty and must be rebased before merge; do not duplicate its scoped anonymization/index/runner fixes.
 - Admin console contract is defined; dedicated admin UI, aggregate jobs/audit/settings endpoints and destructive meeting admin actions remain future implementation work.
 - Guard pure decision API is available for deterministic tests; future guard behavior changes must use it as a measurement boundary.
 - Local preflight can fail until Ollama is running and exposes `bge-m3` + `qwen3.5:4b` through the active model store.

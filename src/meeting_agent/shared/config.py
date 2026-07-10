@@ -55,7 +55,9 @@ def load_asu_config(config_dir: Path = DEFAULT_ASU_CONFIG_DIR) -> dict[str, Any]
         "corpus",
         "table_header_maps",
     ):
-        cfg[name] = _read_yaml(config_dir / f"{name}.yaml")
+        public_cfg = _read_yaml(config_dir / f"{name}.yaml")
+        local_cfg = _read_yaml(config_dir / f"{name}.local.yaml")
+        cfg[name] = _deep_merge(public_cfg, local_cfg)
     cfg["config_dir"] = str(config_dir)
     return cfg
 

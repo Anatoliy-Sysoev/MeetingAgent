@@ -9,7 +9,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from asu_june_bot.core.config import load_config  # noqa: E402
+from asu_june_bot.core.config import load_asu_config  # noqa: E402
 from asu_june_bot.core.corpus import get_active_corpus_key, get_corpus_config  # noqa: E402
 
 
@@ -79,15 +79,40 @@ def test_env_override_switches_active_corpus() -> None:
             os.environ["ASU_JUNE_BOT_ACTIVE_CORPUS"] = old
 
 
-def test_ntk_corpus_alias_is_registered_in_live_config() -> None:
+def test_private_corpus_can_be_added_through_ignored_local_overlay(tmp_path: Path) -> None:
+    (tmp_path / "corpus.yaml").write_text(
+        """active: default
+corpora:
+  default:
+    key: default
+    name: public_default
+    chunks_path: data/default/chunks.jsonl
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "corpus.local.yaml").write_text(
+        """corpora:
+  private_project:
+    key: private_project
+    name: private_project_corpus
+    chunks_path: data/private_project/chunks.jsonl
+    cache_path: data/private_project/cache.jsonl
+    index_dir: data/private_project/index
+    report_path: data/private_project/report.json
+""",
+        encoding="utf-8",
+    )
+
     old = os.environ.get("ASU_JUNE_BOT_ACTIVE_CORPUS")
-    os.environ["ASU_JUNE_BOT_ACTIVE_CORPUS"] = "ntk"
+    os.environ["ASU_JUNE_BOT_ACTIVE_CORPUS"] = "private_project"
     try:
-        corpus = get_corpus_config(load_config())
-        assert corpus.key == "ntk"
-        assert corpus.name == "ntk_yandex_corpus"
-        assert corpus.chunks_path.endswith("data/asu_june_bot_ntk/chunks_v2.jsonl")
-        assert corpus.index_dir.endswith("data/asu_june_bot_ntk/numpy_index_v2")
+        loaded = load_asu_config(tmp_path)
+        corpus = get_corpus_config({"asu_june_bot": loaded})
+        assert loaded["corpus"]["corpora"]["default"]["name"] == "public_default"
+        assert corpus.key == "private_project"
+        assert corpus.name == "private_project_corpus"
+        assert corpus.chunks_path.endswith("data/private_project/chunks.jsonl")
+        assert corpus.index_dir.endswith("data/private_project/index")
     finally:
         if old is None:
             os.environ.pop("ASU_JUNE_BOT_ACTIVE_CORPUS", None)

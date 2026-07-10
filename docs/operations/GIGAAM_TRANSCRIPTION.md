@@ -6,12 +6,12 @@
 
 Основной ASR-путь MeetingAgent остается `faster-whisper`, но `GigaAM` встроен в общий entrypoint `scripts/22_transcribe_meeting.py` и может писать результат прямо в карточку встречи.
 
-## Что Уже Настроено На Этом ПК
+## Требования К Локальному Runtime
 
-- исходники GigaAM: `%USERPROFILE%\GigaAM`;
+- локальные исходники или установленный пакет GigaAM;
 - модель: `gigaam/v3_e2e_rnnt`;
 - рабочий ASCII-cache: `%ProgramData%\gigaam_cache`;
-- Python: глобальный `python`;
+- отдельное окружение Python 3.12 рекомендуется для совместимости wheels;
 - `ffmpeg` и `ffprobe` доступны из PATH.
 
 Опциональные зависимости backend-а зафиксированы в `requirements-gigaam.txt`. На Windows/Python 3.14 пакет `onnx==1.19.*` может не иметь готового wheel и падать при сборке из исходников. В этом случае нужен Python с готовым `onnx` wheel или заранее подготовленная GigaAM-среда; основной MeetingAgent runtime от этих зависимостей не зависит.
@@ -60,8 +60,8 @@ transcript/transcription_report.json
 
 ```powershell
 .\scripts\run_gigaam_transcribe.ps1 `
-  -InputPath "$env:USERPROFILE\Downloads\Схема уровня поддержки.mp4" `
-  -OutputDir "$env:USERPROFILE\Downloads\gigaam_support_scheme"
+  -InputPath "$env:USERPROFILE\Downloads\input meeting.mp4" `
+  -OutputDir "$env:USERPROFILE\Downloads\gigaam_output"
 ```
 
 ## Выходные Файлы
@@ -76,7 +76,7 @@ transcript_gigaam.md
 transcript_gigaam.txt
 ```
 
-Эти файлы являются runtime/output-артефактами и не коммитятся в Git. Для Git фиксируется только отчет о прогоне или выдержка в `docs/references/`.
+Эти файлы являются runtime/output-артефактами и не коммитятся в Git. В публичной документации фиксируются только обезличенные технические выводы без transcript excerpts, customer names, локальных путей и runtime output.
 
 ## Импорт Готового GigaAM JSONL
 
@@ -86,7 +86,7 @@ transcript_gigaam.txt
 .\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py `
   --meeting-dir meetings\YYYY-MM-DD__slug `
   --engine from-segments `
-  --segments-path "$env:USERPROFILE\Downloads\gigaam_support_scheme\segments_gigaam.jsonl" `
+  --segments-path "$env:USERPROFILE\Downloads\gigaam_output\segments_gigaam.jsonl" `
   --force
 ```
 

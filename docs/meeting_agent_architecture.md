@@ -312,12 +312,12 @@ Metadata для meeting sources:
 ```json
 {
   "source_type": "meeting_chunk",
-  "meeting_id": "2026-05-26__support-level-scheme",
-  "meeting_title": "Схема уровня поддержки",
+  "meeting_id": "2026-05-26__synthetic-support-handoff",
+  "meeting_title": "Передача поддержки проекта",
   "timestamp_start": "00:02:00",
   "timestamp_end": "00:03:00",
   "speaker_names": ["SPEAKER_UNKNOWN"],
-  "topic": "Зоны ответственности поддержки",
+  "topic": "Зоны ответственности команды",
   "semantic_type": "decision"
 }
 ```
