@@ -1,6 +1,6 @@
 # Todo
 
-Обновлено: 2026-07-08.
+Обновлено: 2026-07-10.
 
 ## Done
 
@@ -61,6 +61,22 @@
 
 ## Active / Next
 
+- [~] SEC-P0-PUBLIC-TREE-CLEANUP (#166): remove customer-specific material from current public HEAD and add regression guards.
+- [ ] SEC-P0-GIT-HISTORY-PURGE (#167): purge deleted private blobs after backup and explicit force-push approval.
+- [ ] MA-TELEGRAM-AUTH-HARDENING (#168): authenticate bot API calls and fail closed.
+- [ ] MA-BOOTSTRAP-HOST-VALIDATION (#169): enforce local Host/TrustedHost policy.
+- [ ] MA-HEALTH-RESPONSE-HARDENING (#170): split public liveness and admin diagnostics.
+- [ ] MA-CONTAINER-DEPLOYMENT-HARDENING (#171): safe build context, non-root runtime and localhost binding.
+- [ ] MA-CI-FULL-TEST-MATRIX (#172): run unit/API/e2e suites for every PR.
+- [ ] MA-MEETING-API-METADATA-REDACTION (#173): path-safe meeting DTOs and errors.
+- [ ] MA-INGEST-LIMITS-ATOMIC-DEDUP (#174): bounded uploads and race-safe dedup.
+- [ ] PKB-SEARCH-SOURCE-PROMOTION-DEDUP (#175): remove primary/supporting duplication.
+- [ ] MA-JOB-DURABILITY-RECOVERY (#176): persistent jobs and orphan recovery.
+- [ ] MA-DEPENDENCY-LOCK-AND-AUDIT (#177): reproducible runtime dependencies and advisory gate.
+- [ ] PKB-RETRIEVAL-CHARACTERIZATION (#178): characterize and decompose ranking rules.
+- [ ] MA-REPO-DEAD-CODE-CLEANUP (#179): remove empty scaffolds and clarify legacy ownership.
+- [ ] MA-UI-CSP-MODULARIZATION (#180): extract frontend assets and enforce CSP.
+- [ ] MA-MEETING-VECTOR-CACHE-LOCKING (#181): concurrency-safe semantic cache.
 - [ ] MA-MEETINGAGENT-UI-MOCKUPS: approve target mockups for registry, upload wizard, processing monitor and meeting card before deeper UI refactor.
 
 ## Meeting Product Backlog

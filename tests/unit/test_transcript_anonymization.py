@@ -40,18 +40,18 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
 
 def test_anonymizer_replaces_common_sensitive_values() -> None:
     anonymizer = TranscriptAnonymizer(
-        AnonymizationOptions(custom_terms={"org": ["НОВАТЭК"], "identifier": ["Паспорт проекта"]})
+        AnonymizationOptions(custom_terms={"org": ["АльфаСофт"], "identifier": ["Паспорт проекта"]})
     )
 
     text = (
-        "Денис Белецкий из НОВАТЭК отправил denis@example.com. "
+        "Алексей Петров из АльфаСофт отправил alex@example.com. "
         "Файл C:\\Users\\Person\\Secret\\doc.docx, ссылка https://example.test/a, код FTT-MA-08."
     )
     result = anonymizer.result_for_text(text)
 
-    assert "Денис Белецкий" not in result.text
-    assert "НОВАТЭК" not in result.text
-    assert "denis@example.com" not in result.text
+    assert "Алексей Петров" not in result.text
+    assert "АльфаСофт" not in result.text
+    assert "alex@example.com" not in result.text
     assert "C:\\Users\\Person\\Secret" not in result.text
     assert "https://example.test/a" not in result.text
     assert "FTT-MA-08" not in result.text
@@ -73,8 +73,8 @@ def test_public_report_uses_hashes_not_original_values(tmp_path: Path) -> None:
                 "segment_id": "seg-000001",
                 "start": 0,
                 "end": 1,
-                "speaker_name": "Денис Белецкий",
-                "text": "Денис Белецкий сказал: смотри ООО «Ромашка».",
+                "speaker_name": "Алексей Петров",
+                "text": "Алексей Петров сказал: смотри ООО «Ромашка».",
                 "metadata": {"source_path": "C:\\Users\\Person\\internal.docx"},
             }
         ],
@@ -88,13 +88,13 @@ def test_public_report_uses_hashes_not_original_values(tmp_path: Path) -> None:
     assert code == 0
     rows = read_jsonl_rows(out_dir / "anonymized_segments.jsonl")
     rendered = json.dumps(rows, ensure_ascii=False)
-    assert "Денис Белецкий" not in rendered
+    assert "Алексей Петров" not in rendered
     assert "Ромашка" not in rendered
     assert "C:\\Users\\Person" not in rendered
 
     report = json.loads((out_dir / "anonymization_report.json").read_text(encoding="utf-8"))
     report_text = json.dumps(report, ensure_ascii=False)
-    assert "Денис Белецкий" not in report_text
+    assert "Алексей Петров" not in report_text
     assert "Ромашка" not in report_text
     assert "C:\\Users\\Person" not in report_text
     assert "original_sha256" in report["replacements"][0]
@@ -104,7 +104,7 @@ def test_public_report_uses_hashes_not_original_values(tmp_path: Path) -> None:
 def test_private_mapping_is_explicit_opt_in(tmp_path: Path) -> None:
     script = _load_script()
     input_path = tmp_path / "segments.jsonl"
-    _write_jsonl(input_path, [{"segment_id": "seg-1", "start": 0, "end": 1, "text": "Антон Васильев"}])
+    _write_jsonl(input_path, [{"segment_id": "seg-1", "start": 0, "end": 1, "text": "Мария Петрова"}])
     out_dir = tmp_path / "out"
 
     code = script.run(
@@ -115,7 +115,7 @@ def test_private_mapping_is_explicit_opt_in(tmp_path: Path) -> None:
 
     assert code == 0
     private_map = json.loads((out_dir / "anonymization_mapping.private.json").read_text(encoding="utf-8"))
-    assert private_map["replacements"][0]["original"] == "Антон Васильев"
+    assert private_map["replacements"][0]["original"] == "Мария Петрова"
 
 
 def test_markdown_input_supported(tmp_path: Path) -> None:
@@ -145,7 +145,7 @@ def test_meeting_dir_defaults_to_transcript_anonymized(tmp_path: Path) -> None:
                 "meeting_id": "m1",
                 "title": "Паспорт проекта",
                 "artifacts": {"segments": "transcript/segments.jsonl"},
-                "speaker_mapping": {"SPEAKER_01": {"name": "Анатолий Сысоев", "role": "PO"}},
+                "speaker_mapping": {"SPEAKER_01": {"name": "Иван Иванов", "role": "PO"}},
             },
             ensure_ascii=False,
         ),
@@ -153,7 +153,7 @@ def test_meeting_dir_defaults_to_transcript_anonymized(tmp_path: Path) -> None:
     )
     _write_jsonl(
         transcript_dir / "segments.jsonl",
-        [{"segment_id": "seg-1", "start": 0, "end": 1, "speaker": "SPEAKER_01", "text": "Анатолий Сысоев: задача"}],
+        [{"segment_id": "seg-1", "start": 0, "end": 1, "speaker": "SPEAKER_01", "text": "Иван Иванов: задача"}],
     )
 
     code = script.run(script.parse_args(["--meeting-dir", str(meeting_dir)]))

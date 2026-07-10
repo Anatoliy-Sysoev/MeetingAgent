@@ -172,7 +172,7 @@ def test_merge_transcript_speakers_text_uses_saved_speaker_mapping(tmp_path: Pat
     meeting = read_json(meeting_dir / "meeting.json")
     meeting["artifacts"]["diarization"] = "transcript/diarization.jsonl"
     meeting["speaker_mapping"] = {
-        "SPEAKER_00": {"name": "Анатолий Сысоев", "role": "PO"},
+        "SPEAKER_00": {"name": "Иван Иванов", "role": "PO"},
         "SPEAKER_01": {"name": "Татьяна Числовская", "role": ""},
     }
     (meeting_dir / "meeting.json").write_text(
@@ -189,7 +189,7 @@ def test_merge_transcript_speakers_text_uses_saved_speaker_mapping(tmp_path: Pat
     transcript_text = (meeting_dir / "transcript" / "speaker_transcript.txt").read_text(
         encoding="utf-8"
     )
-    assert "[00:00:00] Анатолий Сысоев (PO): Первый сегмент." in transcript_text
+    assert "[00:00:00] Иван Иванов (PO): Первый сегмент." in transcript_text
     assert "[00:00:10] Татьяна Числовская: Второй сегмент." in transcript_text
 
 

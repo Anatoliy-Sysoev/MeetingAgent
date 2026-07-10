@@ -140,7 +140,7 @@ mono
 .\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py `
   --meeting-dir meetings\YYYY-MM-DD__slug `
   --engine from-segments `
-  --segments-path "$env:USERPROFILE\Downloads\gigaam_support_scheme\segments_gigaam.jsonl"
+  --segments-path "$env:USERPROFILE\Downloads\gigaam_output\segments_gigaam.jsonl"
 ```
 
 Скрипт работает только с одной готовой папкой встречи. Он не делает watcher, live-режим, diarization, memo/protocol и RAG-индексацию.

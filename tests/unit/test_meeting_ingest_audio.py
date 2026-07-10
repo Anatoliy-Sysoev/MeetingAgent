@@ -51,7 +51,7 @@ def test_ingest_creates_valid_meeting_card(tmp_path: Path) -> None:
     code = ingest.run(
         argparse.Namespace(
             file=str(source),
-            title="Схема уровня поддержки",
+            title="Передача поддержки проекта",
             date="2026-05-26",
             meeting_id=None,
             meetings_root=str(meetings_root),
@@ -61,7 +61,7 @@ def test_ingest_creates_valid_meeting_card(tmp_path: Path) -> None:
     )
 
     assert code == 0
-    meeting_dir = meetings_root / "2026-05-26__shema-urovnya-podderzhki"
+    meeting_dir = meetings_root / "2026-05-26__peredacha-podderzhki-proekta"
     meeting = read_json(meeting_dir / "meeting.json")
     validate_meeting(meeting)
     assert meeting["processing_status"] == "new"

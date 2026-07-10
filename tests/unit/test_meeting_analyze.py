@@ -41,7 +41,7 @@ def test_normalize_items_adds_source_refs_with_timestamps() -> None:
             }
         ],
         chunks,
-        {"speaker_mapping": {"SPEAKER_01": {"name": "Денис Белецкий", "role": "Lead"}}},
+        {"speaker_mapping": {"SPEAKER_01": {"name": "Алексей Петров", "role": "Lead"}}},
     )
 
     assert items[0]["decision_id"] == "DEC-001"
@@ -53,7 +53,7 @@ def test_normalize_items_adds_source_refs_with_timestamps() -> None:
     assert items[0]["source_refs"][0]["end"] == 42.0
     assert items[0]["source_refs"][0]["timecode_start"] == "00:00:12"
     assert items[0]["source_refs"][0]["speakers"] == ["SPEAKER_01"]
-    assert items[0]["source_refs"][0]["speaker_names"] == ["Денис Белецкий"]
+    assert items[0]["source_refs"][0]["speaker_names"] == ["Алексей Петров"]
     assert items[0]["source_refs"][0]["utterance_ids"] == ["utt-000001", "utt-000002"]
 
 
@@ -90,7 +90,7 @@ def test_render_summary_and_protocol_include_source_confidence_and_speaker() -> 
         "meeting_id": "2026-01-15__kickoff",
         "title": "Kickoff",
         "date": "2026-01-15",
-        "speaker_mapping": {"SPEAKER_01": {"name": "Антон Васильев", "role": "Lead"}},
+        "speaker_mapping": {"SPEAKER_01": {"name": "Мария Петрова", "role": "Lead"}},
     }
     chunks = [
         {
@@ -129,7 +129,7 @@ def test_render_summary_and_protocol_include_source_confidence_and_speaker() -> 
     summary = module.render_summary(meeting, reduced, docs)
     protocol = module.render_protocol(meeting, docs)
 
-    assert "[00:00:15, Антон Васильев]" in summary
+    assert "[00:00:15, Мария Петрова]" in summary
     assert "confidence=0.91; ok" in summary
-    assert "[00:00:15, Антон Васильев]" in protocol
+    assert "[00:00:15, Мария Петрова]" in protocol
     assert "confidence=0.91; ok" in protocol

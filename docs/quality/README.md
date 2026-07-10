@@ -18,3 +18,6 @@ Do not commit:
 - runtime JSONL/CSV/SQLite/parquet outputs.
 
 Private evaluation outputs should stay under ignored runtime paths such as `data/`, `logs/`, `eval/reports/`, or local ignored documentation folders.
+
+The tracked allowlist is enforced by `tests/unit/test_public_repository_privacy.py`.
+Adding another file under `docs/quality/` requires an explicit public-safe review.

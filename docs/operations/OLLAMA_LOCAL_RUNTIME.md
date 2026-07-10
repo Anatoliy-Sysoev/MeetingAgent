@@ -80,7 +80,7 @@ docker compose --profile diarization run --rm diarization `
 
 ```text
 C:\ollama-models
-C:\Users\<user>\.ollama\models
+%USERPROFILE%\.ollama\models
 C:\ollama_models
 ```
 
