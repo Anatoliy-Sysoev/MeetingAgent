@@ -1,5 +1,23 @@
 # Решения
 
+## 2026-07-10 - Host Allowlist И Bootstrap DNS-Rebinding Defense
+
+Решение: MeetingAgent проверяет каждый HTTP/WebSocket `Host` через встроенный allowlist middleware. Local bootstrap bypass требует одновременно direct loopback peer, trusted local Host и отсутствие proxy headers.
+
+Почему:
+
+- loopback peer без Host validation уязвим к browser DNS rebinding;
+- `security.allowed_hosts` раньше был только advisory config и не влиял на runtime;
+- стандартный Starlette middleware в используемой версии делит Host по первому `:` и некорректно обрабатывает bracketed IPv6, поэтому используется собственный строгий parser для hostname/port/IPv6;
+- `allowed_origins` не является заменой Host validation.
+
+Следствия:
+
+- safe local hosts включены по умолчанию; Docker profile явно добавляет service host `api`;
+- self-hosted mode без явного host allowlist не стартует;
+- `*`, schemes, paths, ports, malformed and duplicate Host values rejected;
+- custom hosts задаются через `security.allowed_hosts` или `MEETINGAGENT_ALLOWED_HOSTS`.
+
 ## 2026-07-10 - Telegram Adapter Fail-Closed
 
 Решение: Telegram adapter обращается к защищённому `/chat` только с machine Bearer token из `MEETINGAGENT_API_TOKEN`. Доступ к Telegram по умолчанию запрещён без `ASU_JUNE_BOT_ALLOWED_CHAT_IDS`; allow-all требует отдельного явного opt-in.

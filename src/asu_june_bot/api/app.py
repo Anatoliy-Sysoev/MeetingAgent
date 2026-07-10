@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from asu_june_bot import __version__
 from asu_june_bot.api.dependencies import build_app_state
 from asu_june_bot.api.errors import register_error_handlers
+from asu_june_bot.api.host_policy import TrustedHostPolicyMiddleware, build_allowed_hosts
 from asu_june_bot.api.middleware import request_context_middleware
 from asu_june_bot.api.routes_admin import router as admin_router
 from asu_june_bot.api.routes_review import router as review_router
@@ -21,20 +22,27 @@ from asu_june_bot.api.routes_meetings import router as meetings_router
 from asu_june_bot.api.routes_search import router as search_router
 from asu_june_bot.api.routes_ui import router as ui_router
 from asu_june_bot.api.routes_workspace import router as workspace_router
+from asu_june_bot.core.config import load_config
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    app.state.asu_june_bot = build_app_state()
+    app.state.asu_june_bot = build_app_state(config=app.state.startup_config)
     yield
 
 
-def create_app() -> FastAPI:
+def create_app(config: dict | None = None) -> FastAPI:
+    resolved_config = load_config() if config is None else config
     app = FastAPI(
         title="Asu June Bot API",
         version=__version__,
         description="Local project-only search and chat API for Asu June Bot",
         lifespan=lifespan,
+    )
+    app.state.startup_config = resolved_config
+    app.add_middleware(
+        TrustedHostPolicyMiddleware,
+        allowed_hosts=build_allowed_hosts(resolved_config),
     )
     app.middleware("http")(request_context_middleware)
     register_error_handlers(app)

@@ -13,6 +13,7 @@ from asu_june_bot.api.bootstrap_policy import (
     BootstrapPolicy,
     is_local_request,
 )
+from asu_june_bot.api.host_policy import is_local_host_header
 from asu_june_bot.auth.models import Principal
 from asu_june_bot.auth.service import (
     AdminService,
@@ -77,7 +78,8 @@ def _enforce_bootstrap_policy(request: Request, policy: BootstrapPolicy) -> None
         or request.headers.get("forwarded")
         or request.headers.get("x-real-ip")
     )
-    if is_local_request(peer_host) and not has_forwarded:
+    host_header = request.headers.get("host", "")
+    if is_local_request(peer_host) and is_local_host_header(host_header) and not has_forwarded:
         return
     if not policy.allow_remote:
         raise HTTPException(

@@ -4,12 +4,14 @@
 
 ## Now
 
-- active coding task: MA-TELEGRAM-AUTH-HARDENING (#168) on `codex/168-telegram-auth-hardening`.
-- canonical main state: `dd4d0a46a665f4ddf003ed3e43f6985c3ce69b10` / `Remove customer-specific data from public tree (#182)`.
-- next security focus: merge Telegram auth, then fix bootstrap Host validation (#169) and health response exposure (#170).
+- active coding task: MA-BOOTSTRAP-HOST-VALIDATION (#169) on `codex/169-bootstrap-host-validation`.
+- canonical main state: `529b8b3c2099cd6e0093e2b33988bccbd4123731` / `Harden Telegram adapter authentication (#183)`.
+- next security focus: merge Host validation, then split public health/diagnostics (#170) and harden containers (#171).
 
 ## Done latest
 
+- MA-TELEGRAM-AUTH-HARDENING (#168, PR #183): Telegram uses machine Bearer auth, fail-closed chat allowlist and redacted health/error messages.
+- MA-BOOTSTRAP-HOST-VALIDATION (#169): strict HTTP/WebSocket Host allowlist, robust hostname/port/IPv6 parser, DNS-rebinding-safe local bootstrap and self-hosted fail-fast policy.
 - SEC-P0-PUBLIC-TREE-CLEANUP (#166, PR #182): current public HEAD is cleaned, private corpus uses ignored local overlay, and privacy regression tests are active; history remediation remains #167.
 - MA-TELEGRAM-AUTH-HARDENING (#168): Telegram `/chat` calls send machine Bearer auth; startup requires a real API token and allowlist or explicit allow-all; user-facing health/errors are path-free and do not echo response bodies.
 - Repository acquisition/security audit: full pytest 1269 passed / 13 skipped; compileall, Docker Compose config and strict MkDocs build passed; dependency, Bandit, Ruff, dead-code, coverage, Git-history and manual API/auth/pipeline/RAG/UI reviews completed.
@@ -128,8 +130,8 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- MA-BOOTSTRAP-HOST-VALIDATION (#169): require trusted local Host and enforce TrustedHost policy.
 - MA-HEALTH-RESPONSE-HARDENING (#170): split public liveness from authenticated diagnostics.
+- MA-CONTAINER-DEPLOYMENT-HARDENING (#171): safe image context, non-root runtime and localhost publish default.
 - SEC-P0-GIT-HISTORY-PURGE (#167): backup, verify and coordinate the force rewrite; do not execute implicitly.
 
 ## Open decisions / blockers
