@@ -20,7 +20,7 @@ def test_to_index_rows_exports_decision_with_timestamp(tmp_path: Path) -> None:
     module = load_module()
     meeting = {
         "meeting_id": "2026-05-26__support-scheme",
-        "title": "Схема уровня поддержки",
+        "title": "Передача поддержки проекта",
         "date": "2026-05-26",
         "artifacts": {"decisions": "artifacts/decisions.json"},
     }
@@ -37,7 +37,7 @@ def test_to_index_rows_exports_decision_with_timestamp(tmp_path: Path) -> None:
                         "path": "transcript/chunks.jsonl",
                         "start": 12.0,
                         "end": 42.0,
-                        "speaker_names": ["PRIVATE_PERSON_1"],
+                        "speaker_names": ["Алексей Петров"],
                         "speakers": ["SPEAKER_01"],
                         "utterance_ids": ["utt-1"],
                         "quote": "Решили разделить поддержку по линиям.",
@@ -55,11 +55,11 @@ def test_to_index_rows_exports_decision_with_timestamp(tmp_path: Path) -> None:
     assert rows[0]["artifact_id"] == "DEC-001"
     assert rows[0]["timestamp_start"] == "00:00:12"
     assert rows[0]["confidence"] == 0.86
-    assert rows[0]["speaker_names"] == ["PRIVATE_PERSON_1"]
+    assert rows[0]["speaker_names"] == ["Алексей Петров"]
     assert rows[0]["utterance_ids"] == ["utt-1"]
     assert "Разделить поддержку" in rows[0]["text"]
     assert "Уверенность: 0.86" in rows[0]["text"]
-    assert "Спикеры: PRIVATE_PERSON_1" in rows[0]["text"]
+    assert "Спикеры: Алексей Петров" in rows[0]["text"]
 
 
 def test_upsert_rows_preserves_meeting_chunks(tmp_path: Path) -> None:

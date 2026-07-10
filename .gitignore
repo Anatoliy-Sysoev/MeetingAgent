@@ -20,6 +20,7 @@ config.yaml
 config.local.yaml
 config.yaml.bak*
 *.bak_project_root
+configs/asu_june_bot/*.local.yaml
 
 # Runtime RAG data and generated artifacts
 _calibration/
@@ -55,11 +56,11 @@ scratch_*.py
 # Private corpus and customer-specific one-off tooling
 scripts/*ntk*
 scripts/*yandex*
+scripts/asu_june_bot_compare_qwen35_models_100.py
 scripts/17_generate_realistic_500.py
 scripts/19_generate_ntk_realistic_500_v3.py
 scripts/asu_june_bot_apply_config_v2_1.py
 scripts/asu_june_bot_build_source_links.py
-scripts/monitor_asu_june_bot_ntk_index.ps1
 tests/asu_june_bot/guard_v2_cases.jsonl
 tests/asu_june_bot/**/*ntk*
 
@@ -93,6 +94,7 @@ docs/quality/**
 !docs/quality/MEETING_SUMMARY_BENCHMARK.md
 !docs/quality/rag_eval_report_template.md
 !docs/quality/synthetic_seed_queries.jsonl
+docs/references/GIGAAM_SUPPORT_SCHEME_RUN_2026-05-26.md
 
 # Office temporary files
 ~$*

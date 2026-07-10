@@ -56,7 +56,7 @@ def test_exporters_generate_txt_md_srt_vtt_and_json(tmp_path) -> None:
     )
     document = TranscriptDocument(
         meeting_id="2026-05-26__support-scheme",
-        title="Схема уровня поддержки",
+        title="Передача поддержки проекта",
         engine="gigaam",
         model="gigaam/v3_e2e_rnnt",
         language="ru",

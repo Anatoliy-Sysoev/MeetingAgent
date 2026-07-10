@@ -80,7 +80,7 @@ class FakeMeetingsService:
                         "segment_id": "u_101",
                         "start_sec": 755.25,
                         "end_sec": 759.8,
-                        "speaker": "PRIVATE_PERSON_1",
+                        "speaker": "Алексей Петров",
                         "speaker_label": "SPEAKER_01",
                         "speaker_role": "Lead",
                         "speaker_mapped": True,
@@ -90,7 +90,7 @@ class FakeMeetingsService:
                         "segment_id": "u_102",
                         "start_sec": 760.0,
                         "end_sec": 766.0,
-                        "speaker": "PRIVATE_PERSON_2",
+                        "speaker": "Мария Соколова",
                         "speaker_label": "SPEAKER_02",
                         "speaker_role": None,
                         "speaker_mapped": True,
@@ -100,7 +100,7 @@ class FakeMeetingsService:
                         "segment_id": "u_201",
                         "start_sec": 1510.4,
                         "end_sec": 1518.0,
-                        "speaker": "PRIVATE_PERSON_2",
+                        "speaker": "Мария Соколова",
                         "speaker_label": "SPEAKER_02",
                         "speaker_role": None,
                         "speaker_mapped": True,
@@ -149,7 +149,7 @@ def _chunk(meeting_id: str, chunk_id: str, text: str, **kwargs) -> dict:
         "meeting_title": "Синк команды",
         "topic": kwargs.pop("topic", "проект"),
         "semantic_type": kwargs.pop("semantic_type", "discussion"),
-        "speaker_names": kwargs.pop("speaker_names", ["PRIVATE_PERSON_2"]),
+        "speaker_names": kwargs.pop("speaker_names", ["Мария Соколова"]),
         "speakers": kwargs.pop("speakers", ["spk_1"]),
         "start": kwargs.pop("start", 754.0),
         "end": kwargs.pop("end", 810.0),
@@ -282,12 +282,12 @@ def test_citations_carry_exact_segment_refs(chunks_path: Path, tmp_path: Path) -
     assert citation["segment_ids"] == ["u_101", "u_102"]
     assert citation["timestamp_start"] == "00:12:35"
     assert citation["start_sec"] == 755.25
-    assert citation["speaker"] == "PRIVATE_PERSON_1"
+    assert citation["speaker"] == "Алексей Петров"
     assert citation["speaker_label"] == "SPEAKER_01"
     assert citation["speaker_role"] == "Lead"
-    assert citation["speakers"] == ["PRIVATE_PERSON_1", "PRIVATE_PERSON_2"]
+    assert citation["speakers"] == ["Алексей Петров", "Мария Соколова"]
     assert citation["utterance_ids"] == ["u_101", "u_102"]
-    assert citation["citation_label"] == "[00:12:35, PRIVATE_PERSON_1]"
+    assert citation["citation_label"] == "[00:12:35, Алексей Петров]"
     assert citation["segment_refs"][0]["segment_id"] == "u_101"
     assert citation["segment_refs"][1]["segment_id"] == "u_102"
 
@@ -301,7 +301,7 @@ def test_search_source_carries_exact_segment_target(chunks_path: Path, tmp_path:
     assert source["segment_id"] == "u_201"
     assert source["timestamp_start"] == "00:25:10"
     assert source["start_sec"] == 1510.4
-    assert source["speaker"] == "PRIVATE_PERSON_2"
+    assert source["speaker"] == "Мария Соколова"
     assert source["segment_refs"] == [
         {
             "segment_id": "u_201",
@@ -309,7 +309,7 @@ def test_search_source_carries_exact_segment_target(chunks_path: Path, tmp_path:
             "end_sec": 1518.0,
             "timestamp_start": "00:25:10",
             "timestamp_end": "00:25:18",
-            "speaker": "PRIVATE_PERSON_2",
+            "speaker": "Мария Соколова",
             "speaker_label": "SPEAKER_02",
             "speaker_role": None,
             "speaker_mapped": True,

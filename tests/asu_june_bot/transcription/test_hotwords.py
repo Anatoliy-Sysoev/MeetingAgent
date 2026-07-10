@@ -66,10 +66,10 @@ def test_empty_string_terms_skipped(tmp_path: Path) -> None:
 
 def test_russian_multiword_term(tmp_path: Path) -> None:
     f = tmp_path / "hw.yaml"
-    f.write_text("enabled: true\nterms:\n  - Строительный контроль\n  - PRIVATE_SYSTEM\n", encoding="utf-8")
+    f.write_text("enabled: true\nterms:\n  - Модуль заявок\n  - Проект Альфа\n", encoding="utf-8")
     cfg = load_hotwords_config(f)
-    assert "Строительный контроль" in cfg.terms
-    assert "PRIVATE_SYSTEM" in cfg.terms
+    assert "Модуль заявок" in cfg.terms
+    assert "Проект Альфа" in cfg.terms
 
 
 def test_invalid_yaml_raises(tmp_path: Path) -> None:

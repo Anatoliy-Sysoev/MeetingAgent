@@ -272,7 +272,7 @@ class MeetingQAService:
         return []
 
     def _citation_label(self, row: dict[str, Any]) -> str:
-        """Human-readable reference like ``[00:12:34, PRIVATE_PERSON_2]``."""
+        """Human-readable reference like ``[00:12:34, Алексей Петров]``."""
         ts = str(row.get("timestamp_start") or "??:??:??")
         speaker = self._speaker(row) or "спикер неизвестен"
         return f"[{ts}, {speaker}]"
