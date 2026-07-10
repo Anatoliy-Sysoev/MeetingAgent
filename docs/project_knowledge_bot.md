@@ -44,4 +44,7 @@ Telegram adapter:
 .\scripts\asu_june_bot_start_telegram.ps1
 ```
 
-Keep tokens only in ignored local `.env` files.
+The adapter authenticates to `/chat` with `MEETINGAGENT_API_TOKEN` and denies
+all Telegram chats unless `ASU_JUNE_BOT_ALLOWED_CHAT_IDS` is configured.
+`ASU_JUNE_BOT_ALLOW_ALL_CHAT_IDS=true` is an explicit unsafe development-only
+opt-in. Keep all tokens only in ignored local `.env` files.

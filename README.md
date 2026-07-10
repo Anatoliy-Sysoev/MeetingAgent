@@ -160,7 +160,10 @@ The built-in web UI supports local login, displays the current auth state, obtai
 .\scripts\asu_june_bot_start_telegram.ps1
 ```
 
-Keep the Telegram token in local `.env` only. See [Project Knowledge Bot](docs/project_knowledge_bot.md).
+Keep both `ASU_JUNE_BOT_TELEGRAM_TOKEN` and the Chat API Bearer token
+`MEETINGAGENT_API_TOKEN` in local `.env` only. Configure
+`ASU_JUNE_BOT_ALLOWED_CHAT_IDS`; the adapter denies all chats by default.
+See [Project Knowledge Bot](docs/project_knowledge_bot.md).
 
 ## Meeting Processing
 

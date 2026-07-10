@@ -4,12 +4,14 @@
 
 ## Now
 
-- active coding task: SEC-P0-PUBLIC-TREE-CLEANUP (#166) on `codex/166-public-tree-cleanup`.
-- canonical review base: `1c2c426ef33299f1bae51b1eefa402622fe224d0` / `Sync rolling context after PR 161`.
-- next security focus: merge current-tree cleanup, then coordinate Git-history purge (#167) and fix Telegram/API auth (#168).
+- active coding task: MA-TELEGRAM-AUTH-HARDENING (#168) on `codex/168-telegram-auth-hardening`.
+- canonical main state: `dd4d0a46a665f4ddf003ed3e43f6985c3ce69b10` / `Remove customer-specific data from public tree (#182)`.
+- next security focus: merge Telegram auth, then fix bootstrap Host validation (#169) and health response exposure (#170).
 
 ## Done latest
 
+- SEC-P0-PUBLIC-TREE-CLEANUP (#166, PR #182): current public HEAD is cleaned, private corpus uses ignored local overlay, and privacy regression tests are active; history remediation remains #167.
+- MA-TELEGRAM-AUTH-HARDENING (#168): Telegram `/chat` calls send machine Bearer auth; startup requires a real API token and allowlist or explicit allow-all; user-facing health/errors are path-free and do not echo response bodies.
 - Repository acquisition/security audit: full pytest 1269 passed / 13 skipped; compileall, Docker Compose config and strict MkDocs build passed; dependency, Bandit, Ruff, dead-code, coverage, Git-history and manual API/auth/pipeline/RAG/UI reviews completed.
 - SEC-P0-PUBLIC-TREE-CLEANUP (#166): removed tracked customer-specific eval/reference outputs and private model-comparison script; replaced real names and project queries with synthetic fixtures; public corpus/hotword defaults are generic.
 - Private corpus configuration now uses ignored `configs/asu_june_bot/*.local.yaml` overlays; public-safety tests enforce the quality-doc allowlist, known private-marker absence and path hygiene.
@@ -126,9 +128,9 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
+- MA-BOOTSTRAP-HOST-VALIDATION (#169): require trusted local Host and enforce TrustedHost policy.
+- MA-HEALTH-RESPONSE-HARDENING (#170): split public liveness from authenticated diagnostics.
 - SEC-P0-GIT-HISTORY-PURGE (#167): backup, verify and coordinate the force rewrite; do not execute implicitly.
-- MA-TELEGRAM-AUTH-HARDENING (#168): authenticate `/chat`, fail closed and redact bot errors.
-- MA-BOOTSTRAP-HOST-VALIDATION (#169) and MA-HEALTH-RESPONSE-HARDENING (#170).
 
 ## Open decisions / blockers
 
