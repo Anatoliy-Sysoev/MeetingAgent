@@ -654,6 +654,44 @@ Map-reduce dry-run:
 
 Перед полным запуском `ollama-map-reduce` нужно прогнать одно окно на выбранной модели и оценить время, валидность JSON и качество классификации.
 
+## Устойчивость API Job Runner
+
+Запуски из `/MeetingAgent` и Workspace сохраняют runtime state в ignored файле:
+
+```text
+logs/jobs_state.json
+```
+
+Путь можно изменить в локальном config:
+
+```yaml
+paths:
+  jobs_state: logs/jobs_state.json
+```
+
+Правила восстановления:
+
+- snapshot пишется через temp file + `os.replace` под межпроцессным lock;
+- active reservation блокирует второй stage/pipeline даже для другого runner
+  instance;
+- после рестарта API живой child с тем же PID и process start identity получает
+  `status=orphaned` и остаётся доступен для Cancel;
+- запись с исчезнувшим или неидентифицируемым child становится `failed`, пишет
+  нормализованный `last_error` и переводит stage в `ready_for_retry`;
+- aggregate pipeline не продолжает потерянную Python coroutine автоматически:
+  после terminal recovery используйте Resume pipeline;
+- Cancel идемпотентен; process tree завершается целиком (`taskkill /T /F` на
+  Windows, process group на Linux/Unix);
+- snapshot больше 4 МиБ или повреждённый JSON останавливает API fail-closed.
+
+Recovery виден в `GET /meetings/{id}/pipeline/readiness` как `job_recovery` и
+в Pipeline-панели Workspace. Для production используйте один API worker:
+durable reservation безопасна между процессами, но status routing не является
+распределённой очередью задач.
+
+`logs/jobs_state.json` и `.lock` — локальные runtime-файлы. Их нельзя добавлять
+в Git или переносить между машинами как часть meeting card.
+
 ## Оконный Offline-Pipeline
 
 Для сокращения общего времени обработки добавлен отдельный конвейерный offline-режим:

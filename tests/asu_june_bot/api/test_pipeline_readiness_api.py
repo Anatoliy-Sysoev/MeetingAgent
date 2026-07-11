@@ -20,7 +20,7 @@ from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
 from asu_june_bot.auth.service import AdminService, LocalAuthService  # noqa: E402
 from asu_june_bot.auth.throttle import LoginThrottle  # noqa: E402
 from asu_june_bot.jobs.readiness import pipeline_readiness  # noqa: E402
-from asu_june_bot.jobs.runner import JobRunner  # noqa: E402
+from asu_june_bot.jobs.runner import JobRunner, JobState  # noqa: E402
 from asu_june_bot.meetings.service import MeetingsService  # noqa: E402
 
 TOKEN = "test-readiness-token"
@@ -219,6 +219,38 @@ def test_api_returns_readiness_map(tmp_path: Path) -> None:
     assert body["meeting_id"] == MEETING_ID
     stages = _stage_map(body)
     assert stages["transcribe"]["state"] == "ready"
+    assert body["job_recovery"] is None
+
+
+def test_api_returns_path_safe_recovery_summary(tmp_path: Path) -> None:
+    d = _make_meeting(tmp_path)
+    _touch(d, "source/audio_16k_mono.wav")
+    client = _make_client(tmp_path)
+    runner = client.app.state.asu_june_bot.job_runner
+    runner.history.append(
+        JobState(
+            job_id="recovered-1",
+            meeting_id=MEETING_ID,
+            stage="transcribe",
+            status="failed",
+            started_at="2026-07-11T10:00:00+00:00",
+            finished_at="2026-07-11T10:01:00+00:00",
+            recovery_status="orphaned_process_missing",
+            _meeting_dir=d,
+        )
+    )
+
+    resp = client.get(f"/meetings/{MEETING_ID}/pipeline/readiness", headers=AUTH)
+
+    assert resp.status_code == 200
+    assert resp.json()["job_recovery"] == {
+        "job_id": "recovered-1",
+        "kind": "stage",
+        "status": "failed",
+        "recovery_status": "orphaned_process_missing",
+        "can_cancel": False,
+    }
+    assert str(tmp_path) not in resp.text
 
 
 def test_api_unknown_meeting_404(tmp_path: Path) -> None:

@@ -939,13 +939,16 @@ async function loadStages() {
 let _readiness = {};      // stage -> readiness entry
 let _manifest = null;      // artifacts manifest payload
 let _failedStage = null;   // stage with state=ready_for_retry
+let _jobRecovery = null;   // durable recovery summary from readiness API
 
 async function loadReadiness() {
   const resp = await apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}/pipeline/readiness`);
   _readiness = {};
   _failedStage = null;
+  _jobRecovery = null;
   if (!resp || !resp.ok) return;
   const d = await resp.json();
+  _jobRecovery = d.job_recovery || null;
   for (const st of (Array.isArray(d.stages) ? d.stages : [])) {
     _readiness[st.stage] = st;
     if (st.state === "ready_for_retry") _failedStage = st.stage;
@@ -968,8 +971,9 @@ let _trackedJobId = null;  // job_id from the last 202 (stage, retry or pipeline
 
 function _jobIsActive(j) {
   if (!j || !j.job_id) return false;
+  if (j.is_active === true) return true;
   // pipeline aggregates report "running"; stage jobs "starting"/"running"
-  return j.status === "running" || j.status === "starting";
+  return j.status === "running" || j.status === "starting" || j.status === "orphaned";
 }
 
 async function loadActiveJob() {
@@ -1036,6 +1040,15 @@ function renderJobs(status) {
     aVal.textContent = "None";
   }
   grid.append(sLabel, sVal, aLabel, aVal);
+  if (_jobRecovery) {
+    const rLabel = document.createElement("span");
+    rLabel.className = "jobs-label";
+    rLabel.textContent = "Recovery";
+    const rVal = document.createElement("span");
+    const recovery = _jobRecovery.recovery_status || _jobRecovery.status || "recovered";
+    rVal.textContent = recovery.replace(/_/g, " ");
+    grid.append(rLabel, rVal);
+  }
   statusEl.appendChild(grid);
 
   // Cancel control for the active job
@@ -1045,7 +1058,8 @@ function renderJobs(status) {
     cancelBtn.textContent = "Cancel active job";
     cancelBtn.style.marginTop = "8px";
     const canCancel = _permissions.has("jobs.cancel");
-    const cancellable = _activeJob.status === "running" || _activeJob.status === "starting";
+    const cancellable = _activeJob.status === "running" ||
+      _activeJob.status === "starting" || _activeJob.status === "orphaned";
     cancelBtn.disabled = !canCancel || !cancellable || _actionInProgress;
     if (!canCancel) cancelBtn.title = "Permission required: jobs.cancel";
     cancelBtn.addEventListener("click", () => cancelActiveJob(_activeJob.job_id));

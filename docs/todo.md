@@ -74,7 +74,9 @@
   limit, full temp cleanup, bounded metadata/errors and thread/process-safe SHA dedup.
 - [x] PKB-SEARCH-SOURCE-PROMOTION-DEDUP (#175): deterministic first-wins source
   identity, no cross-bucket duplicates and diagnostics limited to actual promotions.
-- [ ] MA-JOB-DURABILITY-RECOVERY (#176): persistent jobs and orphan recovery.
+- [x] MA-JOB-DURABILITY-RECOVERY (#176): atomic locked job/pipeline snapshot,
+  bounded history/events, restart orphan detection, cross-runner reservation,
+  verified process-tree cancellation and Workspace recovery status.
 - [ ] MA-DEPENDENCY-LOCK-AND-AUDIT (#177): reproducible runtime dependencies and advisory gate.
 - [ ] PKB-RETRIEVAL-CHARACTERIZATION (#178): characterize and decompose ranking rules.
 - [ ] MA-REPO-DEAD-CODE-CLEANUP (#179): remove empty scaffolds and clarify legacy ownership.

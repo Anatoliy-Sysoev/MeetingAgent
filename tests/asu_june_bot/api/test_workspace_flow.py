@@ -42,6 +42,19 @@ def test_readiness_api_integrated(html: str) -> None:
     assert "/pipeline/readiness" in html
     assert "loadReadiness" in html
     assert "ready_for_retry" in html
+    assert "job_recovery" in html
+    assert "_jobRecovery" in html
+
+
+def test_recovered_orphan_is_active_and_cancellable(html: str) -> None:
+    active_block = html[html.index("function _jobIsActive"):]
+    active_block = active_block[: active_block.index("async function loadActiveJob")]
+    assert 'j.status === "orphaned"' in active_block
+    render_block = html[html.index("function renderJobs"):]
+    render_block = render_block[: render_block.index("function renderPipelineActions")]
+    assert 'rLabel.textContent = "Recovery"' in render_block
+    assert '_activeJob.status === "orphaned"' in render_block
+    assert "textContent" in render_block
 
 
 def test_manifest_api_integrated(html: str) -> None:

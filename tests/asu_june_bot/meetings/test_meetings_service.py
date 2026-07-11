@@ -389,6 +389,28 @@ def test_build_app_state_passes_limit_into_service(monkeypatch) -> None:
     assert state.meetings_service.max_upload_bytes == 8192
 
 
+def test_build_app_state_wires_durable_job_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import asu_june_bot.api.dependencies as deps
+
+    monkeypatch.setattr(deps, "check_and_fail_if_unsafe", lambda _config: None)
+    state = deps.build_app_state(
+        {
+            "work_root_path": tmp_path,
+            "paths": {
+                "auth_db": str(tmp_path / "auth.db"),
+                "meetings_root": str(tmp_path / "meetings"),
+                "jobs_state": "runtime/jobs.json",
+            },
+        }
+    )
+
+    assert state.job_runner.store is not None
+    assert state.job_runner.store.path == (tmp_path / "runtime" / "jobs.json").resolve()
+    assert state.job_runner.meetings_root == tmp_path / "meetings"
+
+
 # ------------------------------------------------------------------
 # Bounded text artifact reads
 # ------------------------------------------------------------------

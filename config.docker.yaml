@@ -28,3 +28,6 @@ transcription:
 meetings:
   max_upload_bytes: 2147483648
   max_text_artifact_bytes: 10485760
+
+paths:
+  jobs_state: logs/jobs_state.json
