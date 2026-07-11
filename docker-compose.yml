@@ -4,17 +4,17 @@ services:
       context: .
       dockerfile: Dockerfile
     image: meetingagent:local
-    container_name: meetingagent-api
     env_file:
       - path: .env
         required: false
     environment:
       MEETING_AGENT_CONFIG_PATH: /app/config.docker.yaml
       ASU_JUNE_BOT_ACTIVE_CORPUS: ${ASU_JUNE_BOT_ACTIVE_CORPUS:-default}
+      MEETINGAGENT_BIND_HOST: ${MEETINGAGENT_BIND_HOST:-127.0.0.1}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "${MEETINGAGENT_API_PORT:-8000}:8000"
+      - "${MEETINGAGENT_BIND_HOST:-127.0.0.1}:${MEETINGAGENT_API_PORT:-8000}:8000"
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
@@ -23,6 +23,14 @@ services:
       - ./watched_folder:/app/watched_folder
       - ./config.docker.yaml:/app/config.docker.yaml:ro
     command: ["python", "scripts/asu_june_bot_api.py", "--host", "0.0.0.0", "--port", "8000"]
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
       interval: 30s
@@ -32,7 +40,6 @@ services:
 
   bot:
     image: meetingagent:local
-    container_name: meetingagent-bot
     depends_on:
       - api
     env_file:
@@ -51,6 +58,14 @@ services:
       - ./watched_folder:/app/watched_folder
       - ./config.docker.yaml:/app/config.docker.yaml:ro
     command: ["python", "scripts/asu_june_bot_telegram.py"]
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
     profiles:
       - bot
 
@@ -61,7 +76,6 @@ services:
       args:
         INSTALL_DIARIZATION: "true"
     image: meetingagent:diarization
-    container_name: meetingagent-diarization
     env_file:
       - path: .env
         required: false
@@ -71,9 +85,17 @@ services:
       - ./data:/app/data
       - ./logs:/app/logs
       - ./meetings:/app/meetings
-      - ./models:/app/models
+      - ./models:/app/models:ro
       - ./config.docker.yaml:/app/config.docker.yaml:ro
       - "${MEETINGAGENT_RECORDINGS_DIR:-./watched_folder}:/host/recordings:ro"
     profiles:
       - diarization
     command: ["python", "scripts/23_diarize_meeting.py", "--help"]
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp

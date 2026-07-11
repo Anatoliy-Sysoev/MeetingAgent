@@ -10,7 +10,7 @@
 git clone <repo-url>
 cd MeetingAgent
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 ```
 
 Копируйте `.env.example` в `.env` только для локальных runtime-настроек. `.env` нельзя коммитить.
