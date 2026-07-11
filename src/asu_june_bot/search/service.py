@@ -8,7 +8,7 @@ from asu_june_bot.core.config import load_config, resolve_work_path
 from asu_june_bot.core.corpus import get_corpus_config
 from asu_june_bot.guardrails.project_guard import GuardDecision, ProjectGuard
 from asu_june_bot.retrieval.chunks import read_jsonl
-from asu_june_bot.retrieval.context_builder import ContextBuilder
+from asu_june_bot.retrieval.context_builder import BuiltContext, ContextBuilder
 from asu_june_bot.retrieval.hybrid import build_hybrid_retriever
 from asu_june_bot.retrieval.models import SearchResult
 from asu_june_bot.retrieval.post_rerank import PostReranker
@@ -544,39 +544,52 @@ class SearchService:
     def _promote_ad_cc_role_mapping_sources(self, query: str, context):
         if not self._is_ad_cc_role_mapping_query(query):
             return context
-        primary = list(context.primary_sources)
-        supporting = list(context.supporting_sources)
+
+        primary: list[SearchResult] = []
         promoted: list[SearchResult] = []
         remaining_supporting: list[SearchResult] = []
-        primary_keys = {self._result_key(source) for source in primary}
+        seen_keys: set[str] = set()
 
-        for source in supporting:
-            if self._is_soi_ad_source(source) and self._is_ad_cc_role_mapping_source(source) and self._result_key(source) not in primary_keys:
-                promoted.append(source)
-                primary_keys.add(self._result_key(source))
-            else:
-                remaining_supporting.append(source)
+        for source in context.primary_sources:
+            key = self._result_key(source)
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            primary.append(source)
 
-        for source in primary:
+        for source in context.supporting_sources:
+            key = self._result_key(source)
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
             if self._is_soi_ad_source(source) and self._is_ad_cc_role_mapping_source(source):
-                if self._result_key(source) not in primary_keys:
-                    promoted.append(source)
+                promoted.append(source)
             else:
                 remaining_supporting.append(source)
 
-        if not promoted:
+        changed = (
+            len(primary) != len(context.primary_sources)
+            or len(remaining_supporting) + len(promoted)
+            != len(context.supporting_sources)
+            or bool(promoted)
+        )
+        if not changed:
             return context
 
-        new_primary = promoted + [source for source in primary if self._result_key(source) not in {self._result_key(item) for item in promoted}]
         diagnostics = dict(context.diagnostics)
-        diagnostics["ad_cc_role_mapping_promotion"] = {
-            "applied": True,
-            "promoted": len(promoted),
-            "chunk_ids": [self._result_key(source) for source in promoted],
-        }
-        from asu_june_bot.retrieval.context_builder import BuiltContext
+        if promoted:
+            diagnostics["ad_cc_role_mapping_promotion"] = {
+                "applied": True,
+                "promoted": len(promoted),
+                "chunk_ids": [self._result_key(source) for source in promoted],
+            }
 
-        return BuiltContext(primary_sources=new_primary, supporting_sources=remaining_supporting, excluded_sources=context.excluded_sources, diagnostics=diagnostics)
+        return BuiltContext(
+            primary_sources=promoted + primary,
+            supporting_sources=remaining_supporting,
+            excluded_sources=context.excluded_sources,
+            diagnostics=diagnostics,
+        )
 
     @staticmethod
     def _with_diagnostics(payload: dict[str, Any], diagnostics: SearchDiagnostics, include: bool) -> SearchResponse:
