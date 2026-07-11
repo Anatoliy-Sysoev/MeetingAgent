@@ -4,14 +4,18 @@
 
 ## Now
 
-- MA-MEETING-API-METADATA-REDACTION (#173) is implemented on
-  `codex/173-meeting-api-metadata-redaction`; full verification and PR are the
+- MA-INGEST-LIMITS-ATOMIC-DEDUP (#174) is implemented on
+  `codex/174-ingest-limits-atomic-dedup`; full verification and PR are the
   remaining delivery steps.
-- canonical main state: `de54fb4` / `Run the full test suite in CI (#187)`.
-- next security focus after #173: bounded, race-safe meeting ingest (#174).
+- canonical main state: `43a5511` / `Harden public meeting metadata responses (#188)`.
+- next audit focus after #174: PKB source promotion deduplication (#175).
 
 ## Done latest
 
+- MA-INGEST-LIMITS-ATOMIC-DEDUP (#174): API uploads are bounded by validated
+  `meetings.max_upload_bytes`, partial temp files are removed on every exit,
+  metadata/errors are bounded and path-free, and SHA dedup + card creation are
+  serialized across threads/processes by a service-level transaction lock.
 - MA-MEETING-API-METADATA-REDACTION (#173): meeting list/detail, artifact and
   media metadata use explicit path-safe DTOs and stable IDs/API URLs; malformed
   cards return bounded machine codes; raw card/storage diagnostics require an

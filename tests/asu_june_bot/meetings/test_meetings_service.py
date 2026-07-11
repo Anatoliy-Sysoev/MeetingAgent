@@ -13,10 +13,12 @@ if str(SRC) not in sys.path:
 
 from asu_june_bot.meetings.service import (  # noqa: E402
     DEFAULT_MAX_TEXT_ARTIFACT_BYTES,
+    DEFAULT_MAX_UPLOAD_BYTES,
     ArtifactTooLargeError,
     MeetingCardError,
     MeetingsService,
     parse_max_text_artifact_bytes,
+    parse_max_upload_bytes,
 )
 
 
@@ -344,6 +346,21 @@ def test_parse_limit_rejects_non_mapping_meetings() -> None:
         parse_max_text_artifact_bytes({"meetings": ["not", "a", "map"]})
 
 
+def test_parse_upload_limit_absent_returns_default() -> None:
+    assert parse_max_upload_bytes({}) == DEFAULT_MAX_UPLOAD_BYTES
+    assert parse_max_upload_bytes(None) == 2 * 1024 * 1024 * 1024
+
+
+def test_parse_upload_limit_valid_positive_int() -> None:
+    assert parse_max_upload_bytes({"meetings": {"max_upload_bytes": 4096}}) == 4096
+
+
+@pytest.mark.parametrize("value", [True, False, 0, -1, 1.5, "4096"])
+def test_parse_upload_limit_rejects_invalid_values(value) -> None:
+    with pytest.raises(ValueError):
+        parse_max_upload_bytes({"meetings": {"max_upload_bytes": value}})
+
+
 def test_build_app_state_passes_limit_into_service(monkeypatch) -> None:
     import asu_june_bot.api.dependencies as deps
 
@@ -355,12 +372,21 @@ def test_build_app_state_passes_limit_into_service(monkeypatch) -> None:
         return real_service(*args, **kwargs)
 
     monkeypatch.setattr(
-        deps, "load_config", lambda: {"meetings": {"max_text_artifact_bytes": 2048}}
+        deps,
+        "load_config",
+        lambda: {
+            "meetings": {
+                "max_text_artifact_bytes": 2048,
+                "max_upload_bytes": 8192,
+            }
+        },
     )
     monkeypatch.setattr(deps, "MeetingsService", spy)
     state = deps.build_app_state()
     assert captured.get("max_text_artifact_bytes") == 2048
+    assert captured.get("max_upload_bytes") == 8192
     assert state.meetings_service.max_text_artifact_bytes == 2048
+    assert state.meetings_service.max_upload_bytes == 8192
 
 
 # ------------------------------------------------------------------
@@ -579,6 +605,19 @@ def test_max_text_artifact_bytes_property_is_read_only(tmp_path: Path) -> None:
     assert svc.max_text_artifact_bytes == 1024
     with pytest.raises(AttributeError):
         svc.max_text_artifact_bytes = 99  # type: ignore[misc]
+
+
+@pytest.mark.parametrize("value", [True, False, 0, -1, 1.5, "1048576"])
+def test_constructor_rejects_invalid_max_upload_bytes(tmp_path: Path, value) -> None:
+    with pytest.raises(ValueError):
+        MeetingsService(tmp_path, max_upload_bytes=value)  # type: ignore[arg-type]
+
+
+def test_max_upload_bytes_property_is_read_only(tmp_path: Path) -> None:
+    svc = MeetingsService(tmp_path, max_upload_bytes=1024)
+    assert svc.max_upload_bytes == 1024
+    with pytest.raises(AttributeError):
+        svc.max_upload_bytes = 99  # type: ignore[misc]
 
 
 # ------------------------------------------------------------------

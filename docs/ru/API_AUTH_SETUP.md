@@ -160,6 +160,12 @@ metadata представлены ограниченными машинными 
 |---|---|---|---|---|
 | POST | `/meetings/ingest` | meetings.upload | **Да** (cookie) | Multipart-загрузка. 201 или 409 при дубликате. |
 
+Размер media ограничен `meetings.max_upload_bytes` (по умолчанию 2 ГиБ).
+При превышении endpoint возвращает `413 upload_too_large` и удаляет partial
+temporary data. SHA deduplication и создание карточки выполняются в одной
+thread/process-safe транзакции: два одинаковых параллельных upload дают один
+`201` и детерминированный `409` для дубликата.
+
 ### Job Pipeline
 
 | Метод | Путь | Право | CSRF | Примечания |
@@ -524,6 +530,7 @@ auth:
     trusted_proxy_cidrs: []
 
 meetings:
+  max_upload_bytes: 2147483648            # 2 ГиБ
   max_text_artifact_bytes: 10485760      # 10 МиБ
 ```
 
@@ -539,6 +546,20 @@ meetings:
 ## HTTPS и Reverse Proxy
 
 API не терминирует TLS. Для продакшена запускайте за reverse proxy (nginx, Caddy, Traefik).
+
+Установите лимит request body на reverse proxy равным
+`meetings.max_upload_bytes` или меньше. Тогда oversized multipart body будет
+отклонён до application parser. Для nginx и стандартного лимита 2 ГиБ:
+
+```nginx
+location / {
+    client_max_body_size 2048m;
+    proxy_pass http://127.0.0.1:8000;
+}
+```
+
+Для Caddy/Traefik настройте эквивалентный request-body limit. Application limit
+остаётся обязательной второй границей и защищает прямой локальный доступ.
 
 При работе за прокси, который добавляет `X-Forwarded-For`, настройте `trusted_proxy_cidrs`, чтобы API корректно определял реальный IP клиента для throttling:
 

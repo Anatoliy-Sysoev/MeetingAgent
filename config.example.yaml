@@ -220,6 +220,9 @@ auth:
 
 # Read-only Meeting API limits.
 meetings:
+  # Maximum uploaded media size in bytes. The API rejects larger files with
+  # 413 and deletes partial temporary data. Default: 2 GiB.
+  max_upload_bytes: 2147483648
   # Maximum size (in bytes, not characters) of a transcript or text artifact
   # the API will read into memory. Files above this limit are rejected before
   # any decode/JSON parse and the endpoint returns 413 Payload Too Large.

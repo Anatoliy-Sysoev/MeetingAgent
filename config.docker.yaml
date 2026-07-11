@@ -24,3 +24,7 @@ transcription:
   device: cpu
   beam_size: 5
   vad_filter: true
+
+meetings:
+  max_upload_bytes: 2147483648
+  max_text_artifact_bytes: 10485760

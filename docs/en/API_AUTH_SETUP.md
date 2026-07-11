@@ -160,6 +160,12 @@ Text artifact size limit: **10 MiB** (configurable via `meetings.max_text_artifa
 |---|---|---|---|---|
 | POST | `/meetings/ingest` | meetings.upload | **Yes** (cookie) | Multipart upload. 201 or 409 on sha256 dedup. |
 
+Uploaded media is limited by `meetings.max_upload_bytes` (default: 2 GiB).
+The endpoint returns `413 upload_too_large` and removes partial temporary data
+when the file exceeds the limit. SHA deduplication and card creation run in one
+thread/process-safe transaction, so concurrent identical uploads produce one
+`201` and deterministic `409` duplicates.
+
 ### Job Pipeline
 
 | Method | Path | Permission | CSRF | Notes |
@@ -523,6 +529,7 @@ auth:
     trusted_proxy_cidrs: []
 
 meetings:
+  max_upload_bytes: 2147483648            # 2 GiB
   max_text_artifact_bytes: 10485760      # 10 MiB
 ```
 
@@ -538,6 +545,20 @@ Bootstrap environment variables (override config.yaml):
 ## HTTPS and Reverse Proxy
 
 The API does not terminate TLS. Run behind a reverse proxy (nginx, Caddy, Traefik) for production.
+
+Set the reverse proxy request-body limit to the same value or lower than
+`meetings.max_upload_bytes`. This rejects oversized multipart bodies before
+they reach the application parser. For nginx with the default 2 GiB limit:
+
+```nginx
+location / {
+    client_max_body_size 2048m;
+    proxy_pass http://127.0.0.1:8000;
+}
+```
+
+Apply the equivalent request-body limit in Caddy/Traefik. The application limit
+remains mandatory as a second boundary and also covers direct local access.
 
 When behind a proxy that sets `X-Forwarded-For`, configure `trusted_proxy_cidrs` so the API resolves the real client IP for login throttling:
 
