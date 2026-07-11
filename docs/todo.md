@@ -72,7 +72,8 @@
   stable artifact/media URLs, bounded machine errors and admin-only raw-card diagnostics.
 - [x] MA-INGEST-LIMITS-ATOMIC-DEDUP (#174): validated 2 GiB default upload
   limit, full temp cleanup, bounded metadata/errors and thread/process-safe SHA dedup.
-- [ ] PKB-SEARCH-SOURCE-PROMOTION-DEDUP (#175): remove primary/supporting duplication.
+- [x] PKB-SEARCH-SOURCE-PROMOTION-DEDUP (#175): deterministic first-wins source
+  identity, no cross-bucket duplicates and diagnostics limited to actual promotions.
 - [ ] MA-JOB-DURABILITY-RECOVERY (#176): persistent jobs and orphan recovery.
 - [ ] MA-DEPENDENCY-LOCK-AND-AUDIT (#177): reproducible runtime dependencies and advisory gate.
 - [ ] PKB-RETRIEVAL-CHARACTERIZATION (#178): characterize and decompose ranking rules.

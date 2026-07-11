@@ -4,14 +4,18 @@
 
 ## Now
 
-- MA-INGEST-LIMITS-ATOMIC-DEDUP (#174) is implemented on
-  `codex/174-ingest-limits-atomic-dedup`; full verification and PR are the
+- PKB-SEARCH-SOURCE-PROMOTION-DEDUP (#175) is implemented on
+  `codex/175-pkb-source-promotion-dedup`; full verification and PR are the
   remaining delivery steps.
-- canonical main state: `43a5511` / `Harden public meeting metadata responses (#188)`.
-- next audit focus after #174: PKB source promotion deduplication (#175).
+- canonical main state: `855e397` / `Bound meeting uploads and serialize deduplication (#189)`.
+- next audit focus after #175: durable job persistence and orphan recovery (#176).
 
 ## Done latest
 
+- PKB-SEARCH-SOURCE-PROMOTION-DEDUP (#175): AD role-mapping source promotion
+  now keeps every source key in exactly one primary/supporting bucket, preserves
+  stable first-wins order and reports only sources actually promoted from
+  supporting to primary.
 - MA-INGEST-LIMITS-ATOMIC-DEDUP (#174): API uploads are bounded by validated
   `meetings.max_upload_bytes`, partial temp files are removed on every exit,
   metadata/errors are bounded and path-free, and SHA dedup + card creation are
