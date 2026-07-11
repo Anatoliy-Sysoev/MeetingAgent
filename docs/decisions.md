@@ -320,3 +320,28 @@
   отсутствие pytest и writable runtime directories на реально собранном image;
 - self-hosted mode дополнительно использует существующий startup safety
   validator для token strength, Host allowlist и auth/proxy policy.
+
+## 2026-07-11 - Один Full Verification Runner Для Local И CI
+
+Решение: `scripts/46_ci_verify.py` является canonical командой проверки и
+локально, и в GitHub Actions. Она выполняет `git diff --check`, compileall для
+всего Python-кода и полный `pytest -q` без ограничения одним подпроектом.
+
+Почему:
+
+- прежний PR workflow запускал только `tests/asu_june_bot`, поэтому unit/e2e и
+  live/transcription regressions могли пройти с зелёным CI;
+- обычный `git diff --check` в clean CI checkout ничего не проверяет, если не
+  указать base/head диапазон;
+- разные local и CI команды создают дрейф и ложное ощущение воспроизводимости.
+
+Следствия:
+
+- Actions передаёт runner точные base/head SHA, локально runner проверяет и
+  working tree, и staged index;
+- PR workflow имеет только `contents: read`, fetch-depth 0, pip cache,
+  20-minute timeout и отменяет устаревший run той же ветки;
+- push CI запускается только для `main`, поэтому PR не получает второй
+  дублирующий run от branch push;
+- hardware/model/private-runtime tests могут skip только с явной причиной;
+  runtime corpus/model services не требуются для deterministic CI.

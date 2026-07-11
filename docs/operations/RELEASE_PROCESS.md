@@ -73,8 +73,7 @@ Only include sections that have content. The validator currently requires `Added
 5. Run full tests locally:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest -q
-git diff --check
+.\.venv\Scripts\python.exe scripts\46_ci_verify.py
 ```
 
 6. Confirm `git status --short` does not contain private/runtime files:

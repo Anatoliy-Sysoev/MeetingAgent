@@ -67,7 +67,7 @@
 - [x] MA-BOOTSTRAP-HOST-VALIDATION (#169, PR #184): strict Host allowlist and DNS-rebinding-safe local bootstrap — afd4ede.
 - [x] MA-HEALTH-RESPONSE-HARDENING (#170): minimal public liveness, admin-only detailed diagnostics, bounded Telegram rendering and redacted dependency errors.
 - [x] MA-CONTAINER-DEPLOYMENT-HARDENING (#171): allowlisted build context, non-root/read-only runtime, localhost publish, self-hosted opt-in and real container smoke.
-- [ ] MA-CI-FULL-TEST-MATRIX (#172): run unit/API/e2e suites for every PR.
+- [x] MA-CI-FULL-TEST-MATRIX (#172): canonical local/CI verifier runs whitespace, compileall and the full pytest suite with minimal workflow permissions and pip cache.
 - [ ] MA-MEETING-API-METADATA-REDACTION (#173): path-safe meeting DTOs and errors.
 - [ ] MA-INGEST-LIMITS-ATOMIC-DEDUP (#174): bounded uploads and race-safe dedup.
 - [ ] PKB-SEARCH-SOURCE-PROMOTION-DEDUP (#175): remove primary/supporting duplication.
