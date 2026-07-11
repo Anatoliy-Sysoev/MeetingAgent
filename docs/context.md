@@ -4,13 +4,14 @@
 
 ## Now
 
-- MA-HEALTH-RESPONSE-HARDENING (#170) is implemented on `codex/170-health-response-hardening` and ready for PR.
-- canonical main state: `afd4ede` / `Enforce trusted Host policy (#184)`.
-- next security focus: merge public health/diagnostics split, then harden containers (#171).
+- MA-CONTAINER-DEPLOYMENT-HARDENING (#171) is implemented on `codex/171-container-deployment-hardening` and ready for PR.
+- canonical main state: `a97d11e` / `Harden public health responses (#185)`.
+- next security focus: merge container hardening, then expand the CI matrix (#172).
 
 ## Done latest
 
-- MA-HEALTH-RESPONSE-HARDENING (#170): public `/health` is dependency-free and path-free; detailed corpus/index/Ollama diagnostics require an admin browser session; Telegram consumes only the bounded liveness contract.
+- MA-CONTAINER-DEPLOYMENT-HARDENING (#171): deny-by-default Docker context, explicit runtime COPY allowlist, non-root UID 10001, read-only/capability-free Compose services, localhost-only publish and fail-closed self-hosted opt-in; real image and Compose smoke passed.
+- MA-HEALTH-RESPONSE-HARDENING (#170, PR #185): public `/health` is dependency-free and path-free; detailed corpus/index/Ollama diagnostics require an admin browser session; Telegram consumes only the bounded liveness contract.
 - MA-TELEGRAM-AUTH-HARDENING (#168, PR #183): Telegram uses machine Bearer auth, fail-closed chat allowlist and redacted health/error messages.
 - MA-BOOTSTRAP-HOST-VALIDATION (#169, PR #184): strict HTTP/WebSocket Host allowlist, robust hostname/port/IPv6 parser, DNS-rebinding-safe local bootstrap and self-hosted fail-fast policy.
 - SEC-P0-PUBLIC-TREE-CLEANUP (#166, PR #182): current public HEAD is cleaned, private corpus uses ignored local overlay, and privacy regression tests are active; history remediation remains #167.
@@ -132,7 +133,7 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- MA-CONTAINER-DEPLOYMENT-HARDENING (#171): safe image context, non-root runtime and localhost publish default.
+- MA-CI-FULL-TEST-MATRIX (#172): run unit/API/e2e suites for every PR.
 - SEC-P0-GIT-HISTORY-PURGE (#167): backup, verify and coordinate the force rewrite; do not execute implicitly.
 
 ## Open decisions / blockers

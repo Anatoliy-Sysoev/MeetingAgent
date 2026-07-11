@@ -2,6 +2,12 @@
 
 Docker-упаковка предназначена для локального API, meeting search/indexing runtime, Telegram adapter и optional meeting diarization/transcription runtime. GigaAM в основной image не включен: его зависимости остаются отдельным runtime до стабилизации Windows/Python/ONNX.
 
+Default deployment является local-only: Compose публикует API только на
+127.0.0.1. Image работает как UID/GID 10001:10001, с read-only rootfs,
+no-new-privileges и без Linux capabilities. Docker build context использует
+deny-by-default allowlist и не отправляет .env, runtime data, meetings или
+machine-local config overlays Docker daemon.
+
 ## Сервисы
 
 ```text
@@ -76,9 +82,40 @@ Invoke-RestMethod http://localhost:8000/health
 
 UI:
 
-```text
+~~~text
+http://localhost:8000/MeetingAgent
 http://localhost:8000/ui
-```
+~~~
+
+### Local-only profile (default)
+
+Оставьте в .env:
+
+~~~text
+MEETINGAGENT_BIND_HOST=127.0.0.1
+MEETINGAGENT_DEPLOYMENT_MODE=local
+~~~
+
+Порт не доступен с других машин в LAN.
+
+### HTTPS reverse-proxy / self-hosted profile
+
+Сначала настройте TLS reverse proxy, затем явно задайте:
+
+~~~text
+MEETINGAGENT_BIND_HOST=0.0.0.0
+MEETINGAGENT_DEPLOYMENT_MODE=self_hosted
+MEETINGAGENT_ALLOWED_HOSTS=meeting.example.internal
+MEETINGAGENT_API_TOKEN=<random value generated with secrets.token_urlsafe(48)>
+MEETINGAGENT_TRUSTED_PROXY_CIDRS=<CIDR of the reverse proxy>
+~~~
+
+Non-loopback bind без self_hosted отклоняется container entrypoint. В режиме
+self_hosted приложение дополнительно прекращает запуск при слабом/missing
+machine token, отсутствии Host allowlist и небезопасных auth-настройках. Не
+публикуйте 8000 напрямую в интернет; внешний доступ должен идти через HTTPS
+reverse proxy. Remote bootstrap включайте только временно с отдельным сильным
+MEETINGAGENT_BOOTSTRAP_SECRET, затем отключайте.
 
 ## Запуск Telegram adapter
 
@@ -90,13 +127,21 @@ docker compose --profile bot up bot
 
 Runtime outputs не входят в image и монтируются с хоста:
 
-```text
+~~~text
 ./data:/app/data
 ./logs:/app/logs
 ./meetings:/app/meetings
 ./vector_db:/app/vector_db
 ./watched_folder:/app/watched_folder
-```
+~~~
+
+На Linux host эти каталоги должны быть writable для UID/GID 10001:10001:
+
+~~~bash
+sudo chown -R 10001:10001 data logs meetings vector_db watched_folder
+~~~
+
+Docker Desktop на Windows обрабатывает права bind mounts через file sharing.
 
 ## Конфигурация
 
@@ -185,4 +230,23 @@ docker compose --profile diarization run --rm diarization `
   --force
 ```
 
-`diarization` назначает анонимные `SPEAKER_XX`; реальные имена добавляются только будущим ручным speaker mapping слоем.
+diarization назначает анонимные SPEAKER_XX; реальные имена/роли задаются в
+реализованной Speaker mapping панели Workspace.
+
+## Runtime и dev dependencies
+
+- requirements.txt — только production runtime; именно он ставится в image.
+- requirements-dev.txt — runtime + pytest/ruff для разработки и CI.
+- requirements-diarization.txt — optional image/profile для diarization.
+
+## Container security smoke
+
+При запущенном Docker Desktop:
+
+~~~powershell
+.\.venv\Scripts\python.exe scripts\43_container_smoke.py
+~~~
+
+Smoke временно создаёт sentinel вне allowlist, собирает image и проверяет:
+non-root UID, отсутствие sentinel и pytest внутри image, а также writable
+runtime directories. Sentinel и временный image удаляются в finally.

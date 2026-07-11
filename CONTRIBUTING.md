@@ -10,7 +10,7 @@ Thank you for contributing to MeetingAgent. This project is an early local-first
 git clone <repo-url>
 cd MeetingAgent
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 ```
 
 Copy `.env.example` to `.env` only for local runtime settings. Do not commit `.env`.

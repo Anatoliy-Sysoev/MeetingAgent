@@ -1,0 +1,5 @@
+# Developer and test environment. Runtime containers install requirements.txt only.
+-r requirements.txt
+
+pytest
+ruff
