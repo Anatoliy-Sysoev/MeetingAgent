@@ -374,3 +374,30 @@ API URL, а не storage paths. Raw `meeting.json` и абсолютный пу�
   `users.manage` и не доступны machine Bearer principal;
 - внутренний pipeline может продолжать читать raw card через service layer,
   но API route не должен возвращать её напрямую.
+
+## 2026-07-11 - Meeting Ingest Ограничен И Транзакционно Дедуплицирован
+
+Решение: HTTP ingest ограничен `meetings.max_upload_bytes` (default 2 ГиБ),
+проверяет размер до копирования и на каждом chunk, а операция `find SHA ->
+allocate meeting_id -> create card` выполняется под одним thread/process-safe
+advisory lock для `meetings_root`.
+
+Почему:
+
+- unbounded upload может заполнить системный диск временными файлами;
+- check-then-create без lock позволяет двум workers создать две карточки для
+  одного SHA-256;
+- raw `OSError`/schema messages могут раскрывать temp/storage paths;
+- FastAPI multipart parser не заменяет внешний request-body limit.
+
+Следствия:
+
+- oversize возвращает `413 upload_too_large`, partial temp удаляется при
+  oversize, I/O failure, cancellation и после успешного create/duplicate;
+- concurrent identical uploads детерминированно дают один `201` и `409` для
+  остальных запросов;
+- filename ограничен 255 символами, title 500 символами; public errors не
+  включают исходный exception text;
+- self-hosted reverse proxy должен иметь body limit не выше application limit,
+  чтобы отбрасывать oversized multipart до parser/spool;
+- lock file остаётся служебным runtime metadata и не коммитится.

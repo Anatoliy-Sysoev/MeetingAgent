@@ -70,7 +70,8 @@
 - [x] MA-CI-FULL-TEST-MATRIX (#172): canonical local/CI verifier runs whitespace, compileall and the full pytest suite with minimal workflow permissions and pip cache.
 - [x] MA-MEETING-API-METADATA-REDACTION (#173): explicit path-safe meeting DTOs,
   stable artifact/media URLs, bounded machine errors and admin-only raw-card diagnostics.
-- [ ] MA-INGEST-LIMITS-ATOMIC-DEDUP (#174): bounded uploads and race-safe dedup.
+- [x] MA-INGEST-LIMITS-ATOMIC-DEDUP (#174): validated 2 GiB default upload
+  limit, full temp cleanup, bounded metadata/errors and thread/process-safe SHA dedup.
 - [ ] PKB-SEARCH-SOURCE-PROMOTION-DEDUP (#175): remove primary/supporting duplication.
 - [ ] MA-JOB-DURABILITY-RECOVERY (#176): persistent jobs and orphan recovery.
 - [ ] MA-DEPENDENCY-LOCK-AND-AUDIT (#177): reproducible runtime dependencies and advisory gate.

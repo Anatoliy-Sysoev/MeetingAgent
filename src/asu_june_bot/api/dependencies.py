@@ -24,7 +24,11 @@ from asu_june_bot.health import HealthService
 from asu_june_bot.jobs.runner import JobRunner
 from asu_june_bot.llm.ollama_openai import OllamaOpenAIClient
 from asu_june_bot.meetings.qa import MeetingQAService
-from asu_june_bot.meetings.service import MeetingsService, parse_max_text_artifact_bytes
+from asu_june_bot.meetings.service import (
+    MeetingsService,
+    parse_max_text_artifact_bytes,
+    parse_max_upload_bytes,
+)
 from asu_june_bot.observability import ChatRunsLogger
 from asu_june_bot.observability.review_queue import ReviewQueue
 from asu_june_bot.search import SearchService
@@ -72,6 +76,7 @@ def build_app_state(config: dict[str, Any] | None = None) -> AppState:
     chat_model = str(ollama_cfg.get("chat_model") or "qwen3.5:4b")
     meetings_root = (config.get("paths") or {}).get("meetings_root") or "meetings"
     max_text_artifact_bytes = parse_max_text_artifact_bytes(config)
+    max_upload_bytes = parse_max_upload_bytes(config)
     auth_db_path = Path((config.get("paths") or {}).get("auth_db") or DEFAULT_DB_PATH)
     auth_repository = AuthRepository(auth_db_path)
     auth_repository.initialize()
@@ -85,6 +90,7 @@ def build_app_state(config: dict[str, Any] | None = None) -> AppState:
     meetings_service = MeetingsService(
         meetings_root=meetings_root,
         max_text_artifact_bytes=max_text_artifact_bytes,
+        max_upload_bytes=max_upload_bytes,
     )
     _runs_path = Path("data/asu_june_bot/chat_runs.jsonl")
     _labels_path = Path("data/asu_june_bot/chat_run_labels.jsonl")

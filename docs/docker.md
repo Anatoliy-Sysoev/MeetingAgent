@@ -117,6 +117,12 @@ machine token, отсутствии Host allowlist и небезопасных a
 reverse proxy. Remote bootstrap включайте только временно с отдельным сильным
 MEETINGAGENT_BOOTSTRAP_SECRET, затем отключайте.
 
+Для upload через `/meetings/ingest` задайте на reverse proxy request-body limit
+не выше `meetings.max_upload_bytes` из `config.docker.yaml` (по умолчанию
+2 ГиБ). Например, для nginx: `client_max_body_size 2048m;`. Proxy limit
+отбрасывает oversized body до multipart parser; API повторно проверяет точный
+размер media и удаляет partial temporary file при ошибке.
+
 ## Запуск Telegram adapter
 
 ```powershell
