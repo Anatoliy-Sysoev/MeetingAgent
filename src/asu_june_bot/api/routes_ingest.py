@@ -119,14 +119,14 @@ def ingest_meeting(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-        source_path = card["source"]["media_files"][0]["path"]
         return JSONResponse(
             status_code=201,
             content={
                 "meeting_id": meeting_id,
                 "title": card["title"],
                 "date": card["date"],
-                "source_path": source_path,
+                "media_id": "0",
+                "media_url": f"/meetings/{meeting_id}/media/0",
                 "sha256": sha256_hex,
             },
         )

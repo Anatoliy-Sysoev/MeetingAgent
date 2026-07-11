@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import math
 import os
 import re
 import shutil
@@ -9,6 +10,7 @@ import tempfile
 from pathlib import Path
 from collections.abc import Mapping
 from typing import Any
+from urllib.parse import quote
 
 import jsonschema
 
@@ -44,12 +46,20 @@ _SCHEMA_PATH = Path(__file__).resolve().parents[3] / "configs" / "schemas" / "me
 # Default upper bound on text transcript/artifact reads (bytes, not characters).
 DEFAULT_MAX_TEXT_ARTIFACT_BYTES = 10 * 1024 * 1024  # 10 MiB
 _SPEAKER_LABEL_RE = re.compile(r"^SPEAKER_(?:UNKNOWN|\d{1,4})$")
+_MEETING_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,159}$")
+_ARTIFACT_KEY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$")
+_PUBLIC_TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$")
 _SPEAKER_NAME_MAX_CHARS = 120
 _SPEAKER_ROLE_MAX_CHARS = 120
 
 
 class MeetingCardError(ValueError):
-    """Raised when meeting.json cannot be parsed or has wrong root type."""
+    """Internal card failure with a stable public code and private detail."""
+
+    def __init__(self, code: str, internal_detail: str) -> None:
+        self.code = _public_token(code, fallback="meeting_card_invalid")
+        self.internal_detail = internal_detail
+        super().__init__(internal_detail)
 
 
 class ArtifactTooLargeError(ValueError):
@@ -102,16 +112,7 @@ def parse_max_text_artifact_bytes(config: dict[str, Any] | None) -> int:
 
 
 def _safe_meeting_id(meeting_id: str) -> bool:
-    if not meeting_id:
-        return False
-    p = Path(meeting_id)
-    if p.is_absolute():
-        return False
-    if ".." in p.parts:
-        return False
-    if "/" in meeting_id or "\\" in meeting_id:
-        return False
-    return True
+    return bool(meeting_id and _MEETING_ID_RE.fullmatch(meeting_id))
 
 
 def _slugify(value: str) -> str:
@@ -131,39 +132,74 @@ def _read_meeting_json(card_path: Path) -> dict[str, Any]:
         with card_path.open("r", encoding="utf-8") as fh:
             data = json.load(fh)
     except json.JSONDecodeError as exc:
-        raise MeetingCardError(f"JSON parse error in {card_path.name}: {exc}") from exc
+        raise MeetingCardError("meeting_card_invalid_json", str(exc)) from exc
+    except (OSError, UnicodeError) as exc:
+        raise MeetingCardError("meeting_card_unreadable", str(exc)) from exc
     if not isinstance(data, dict):
-        raise MeetingCardError(f"meeting.json root must be an object, got {type(data).__name__}")
+        raise MeetingCardError(
+            "meeting_card_invalid_root",
+            f"meeting.json root must be an object, got {type(data).__name__}",
+        )
     return data
 
 
 def _safe_artifact_name(name: str) -> bool:
-    if not name:
-        return False
-    p = Path(name)
-    if p.is_absolute():
-        return False
-    if ".." in p.parts:
-        return False
-    if "/" in name or "\\" in name:
-        return False
-    return True
+    return bool(name and _ARTIFACT_KEY_RE.fullmatch(name))
 
 
-def _artifact_entry(meeting_dir: Path, key: str, rel_path: str) -> dict[str, Any]:
+def _safe_child_path(meeting_dir: Path, value: Any) -> Path | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    normalized = value.replace("\\", "/")
+    rel_path = Path(normalized)
+    if rel_path.is_absolute() or ".." in rel_path.parts:
+        return None
+    if re.match(r"^[A-Za-z]:", normalized):
+        return None
     abs_path = (meeting_dir / rel_path).resolve()
     try:
         abs_path.relative_to(meeting_dir.resolve())
     except ValueError:
-        return {"key": key, "path": rel_path, "exists": False, "error": "path_traversal"}
-    exists = abs_path.exists() and abs_path.is_file()
-    entry: dict[str, Any] = {"key": key, "path": rel_path, "exists": exists}
-    if exists:
-        stat = abs_path.stat()
+        return None
+    return abs_path
+
+
+def _artifact_entry(
+    meeting_id: str,
+    meeting_dir: Path,
+    key: str,
+    rel_path: Any,
+) -> dict[str, Any]:
+    entry: dict[str, Any] = {
+        "artifact_id": key,
+        "key": key,
+        "exists": False,
+        "content_type": None,
+        "size_bytes": None,
+        "modified_at": None,
+        "view_url": None,
+        "error": None,
+    }
+    abs_path = _safe_child_path(meeting_dir, rel_path)
+    if abs_path is None:
+        entry["error"] = "invalid_artifact_path"
+        return entry
+    entry["content_type"] = _detect_content_type(abs_path) or "binary"
+    try:
+        exists = abs_path.exists() and abs_path.is_file()
+        entry["exists"] = exists
+        stat = abs_path.stat() if exists else None
+    except OSError:
+        entry["error"] = "artifact_metadata_unreadable"
+        return entry
+    if stat is not None:
         entry["size_bytes"] = stat.st_size
         entry["modified_at"] = datetime.datetime.fromtimestamp(
             stat.st_mtime, tz=datetime.timezone.utc
         ).isoformat()
+        encoded_meeting = quote(meeting_id, safe="")
+        encoded_key = quote(key, safe="")
+        entry["view_url"] = f"/meetings/{encoded_meeting}/artifacts/{encoded_key}"
     return entry
 
 
@@ -179,9 +215,10 @@ def _coerce_float(value: Any) -> float | None:
     if value is None:
         return None
     try:
-        return float(value)
+        result = float(value)
     except (TypeError, ValueError):
         return None
+    return result if math.isfinite(result) else None
 
 
 def _artifact_map(card: Mapping[str, Any]) -> dict[str, Any]:
@@ -274,27 +311,239 @@ def _detect_content_type(path: Path) -> str | None:
     return "text"
 
 
-def _summary(data: dict[str, Any]) -> dict[str, Any]:
-    artifacts = _artifact_map(data)
-    media_files = _media_files(data)
-    result: dict[str, Any] = {
-        "meeting_id": data.get("meeting_id"),
-        "title": data.get("title"),
-        "date": data.get("date"),
-        "processing_status": data.get("processing_status"),
-        "created_at": data.get("created_at"),
-        "updated_at": data.get("updated_at"),
-        "artifacts_count": len([v for v in artifacts.values() if v]),
-        "artifact_keys": list(artifacts.keys()),
+def _media_entries(
+    meeting_id: str,
+    meeting_dir: Path,
+    data: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    encoded_meeting = quote(meeting_id, safe="")
+    for index, media_file in enumerate(_media_files(data)):
+        abs_path = _safe_child_path(meeting_dir, media_file.get("path"))
+        if abs_path is None:
+            continue
+        try:
+            if not abs_path.exists() or not abs_path.is_file():
+                continue
+            stat = abs_path.stat()
+        except OSError:
+            continue
+        mime = _MEDIA_MIME_TYPES.get(abs_path.suffix.lower())
+        if mime is None:
+            continue
+        duration = _coerce_float(media_file.get("duration_seconds"))
+        if duration is not None and duration < 0:
+            duration = None
+        sha256 = _bounded_text(media_file.get("sha256"), 64)
+        if sha256 is not None and not re.fullmatch(r"[a-fA-F0-9]{64}", sha256):
+            sha256 = None
+        media_id = str(index)
+        result.append(
+            {
+                "media_id": media_id,
+                "filename": abs_path.name[:255],
+                "media_type": mime,
+                "size_bytes": stat.st_size,
+                "sha256": sha256,
+                "duration_sec": duration,
+                "view_url": f"/meetings/{encoded_meeting}/media/{media_id}",
+            }
+        )
+    return result
+
+
+def _bounded_text(value: Any, max_chars: int = 500) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text[:max_chars] if text else None
+
+
+def _public_token(
+    value: Any,
+    *,
+    fallback: str | None = None,
+    max_chars: int = 120,
+) -> str | None:
+    """Return a bounded machine token, never arbitrary card content."""
+    text = _bounded_text(value, max_chars)
+    if text is None or not _PUBLIC_TOKEN_RE.fullmatch(text):
+        return fallback
+    return text
+
+
+def _public_date(value: Any) -> str | None:
+    text = _bounded_text(value, 40)
+    if text is None:
+        return None
+    try:
+        datetime.date.fromisoformat(text)
+    except ValueError:
+        return None
+    return text
+
+
+def _public_time(value: Any) -> str | None:
+    text = _bounded_text(value, 40)
+    if text is None:
+        return None
+    try:
+        datetime.time.fromisoformat(text)
+    except ValueError:
+        return None
+    return text
+
+
+def _public_datetime(value: Any) -> str | None:
+    text = _bounded_text(value, 80)
+    if text is None:
+        return None
+    try:
+        datetime.datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return text
+
+
+def _bounded_string_list(value: Any, *, max_items: int = 200, max_chars: int = 200) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    result: list[str] = []
+    for item in value[:max_items]:
+        text = _bounded_text(item, max_chars)
+        if text is not None:
+            result.append(text)
+    return result
+
+
+def _public_last_error(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, Mapping):
+        return None
+    code = _public_token(value.get("code"), fallback="stage_failed", max_chars=80)
+    stage = _public_token(value.get("stage"), max_chars=80)
+    timestamp = _public_datetime(value.get("timestamp"))
+    return {
+        "stage": stage,
+        "code": code,
+        "timestamp": timestamp,
+        "detail": "Meeting processing stage failed. Use retry or admin diagnostics.",
     }
-    if media_files:
-        result["media_files"] = [
-            {"path": f.get("path"), "media_type": f.get("media_type"), "sha256": f.get("sha256")}
-            for f in media_files
-        ]
-    last_error = data.get("last_error")
-    if last_error:
-        result["last_error"] = last_error
+
+
+def _public_artifact_keys(data: Mapping[str, Any]) -> list[str]:
+    keys: list[str] = []
+    for key in _artifact_map(data):
+        if isinstance(key, str) and _safe_artifact_name(key):
+            keys.append(key[:120])
+    return keys
+
+
+def _summary(
+    data: dict[str, Any],
+    meeting_id: str,
+    media: list[dict[str, Any]],
+) -> dict[str, Any]:
+    artifacts = _artifact_map(data)
+    artifact_keys = _public_artifact_keys(data)
+    encoded_meeting = quote(meeting_id, safe="")
+    result: dict[str, Any] = {
+        "meeting_id": meeting_id,
+        "title": _bounded_text(data.get("title"), 500) or meeting_id,
+        "date": _public_date(data.get("date")),
+        "processing_status": _public_token(
+            data.get("processing_status"), fallback="unknown", max_chars=80
+        ),
+        "created_at": _public_datetime(data.get("created_at")),
+        "updated_at": _public_datetime(data.get("updated_at")),
+        "artifacts_count": len(
+            [key for key in artifact_keys if artifacts.get(key)]
+        ),
+        "artifact_keys": artifact_keys,
+        "media_count": len(media),
+        "workspace_url": f"/meetings/{encoded_meeting}/workspace",
+        "artifacts_url": f"/meetings/{encoded_meeting}/artifacts",
+        "media_url": f"/meetings/{encoded_meeting}/media",
+        "last_error": _public_last_error(data.get("last_error")),
+    }
+    return result
+
+
+def _public_meeting_detail(
+    data: dict[str, Any],
+    meeting_id: str,
+    media: list[dict[str, Any]],
+) -> dict[str, Any]:
+    result = _summary(data, meeting_id, media)
+    source = _source_map(data)
+    classification = data.get("classification")
+    classification = classification if isinstance(classification, Mapping) else {}
+    retention = data.get("retention")
+    retention = retention if isinstance(retention, Mapping) else {}
+    rag = data.get("rag")
+    rag = rag if isinstance(rag, Mapping) else {}
+    indexed_artifacts = rag.get("indexed_artifacts")
+    indexed_count = len(indexed_artifacts) if isinstance(indexed_artifacts, list) else 0
+
+    result.update(
+        {
+            "schema_version": data.get("schema_version")
+            if isinstance(data.get("schema_version"), int)
+            and not isinstance(data.get("schema_version"), bool)
+            else None,
+            "start_time": _public_time(data.get("start_time")),
+            "duration_minutes": data.get("duration_minutes")
+            if isinstance(data.get("duration_minutes"), int)
+            and not isinstance(data.get("duration_minutes"), bool)
+            and data.get("duration_minutes") >= 0
+            else None,
+            "participants": _bounded_string_list(data.get("participants")),
+            "source": {
+                "kind": _public_token(source.get("kind"), max_chars=80),
+                "audio_tracks": [
+                    token
+                    for item in source.get("audio_tracks", [])
+                    if (token := _public_token(item, max_chars=20)) is not None
+                ]
+                if isinstance(source.get("audio_tracks"), list)
+                else [],
+                "derived_tracks": [
+                    token
+                    for item in source.get("derived_tracks", [])
+                    if (token := _public_token(item, max_chars=20)) is not None
+                ]
+                if isinstance(source.get("derived_tracks"), list)
+                else [],
+            },
+            "classification": {
+                "project_stage": _public_token(
+                    classification.get("project_stage"), max_chars=80
+                ),
+                "confidence": _coerce_float(classification.get("confidence")),
+                "needs_review": classification.get("needs_review")
+                if isinstance(classification.get("needs_review"), bool)
+                else None,
+            },
+            "retention": {
+                "policy": _public_token(retention.get("policy"), max_chars=80),
+                "review_after": _public_date(retention.get("review_after")),
+                "media_delete_after_days": retention.get("media_delete_after_days")
+                if isinstance(retention.get("media_delete_after_days"), int)
+                and not isinstance(retention.get("media_delete_after_days"), bool)
+                and retention.get("media_delete_after_days") >= 0
+                else None,
+            },
+            "rag": {
+                "index_policy": _public_token(rag.get("index_policy"), max_chars=120),
+                "indexed": indexed_count > 0,
+                "indexed_artifacts_count": indexed_count,
+                "last_indexed_at": _public_datetime(rag.get("last_indexed_at")),
+            },
+            "media": media,
+        }
+    )
+    confidence = result["classification"]["confidence"]
+    if confidence is not None and not 0 <= confidence <= 1:
+        result["classification"]["confidence"] = None
     return result
 
 
@@ -355,20 +604,50 @@ class MeetingsService:
         items: list[dict[str, Any]] = []
         errors: list[dict[str, Any]] = []
         if not self.root.exists():
-            return {"items": [], "total": 0, "offset": offset, "limit": limit}
+            return {
+                "items": [],
+                "total": 0,
+                "offset": offset,
+                "limit": limit,
+                "errors": [],
+            }
         dirs = sorted(
             (d for d in self.root.iterdir() if d.is_dir()),
             key=lambda d: d.name,
         )
         for meeting_dir in dirs:
+            if not _safe_meeting_id(meeting_dir.name):
+                errors.append(
+                    {
+                        "meeting_id": None,
+                        "code": "meeting_directory_invalid",
+                        "detail": "A meeting directory has an invalid identifier.",
+                    }
+                )
+                continue
             card_path = meeting_dir / "meeting.json"
             if not card_path.exists():
                 continue
             try:
                 data = _read_meeting_json(card_path)
-                items.append(_summary(data))
-            except Exception as exc:
-                errors.append({"meeting_id": meeting_dir.name, "error": str(exc)})
+                media = _media_entries(meeting_dir.name, meeting_dir, data)
+                items.append(_summary(data, meeting_dir.name, media))
+            except MeetingCardError as exc:
+                errors.append(
+                    {
+                        "meeting_id": meeting_dir.name,
+                        "code": exc.code,
+                        "detail": "Meeting card is invalid or unreadable.",
+                    }
+                )
+            except OSError:
+                errors.append(
+                    {
+                        "meeting_id": meeting_dir.name,
+                        "code": "meeting_metadata_unreadable",
+                        "detail": "Meeting metadata could not be read.",
+                    }
+                )
         total = len(items)
         page = items[offset: offset + limit]
         result: dict[str, Any] = {
@@ -377,8 +656,7 @@ class MeetingsService:
             "offset": offset,
             "limit": limit,
         }
-        if errors:
-            result["errors"] = errors
+        result["errors"] = errors
         return result
 
     def get_meeting(self, meeting_id: str) -> dict[str, Any] | None:
@@ -388,6 +666,36 @@ class MeetingsService:
         if not card.exists():
             return None
         return _read_meeting_json(card)
+
+    def get_public_meeting(self, meeting_id: str) -> dict[str, Any] | None:
+        card = self.get_meeting(meeting_id)
+        if card is None:
+            return None
+        meeting_dir = self._meeting_dir(meeting_id)
+        media = _media_entries(meeting_id, meeting_dir, card)
+        return _public_meeting_detail(card, meeting_id, media)
+
+    def get_meeting_diagnostics(self, meeting_id: str) -> dict[str, Any] | None:
+        """Return raw card/storage details for an authenticated admin only."""
+        if not _safe_meeting_id(meeting_id):
+            return None
+        card_path = self._card_path(meeting_id)
+        if not card_path.exists():
+            return None
+        base: dict[str, Any] = {
+            "meeting_id": meeting_id,
+            "storage_path": str(card_path.resolve()),
+        }
+        try:
+            base["card"] = _read_meeting_json(card_path)
+            base["status"] = "ok"
+        except MeetingCardError as exc:
+            base["status"] = "invalid"
+            base["error"] = {
+                "code": exc.code,
+                "internal_detail": exc.internal_detail[:2000],
+            }
+        return base
 
     def list_artifacts(self, meeting_id: str) -> list[dict[str, Any]] | None:
         if not _safe_meeting_id(meeting_id):
@@ -399,9 +707,9 @@ class MeetingsService:
         artifacts_map = _artifact_map(data)
         meeting_dir = self._meeting_dir(meeting_id)
         return [
-            _artifact_entry(meeting_dir, key, rel)
+            _artifact_entry(meeting_id, meeting_dir, key, rel)
             for key, rel in artifacts_map.items()
-            if rel
+            if rel and isinstance(key, str) and _safe_artifact_name(key)
         ]
 
     def get_transcript(self, meeting_id: str) -> dict[str, Any] | None:
@@ -417,10 +725,8 @@ class MeetingsService:
             rel = artifacts.get(key)
             if not rel:
                 continue
-            abs_path = (meeting_dir / rel).resolve()
-            try:
-                abs_path.relative_to(meeting_dir.resolve())
-            except ValueError:
+            abs_path = _safe_child_path(meeting_dir, rel)
+            if abs_path is None:
                 continue
             if not abs_path.exists() or not abs_path.is_file():
                 continue
@@ -461,10 +767,8 @@ class MeetingsService:
         if not rel:
             return None
         meeting_dir = self._meeting_dir(meeting_id)
-        abs_path = (meeting_dir / rel).resolve()
-        try:
-            abs_path.relative_to(meeting_dir.resolve())
-        except ValueError:
+        abs_path = _safe_child_path(meeting_dir, rel)
+        if abs_path is None:
             return None
         if not abs_path.exists() or not abs_path.is_file():
             return None
@@ -488,37 +792,7 @@ class MeetingsService:
         if not card_path.exists():
             return None
         data = _read_meeting_json(card_path)
-        meeting_dir = self._meeting_dir(meeting_id)
-        result: list[dict[str, Any]] = []
-        for i, mf in enumerate(_media_files(data)):
-            rel = mf.get("path", "")
-            if not rel:
-                continue
-            abs_path = (meeting_dir / rel).resolve()
-            try:
-                abs_path.relative_to(meeting_dir.resolve())
-            except ValueError:
-                continue  # path traversal recorded in card — skip silently
-            if not abs_path.exists() or not abs_path.is_file():
-                continue
-            suffix = abs_path.suffix.lower()
-            mime = _MEDIA_MIME_TYPES.get(suffix)
-            if not mime:
-                continue  # unsupported extension — not listed
-            stat = abs_path.stat()
-            entry: dict[str, Any] = {
-                "media_id": str(i),
-                "filename": abs_path.name,
-                "media_type": mime,
-                "size_bytes": stat.st_size,
-            }
-            if mf.get("sha256"):
-                entry["sha256"] = mf["sha256"]
-            duration = mf.get("duration_seconds")
-            if duration is not None:
-                entry["duration_sec"] = float(duration)
-            result.append(entry)
-        return result
+        return _media_entries(meeting_id, self._meeting_dir(meeting_id), data)
 
     def get_media_path(self, meeting_id: str, media_id: str) -> tuple[Path, str] | None:
         """Return (abs_path, mime_type) for a media file identified by its list index.
@@ -548,10 +822,8 @@ class MeetingsService:
         rel = mf.get("path", "")
         if not rel:
             return None
-        abs_path = (meeting_dir / rel).resolve()
-        try:
-            abs_path.relative_to(meeting_dir.resolve())
-        except ValueError:
+        abs_path = _safe_child_path(meeting_dir, rel)
+        if abs_path is None:
             return None
         if not abs_path.exists() or not abs_path.is_file():
             return None
@@ -567,10 +839,8 @@ class MeetingsService:
         if not rel:
             return None
         meeting_dir = self._meeting_dir(meeting_id)
-        abs_path = (meeting_dir / rel).resolve()
-        try:
-            abs_path.relative_to(meeting_dir.resolve())
-        except ValueError:
+        abs_path = _safe_child_path(meeting_dir, rel)
+        if abs_path is None:
             return None
         if not abs_path.exists() or not abs_path.is_file():
             return None

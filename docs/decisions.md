@@ -345,3 +345,32 @@
   дублирующий run от branch push;
 - hardware/model/private-runtime tests могут skip только с явной причиной;
   runtime corpus/model services не требуются для deterministic CI.
+
+## 2026-07-11 - Public Meeting Metadata Отделена От Storage Diagnostics
+
+Решение: `GET /meetings`, `GET /meetings/{id}`, `GET
+/meetings/{id}/artifacts` и `GET /meetings/{id}/media` возвращают только
+явные public DTO. Файлы представлены стабильными `artifact_id`/`media_id` и
+API URL, а не storage paths. Raw `meeting.json` и абсолютный путь карточки
+доступны только browser-admin через `GET
+/admin/diagnostics/meetings/{meeting_id}`.
+
+Почему:
+
+- `meeting.json` содержит исходные пути, внутренние artifact paths, RAG
+  metadata и диагностические сообщения;
+- сериализация карточки целиком делает новый внутренний ключ публичным по
+  умолчанию и создаёт повторные утечки при расширении схемы;
+- machine token предназначен для automation, а не для доступа к сырым
+  локальным diagnostics.
+
+Следствия:
+
+- public DTO используют `extra=forbid`, bounded machine tokens и generic
+  parse/read errors;
+- абсолютные, drive-letter и traversal paths не попадают в meeting/media/
+  artifact metadata;
+- admin diagnostics остаются отдельной явно чувствительной surface, требуют
+  `users.manage` и не доступны machine Bearer principal;
+- внутренний pipeline может продолжать читать raw card через service layer,
+  но API route не должен возвращать её напрямую.

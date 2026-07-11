@@ -9,6 +9,12 @@ from starlette.responses import FileResponse
 
 from asu_june_bot.api.auth import require_action_permission, require_permission
 from asu_june_bot.api.dependencies import get_meeting_qa_service
+from asu_june_bot.api.meeting_dtos import (
+    ArtifactListResponse,
+    MediaListResponse,
+    MeetingDetail,
+    MeetingListResponse,
+)
 from asu_june_bot.auth.models import Principal
 from meeting_agent.shared.limits import MAX_QUERY_CHARS
 from asu_june_bot.meetings.manifest import build_artifact_manifest
@@ -30,12 +36,21 @@ def get_meetings_service(request: Request) -> MeetingsService:
     return getattr(state, "meetings_service", None) or MeetingsService()
 
 
-def _not_found(meeting_id: str) -> HTTPException:
-    return HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
+def _not_found(_meeting_id: str) -> HTTPException:
+    return HTTPException(
+        status_code=404,
+        detail={"error": "meeting_not_found", "message": "Meeting not found"},
+    )
 
 
 def _invalid_card(exc: MeetingCardError) -> HTTPException:
-    return HTTPException(status_code=422, detail=f"Invalid meeting card: {exc}")
+    return HTTPException(
+        status_code=422,
+        detail={
+            "error": exc.code,
+            "message": "Meeting card is invalid or unreadable",
+        },
+    )
 
 
 def _too_large(exc: ArtifactTooLargeError) -> HTTPException:
@@ -63,7 +78,7 @@ class SpeakerMappingRequest(BaseModel):
     mapping: dict[str, SpeakerMappingEntry] = Field(default_factory=dict)
 
 
-@router.get("")
+@router.get("", response_model=MeetingListResponse)
 def list_meetings(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
@@ -73,14 +88,14 @@ def list_meetings(
     return service.list_meetings(offset=offset, limit=limit)
 
 
-@router.get("/{meeting_id}")
+@router.get("/{meeting_id}", response_model=MeetingDetail)
 def get_meeting(
     meeting_id: str,
     service: MeetingsService = Depends(get_meetings_service),
     _principal: Annotated[Principal, Depends(_require_read)] = ...,
 ) -> dict:
     try:
-        data = service.get_meeting(meeting_id)
+        data = service.get_public_meeting(meeting_id)
     except MeetingCardError as exc:
         raise _invalid_card(exc) from exc
     if data is None:
@@ -109,7 +124,7 @@ def get_transcript(
     return result
 
 
-@router.get("/{meeting_id}/artifacts")
+@router.get("/{meeting_id}/artifacts", response_model=ArtifactListResponse)
 def list_artifacts(
     meeting_id: str,
     service: MeetingsService = Depends(get_meetings_service),
@@ -152,7 +167,13 @@ def update_speaker_mapping(
         raw_mapping = {label: entry.model_dump() for label, entry in payload.mapping.items()}
         result = service.update_speaker_mapping(meeting_id, raw_mapping)
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "invalid_speaker_mapping",
+                "message": "Speaker mapping is invalid",
+            },
+        ) from exc
     except ArtifactTooLargeError as exc:
         raise _too_large(exc) from exc
     except MeetingCardError as exc:
@@ -200,7 +221,7 @@ def get_transcript_segments(
     return result
 
 
-@router.get("/{meeting_id}/media")
+@router.get("/{meeting_id}/media", response_model=MediaListResponse)
 def list_media(
     meeting_id: str,
     service: MeetingsService = Depends(get_meetings_service),
@@ -230,7 +251,7 @@ def get_media(
         # 404 for both missing meeting and missing/unsupported media file.
         raise HTTPException(
             status_code=404,
-            detail=f"Media not found: meeting={meeting_id!r} media_id={media_id!r}",
+            detail={"error": "media_not_found", "message": "Media not found"},
         )
     abs_path, mime_type = result
     return FileResponse(str(abs_path), media_type=mime_type)
@@ -254,7 +275,10 @@ def get_artifact_content(
     except ArtifactTooLargeError as exc:
         raise _too_large(exc) from exc
     if result is None:
-        raise HTTPException(status_code=404, detail=f"Artifact not found: {artifact_name!r}")
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "artifact_not_found", "message": "Artifact not found"},
+        )
     if result.get("error") == "binary_artifact":
         raise HTTPException(status_code=415, detail="Binary artifacts cannot be served as text")
     return result
