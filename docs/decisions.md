@@ -401,3 +401,29 @@ advisory lock для `meetings_root`.
 - self-hosted reverse proxy должен иметь body limit не выше application limit,
   чтобы отбрасывать oversized multipart до parser/spool;
 - lock file остаётся служебным runtime metadata и не коммитится.
+
+## 2026-07-11 - Source Identity Уникальна Между Search Context Buckets
+
+Решение: query-specific source promotion в Project Knowledge Bot использует
+`chunk_id/db_id/source_id` как identity и сохраняет каждый key ровно в одном
+bucket: primary либо supporting. Первый primary источник выигрывает collision;
+новые matching supporting sources перемещаются в primary в исходном порядке.
+
+Почему:
+
+- прежняя ветка добавляла non-matching primary в supporting, не удаляя его из
+  primary;
+- проверка existing matching primary была недостижима, потому что его key уже
+  находился в `primary_keys`;
+- дубликаты раздувают prompt, искажают citation coverage и создают ложные
+  diagnostics о promotion.
+
+Следствия:
+
+- existing primary остаётся primary и не считается promotion;
+- supporting source с key, уже присутствующим в primary, удаляется как
+  duplicate;
+- diagnostics `ad_cc_role_mapping_promotion` появляется только при реальном
+  переносе supporting -> primary и содержит только перемещённые keys;
+- порядок выбранных источников детерминирован: promoted supporting в исходном
+  порядке, затем исходные unique primary.

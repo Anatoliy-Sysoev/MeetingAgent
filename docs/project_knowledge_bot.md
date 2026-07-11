@@ -11,6 +11,11 @@ It demonstrates:
 - optional Telegram adapter;
 - local Docker-friendly deployment.
 
+Search context keeps each source identity in exactly one output bucket.
+Query-specific promotion may move a relevant supporting source to primary, but
+existing primary sources remain primary, duplicate keys are resolved
+deterministically (first primary wins), and diagnostics list only actual moves.
+
 The repository intentionally does not include a real private corpus, generated chunks, embeddings, indexes, customer-specific vocabulary, or customer runbooks. To run the bot on another machine, prepare a local corpus package under ignored runtime paths, then configure the bot through `.env`.
 
 Customer-specific corpus profiles belong in ignored local overlays. For example,
