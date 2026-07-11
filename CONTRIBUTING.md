@@ -18,15 +18,22 @@ Copy `.env.example` to `.env` only for local runtime settings. Do not commit `.e
 ## Running Checks
 
 ```powershell
-.\.venv\Scripts\python.exe -m compileall scripts src tests
-.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot -q
+.\.venv\Scripts\python.exe scripts\46_ci_verify.py
 ```
+
+This is the same command used by pull-request CI. It checks whitespace in the
+working tree/index, compiles `scripts`, `src`, and `tests`, then runs the full
+pytest suite (`tests/unit`, `tests/asu_june_bot`, and nested e2e tests).
+
+Hardware/model/private-runtime tests may skip only with an explicit pytest
+reason (for example missing ffmpeg, OS-only FIFO behavior, or ignored local
+guard cases). Do not turn an unexpected failure into a skip.
 
 Some workflows need local tools or models:
 
 - Ollama for local chat and embeddings;
 - `bge-m3` for embeddings;
-- `qwen2.5:7b-instruct` or another local chat model;
+- `qwen3.5:4b` or another explicitly configured local chat model;
 - ffmpeg/faster-whisper/GigaAM for meeting transcription workflows.
 
 If a check requires private runtime data, use synthetic examples or document the skipped dependency.

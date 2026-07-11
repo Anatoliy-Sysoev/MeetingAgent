@@ -182,8 +182,7 @@ API использует machine Bearer token (`MEETINGAGENT_API_TOKEN`) для 
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
-.\.venv\Scripts\python.exe -m compileall scripts src tests
-.\.venv\Scripts\python.exe -m pytest tests/asu_june_bot -q
+.\.venv\Scripts\python.exe scripts\46_ci_verify.py
 ```
 
 Перед PR не коммитьте секреты, приватные документы, runtime indexes, transcripts, logs и generated eval reports.
