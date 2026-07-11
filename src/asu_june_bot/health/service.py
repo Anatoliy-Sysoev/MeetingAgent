@@ -52,8 +52,11 @@ def check_ollama(base_url: str, embedding_model: str, timeout_sec: int) -> dict[
         result["available"] = True
         result["models"] = models
         result["embedding_model_installed"] = any(model == embedding_model or model.startswith(f"{embedding_model}:") for model in models)
-    except Exception as exc:  # noqa: BLE001
-        result["error"] = repr(exc)
+    except Exception:  # noqa: BLE001
+        # Network exception messages may contain local URLs, proxy credentials,
+        # filesystem paths, or response bodies. Keep the operator signal while
+        # avoiding accidental disclosure through the diagnostics API.
+        result["error"] = "ollama_unavailable"
     return result
 
 
