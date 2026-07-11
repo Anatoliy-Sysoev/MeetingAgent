@@ -185,12 +185,15 @@ Current persistence:
 
 - `auth_audit_events` table exists in the local auth SQLite database.
 
-Planned API:
+Current diagnostics API and planned audit API:
 
 ```text
 GET /admin/audit
-GET /admin/system/health
+GET /admin/diagnostics/health
 ```
+
+`GET /admin/diagnostics/health` is implemented and requires an admin browser
+session with `users.manage`. `GET /admin/audit` remains planned.
 
 Audit responses must redact sensitive values and avoid filesystem paths unless
 the route is explicitly local-admin diagnostic and documented as such.

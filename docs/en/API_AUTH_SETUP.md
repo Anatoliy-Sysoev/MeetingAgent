@@ -234,7 +234,12 @@ Machine Bearer tokens do **not** have `users.manage` and receive `403` on all us
 
 | Method | Path | Auth | Notes |
 |---|---|---|---|
-| GET | `/health` | None | Service health check |
+| GET | `/health` | None | Minimal dependency-free liveness check (`status`, `service`, `version`) |
+| GET | `/admin/diagnostics/health` | users.manage | Detailed corpus, index and Ollama diagnostics; admin browser session only |
+
+The public liveness response intentionally contains no local paths, corpus
+metadata, model inventory, counters, or raw dependency errors. Machine Bearer
+tokens cannot access the detailed diagnostics endpoint.
 
 ---
 

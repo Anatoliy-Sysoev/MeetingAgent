@@ -268,3 +268,25 @@
 - admin mutations требуют cookie session + CSRF;
 - admin API/UI не должны возвращать raw secrets, OAuth tokens, session tokens, local paths или raw tracebacks;
 - контракт: `docs/architecture/ADMIN_CONSOLE.md`.
+
+## 2026-07-11 - Public Liveness Отделён От Runtime Diagnostics
+
+Решение: публичный `GET /health` возвращает только `status`, `service` и
+`version`, не обращаясь к корпусу, индексу или Ollama. Подробная проверка
+перенесена в `GET /admin/diagnostics/health` и требует browser-сессию с
+`users.manage`; machine token туда не допускается.
+
+Почему:
+
+- liveness probe должен быть быстрым и не зависеть от доступности Ollama;
+- абсолютные пути, corpus metadata, список локальных моделей и счётчики индекса
+  раскрывают лишнюю информацию неаутентифицированному клиенту;
+- тексты сетевых исключений могут содержать URL, proxy credentials, response
+  body или локальные пути.
+
+Следствия:
+
+- Docker и внешние monitor probes продолжают использовать `/health`;
+- операторская диагностика доступна только локальному admin user через RBAC;
+- ошибки Ollama в API представлены стабильным кодом `ollama_unavailable`, без
+  исходного текста исключения.

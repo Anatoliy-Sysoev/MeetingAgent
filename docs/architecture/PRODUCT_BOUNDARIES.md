@@ -65,7 +65,8 @@ Owns all meeting lifecycle and administration endpoints:
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/health` | Service health |
+| GET | `/health` | Minimal public liveness (`status`, `service`, `version`) |
+| GET | `/admin/diagnostics/health` | Admin-only corpus/index/Ollama diagnostics |
 | POST | `/auth/local/login` | Session auth |
 | GET | `/auth/me` | Identity |
 | POST | `/auth/logout` | Session revocation |
@@ -227,7 +228,10 @@ The following groups should move into a shared package (recommended name: `meeti
 | **Auth / security contracts** | `asu_june_bot/auth/` | `Principal`, `ROLE_PERMISSIONS`, `permissions_for_roles`, session models — shared security layer used by both products; do NOT classify as bot-only |
 | **Logging / audit primitives** | `asu_june_bot/auth/repository.py` (audit events) | Audit event schema if consumed by both products post-split |
 
-**Health note:** `asu_june_bot/health/service.py` is PKB-specific (checks corpus indices, Ollama, chunks) and should move with PKB in Phase 4. A future `meeting_agent/shared/health.py` may define a minimal shared health contract if MeetingAgent Core requires its own health checks.
+**Health note:** public `/health` is a dependency-free shared liveness contract.
+`asu_june_bot/health/service.py` remains PKB-specific (checks corpus indices,
+Ollama and chunks), is exposed only through admin diagnostics, and should move
+with PKB in Phase 4.
 
 **Package name constraint:** do not name this package `platform` — it conflicts conceptually with the Python standard library `platform` module. Use `meeting_agent/shared`, `meeting_agent/common`, or `meeting_agent/security` for the auth sub-group.
 
