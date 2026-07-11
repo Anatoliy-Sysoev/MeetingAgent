@@ -146,6 +146,12 @@ Machine principal имеет: `meetings.upload`, `meetings.read`, `artifacts.rea
 | GET | `/meetings/{id}/media/{media_id}` | meetings.read | Нет | Стриминг media с поддержкой Range |
 | GET | `/meetings/{id}/workspace` | meetings.read | Нет | Meeting Workspace UI |
 
+Список/карточка встреч и metadata артефактов/media используют явные публичные
+response models. Они возвращают стабильные ID и API URL, но не
+`source.media_files[].path`, storage paths артефактов, RAG paths, raw
+`last_error.message` или тексты исключений чтения/парсинга. Повреждённые
+metadata представлены ограниченными машинными кодами.
+
 Лимит текстового артефакта: **10 МиБ** (настраивается через `meetings.max_text_artifact_bytes`). Бинарные артефакты возвращают `415 Unsupported Media Type`.
 
 ### Ingest
@@ -227,8 +233,13 @@ Bootstrap-эндпоинт:
 | PATCH | `/admin/users/{user_id}` | users.manage | **Да** (cookie) | Обновить имя и/или роли. 409 если последний admin понижен. |
 | POST | `/admin/users/{user_id}/disable` | users.manage | **Да** (cookie) | Отключить пользователя. 409 если последний активный admin. |
 | POST | `/admin/users/{user_id}/enable` | users.manage | **Да** (cookie) | Включить отключённого пользователя. |
+| GET | `/admin/diagnostics/meetings/{meeting_id}` | users.manage | Нет | Raw local card/storage diagnostics; только browser-сессия admin. |
 
 Machine Bearer tokens не имеют `users.manage` и получают `403` на всех маршрутах управления пользователями.
+
+Маршрут диагностики встречи намеренно чувствительный: в отличие от публичных
+meeting DTO, он может содержать абсолютные локальные пути и raw поля карточки.
+Его нельзя проксировать или публиковать как обычный meeting API.
 
 ### Здоровье сервиса
 

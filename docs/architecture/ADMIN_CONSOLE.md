@@ -190,10 +190,14 @@ Current diagnostics API and planned audit API:
 ```text
 GET /admin/audit
 GET /admin/diagnostics/health
+GET /admin/diagnostics/meetings/{meeting_id}
 ```
 
 `GET /admin/diagnostics/health` is implemented and requires an admin browser
-session with `users.manage`. `GET /admin/audit` remains planned.
+session with `users.manage`. Meeting diagnostics uses the same browser-admin
+guard and is the only API surface allowed to return the raw meeting card and
+its absolute storage path. Machine Bearer tokens are rejected. `GET
+/admin/audit` remains planned.
 
 Audit responses must redact sensitive values and avoid filesystem paths unless
 the route is explicitly local-admin diagnostic and documented as such.

@@ -247,6 +247,20 @@ def security_status(
     }
 
 
+@router.get("/diagnostics/meetings/{meeting_id}")
+def meeting_card_diagnostics(
+    meeting_id: str,
+    request: Request,
+    _principal: Annotated[Principal, Depends(_require_admin_read)],
+) -> dict:
+    """Return raw meeting-card/storage diagnostics to an admin browser user."""
+    service = request.app.state.asu_june_bot.meetings_service
+    result = service.get_meeting_diagnostics(meeting_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    return result
+
+
 @router.post("/users/{user_id}/enable")
 def enable_user(
     user_id: str,

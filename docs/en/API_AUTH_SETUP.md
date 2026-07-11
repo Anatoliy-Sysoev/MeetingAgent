@@ -146,6 +146,12 @@ All paths are relative to the API base URL (e.g. `http://127.0.0.1:8000`).
 | GET | `/meetings/{id}/media/{media_id}` | meetings.read | No | Stream media with Range support |
 | GET | `/meetings/{id}/workspace` | meetings.read | No | Meeting Workspace UI |
 
+Meeting list/detail and artifact/media metadata use explicit public response
+models. They expose stable IDs and API URLs, never `source.media_files[].path`,
+artifact storage paths, RAG file paths, raw `last_error.message`, or parse/read
+exception text. Invalid card/path metadata is represented by bounded machine
+codes.
+
 Text artifact size limit: **10 MiB** (configurable via `meetings.max_text_artifact_bytes`). Binary artifacts return `415 Unsupported Media Type`.
 
 ### Ingest
@@ -227,8 +233,13 @@ User management (requires `users.manage` — admin browser cookie session only):
 | PATCH | `/admin/users/{user_id}` | users.manage | **Yes** (cookie) | Update display name and/or roles. 409 if last admin demoted. |
 | POST | `/admin/users/{user_id}/disable` | users.manage | **Yes** (cookie) | Disable user. 409 if last active admin. |
 | POST | `/admin/users/{user_id}/enable` | users.manage | **Yes** (cookie) | Re-enable disabled user. |
+| GET | `/admin/diagnostics/meetings/{meeting_id}` | users.manage | No | Raw local card/storage diagnostics; admin browser session only. |
 
 Machine Bearer tokens do **not** have `users.manage` and receive `403` on all user-management routes.
+
+The meeting diagnostics route is intentionally sensitive: unlike public
+meeting DTOs, it may include absolute local paths and raw card fields. Do not
+proxy or expose it as a general meeting API.
 
 ### Health
 

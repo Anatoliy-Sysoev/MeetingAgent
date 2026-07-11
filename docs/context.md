@@ -4,12 +4,18 @@
 
 ## Now
 
-- MA-CI-FULL-TEST-MATRIX (#172) is implemented on `codex/172-ci-full-test-matrix` and ready for PR.
-- canonical main state: `5a8c33e` / `Harden container deployment defaults (#186)`.
-- next security focus: merge full CI verification, then redact meeting API metadata (#173).
+- MA-MEETING-API-METADATA-REDACTION (#173) is implemented on
+  `codex/173-meeting-api-metadata-redaction`; full verification and PR are the
+  remaining delivery steps.
+- canonical main state: `de54fb4` / `Run the full test suite in CI (#187)`.
+- next security focus after #173: bounded, race-safe meeting ingest (#174).
 
 ## Done latest
 
+- MA-MEETING-API-METADATA-REDACTION (#173): meeting list/detail, artifact and
+  media metadata use explicit path-safe DTOs and stable IDs/API URLs; malformed
+  cards return bounded machine codes; raw card/storage diagnostics require an
+  admin browser session at `GET /admin/diagnostics/meetings/{meeting_id}`.
 - MA-CI-FULL-TEST-MATRIX (#172): PR/push CI uses the same canonical verifier as local development, checks the actual commit range for whitespace, compiles all Python and runs the full pytest suite with minimal permissions, pip cache, timeout and stale-run cancellation.
 - MA-CONTAINER-DEPLOYMENT-HARDENING (#171, PR #186): deny-by-default Docker context, explicit runtime COPY allowlist, non-root UID 10001, read-only/capability-free Compose services, localhost-only publish and fail-closed self-hosted opt-in; real image and Compose smoke passed.
 - MA-HEALTH-RESPONSE-HARDENING (#170, PR #185): public `/health` is dependency-free and path-free; detailed corpus/index/Ollama diagnostics require an admin browser session; Telegram consumes only the bounded liveness contract.
@@ -115,6 +121,7 @@ POST /search
 POST /chat
 GET  /health
 GET  /admin/diagnostics/health
+GET  /admin/diagnostics/meetings/{meeting_id}
 POST /auth/local/login
 GET  /auth/me
 GET  /auth/csrf

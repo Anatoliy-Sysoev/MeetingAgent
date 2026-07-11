@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 import json
 import sys
 from dataclasses import dataclass, field
@@ -163,8 +162,10 @@ def test_path_traversal_filename_does_not_escape(
         # No file may exist outside the meeting source dir
         for p in source_dir.rglob("*"):
             assert p.resolve().is_relative_to(source_dir)
-        # The basename must be the sanitized name, never a parent path
-        assert ".." not in resp.json()["source_path"]
+        # Public response uses a stable media URL, never a storage path.
+        assert "source_path" not in resp.json()
+        assert resp.json()["media_id"] == "0"
+        assert resp.json()["media_url"].endswith("/media/0")
     else:
         assert resp.status_code == 422
     # Nothing should be written above tmp_path
@@ -192,6 +193,9 @@ def test_valid_upload_returns_201_and_creates_card(
     assert body["date"] == "2026-01-10"
     assert len(body["sha256"]) == 64
     assert body["meeting_id"].startswith("2026-01-10__")
+    assert body["media_id"] == "0"
+    assert body["media_url"] == f"/meetings/{body['meeting_id']}/media/0"
+    assert "source_path" not in body
 
     # Card file exists on disk
     meeting_dir = tmp_path / body["meeting_id"]
@@ -343,7 +347,6 @@ def test_rollback_on_schema_failure_removes_directory(
     bad_schema_path.write_text('{"type": "array"}', encoding="utf-8")
 
     from asu_june_bot.api.app import create_app as _create_app
-    from asu_june_bot.api.routes_ingest import _SCHEMA_PATH
     import asu_june_bot.api.routes_ingest as ingest_mod
 
     meetings_root = tmp_path / "meetings"
