@@ -1,23 +1,24 @@
-.git
-.github
-.pytest_cache
-.venv
-__pycache__
-*.pyc
-*.pyo
-*.log
-.env
-.env.*
-!.env.example
+# Deny the build context by default. Only the runtime allowlist below is sent
+# to the Docker daemon, so ignored local files cannot be baked into an image.
+**
 
-data/
-logs/
-meetings/
-vector_db/
-watched_folder/
-models/
+!Dockerfile
+!requirements.txt
+!requirements-diarization.txt
+!config.docker.yaml
 
-_calibration/
-.claude/
+!src/
+!src/**/*.py
 
-requirements-gigaam.txt
+!scripts/
+!scripts/**/*.py
+
+!configs/
+!configs/**/*.yaml
+!configs/**/*.yml
+!configs/**/*.json
+!configs/**/*.md
+
+# Machine-local corpus overlays remain private even under the allowed configs tree.
+configs/asu_june_bot/*.local.yaml
+configs/asu_june_bot/*.local.yml

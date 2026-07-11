@@ -13,6 +13,7 @@
   - `./watched_folder:/app/watched_folder`
 - Healthcheck контейнера API через `GET /health`.
 - Preflight CLI для проверки Docker, Ollama, моделей и ASR-зависимостей.
+- Non-root image (10001:10001), deny-by-default build context и localhost-only publish.
 
 ## Что не входит
 
@@ -66,6 +67,12 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```powershell
 New-Item -ItemType Directory -Force data,logs,meetings,vector_db,watched_folder | Out-Null
 ```
+
+На Linux назначить их container user:
+
+~~~bash
+sudo chown -R 10001:10001 data logs meetings vector_db watched_folder
+~~~
 
 ## Preflight
 
@@ -121,16 +128,17 @@ Invoke-RestMethod http://localhost:8000/health
 
 Workspace/API:
 
-```text
+~~~text
+http://localhost:8000/MeetingAgent
 http://localhost:8000/ui
 http://localhost:8000/meetings
-```
+~~~
 
 Для браузера сначала создать локального admin:
 
 ```powershell
 $body = @{
-  username = "admin"
+  email = "admin@example.local"
   password = "<strong-local-password>"
   display_name = "Admin"
 } | ConvertTo-Json
@@ -141,6 +149,40 @@ Invoke-RestMethod `
   -ContentType "application/json" `
   -Body $body
 ```
+
+## Deployment profiles
+
+### Local-only (default)
+
+~~~text
+MEETINGAGENT_BIND_HOST=127.0.0.1
+MEETINGAGENT_DEPLOYMENT_MODE=local
+~~~
+
+### Self-hosted behind HTTPS reverse proxy
+
+~~~text
+MEETINGAGENT_BIND_HOST=0.0.0.0
+MEETINGAGENT_DEPLOYMENT_MODE=self_hosted
+MEETINGAGENT_ALLOWED_HOSTS=meeting.example.internal
+MEETINGAGENT_API_TOKEN=<strong random token>
+MEETINGAGENT_TRUSTED_PROXY_CIDRS=<proxy CIDR>
+~~~
+
+Container entrypoint запрещает non-loopback publish в local mode. Startup
+safety validator в self_hosted mode проверяет token strength, Host allowlist,
+cookie/bootstrap/proxy policy и завершает процесс при небезопасной конфигурации.
+Не открывайте Uvicorn напрямую в интернет.
+
+## Container smoke
+
+~~~powershell
+.\.venv\Scripts\python.exe scripts\43_container_smoke.py
+~~~
+
+Проверяются non-root UID, исключение private sentinel из image, отсутствие
+test dependencies и writable runtime paths. Для разработки/тестов используйте
+requirements-dev.txt; production image ставит только requirements.txt.
 
 ## Запуск pipeline через Docker
 

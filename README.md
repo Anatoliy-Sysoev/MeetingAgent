@@ -322,6 +322,7 @@ Do not publish real customer transcripts or private project documents as example
 ## Tests
 
 ```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m compileall scripts src tests
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot -q
 ```

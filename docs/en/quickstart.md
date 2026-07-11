@@ -58,6 +58,7 @@ http://127.0.0.1:8000/ui
 ## Run Tests
 
 ```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m compileall scripts src tests
 .\.venv\Scripts\python.exe -m pytest tests\asu_june_bot -q
 ```

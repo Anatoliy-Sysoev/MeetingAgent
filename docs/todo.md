@@ -66,7 +66,7 @@
 - [x] MA-TELEGRAM-AUTH-HARDENING (#168, PR #183): authenticated Chat API calls and fail-closed Telegram policy — 529b8b3.
 - [x] MA-BOOTSTRAP-HOST-VALIDATION (#169, PR #184): strict Host allowlist and DNS-rebinding-safe local bootstrap — afd4ede.
 - [x] MA-HEALTH-RESPONSE-HARDENING (#170): minimal public liveness, admin-only detailed diagnostics, bounded Telegram rendering and redacted dependency errors.
-- [ ] MA-CONTAINER-DEPLOYMENT-HARDENING (#171): safe build context, non-root runtime and localhost binding.
+- [x] MA-CONTAINER-DEPLOYMENT-HARDENING (#171): allowlisted build context, non-root/read-only runtime, localhost publish, self-hosted opt-in and real container smoke.
 - [ ] MA-CI-FULL-TEST-MATRIX (#172): run unit/API/e2e suites for every PR.
 - [ ] MA-MEETING-API-METADATA-REDACTION (#173): path-safe meeting DTOs and errors.
 - [ ] MA-INGEST-LIMITS-ATOMIC-DEDUP (#174): bounded uploads and race-safe dedup.

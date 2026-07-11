@@ -290,3 +290,33 @@
 - операторская диагностика доступна только локальному admin user через RBAC;
 - ошибки Ollama в API представлены стабильным кодом `ollama_unavailable`, без
   исходного текста исключения.
+
+## 2026-07-11 - Docker Runtime Deny-By-Default И Non-Root
+
+Решение: production image получает только явный allowlist runtime-файлов,
+работает как UID/GID `10001:10001`, а Compose по умолчанию публикует порт только
+на `127.0.0.1`. Non-loopback publish требует явного
+`MEETINGAGENT_DEPLOYMENT_MODE=self_hosted`.
+
+Почему:
+
+- `.gitignore` не ограничивает Docker build context, поэтому `COPY .` мог
+  включить ignored `.env`, private corpus или runtime outputs;
+- root process и writable rootfs увеличивают последствия RCE/path traversal;
+- Compose-порт без host IP открывался на всех интерфейсах;
+- hardcoded `container_name` мешал безопасно запускать изолированные project
+  stacks и конфликтовал с остановленными контейнерами.
+
+Следствия:
+
+- `.dockerignore` сначала исключает всё и разрешает только runtime Python,
+  public configs и requirements;
+- code/config в image root-owned, writable только host-mounted runtime paths;
+- Compose включает read-only rootfs, `no-new-privileges`, `cap_drop: ALL` и
+  отдельный `/tmp` tmpfs;
+- runtime dependencies живут в `requirements.txt`, test/dev tools — в
+  `requirements-dev.txt`;
+- `scripts/43_container_smoke.py` проверяет non-root UID, private sentinel,
+  отсутствие pytest и writable runtime directories на реально собранном image;
+- self-hosted mode дополнительно использует существующий startup safety
+  validator для token strength, Host allowlist и auth/proxy policy.
