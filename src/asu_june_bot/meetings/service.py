@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from collections.abc import Mapping
 from typing import Any
@@ -15,6 +16,7 @@ from urllib.parse import quote
 import jsonschema
 
 from asu_june_bot.meetings.artifact_catalog import ARTIFACT_DEFAULT_PATHS
+from asu_june_bot.meetings.ingest_lock import IngestLock
 
 SUPPORTED_MEDIA_EXTENSIONS = frozenset({".mp4", ".mp3", ".wav", ".m4a"})
 _VIDEO_EXTENSIONS = frozenset({".mp4"})
@@ -45,6 +47,9 @@ _SCHEMA_PATH = Path(__file__).resolve().parents[3] / "configs" / "schemas" / "me
 
 # Default upper bound on text transcript/artifact reads (bytes, not characters).
 DEFAULT_MAX_TEXT_ARTIFACT_BYTES = 10 * 1024 * 1024  # 10 MiB
+DEFAULT_MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024  # 2 GiB
+MAX_MEETING_TITLE_CHARS = 500
+MAX_ORIGINAL_FILENAME_CHARS = 255
 _SPEAKER_LABEL_RE = re.compile(r"^SPEAKER_(?:UNKNOWN|\d{1,4})$")
 _MEETING_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,159}$")
 _ARTIFACT_KEY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$")
@@ -79,6 +84,16 @@ class ArtifactTooLargeError(ValueError):
         )
 
 
+@dataclass(frozen=True, slots=True)
+class MeetingIngestResult:
+    meeting_id: str
+    card: dict[str, Any] | None
+
+    @property
+    def duplicate(self) -> bool:
+        return self.card is None
+
+
 def parse_max_text_artifact_bytes(config: dict[str, Any] | None) -> int:
     """Resolve and strictly validate ``meetings.max_text_artifact_bytes``.
 
@@ -106,6 +121,32 @@ def parse_max_text_artifact_bytes(config: dict[str, Any] | None) -> int:
     if value <= 0:
         raise ValueError(
             f"meetings.max_text_artifact_bytes must be a positive integer, got {value}"
+        )
+    return value
+
+
+def parse_max_upload_bytes(config: dict[str, Any] | None) -> int:
+    """Resolve and strictly validate ``meetings.max_upload_bytes``."""
+    cfg = config or {}
+    meetings_cfg = cfg.get("meetings")
+    if meetings_cfg is None:
+        return DEFAULT_MAX_UPLOAD_BYTES
+    if not isinstance(meetings_cfg, dict):
+        raise ValueError(
+            f"meetings config must be a mapping, got {type(meetings_cfg).__name__}"
+        )
+    value = meetings_cfg.get("max_upload_bytes")
+    if value is None:
+        return DEFAULT_MAX_UPLOAD_BYTES
+    if isinstance(value, bool):
+        raise ValueError("meetings.max_upload_bytes must be an integer, not bool")
+    if not isinstance(value, int):
+        raise ValueError(
+            f"meetings.max_upload_bytes must be an integer, got {type(value).__name__}"
+        )
+    if value <= 0:
+        raise ValueError(
+            f"meetings.max_upload_bytes must be a positive integer, got {value}"
         )
     return value
 
@@ -552,6 +593,7 @@ class MeetingsService:
         self,
         meetings_root: Path | str = "meetings",
         max_text_artifact_bytes: int = DEFAULT_MAX_TEXT_ARTIFACT_BYTES,
+        max_upload_bytes: int = DEFAULT_MAX_UPLOAD_BYTES,
     ) -> None:
         self.root = Path(meetings_root)
         if isinstance(max_text_artifact_bytes, bool):
@@ -565,10 +607,25 @@ class MeetingsService:
                 f"max_text_artifact_bytes must be a positive integer, got {max_text_artifact_bytes}"
             )
         self._max_text_artifact_bytes = max_text_artifact_bytes
+        if isinstance(max_upload_bytes, bool):
+            raise ValueError("max_upload_bytes must be an int, not bool")
+        if not isinstance(max_upload_bytes, int):
+            raise ValueError(
+                f"max_upload_bytes must be an int, got {type(max_upload_bytes).__name__}"
+            )
+        if max_upload_bytes <= 0:
+            raise ValueError(
+                f"max_upload_bytes must be a positive integer, got {max_upload_bytes}"
+            )
+        self._max_upload_bytes = max_upload_bytes
 
     @property
     def max_text_artifact_bytes(self) -> int:
         return self._max_text_artifact_bytes
+
+    @property
+    def max_upload_bytes(self) -> int:
+        return self._max_upload_bytes
 
     def _meeting_dir(self, meeting_id: str) -> Path:
         return self.root / meeting_id
@@ -1002,7 +1059,7 @@ class MeetingsService:
         if not self.root.exists():
             return None
         for meeting_dir in self.root.iterdir():
-            if not meeting_dir.is_dir():
+            if not meeting_dir.is_dir() or not _safe_meeting_id(meeting_dir.name):
                 continue
             card_path = meeting_dir / "meeting.json"
             if not card_path.exists():
@@ -1013,7 +1070,7 @@ class MeetingsService:
                 continue
             for mf in _media_files(data):
                 if mf.get("sha256") == sha256:
-                    return str(data.get("meeting_id", meeting_dir.name))
+                    return meeting_dir.name
         return None
 
     def unique_meeting_id(self, date_str: str, slug: str) -> str:
@@ -1026,6 +1083,34 @@ class MeetingsService:
             if not (self.root / candidate).exists():
                 return candidate
         raise RuntimeError(f"Cannot allocate unique meeting_id for {date_str}__{slug}")
+
+    def create_deduplicated_meeting(
+        self,
+        *,
+        title: str,
+        meeting_date: str,
+        slug: str,
+        source_temp_path: Path,
+        original_filename: str,
+        sha256: str,
+        schema_path: Path | None = None,
+    ) -> MeetingIngestResult:
+        """Atomically deduplicate, allocate and create one meeting card."""
+        with IngestLock(self.root / ".ingest.lock"):
+            existing_id = self.find_by_sha256(sha256)
+            if existing_id is not None:
+                return MeetingIngestResult(meeting_id=existing_id, card=None)
+            meeting_id = self.unique_meeting_id(meeting_date, slug)
+            card = self.create_meeting(
+                meeting_id=meeting_id,
+                title=title,
+                meeting_date=meeting_date,
+                source_temp_path=source_temp_path,
+                original_filename=original_filename,
+                sha256=sha256,
+                schema_path=schema_path,
+            )
+            return MeetingIngestResult(meeting_id=meeting_id, card=card)
 
     def create_meeting(
         self,
@@ -1044,6 +1129,8 @@ class MeetingsService:
         """
         if not _safe_meeting_id(meeting_id):
             raise ValueError(f"Invalid meeting_id: {meeting_id!r}")
+        if not title or len(title) > MAX_MEETING_TITLE_CHARS:
+            raise ValueError("Meeting title is empty or too long")
 
         meeting_dir = self._meeting_dir(meeting_id)
         # Path traversal guard on the resolved meeting dir
@@ -1055,6 +1142,8 @@ class MeetingsService:
         schema_path = schema_path or _SCHEMA_PATH
 
         # Defend against path traversal via the client-supplied filename.
+        if len(original_filename) > MAX_ORIGINAL_FILENAME_CHARS:
+            raise ValueError("Original filename is too long")
         safe_name = Path(original_filename).name
         if not safe_name or safe_name in {".", ".."} or "/" in safe_name or "\\" in safe_name:
             raise ValueError(f"Unsafe original_filename: {original_filename!r}")
