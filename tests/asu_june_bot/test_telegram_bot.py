@@ -207,6 +207,7 @@ def test_health_payload_is_path_free(monkeypatch) -> None:
         lambda *_args, **_kwargs: {
             "status": "ok",
             "service": "meetingagent",
+            "version": "0.1.0",
             "corpus_ready": True,
             "paths": {"chunks": "C:\\private\\chunks.jsonl"},
             "ollama": {"models": ["private-model"]},
@@ -215,7 +216,7 @@ def test_health_payload_is_path_free(monkeypatch) -> None:
 
     handle_message({"chat": {"id": 123}, "text": "/health"}, _config())
 
-    assert messages == ["Health API: ok\nservice: meetingagent\ncorpus_ready: True"]
+    assert messages == ["Health API: ok\nservice: meetingagent\nversion: 0.1.0"]
     assert "private" not in messages[0]
 
 
@@ -224,10 +225,11 @@ def test_format_health_payload_ignores_unknown_diagnostic_fields() -> None:
         {
             "status": "error",
             "service": "meetingagent",
+            "version": "0.1.0",
             "vector_ready": False,
             "paths": {"index": "secret"},
         }
     )
 
-    assert rendered == "Health API: error\nservice: meetingagent\nvector_ready: False"
+    assert rendered == "Health API: error\nservice: meetingagent\nversion: 0.1.0"
     assert "secret" not in rendered

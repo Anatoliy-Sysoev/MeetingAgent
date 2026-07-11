@@ -1,17 +1,18 @@
 # Текущий Контекст
 
-Обновлено: 2026-07-10.
+Обновлено: 2026-07-11.
 
 ## Now
 
-- active coding task: MA-BOOTSTRAP-HOST-VALIDATION (#169) on `codex/169-bootstrap-host-validation`.
-- canonical main state: `529b8b3c2099cd6e0093e2b33988bccbd4123731` / `Harden Telegram adapter authentication (#183)`.
-- next security focus: merge Host validation, then split public health/diagnostics (#170) and harden containers (#171).
+- MA-HEALTH-RESPONSE-HARDENING (#170) is implemented on `codex/170-health-response-hardening` and ready for PR.
+- canonical main state: `afd4ede` / `Enforce trusted Host policy (#184)`.
+- next security focus: merge public health/diagnostics split, then harden containers (#171).
 
 ## Done latest
 
+- MA-HEALTH-RESPONSE-HARDENING (#170): public `/health` is dependency-free and path-free; detailed corpus/index/Ollama diagnostics require an admin browser session; Telegram consumes only the bounded liveness contract.
 - MA-TELEGRAM-AUTH-HARDENING (#168, PR #183): Telegram uses machine Bearer auth, fail-closed chat allowlist and redacted health/error messages.
-- MA-BOOTSTRAP-HOST-VALIDATION (#169): strict HTTP/WebSocket Host allowlist, robust hostname/port/IPv6 parser, DNS-rebinding-safe local bootstrap and self-hosted fail-fast policy.
+- MA-BOOTSTRAP-HOST-VALIDATION (#169, PR #184): strict HTTP/WebSocket Host allowlist, robust hostname/port/IPv6 parser, DNS-rebinding-safe local bootstrap and self-hosted fail-fast policy.
 - SEC-P0-PUBLIC-TREE-CLEANUP (#166, PR #182): current public HEAD is cleaned, private corpus uses ignored local overlay, and privacy regression tests are active; history remediation remains #167.
 - MA-TELEGRAM-AUTH-HARDENING (#168): Telegram `/chat` calls send machine Bearer auth; startup requires a real API token and allowlist or explicit allow-all; user-facing health/errors are path-free and do not echo response bodies.
 - Repository acquisition/security audit: full pytest 1269 passed / 13 skipped; compileall, Docker Compose config and strict MkDocs build passed; dependency, Bandit, Ruff, dead-code, coverage, Git-history and manual API/auth/pipeline/RAG/UI reviews completed.
@@ -111,6 +112,7 @@ GET  /jobs/active
 POST /search
 POST /chat
 GET  /health
+GET  /admin/diagnostics/health
 POST /auth/local/login
 GET  /auth/me
 GET  /auth/csrf
@@ -130,7 +132,6 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- MA-HEALTH-RESPONSE-HARDENING (#170): split public liveness from authenticated diagnostics.
 - MA-CONTAINER-DEPLOYMENT-HARDENING (#171): safe image context, non-root runtime and localhost publish default.
 - SEC-P0-GIT-HISTORY-PURGE (#167): backup, verify and coordinate the force rewrite; do not execute implicitly.
 

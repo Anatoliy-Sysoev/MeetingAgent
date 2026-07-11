@@ -1,6 +1,6 @@
 # Todo
 
-Обновлено: 2026-07-10.
+Обновлено: 2026-07-11.
 
 ## Done
 
@@ -64,8 +64,8 @@
 - [x] SEC-P0-PUBLIC-TREE-CLEANUP (#166, PR #182): current public HEAD cleaned; private corpus overlays and privacy regression guards added — dd4d0a4.
 - [ ] SEC-P0-GIT-HISTORY-PURGE (#167): purge deleted private blobs after backup and explicit force-push approval.
 - [x] MA-TELEGRAM-AUTH-HARDENING (#168, PR #183): authenticated Chat API calls and fail-closed Telegram policy — 529b8b3.
-- [~] MA-BOOTSTRAP-HOST-VALIDATION (#169): enforce local Host/TrustedHost policy.
-- [ ] MA-HEALTH-RESPONSE-HARDENING (#170): split public liveness and admin diagnostics.
+- [x] MA-BOOTSTRAP-HOST-VALIDATION (#169, PR #184): strict Host allowlist and DNS-rebinding-safe local bootstrap — afd4ede.
+- [x] MA-HEALTH-RESPONSE-HARDENING (#170): minimal public liveness, admin-only detailed diagnostics, bounded Telegram rendering and redacted dependency errors.
 - [ ] MA-CONTAINER-DEPLOYMENT-HARDENING (#171): safe build context, non-root runtime and localhost binding.
 - [ ] MA-CI-FULL-TEST-MATRIX (#172): run unit/API/e2e suites for every PR.
 - [ ] MA-MEETING-API-METADATA-REDACTION (#173): path-safe meeting DTOs and errors.

@@ -164,13 +164,13 @@ def _is_placeholder_secret(value: str) -> bool:
 
 
 def format_health_payload(payload: dict[str, Any]) -> str:
-    """Render only bounded, path-free health fields for Telegram users."""
-    status = str(payload.get("status") or "unknown")
-    service = str(payload.get("service") or "meetingagent")
+    """Render only the bounded public liveness contract for Telegram users."""
+    status = str(payload.get("status") or "unknown")[:32]
+    service = str(payload.get("service") or "meetingagent")[:64]
     lines = [f"Health API: {status}", f"service: {service}"]
-    for key in ("corpus_ready", "vector_ready", "bm25_ready"):
-        if key in payload:
-            lines.append(f"{key}: {bool(payload[key])}")
+    version = str(payload.get("version") or "").strip()
+    if version:
+        lines.append(f"version: {version[:64]}")
     return "\n".join(lines)
 
 
