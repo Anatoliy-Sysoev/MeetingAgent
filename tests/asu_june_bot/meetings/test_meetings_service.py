@@ -185,7 +185,8 @@ def test_list_artifacts_exists_and_missing(tmp_path: Path) -> None:
     assert by_key["transcript"]["size_bytes"] > 0
     assert "T" in by_key["transcript"]["modified_at"]  # ISO-8601
     assert by_key["memo"]["exists"] is False
-    assert "size_bytes" not in by_key["memo"]
+    assert by_key["memo"]["size_bytes"] is None
+    assert by_key["memo"]["view_url"] is None
 
 
 def test_list_artifacts_missing_meeting(tmp_path: Path) -> None:
@@ -468,9 +469,6 @@ def test_bounded_read_catches_stale_stat(tmp_path: Path, monkeypatch) -> None:
     svc = MeetingsService(tmp_path, max_text_artifact_bytes=32)
 
     # Simulate a stale/under-reported stat that passes the first check.
-    import os
-    real_stat = os.stat_result
-
     import stat as stat_module
 
     class FakeStat:

@@ -7,7 +7,6 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -105,7 +104,7 @@ def test_media_list_returns_metadata(tmp_path: Path) -> None:
     p = make_media_file(meeting_dir, "audio.wav")
     card = json.loads((meeting_dir / "meeting.json").read_text())
     card["source"]["media_files"] = [
-        {"path": "source/audio.wav", "media_type": "audio", "sha256": "abc123"}
+        {"path": "source/audio.wav", "media_type": "audio", "sha256": "a" * 64}
     ]
     (meeting_dir / "meeting.json").write_text(json.dumps(card))
     resp = make_client(tmp_path).get(f"/meetings/{MEETING_ID}/media")
@@ -119,7 +118,7 @@ def test_media_list_returns_metadata(tmp_path: Path) -> None:
     assert item["filename"] == "audio.wav"
     assert item["media_type"] == "audio/wav"
     assert item["size_bytes"] == p.stat().st_size
-    assert item["sha256"] == "abc123"
+    assert item["sha256"] == "a" * 64
     assert "path" not in item  # no filesystem path exposed
 
 
