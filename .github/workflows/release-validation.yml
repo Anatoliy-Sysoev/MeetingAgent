@@ -8,6 +8,9 @@ on:
         required: true
         default: "0.1.0"
 
+permissions:
+  contents: read
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -16,11 +19,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+            pyproject.toml
 
       - name: Install dependencies
         run: |
@@ -30,8 +40,5 @@ jobs:
       - name: Validate release notes
         run: python scripts/45_validate_release_notes.py --version "${{ inputs.version }}"
 
-      - name: Compile Python files
-        run: python -m compileall scripts src tests
-
-      - name: Run tests
-        run: python -m pytest -q
+      - name: Run full verification
+        run: python scripts/46_ci_verify.py

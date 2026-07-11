@@ -18,9 +18,16 @@ python -m venv .venv
 ## Проверки
 
 ```powershell
-.\.venv\Scripts\python.exe -m compileall scripts src tests
-.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot -q
+.\.venv\Scripts\python.exe scripts\46_ci_verify.py
 ```
+
+Это та же команда, которую запускает CI для pull request. Она проверяет
+whitespace в working tree/index, компилирует `scripts`, `src`, `tests`, затем
+запускает полный pytest (`tests/unit`, `tests/asu_june_bot` и вложенные e2e).
+
+Hardware/model/private-runtime тест может быть пропущен только с явной причиной
+pytest (например, отсутствует ffmpeg, FIFO недоступен на ОС или нет ignored
+local guard cases). Не превращайте неожиданное падение в skip.
 
 Некоторые workflows требуют локальные инструменты или модели:
 
