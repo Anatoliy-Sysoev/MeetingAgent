@@ -19,7 +19,7 @@ from asu_june_bot.auth.service import (
 from asu_june_bot.auth.throttle import LoginLimiter, build_login_throttle
 from asu_june_bot.api.bootstrap_policy import BootstrapPolicy, build_bootstrap_policy
 from asu_june_bot.chat import ChatService
-from asu_june_bot.core.config import load_config
+from asu_june_bot.core.config import load_config, resolve_work_path
 from asu_june_bot.health import HealthService
 from asu_june_bot.jobs.runner import JobRunner
 from asu_june_bot.llm.ollama_openai import OllamaOpenAIClient
@@ -75,6 +75,10 @@ def build_app_state(config: dict[str, Any] | None = None) -> AppState:
     chat_base_url = str(ollama_cfg.get("chat_base_url") or "http://127.0.0.1:11434/v1")
     chat_model = str(ollama_cfg.get("chat_model") or "qwen3.5:4b")
     meetings_root = (config.get("paths") or {}).get("meetings_root") or "meetings"
+    jobs_state_path = resolve_work_path(
+        config,
+        (config.get("paths") or {}).get("jobs_state") or "logs/jobs_state.json",
+    )
     max_text_artifact_bytes = parse_max_text_artifact_bytes(config)
     max_upload_bytes = parse_max_upload_bytes(config)
     auth_db_path = Path((config.get("paths") or {}).get("auth_db") or DEFAULT_DB_PATH)
@@ -109,7 +113,10 @@ def build_app_state(config: dict[str, Any] | None = None) -> AppState:
             meetings_service=meetings_service,
             llm_client=OllamaOpenAIClient(base_url=chat_base_url, model=chat_model),
         ),
-        job_runner=JobRunner(),
+        job_runner=JobRunner(
+            state_path=jobs_state_path,
+            meetings_root=meetings_root,
+        ),
         auth_repository=auth_repository,
         local_auth_service=LocalAuthService(
             auth_repository,

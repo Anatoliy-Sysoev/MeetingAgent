@@ -64,6 +64,8 @@ paths:
   watched_folder: "watched_folder"
   # SQLite database for auth (users, sessions, audit log). Local runtime, never commit.
   auth_db: "data/meetingagent/auth.db"
+  # Durable pipeline state and bounded recovery history. Local runtime, never commit.
+  jobs_state: "logs/jobs_state.json"
 
 include_extensions:
   - ".docx"

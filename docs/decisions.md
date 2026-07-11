@@ -427,3 +427,36 @@ bucket: primary либо supporting. Первый primary источник вы�
   переносе supporting -> primary и содержит только перемещённые keys;
 - порядок выбранных источников детерминирован: promoted supporting в исходном
   порядке, затем исходные unique primary.
+
+## 2026-07-11 - Job State Переживает Рестарт API, Но Pipeline Не Продолжается Автоматически
+
+Решение: API runner хранит один active stage, один aggregate pipeline,
+ограниченную историю и журнал переходов в `logs/jobs_state.json`. Snapshot
+обновляется атомарно под thread/process advisory lock. После рестарта живой
+дочерний процесс с совпавшим PID identity получает статус `orphaned`, а
+исчезнувший процесс переводится в `failed` и открывает явный retry/resume.
+
+Почему:
+
+- in-memory runner забывал active job после рестарта API и позволял запустить
+  вторую тяжёлую обработку поверх ещё работающего ASR;
+- один PID недостаточен: ОС может переиспользовать его для другого процесса;
+- Python coroutine pipeline восстановить безопасно нельзя, даже если её child
+  process ещё жив;
+- бесконечный event log и неограниченное чтение state создают локальный DoS.
+
+Следствия:
+
+- новая работа сначала получает durable reservation; stale runner/process не
+  может обойти глобальный concurrency=1;
+- process tree завершается только при совпадении PID и platform-specific start
+  identity; несовпадение оставляет job управляемым `orphaned`;
+- Windows использует `taskkill /T /F`, Linux/Unix — отдельную process session и
+  сигналы process group;
+- потерянный aggregate pipeline не продолжается автоматически: оператор
+  отменяет живой orphan либо запускает Resume после terminal recovery;
+- state file ограничен 4 МиБ, history — 20 stage и 20 pipeline records, events
+  — 200; повреждённый/oversized snapshot останавливает API вместо silent reset;
+- production runtime поддерживает один API worker. Межпроцессный lock защищает
+  от двойного запуска, но routing статуса между несколькими workers не является
+  распределённым job scheduler.

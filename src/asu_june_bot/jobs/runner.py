@@ -11,11 +11,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from asu_june_bot.jobs.processes import (
+    process_identity,
+    process_matches,
+    subprocess_group_kwargs,
+    terminate_process_tree,
+)
+from asu_june_bot.jobs.store import JobStore, JobStoreConflict, JobStoreError
+
 _ROOT = Path(__file__).resolve().parents[3]
 
 # ---------------------------------------------------------------------------
 # Preflight helpers — pure filesystem checks, no subprocess
 # ---------------------------------------------------------------------------
+
 
 def _artifact_map(card: dict[str, Any]) -> dict[str, Any]:
     artifacts = card.get("artifacts")
@@ -241,6 +250,7 @@ def stage_base_args(stage: str, options: dict[str, Any] | None = None) -> list[s
         raise ValueError(f"Unsupported ASR engine: {engine!r}")
     return list(args)
 
+
 # UI-facing metadata for each runnable stage. Keys MUST be a subset of
 # STAGE_COMMANDS — only stages the runner can actually execute are surfaced,
 # so the workspace never offers a button for an unimplemented stage.
@@ -319,16 +329,18 @@ def stage_catalog() -> list[dict[str, Any]]:
         meta = STAGE_METADATA.get(stage)
         if meta is None:
             continue
-        catalog.append({
-            "stage": stage,
-            "label": meta["label"],
-            "description": meta["description"],
-            "start_permission": "jobs.start",
-            "cancel_permission": "jobs.cancel",
-            "requires": list(meta["requires"]),
-            "outputs": list(meta["outputs"]),
-            "order": meta["order"],
-        })
+        catalog.append(
+            {
+                "stage": stage,
+                "label": meta["label"],
+                "description": meta["description"],
+                "start_permission": "jobs.start",
+                "cancel_permission": "jobs.cancel",
+                "requires": list(meta["requires"]),
+                "outputs": list(meta["outputs"]),
+                "order": meta["order"],
+            }
+        )
     catalog.sort(key=lambda e: e["order"])
     return catalog
 
@@ -400,6 +412,8 @@ class JobState:
     status: str  # starting | running | completed | failed | cancelled
     started_at: str
     pid: int | None = None
+    process_identity: str | None = None
+    recovery_status: str | None = None
     finished_at: str | None = None
     exit_code: int | None = None
     stderr_lines: list[str] = field(default_factory=list)
@@ -410,10 +424,7 @@ class JobState:
         roots: list[Path] = [_REPO_ROOT]
         if self._meeting_dir is not None:
             roots.append(self._meeting_dir)
-        stderr_tail = [
-            _redact_paths(line, roots)
-            for line in self.stderr_lines[-_STDERR_TAIL:]
-        ]
+        stderr_tail = [_redact_paths(line, roots) for line in self.stderr_lines[-_STDERR_TAIL:]]
         d: dict[str, Any] = {
             "job_id": self.job_id,
             "meeting_id": self.meeting_id,
@@ -422,6 +433,7 @@ class JobState:
             "started_at": self.started_at,
             "finished_at": self.finished_at,
             "exit_code": self.exit_code,
+            "recovery_status": self.recovery_status,
             "stderr_tail": stderr_tail,
         }
         if meeting_status is not None:
@@ -437,8 +449,14 @@ class JobState:
 PIPELINE_PROFILES: dict[str, list[str]] = {
     "default": ["extract_audio", "transcribe", "merge", "chunk", "enrich", "index"],
     "full": [
-        "extract_audio", "transcribe", "diarize", "merge",
-        "chunk", "enrich", "index", "analyze",
+        "extract_audio",
+        "transcribe",
+        "diarize",
+        "merge",
+        "chunk",
+        "enrich",
+        "index",
+        "analyze",
     ],
     "transcript_only": ["extract_audio", "transcribe"],
     "qa_ready": ["extract_audio", "transcribe", "merge", "chunk", "enrich", "index"],
@@ -464,7 +482,9 @@ class PipelineJobState:
     stage_options: dict[str, dict[str, Any]] = field(default_factory=dict)
     current_stage: str | None = None
     finished_at: str | None = None
+    recovery_status: str | None = None
     _meeting_dir: Path | None = field(default=None, repr=False, compare=False)
+    _task: asyncio.Task[Any] | None = field(default=None, repr=False, compare=False)
 
     def as_dict(self, meeting_status: str | None = None) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -475,14 +495,13 @@ class PipelineJobState:
             "force": self.force,
             "resume": self.resume,
             "stage_options": {
-                stage: dict(options)
-                for stage, options in self.stage_options.items()
-                if options
+                stage: dict(options) for stage, options in self.stage_options.items() if options
             },
             "status": self.status,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
             "current_stage": self.current_stage,
+            "recovery_status": self.recovery_status,
             "stages": [dict(item) for item in self.stages],
         }
         if meeting_status is not None:
@@ -490,17 +509,159 @@ class PipelineJobState:
         return d
 
 
+_DURABLE_JOB_STATUSES = {
+    "starting",
+    "running",
+    "orphaned",
+    "completed",
+    "failed",
+    "cancelled",
+}
+
+_DURABLE_STAGE_STATUSES = {
+    "pending",
+    "skipped",
+    "running",
+    "completed",
+    "failed",
+    "cancelled",
+    "orphaned",
+}
+
+_TERMINAL_JOB_STATUSES = {"completed", "failed", "cancelled"}
+
+
+def _job_record(job: JobState) -> dict[str, Any]:
+    public = job.as_dict()
+    return {
+        "kind": "stage",
+        "job_id": job.job_id,
+        "meeting_id": job.meeting_id,
+        "stage": job.stage,
+        "status": job.status,
+        "started_at": job.started_at,
+        "finished_at": job.finished_at,
+        "exit_code": job.exit_code,
+        "pid": job.pid,
+        "process_identity": job.process_identity,
+        "recovery_status": job.recovery_status,
+        "stderr_lines": public["stderr_tail"],
+    }
+
+
+def _pipeline_record(pipeline: PipelineJobState) -> dict[str, Any]:
+    return {
+        **pipeline.as_dict(),
+        "kind": "pipeline",
+    }
+
+
+def _safe_record_meeting_dir(meetings_root: Path, meeting_id: str) -> Path:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,159}", meeting_id):
+        raise JobStoreError("Persisted job has an invalid meeting id")
+    root = meetings_root.resolve()
+    target = (root / meeting_id).resolve()
+    try:
+        target.relative_to(root)
+    except ValueError as exc:
+        raise JobStoreError("Persisted job escapes meetings root") from exc
+    return target
+
+
+def _job_from_record(record: dict[str, Any], meetings_root: Path) -> JobState:
+    job_id = str(record.get("job_id") or "")
+    meeting_id = str(record.get("meeting_id") or "")
+    stage = str(record.get("stage") or "")
+    status = str(record.get("status") or "")
+    if not job_id or len(job_id) > 80 or stage not in STAGE_COMMANDS:
+        raise JobStoreError("Persisted job identity is invalid")
+    if status not in _DURABLE_JOB_STATUSES:
+        raise JobStoreError("Persisted job status is invalid")
+    pid = record.get("pid")
+    if pid is not None and (isinstance(pid, bool) or not isinstance(pid, int) or pid <= 0):
+        raise JobStoreError("Persisted job pid is invalid")
+    stderr = record.get("stderr_lines")
+    stderr_lines = (
+        [str(line)[:2000] for line in stderr[-_STDERR_TAIL:]] if isinstance(stderr, list) else []
+    )
+    return JobState(
+        job_id=job_id,
+        meeting_id=meeting_id,
+        stage=stage,
+        status=status,
+        started_at=str(record.get("started_at") or ""),
+        pid=pid,
+        process_identity=str(record.get("process_identity") or "") or None,
+        recovery_status=str(record.get("recovery_status") or "") or None,
+        finished_at=str(record.get("finished_at") or "") or None,
+        exit_code=record.get("exit_code") if isinstance(record.get("exit_code"), int) else None,
+        stderr_lines=stderr_lines,
+        _meeting_dir=_safe_record_meeting_dir(meetings_root, meeting_id),
+    )
+
+
+def _pipeline_from_record(record: dict[str, Any], meetings_root: Path) -> PipelineJobState:
+    job_id = str(record.get("job_id") or "")
+    meeting_id = str(record.get("meeting_id") or "")
+    status = str(record.get("status") or "")
+    stages = record.get("stages")
+    if not job_id or len(job_id) > 80 or status not in _DURABLE_JOB_STATUSES:
+        raise JobStoreError("Persisted pipeline identity is invalid")
+    if not isinstance(stages, list) or any(not isinstance(item, dict) for item in stages):
+        raise JobStoreError("Persisted pipeline stages are invalid")
+    normalized_stages: list[dict[str, Any]] = []
+    for raw_item in stages:
+        stage = str(raw_item.get("stage") or "")
+        stage_status = str(raw_item.get("status") or "")
+        if stage not in STAGE_COMMANDS or stage_status not in _DURABLE_STAGE_STATUSES:
+            raise JobStoreError("Persisted pipeline stage is invalid")
+        normalized_stages.append(
+            {
+                "stage": stage,
+                "status": stage_status,
+                "job_id": str(raw_item.get("job_id") or "")[:80] or None,
+                "exit_code": raw_item.get("exit_code")
+                if isinstance(raw_item.get("exit_code"), int)
+                else None,
+                "reason": str(raw_item.get("reason") or "")[:500] or None,
+            }
+        )
+    current_stage = str(record.get("current_stage") or "") or None
+    if current_stage is not None and current_stage not in STAGE_COMMANDS:
+        raise JobStoreError("Persisted pipeline current stage is invalid")
+    return PipelineJobState(
+        job_id=job_id,
+        meeting_id=meeting_id,
+        profile=str(record.get("profile") or "default")[:32],
+        force=bool(record.get("force")),
+        resume=bool(record.get("resume")),
+        stage_options=record.get("stage_options")
+        if isinstance(record.get("stage_options"), dict)
+        else {},
+        status=status,
+        started_at=str(record.get("started_at") or ""),
+        stages=normalized_stages,
+        current_stage=current_stage,
+        finished_at=str(record.get("finished_at") or "") or None,
+        recovery_status=str(record.get("recovery_status") or "") or None,
+        _meeting_dir=_safe_record_meeting_dir(meetings_root, meeting_id),
+    )
+
+
 async def _create_subprocess(
     *args: str,
     stdout: int,
     stderr: int,
 ) -> Any:
-    return await asyncio.create_subprocess_exec(*args, stdout=stdout, stderr=stderr)
+    return await asyncio.create_subprocess_exec(
+        *args,
+        stdout=stdout,
+        stderr=stderr,
+        **subprocess_group_kwargs(),
+    )
 
 
-def _write_last_error(
-    meeting_dir: Path, *, stage: str, job_id: str, exit_code: int | None
-) -> None:
+def _write_last_error(meeting_dir: Path, *, stage: str, job_id: str, exit_code: int | None) -> None:
     """Record a normalized, public-safe last_error in meeting.json (#120).
 
     Never stores stderr/stack traces/paths — the full redacted stderr tail
@@ -519,9 +680,7 @@ def _write_last_error(
             "timestamp": _now_iso(),
             "job_id": job_id,
         }
-        card_path.write_text(
-            json.dumps(card, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        card_path.write_text(json.dumps(card, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception:  # noqa: BLE001
         return
 
@@ -536,9 +695,7 @@ def _clear_last_error(meeting_dir: Path, *, stage: str) -> None:
         last = card.get("last_error")
         if isinstance(last, dict) and last.get("stage") == stage:
             card.pop("last_error", None)
-            card_path.write_text(
-                json.dumps(card, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
+            card_path.write_text(json.dumps(card, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception:  # noqa: BLE001
         return
 
@@ -565,16 +722,147 @@ def _read_meeting_status(meeting_dir: Path) -> str | None:
 
 
 class JobRunner:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        state_path: Path | str | None = None,
+        meetings_root: Path | str = "meetings",
+    ) -> None:
         self._lock: asyncio.Lock = asyncio.Lock()
+        self.meetings_root = Path(meetings_root)
+        self.store = JobStore(state_path) if state_path is not None else None
         self.active_job: JobState | None = None
         self.history: list[JobState] = []
         self.active_pipeline: PipelineJobState | None = None
         self.pipeline_history: list[PipelineJobState] = []
+        if self.store is not None:
+            self._recover_persisted_state()
 
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
+
+    def _recover_persisted_state(self) -> None:
+        assert self.store is not None
+        state = self.store.load()
+        self.history = [
+            _job_from_record(record, self.meetings_root)
+            for record in state.get("history", [])[-_HISTORY_MAX:]
+        ]
+        self.pipeline_history = [
+            _pipeline_from_record(record, self.meetings_root)
+            for record in state.get("pipeline_history", [])[-_HISTORY_MAX:]
+        ]
+        recovered_events: list[dict[str, Any]] = []
+
+        active_record = state.get("active_job")
+        if isinstance(active_record, dict):
+            job = _job_from_record(active_record, self.meetings_root)
+            original_status = job.status
+            if process_matches(job.pid, job.process_identity):
+                job.status = "orphaned"
+                job.recovery_status = "orphaned_process_alive"
+                self.active_job = job
+                recovered_events.append(_job_record(job))
+            else:
+                job.status = (
+                    original_status if original_status in _TERMINAL_JOB_STATUSES else "failed"
+                )
+                job.recovery_status = (
+                    "terminal_state_recovered"
+                    if original_status in _TERMINAL_JOB_STATUSES
+                    else "orphaned_process_missing"
+                )
+                job.finished_at = job.finished_at or _now_iso()
+                if job.status == "failed" and job._meeting_dir is not None:
+                    _write_last_error(
+                        job._meeting_dir,
+                        stage=job.stage,
+                        job_id=job.job_id,
+                        exit_code=None,
+                    )
+                self._add_history(job)
+                recovered_events.append(_job_record(job))
+
+        pipeline_record = state.get("active_pipeline")
+        if isinstance(pipeline_record, dict):
+            pipeline = _pipeline_from_record(pipeline_record, self.meetings_root)
+            original_status = pipeline.status
+            if self.active_job is not None:
+                pipeline.status = "orphaned"
+                pipeline.recovery_status = "orphaned_process_alive"
+                self.active_pipeline = pipeline
+                recovered_events.append(_pipeline_record(pipeline))
+            else:
+                pipeline.status = (
+                    original_status if original_status in _TERMINAL_JOB_STATUSES else "failed"
+                )
+                pipeline.recovery_status = (
+                    "terminal_state_recovered"
+                    if original_status in _TERMINAL_JOB_STATUSES
+                    else "orphaned_process_missing"
+                )
+                pipeline.finished_at = pipeline.finished_at or _now_iso()
+                if original_status not in _TERMINAL_JOB_STATUSES:
+                    for item in pipeline.stages:
+                        if item.get("status") == "running":
+                            item["status"] = "failed"
+                            item["reason"] = "api_restart_process_missing"
+                        elif item.get("status") == "pending":
+                            item["status"] = "skipped"
+                            item["reason"] = "pipeline stopped after api restart"
+                if (
+                    pipeline.status == "failed"
+                    and pipeline.current_stage in STAGE_COMMANDS
+                    and pipeline._meeting_dir is not None
+                ):
+                    _write_last_error(
+                        pipeline._meeting_dir,
+                        stage=pipeline.current_stage,
+                        job_id=pipeline.job_id,
+                        exit_code=None,
+                    )
+                self._add_pipeline_history(pipeline)
+                recovered_events.append(_pipeline_record(pipeline))
+
+        state["active_job"] = _job_record(self.active_job) if self.active_job is not None else None
+        state["active_pipeline"] = (
+            _pipeline_record(self.active_pipeline) if self.active_pipeline is not None else None
+        )
+        state["history"] = [_job_record(job) for job in self.history]
+        state["pipeline_history"] = [_pipeline_record(job) for job in self.pipeline_history]
+        if recovered_events:
+            self.store.replace_recovered(state, recovered_events)
+
+    def recovery_summary(self, meeting_id: str) -> dict[str, Any] | None:
+        candidates: list[JobState | PipelineJobState] = []
+        if self.active_pipeline and self.active_pipeline.meeting_id == meeting_id:
+            candidates.append(self.active_pipeline)
+        if self.active_job and self.active_job.meeting_id == meeting_id:
+            candidates.append(self.active_job)
+        candidates.extend(
+            item
+            for item in reversed(self.pipeline_history + self.history)
+            if item.meeting_id == meeting_id and item.recovery_status
+        )
+        if not candidates:
+            return None
+        item = candidates[0]
+        return {
+            "job_id": item.job_id,
+            "kind": "pipeline" if isinstance(item, PipelineJobState) else "stage",
+            "status": item.status,
+            "recovery_status": item.recovery_status,
+            "can_cancel": item.status == "orphaned",
+        }
+
+    def _persist_job_update(self, job: JobState, event_type: str) -> None:
+        if self.store is not None:
+            self.store.update_job(_job_record(job), event_type)
+
+    def _persist_pipeline_update(self, pipeline: PipelineJobState, event_type: str) -> None:
+        if self.store is not None:
+            self.store.update_pipeline(_pipeline_record(pipeline), event_type)
 
     def _find_job(self, job_id: str) -> JobState:
         if self.active_job and self.active_job.job_id == job_id:
@@ -593,9 +881,56 @@ class JobRunner:
         return None
 
     def _add_history(self, job: JobState) -> None:
+        self.history = [item for item in self.history if item.job_id != job.job_id]
         self.history.append(job)
         if len(self.history) > _HISTORY_MAX:
             self.history = self.history[-_HISTORY_MAX:]
+
+    def _add_pipeline_history(self, job: PipelineJobState) -> None:
+        self.pipeline_history = [
+            item for item in self.pipeline_history if item.job_id != job.job_id
+        ]
+        self.pipeline_history.append(job)
+        if len(self.pipeline_history) > _HISTORY_MAX:
+            self.pipeline_history = self.pipeline_history[-_HISTORY_MAX:]
+
+    async def _finish_job_without_monitor(
+        self,
+        job: JobState,
+        *,
+        event_type: str,
+    ) -> None:
+        async with self._lock:
+            was_active = self.active_job is job
+            if was_active:
+                self.active_job = None
+        if not was_active:
+            return
+        self._add_history(job)
+        if self.store is not None:
+            self.store.finish_job(_job_record(job), event_type)
+
+    async def _finish_pipeline_without_task(
+        self,
+        pipeline: PipelineJobState,
+        *,
+        event_type: str,
+    ) -> None:
+        pipeline.current_stage = None
+        pipeline.finished_at = pipeline.finished_at or _now_iso()
+        for item in pipeline.stages:
+            if item.get("status") in {"pending", "running", "orphaned"}:
+                item["status"] = "cancelled"
+                item["reason"] = "pipeline cancelled after api restart"
+        async with self._lock:
+            was_active = self.active_pipeline is pipeline
+            if was_active:
+                self.active_pipeline = None
+        if not was_active:
+            return
+        self._add_pipeline_history(pipeline)
+        if self.store is not None:
+            self.store.finish_pipeline(_pipeline_record(pipeline), event_type)
 
     async def _monitor(self, job: JobState) -> None:
         proc = job._process
@@ -606,12 +941,14 @@ class JobRunner:
         except Exception:
             stderr_bytes = b""
         if stderr_bytes:
-            job.stderr_lines = (
-                stderr_bytes.decode("utf-8", errors="replace").splitlines()[-_STDERR_TAIL:]
-            )
+            job.stderr_lines = stderr_bytes.decode("utf-8", errors="replace").splitlines()[
+                -_STDERR_TAIL:
+            ]
         job.finished_at = _now_iso()
         job.exit_code = proc.returncode
-        if job.status not in ("cancelled",):
+        if job.status == "orphaned" and job.recovery_status == "termination_failed":
+            job.status = "cancelled"
+        elif job.status not in ("cancelled",):
             job.status = "completed" if proc.returncode == 0 else "failed"
         # Normalized last_error bookkeeping (#120): failures record a
         # public-safe error in meeting.json; a later success of the same
@@ -630,6 +967,8 @@ class JobRunner:
             if self.active_job is job:
                 self.active_job = None
         self._add_history(job)
+        if self.store is not None:
+            self.store.finish_job(_job_record(job), f"job_{job.status}")
 
     # ------------------------------------------------------------------
     # Public API
@@ -668,6 +1007,16 @@ class JobRunner:
                 started_at=_now_iso(),
                 _meeting_dir=meeting_dir.resolve(),
             )
+            if self.store is not None:
+                try:
+                    self.store.reserve_job(
+                        _job_record(job),
+                        pipeline_id=self.active_pipeline.job_id
+                        if _from_pipeline and self.active_pipeline is not None
+                        else None,
+                    )
+                except JobStoreConflict as exc:
+                    raise JobAlreadyRunning("A durable job reservation is already active.") from exc
             self.active_job = job
 
         try:
@@ -679,14 +1028,35 @@ class JobRunner:
                     raise PreflightFailed(err)
             if supports_dry_run:
                 proc = await _create_subprocess(
-                    *cmd, "--dry-run",
+                    *cmd,
+                    "--dry-run",
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
+                job.pid = proc.pid
+                job.process_identity = process_identity(proc.pid)
+                job._process = proc
+                self._persist_job_update(job, "job_preflight_started")
                 _, stderr_bytes = await proc.communicate()
+                if job.status in ("cancelled", "orphaned"):
+                    job.status = "cancelled"
+                    job.finished_at = job.finished_at or _now_iso()
+                    await self._finish_job_without_monitor(
+                        job, event_type="job_cancelled_during_preflight"
+                    )
+                    return job
+                job.pid = None
+                job.process_identity = None
+                job._process = None
+                self._persist_job_update(job, "job_preflight_finished")
                 if proc.returncode != 0:
                     detail = (stderr_bytes or b"").decode("utf-8", errors="replace").strip()
                     raise PreflightFailed(detail or "dry-run failed")
+            if job.status == "cancelled":
+                await self._finish_job_without_monitor(
+                    job, event_type="job_cancelled_before_launch"
+                )
+                return job
             # Launch real process
             proc = await _create_subprocess(
                 *cmd,
@@ -694,8 +1064,22 @@ class JobRunner:
                 stderr=asyncio.subprocess.PIPE,
             )
             job.pid = proc.pid
-            job.status = "running"
+            job.process_identity = process_identity(proc.pid)
             job._process = proc
+            if job.status == "cancelled":
+                await terminate_process_tree(
+                    pid=job.pid,
+                    identity=job.process_identity,
+                    process=proc,
+                )
+                if isinstance(proc, asyncio.subprocess.Process):
+                    await proc.communicate()
+                await self._finish_job_without_monitor(
+                    job, event_type="job_cancelled_during_launch"
+                )
+                return job
+            job.status = "running"
+            self._persist_job_update(job, "job_launched")
             asyncio.create_task(self._monitor(job))
             return job
 
@@ -703,6 +1087,8 @@ class JobRunner:
             async with self._lock:
                 if self.active_job is job:
                     self.active_job = None
+            if self.store is not None:
+                self.store.release_job(_job_record(job), "job_start_rejected")
             raise
 
     async def cancel(self, job_id: str) -> JobState | PipelineJobState:
@@ -710,14 +1096,30 @@ class JobRunner:
         if pipeline is not None:
             return await self._cancel_pipeline(pipeline)
         job = self._find_job(job_id)
-        if job.status not in ("starting", "running"):
-            raise JobNotRunning(
-                f"Job {job_id!r} is not running (status={job.status!r})"
-            )
+        if job.status in ("completed", "failed", "cancelled"):
+            return job
+        if job.status not in ("starting", "running", "orphaned"):
+            raise JobNotRunning(f"Job {job_id!r} is not running (status={job.status!r})")
         job.status = "cancelled"
         job.finished_at = _now_iso()
-        if job._process is not None:
-            job._process.terminate()
+        self._persist_job_update(job, "job_cancel_requested")
+        if job._process is None and job.pid is None:
+            # submit() owns the pre-launch path and will release the durable
+            # reservation after its current await returns.
+            return job
+        terminated = await terminate_process_tree(
+            pid=job.pid,
+            identity=job.process_identity,
+            process=job._process,
+        )
+        if not terminated:
+            job.status = "orphaned"
+            job.finished_at = None
+            job.recovery_status = "termination_failed"
+            self._persist_job_update(job, "job_termination_failed")
+            return job
+        if job._process is None:
+            await self._finish_job_without_monitor(job, event_type="orphaned_job_cancelled")
         # Do NOT clear active_job here — _monitor releases the slot after the
         # process actually exits, keeping concurrency=1 intact until then.
         return job
@@ -731,6 +1133,12 @@ class JobRunner:
         active job otherwise.
         """
         return self.active_pipeline or self.active_job
+
+    def is_active(self, job_id: str) -> bool:
+        return bool(
+            (self.active_pipeline and self.active_pipeline.job_id == job_id)
+            or (self.active_job and self.active_job.job_id == job_id)
+        )
 
     # ------------------------------------------------------------------
     # Pipeline (run-all)
@@ -779,29 +1187,53 @@ class JobRunner:
                 status="running",
                 started_at=_now_iso(),
                 stages=[
-                    {"stage": s, "status": "pending", "job_id": None,
-                     "exit_code": None, "reason": None}
+                    {
+                        "stage": s,
+                        "status": "pending",
+                        "job_id": None,
+                        "exit_code": None,
+                        "reason": None,
+                    }
                     for s in plan
                 ],
                 _meeting_dir=meeting_dir.resolve(),
             )
+            if self.store is not None:
+                try:
+                    self.store.reserve_pipeline(_pipeline_record(pstate))
+                except JobStoreConflict as exc:
+                    raise JobAlreadyRunning("A durable job reservation is already active.") from exc
             self.active_pipeline = pstate
-        asyncio.create_task(self._run_pipeline(pstate, meeting_dir))
+        pstate._task = asyncio.create_task(self._run_pipeline(pstate, meeting_dir))
         return pstate
 
     async def _cancel_pipeline(self, pipeline: PipelineJobState) -> PipelineJobState:
-        if pipeline.status != "running":
+        if pipeline.status in ("completed", "failed", "cancelled"):
+            return pipeline
+        if pipeline.status not in ("running", "orphaned"):
             raise JobNotRunning(
                 f"Job {pipeline.job_id!r} is not running (status={pipeline.status!r})"
             )
         pipeline.status = "cancelled"
+        pipeline.finished_at = None
+        self._persist_pipeline_update(pipeline, "pipeline_cancel_requested")
         # Cancel the currently running child stage, if any.
         child = self.active_job
-        if child is not None and child.status in ("starting", "running"):
+        if child is not None and child.status in ("starting", "running", "orphaned"):
             try:
-                await self.cancel(child.job_id)
+                child = await self.cancel(child.job_id)
             except JobNotRunning:
                 pass
+            if child.status == "orphaned":
+                pipeline.status = "orphaned"
+                pipeline.recovery_status = "termination_failed"
+                self._persist_pipeline_update(pipeline, "pipeline_termination_failed")
+                return pipeline
+        if pipeline._task is None or pipeline._task.done():
+            pipeline.finished_at = _now_iso()
+            await self._finish_pipeline_without_task(
+                pipeline, event_type="orphaned_pipeline_cancelled"
+            )
         return pipeline
 
     async def _run_pipeline(self, pstate: PipelineJobState, meeting_dir: Path) -> None:
@@ -812,15 +1244,20 @@ class JobRunner:
             for item in pstate.stages:
                 if pstate.status == "cancelled":
                     item["status"] = "cancelled"
+                    self._persist_pipeline_update(pstate, "pipeline_stage_cancelled")
                     continue
+                if pstate.status == "orphaned":
+                    break
                 stage = item["stage"]
                 card = _read_card(meeting_dir)
                 if not pstate.force and _stage_done(stage, meeting_dir, card):
                     item["status"] = "skipped"
                     item["reason"] = "already_done"
+                    self._persist_pipeline_update(pstate, "pipeline_stage_skipped")
                     continue
                 pstate.current_stage = stage
                 item["status"] = "running"
+                self._persist_pipeline_update(pstate, "pipeline_stage_started")
                 try:
                     child = await self.submit(
                         meeting_id=pstate.meeting_id,
@@ -833,23 +1270,33 @@ class JobRunner:
                     item["status"] = "failed"
                     item["reason"] = str(exc)
                     pstate.status = "failed"
+                    self._persist_pipeline_update(pstate, "pipeline_stage_failed")
                     break
                 except JobAlreadyRunning:
                     item["status"] = "failed"
                     item["reason"] = "another job occupied the runner"
                     pstate.status = "failed"
+                    self._persist_pipeline_update(pstate, "pipeline_stage_failed")
                     break
                 item["job_id"] = child.job_id
+                self._persist_pipeline_update(pstate, "pipeline_child_started")
                 while child.status in ("starting", "running"):
                     await asyncio.sleep(_PIPELINE_POLL_SEC)
                 item["exit_code"] = child.exit_code
                 if child.status == "completed":
                     item["status"] = "completed"
+                    self._persist_pipeline_update(pstate, "pipeline_stage_completed")
                     continue
                 # failed or cancelled child stops the pipeline
                 item["status"] = child.status
+                if child.status == "orphaned":
+                    pstate.status = "orphaned"
+                    pstate.recovery_status = child.recovery_status
+                    self._persist_pipeline_update(pstate, "pipeline_child_orphaned")
+                    break
                 if pstate.status != "cancelled":
                     pstate.status = "failed" if child.status == "failed" else "cancelled"
+                self._persist_pipeline_update(pstate, "pipeline_stage_stopped")
                 break
             else:
                 if pstate.status == "running":
@@ -861,14 +1308,30 @@ class JobRunner:
                     item["status"] = stop_label
                     if stop_label == "skipped":
                         item["reason"] = "pipeline stopped on earlier failure"
+            self._persist_pipeline_update(pstate, "pipeline_plan_finished")
+        except Exception:  # noqa: BLE001 - background task must close state
+            if pstate.status not in ("cancelled", "orphaned"):
+                pstate.status = "failed"
+                for item in pstate.stages:
+                    if item.get("status") == "running":
+                        item["status"] = "failed"
+                        item["reason"] = "pipeline orchestration failed"
+                        break
         finally:
-            pstate.current_stage = None
-            pstate.finished_at = _now_iso()
-            if pstate.status == "running":
-                pstate.status = "completed"
-            async with self._lock:
-                if self.active_pipeline is pstate:
-                    self.active_pipeline = None
-            self.pipeline_history.append(pstate)
-            if len(self.pipeline_history) > _HISTORY_MAX:
-                self.pipeline_history = self.pipeline_history[-_HISTORY_MAX:]
+            if pstate.status == "orphaned":
+                pstate._task = None
+                self._persist_pipeline_update(pstate, "pipeline_orphaned")
+            else:
+                pstate.current_stage = None
+                pstate.finished_at = _now_iso()
+                if pstate.status == "running":
+                    pstate.status = "completed"
+                async with self._lock:
+                    if self.active_pipeline is pstate:
+                        self.active_pipeline = None
+                self._add_pipeline_history(pstate)
+                if self.store is not None:
+                    self.store.finish_pipeline(
+                        _pipeline_record(pstate), f"pipeline_{pstate.status}"
+                    )
+                pstate._task = None

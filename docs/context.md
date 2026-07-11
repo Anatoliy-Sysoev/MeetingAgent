@@ -4,14 +4,19 @@
 
 ## Now
 
-- PKB-SEARCH-SOURCE-PROMOTION-DEDUP (#175) is implemented on
-  `codex/175-pkb-source-promotion-dedup`; full verification and PR are the
+- MA-JOB-DURABILITY-RECOVERY (#176) is implemented on
+  `codex/176-job-durability-recovery`; full verification and PR are the
   remaining delivery steps.
-- canonical main state: `855e397` / `Bound meeting uploads and serialize deduplication (#189)`.
-- next audit focus after #175: durable job persistence and orphan recovery (#176).
+- canonical main state: `4c32fcc` / `Deduplicate promoted search sources (#190)`.
+- next audit focus after #176: reproducible dependency lock and advisory gate (#177).
 
 ## Done latest
 
+- MA-JOB-DURABILITY-RECOVERY (#176): stage and pipeline state now uses an
+  atomic, locked and size-bounded local snapshot; API restart recovers live
+  children as cancellable `orphaned` jobs, marks missing children failed and
+  ready for retry, blocks duplicate work across runner instances and safely
+  terminates verified process trees on Windows/Linux.
 - PKB-SEARCH-SOURCE-PROMOTION-DEDUP (#175): AD role-mapping source promotion
   now keeps every source key in exactly one primary/supporting bucket, preserves
   stable first-wins order and reports only sources actually promoted from
@@ -84,6 +89,11 @@
 - Offline ASR product profile: `faster-whisper large-v3-turbo`, `language=ru`, `compute_type=int8`; `small` остаётся только явным draft/dev CLI выбором.
 - Optional engines: GigaAM как внешний локальный backend; sherpa-onnx для diarization; Vosk для draft live transcription.
 - Job runner поддерживает стадии `extract_audio`, `transcribe`, `diarize`, `merge`, `chunk`, `enrich`, `index`, `analyze`.
+- Job state persists in ignored `logs/jobs_state.json`: records are written
+  atomically under an OS advisory lock, histories/events are bounded, and a
+  corrupt or oversized snapshot fails API startup closed. After an API restart,
+  a verified live child is exposed as `orphaned` for explicit cancellation;
+  a missing child becomes `failed` and the stage becomes `ready_for_retry`.
 - Diarization is optional-runtime gated: if sherpa-onnx dependencies are not installed in the active API environment, readiness returns `blocked` / `diarization_runtime_missing` and the Workspace should not start the stage. Use the isolated diarization environment or install `requirements-diarization.txt` before enabling it.
 - Workspace UI: media player, clickable transcript, artifact viewer, job controls, readiness map, one-click pipeline profiles, meeting-scoped Search/Q&A.
 - Workspace flow (#121): state panel (status + active job + public-safe last error), readiness-gated stage buttons (blocked → disabled with reason; done → explicit Force rerun; failed → Retry), pipeline actions (Run full / Resume when partially done / Retry failed stage), manifest-driven result chips (Transcript/Speaker transcript/Summary/Protocol/Tasks), Q&A disabled until chunks/index exist, panels auto-refresh after a job finishes; CSRF on every POST.

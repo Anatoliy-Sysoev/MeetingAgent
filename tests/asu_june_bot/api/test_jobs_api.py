@@ -336,7 +336,7 @@ def test_cancel_running_job_returns_200(
     assert resp2.json()["status"] == "cancelled"
 
 
-def test_cancel_finished_job_returns_409(
+def test_cancel_finished_job_is_idempotent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
@@ -356,7 +356,8 @@ def test_cancel_finished_job_returns_409(
     resp = client.post(
         f"/meetings/{MEETING_ID}/jobs/done-002/cancel", headers=AUTH
     )
-    assert resp.status_code == 409
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "completed"
 
 
 # ------------------------------------------------------------------
@@ -432,6 +433,7 @@ def test_get_active_returns_cancelled_job_while_process_alive(
     body = resp2.json()
     assert body["job_id"] == job_id
     assert body["status"] == "cancelled"
+    assert body["is_active"] is True
 
     # Slot still held — second start is 409
     resp3 = client.post(f"/meetings/{MEETING_ID}/jobs/transcribe", headers=AUTH)

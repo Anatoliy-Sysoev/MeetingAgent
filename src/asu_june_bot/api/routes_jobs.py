@@ -62,6 +62,7 @@ async def list_job_stages(
 async def pipeline_readiness_map(
     meeting_id: str,
     _principal: Annotated[Principal, Depends(require_permission("jobs.read"))],
+    runner: JobRunner = Depends(_get_runner),
     service: MeetingsService = Depends(_get_meetings_service),
 ) -> JSONResponse:
     if not _safe_meeting_id(meeting_id):
@@ -69,7 +70,9 @@ async def pipeline_readiness_map(
     meeting_dir = service.root / meeting_id
     if not (meeting_dir / "meeting.json").exists():
         raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
-    return JSONResponse(content=pipeline_readiness(meeting_id, meeting_dir))
+    payload = pipeline_readiness(meeting_id, meeting_dir)
+    payload["job_recovery"] = runner.recovery_summary(meeting_id)
+    return JSONResponse(content=payload)
 
 
 # ------------------------------------------------------------------
@@ -245,6 +248,7 @@ async def get_job(
         )
     meeting_dir = service.root / meeting_id
     payload = job.as_dict(meeting_status=_read_meeting_status(meeting_dir))
+    payload["is_active"] = runner.is_active(job_id)
     payload["last_error"] = read_last_error(meeting_dir)
     return JSONResponse(content=payload)
 
@@ -288,4 +292,8 @@ async def get_active_job(
     runner: JobRunner = Depends(_get_runner),
 ) -> JSONResponse:
     job = runner.get_active()
-    return JSONResponse(content=job.as_dict() if job else {})
+    if job is None:
+        return JSONResponse(content={})
+    payload = job.as_dict()
+    payload["is_active"] = True
+    return JSONResponse(content=payload)
