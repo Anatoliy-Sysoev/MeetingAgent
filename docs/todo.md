@@ -1,6 +1,6 @@
 # Todo
 
-Обновлено: 2026-07-11.
+Обновлено: 2026-07-12.
 
 ## Done
 
@@ -77,6 +77,8 @@
 - [x] MA-JOB-DURABILITY-RECOVERY (#176): atomic locked job/pipeline snapshot,
   bounded history/events, restart orphan detection, cross-runner reservation,
   verified process-tree cancellation and Workspace recovery status.
+- [x] TEST-CSRF-TOKEN-FLAKE (#193): assert parsed CSRF response fields instead
+  of forbidden substrings inside random token entropy.
 - [ ] MA-DEPENDENCY-LOCK-AND-AUDIT (#177): reproducible runtime dependencies and advisory gate.
 - [ ] PKB-RETRIEVAL-CHARACTERIZATION (#178): characterize and decompose ranking rules.
 - [ ] MA-REPO-DEAD-CODE-CLEANUP (#179): remove empty scaffolds and clarify legacy ownership.

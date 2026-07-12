@@ -1,17 +1,19 @@
 # Текущий Контекст
 
-Обновлено: 2026-07-11.
+Обновлено: 2026-07-12.
 
 ## Now
 
-- MA-JOB-DURABILITY-RECOVERY (#176) is implemented on
-  `codex/176-job-durability-recovery`; full verification and PR are the
-  remaining delivery steps.
-- canonical main state: `4c32fcc` / `Deduplicate promoted search sources (#190)`.
-- next audit focus after #176: reproducible dependency lock and advisory gate (#177).
+- TEST-CSRF-TOKEN-FLAKE (#193) removes a probabilistic CI assertion that treated
+  random token characters as leaked response fields.
+- canonical main state: `ed0be33` / `Persist meeting jobs and recover orphaned processes (#191)`.
+- dependency lock and advisory gate remains active in #177 / PR #192.
 
 ## Done latest
 
+- TEST-CSRF-TOKEN-FLAKE (#193): CSRF response safety is asserted from parsed
+  response fields; random token entropy can no longer fail CI by containing the
+  English substring `hash`.
 - MA-JOB-DURABILITY-RECOVERY (#176): stage and pipeline state now uses an
   atomic, locked and size-bounded local snapshot; API restart recovers live
   children as cancellable `orphaned` jobs, marks missing children failed and
