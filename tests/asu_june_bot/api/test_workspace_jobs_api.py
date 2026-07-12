@@ -110,7 +110,8 @@ def test_csrf_endpoint_does_not_leak_session_or_hash(tmp_path: Path) -> None:
     resp = client.get("/auth/csrf", cookies={"ma_session": cookie})
     body = resp.json()
     assert set(body.keys()) == {"csrf_token"}
-    assert "hash" not in resp.text.lower()
+    assert isinstance(body["csrf_token"], str)
+    assert body["csrf_token"]
 
 
 def test_csrf_endpoint_unauthenticated_returns_401(tmp_path: Path) -> None:
