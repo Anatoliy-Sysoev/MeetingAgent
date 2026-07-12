@@ -4,6 +4,8 @@
 
 !Dockerfile
 !requirements.txt
+!requirements-transcription.txt
+!constraints-py312.txt
 !requirements-diarization.txt
 !config.docker.yaml
 
