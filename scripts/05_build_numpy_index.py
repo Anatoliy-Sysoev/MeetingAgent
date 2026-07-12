@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 
+from legacy_entrypoint import warn_legacy_entrypoint
 from rag_common import ensure_runtime_dirs, load_config, print_summary, resolve_work_path
 from rag_numpy_backend import build_index
 
 
 def main() -> None:
+    warn_legacy_entrypoint(__file__)
     cfg = load_config()
     ensure_runtime_dirs(cfg)
 

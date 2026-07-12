@@ -6,6 +6,10 @@ param(
     [switch]$PrepareNextIfComplete
 )
 
+if ($env:MEETINGAGENT_SUPPRESS_LEGACY_WARNING -ne '1') {
+    Write-Warning 'DEPRECATED: realistic_100_eval_status.ps1 belongs to the v1 eval flow. Use current eval/review tools. Migration: docs/ru/runtime_ownership.md'
+}
+
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")

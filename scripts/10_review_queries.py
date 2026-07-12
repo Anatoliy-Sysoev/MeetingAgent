@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from legacy_entrypoint import warn_legacy_entrypoint
 from rag_common import WORK_ROOT, jsonl_read
 
 
@@ -31,6 +32,7 @@ def build_review_row(item: dict) -> dict:
 
 
 def main() -> None:
+    warn_legacy_entrypoint(__file__)
     parser = argparse.ArgumentParser(
         description="Подготовка review-среза для ручной разметки query_log.jsonl"
     )

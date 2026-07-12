@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from legacy_entrypoint import warn_legacy_entrypoint
 from rag_common import WORK_ROOT, jsonl_read
 
 
@@ -177,6 +178,7 @@ def render_markdown(summary: dict[str, Any], report_path: Path) -> str:
 
 
 def main() -> None:
+    warn_legacy_entrypoint(__file__)
     parser = argparse.ArgumentParser(description="Анализ synthetic_seed_report.jsonl")
     parser.add_argument("--input", default=str(DEFAULT_REPORT_PATH), help="JSONL отчёт от 11_run_synthetic_seed.py")
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT_PATH), help="Markdown summary")

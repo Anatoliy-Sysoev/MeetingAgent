@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from pathlib import Path
 
+from legacy_entrypoint import warn_legacy_entrypoint
 from rag_common import (
     ensure_runtime_dirs,
     is_excluded_by_path_patterns,
@@ -37,6 +38,7 @@ def classify_file(path: Path, rel: Path, cfg: dict) -> tuple[str, str]:
 
 
 def main() -> None:
+    warn_legacy_entrypoint(__file__)
     cfg = load_config()
     ensure_runtime_dirs(cfg)
 

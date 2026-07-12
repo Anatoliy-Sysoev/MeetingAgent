@@ -11,6 +11,10 @@ param(
     [int]$StallMinutes = 10
 )
 
+if ($env:MEETINGAGENT_SUPPRESS_LEGACY_WARNING -ne '1') {
+    Write-Warning 'DEPRECATED: monitor_rag.ps1 watches the v1 index. Use monitor_asu_june_bot_index_v2.ps1. Migration: docs/ru/runtime_ownership.md'
+}
+
 $ErrorActionPreference = 'Continue'
 $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = $Utf8NoBom

@@ -42,6 +42,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from meeting_agent.transcription import (  # noqa: E402
+    DEFAULT_FASTER_WHISPER_MODEL,
     FasterWhisperConfig,
     GigaAMConfig,
     HotwordsConfigError,
@@ -488,7 +489,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     args = parser.parse_args(argv)
     cfg = transcription_config()
     if args.engine == "faster-whisper" and not args.model:
-        args.model = str(cfg.get("model") or "small")
+        args.model = str(cfg.get("model") or DEFAULT_FASTER_WHISPER_MODEL)
     if args.engine == "gigaam" and not args.model:
         args.model = "v3_e2e_rnnt"
     if args.engine == "faster-whisper":

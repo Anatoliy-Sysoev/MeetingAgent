@@ -1,3 +1,7 @@
+if ($env:MEETINGAGENT_SUPPRESS_LEGACY_WARNING -ne '1') {
+    Write-Warning 'DEPRECATED: run_full_rag.ps1 builds the v1 index. Use run_asu_june_bot_rebuild_v2.ps1. Migration: docs/ru/runtime_ownership.md'
+}
+
 $ErrorActionPreference = "Continue"
 $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = $Utf8NoBom

@@ -9,6 +9,10 @@ param(
     [string]$ActiveCorpus = ""
 )
 
+if ($env:MEETINGAGENT_SUPPRESS_LEGACY_WARNING -ne '1') {
+    Write-Warning 'DEPRECATED: run_realistic_100_eval_automation.ps1 belongs to the v1 eval flow. Use scripts/asu_june_bot_chat_eval.py. Migration: docs/ru/runtime_ownership.md'
+}
+
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")

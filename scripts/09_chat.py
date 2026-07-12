@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from legacy_entrypoint import warn_legacy_entrypoint
 from rag_common import append_query_log, ensure_runtime_dirs, is_sensitive_query, jsonl_read, load_config, resolve_work_path
 from rag_numpy_backend import index_exists, load_index
 from rag_ollama import ollama_chat, ollama_embed
@@ -566,6 +567,7 @@ def apply_config_defaults(args: argparse.Namespace, cfg: dict[str, Any]) -> None
 
 
 def main() -> None:
+    warn_legacy_entrypoint(__file__)
     parser = argparse.ArgumentParser(description="Project-only чат-бот MeetingAgent поверх локального RAG")
     parser.add_argument("question", nargs="+", help="Вопрос к проектной базе знаний")
     parser.add_argument("--top-k", type=int, default=None, help="Сколько chunks искать до фильтрации")

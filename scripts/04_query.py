@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 
+from legacy_entrypoint import warn_legacy_entrypoint
 from rag_common import (
     append_query_log,
     ensure_runtime_dirs,
@@ -183,6 +184,7 @@ def top_sources_for_log(contexts: list[dict[str, Any]], limit: int = 8) -> list[
 
 
 def main() -> None:
+    warn_legacy_entrypoint(__file__)
     parser = argparse.ArgumentParser(description="Запрос к локальному RAG-индексу проекта АСУ")
     parser.add_argument("question", nargs="+", help="Вопрос к RAG-индексу")
     parser.add_argument("--top-k", type=int, default=None, help="Сколько chunks искать")

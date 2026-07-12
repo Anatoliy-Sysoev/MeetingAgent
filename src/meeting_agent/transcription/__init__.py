@@ -7,7 +7,12 @@ from .exporters import (
     build_vtt_transcript,
     write_transcript_exports,
 )
-from .faster_whisper_backend import FasterWhisperConfig, FasterWhisperResult, transcribe_faster_whisper
+from .faster_whisper_backend import (
+    DEFAULT_FASTER_WHISPER_MODEL,
+    FasterWhisperConfig,
+    FasterWhisperResult,
+    transcribe_faster_whisper,
+)
 from .gigaam_backend import GigaAMConfig, GigaAMResult, transcribe_gigaam
 from .glossary import extract_initial_prompt
 from .hotwords import HotwordsConfig, HotwordsConfigError, load_hotwords_config
@@ -32,6 +37,7 @@ __all__ = [
     "NormalizationResult",
     "TranscriptDocument",
     "TranscriptionReport",
+    "DEFAULT_FASTER_WHISPER_MODEL",
     "FasterWhisperConfig",
     "FasterWhisperResult",
     "GigaAMConfig",

@@ -14,6 +14,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from legacy_entrypoint import warn_legacy_entrypoint
+
 
 STATUS_PROCESSING = "processing"
 STATUS_SUMMARIZED = "summarized"
@@ -102,6 +104,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from meeting_agent.transcription import (  # noqa: E402
+    DEFAULT_FASTER_WHISPER_MODEL,
     FasterWhisperConfig,
     TranscriptDocument,
     build_markdown_transcript,
@@ -1044,7 +1047,7 @@ def run(args: argparse.Namespace) -> int:
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Offline windowed MeetingAgent ASR -> MAP -> REDUCE -> RENDER pipeline.")
     parser.add_argument("--meeting-dir", required=True)
-    parser.add_argument("--asr-model", default="small")
+    parser.add_argument("--asr-model", default=DEFAULT_FASTER_WHISPER_MODEL)
     parser.add_argument("--llm-model", default=None)
     parser.add_argument("--window-seconds", type=int, default=120)
     parser.add_argument("--window-overlap-seconds", type=int, default=15)
@@ -1064,6 +1067,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main() -> int:
+    warn_legacy_entrypoint(__file__)
     return run(parse_args(sys.argv[1:]))
 
 

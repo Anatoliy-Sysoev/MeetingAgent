@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from legacy_entrypoint import warn_legacy_entrypoint
 from rag_common import WORK_ROOT, jsonl_read
 
 
@@ -99,6 +100,7 @@ def summarize(rows: list[dict[str, Any]], review_rows: list[dict[str, Any]]) -> 
 
 
 def main() -> None:
+    warn_legacy_entrypoint(__file__)
     parser = argparse.ArgumentParser(description="Prepare manual-review JSONL from realistic 100 eval report")
     parser.add_argument("--input", default=str(DEFAULT_INPUT), help="realistic_100_eval_report.jsonl")
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help="review JSONL output")

@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from legacy_entrypoint import warn_legacy_entrypoint
 from rag_common import WORK_ROOT, jsonl_read
 
 
@@ -155,6 +156,7 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def main() -> None:
+    warn_legacy_entrypoint(__file__)
     parser = argparse.ArgumentParser(description="Прогон 100 realistic queries через project-only chat runner")
     parser.add_argument("--dataset", default=str(DEFAULT_DATASET), help="JSONL dataset")
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help="JSONL report")
