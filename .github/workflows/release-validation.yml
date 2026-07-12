@@ -28,17 +28,22 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: |
+            constraints-py312.txt
             requirements.txt
+            requirements-transcription.txt
             requirements-dev.txt
             pyproject.toml
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements-dev.txt
+          python -m pip install -c constraints-py312.txt pip
+          python -m pip install -c constraints-py312.txt -r requirements-dev.txt
 
       - name: Validate release notes
         run: python scripts/45_validate_release_notes.py --version "${{ inputs.version }}"
 
       - name: Run full verification
         run: python scripts/46_ci_verify.py
+
+      - name: Audit pinned dependency graph
+        run: python scripts/47_dependency_audit.py

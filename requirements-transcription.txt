@@ -1,0 +1,3 @@
+# Optional offline ASR runtime used by scripts/22_transcribe_meeting.py.
+# Kept outside requirements.txt so API/RAG-only installs stay lightweight.
+faster-whisper>=1.1,<2

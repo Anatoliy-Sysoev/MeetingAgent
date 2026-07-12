@@ -17,7 +17,7 @@ Use this documentation site for browsable public docs. The repository `README.md
 ## Build Locally
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements-docs.txt
+.\.venv\Scripts\python.exe -m pip install -c constraints-py312.txt -r requirements-docs.txt
 .\.venv\Scripts\python.exe -m mkdocs build
 ```
 

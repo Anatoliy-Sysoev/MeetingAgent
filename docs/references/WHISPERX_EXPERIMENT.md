@@ -42,7 +42,7 @@ meetings/2026-05-08__test-meeting/transcript/model_compare/
 
 ```powershell
 py -3.12 -m venv $env:LOCALAPPDATA\MeetingAgent\whisperx-venv312
-& $env:LOCALAPPDATA\MeetingAgent\whisperx-venv312\Scripts\python.exe -m pip install --upgrade pip
+& $env:LOCALAPPDATA\MeetingAgent\whisperx-venv312\Scripts\python.exe -m pip install -c constraints-py312.txt pip
 & $env:LOCALAPPDATA\MeetingAgent\whisperx-venv312\Scripts\python.exe -m pip install whisperx
 ```
 

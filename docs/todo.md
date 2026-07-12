@@ -79,7 +79,10 @@
   verified process-tree cancellation and Workspace recovery status.
 - [x] TEST-CSRF-TOKEN-FLAKE (#193): assert parsed CSRF response fields instead
   of forbidden substrings inside random token entropy.
-- [ ] MA-DEPENDENCY-LOCK-AND-AUDIT (#177): reproducible runtime dependencies and advisory gate.
+- [x] MA-DEPENDENCY-LOCK-AND-AUDIT (#177): separated core/transcription/
+  diarization/dev groups, reviewed Python 3.12 constraints lock, clean pinned
+  audit, scheduled and release gates, expiring exception policy and Dependabot
+  updates.
 - [ ] PKB-RETRIEVAL-CHARACTERIZATION (#178): characterize and decompose ranking rules.
 - [ ] MA-REPO-DEAD-CODE-CLEANUP (#179): remove empty scaffolds and clarify legacy ownership.
 - [ ] MA-UI-CSP-MODULARIZATION (#180): extract frontend assets and enforce CSP.

@@ -269,8 +269,9 @@ SPEAKER_UNKNOWN
 Основной backend - `sherpa-onnx`. Он выбран как CPU-first путь для Windows без HuggingFace-токена и без PyTorch-конфликтов с GigaAM/faster-whisper. Зависимости ставятся отдельно:
 
 ```powershell
-python -m venv .venv-diarization
-.\.venv-diarization\Scripts\python.exe -m pip install -r requirements-diarization.txt
+py -3.12 -m venv .venv-diarization
+.\.venv-diarization\Scripts\python.exe -m pip install -c constraints-py312.txt `
+  -r requirements-diarization.txt
 ```
 
 ONNX-модели нужно скачать локально в ignored папку:

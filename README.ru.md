@@ -61,8 +61,9 @@ docs/project_knowledge_bot.md
 ```powershell
 git clone https://github.com/Anatoliy-Sysoev/MeetingAgent.git
 cd MeetingAgent
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -c constraints-py312.txt `
+  -r requirements.txt -r requirements-transcription.txt
 Copy-Item .env.example .env
 ```
 
@@ -181,7 +182,7 @@ API использует machine Bearer token (`MEETINGAGENT_API_TOKEN`) для 
 ## Разработка
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pip install -c constraints-py312.txt -r requirements-dev.txt
 .\.venv\Scripts\python.exe scripts\46_ci_verify.py
 ```
 

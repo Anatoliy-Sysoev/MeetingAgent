@@ -4,13 +4,19 @@
 
 ## Now
 
-- TEST-CSRF-TOKEN-FLAKE (#193) removes a probabilistic CI assertion that treated
-  random token characters as leaked response fields.
-- canonical main state: `ed0be33` / `Persist meeting jobs and recover orphaned processes (#191)`.
-- dependency lock and advisory gate remains active in #177 / PR #192.
+- MA-DEPENDENCY-LOCK-AND-AUDIT (#177) is implemented and locally verified on
+  `codex/177-dependency-lock-audit`; PR #192 is awaiting its rebased CI run.
+- canonical main state: `6646224` / `Make CSRF response safety test deterministic (#194)`.
+- next audit focus after #177: characterize and decompose retrieval ranking (#178).
 
 ## Done latest
 
+- MA-DEPENDENCY-LOCK-AND-AUDIT (#177): Python 3.12 now has a reviewed exact
+  constraints graph; core, offline ASR, optional diarization and dev/audit
+  groups are separated;
+  Docker/CI/release use the lock; scheduled `pip-audit` and Dependabot are
+  enabled; exceptions require an issue, reason and expiry and currently none
+  are active.
 - TEST-CSRF-TOKEN-FLAKE (#193): CSRF response safety is asserted from parsed
   response fields; random token entropy can no longer fail CI by containing the
   English substring `hash`.

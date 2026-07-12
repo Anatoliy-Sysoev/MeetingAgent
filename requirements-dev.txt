@@ -1,5 +1,9 @@
-# Developer and test environment. Runtime containers install requirements.txt only.
+# Developer/test environment: core + offline ASR + docs + verification/audit tools.
 -r requirements.txt
+-r requirements-transcription.txt
+-r requirements-docs.txt
 
-pytest
-ruff
+pip-audit>=2.9,<3
+pip-tools>=7.5,<8
+pytest>=8.3,<10
+ruff>=0.9,<1

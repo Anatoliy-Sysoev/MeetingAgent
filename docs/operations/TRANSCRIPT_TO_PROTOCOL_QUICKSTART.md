@@ -9,8 +9,8 @@ It uses only the public synthetic dataset from `examples/meeting_dataset/`. Real
 Start from a clean checkout:
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -c constraints-py312.txt -r requirements.txt
 ```
 
 Create a local runtime copy of the public sample:
