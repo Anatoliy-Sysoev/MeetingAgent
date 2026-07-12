@@ -47,6 +47,7 @@ nav:
       - Agent Workflows: en/agents.md
       - Roadmap: en/roadmap.md
       - Documentation Parity: en/documentation_parity.md
+      - Dependency Management: en/dependency_management.md
   - Русский:
       - Обзор: ru/index.md
       - Быстрый старт: ru/quickstart.md
@@ -55,6 +56,7 @@ nav:
       - Работа агентов: ru/agents.md
       - Дорожная карта: ru/roadmap.md
       - Паритет документации: ru/documentation_parity.md
+      - Управление зависимостями: ru/dependency_management.md
   - Operations:
       - Meeting Pipeline: operations/MEETING_PIPELINE.md
       - Transcript to Protocol: operations/TRANSCRIPT_TO_PROTOCOL_QUICKSTART.md

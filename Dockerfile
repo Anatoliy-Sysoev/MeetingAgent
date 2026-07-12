@@ -21,11 +21,15 @@ RUN apt-get update \
         --shell /usr/sbin/nologin meetingagent
 
 COPY requirements.txt /app/requirements.txt
+COPY requirements-transcription.txt /app/requirements-transcription.txt
+COPY constraints-py312.txt /app/constraints-py312.txt
 COPY requirements-diarization.txt /app/requirements-diarization.txt
 ARG INSTALL_DIARIZATION=false
-RUN python -m pip install --upgrade pip \
-    && python -m pip install -r /app/requirements.txt \
-    && if [ "$INSTALL_DIARIZATION" = "true" ]; then python -m pip install -r /app/requirements-diarization.txt; fi
+RUN python -m pip install -c /app/constraints-py312.txt pip \
+    && python -m pip install -c /app/constraints-py312.txt \
+        -r /app/requirements.txt \
+        -r /app/requirements-transcription.txt \
+    && if [ "$INSTALL_DIARIZATION" = "true" ]; then python -m pip install -c /app/constraints-py312.txt -r /app/requirements-diarization.txt; fi
 
 COPY src /app/src
 COPY scripts /app/scripts

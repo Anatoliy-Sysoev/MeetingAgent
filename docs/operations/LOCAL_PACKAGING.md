@@ -85,8 +85,9 @@ sudo chown -R 10001:10001 data logs meetings vector_db watched_folder
 Если `.venv` ещё нет:
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -c constraints-py312.txt `
+  -r requirements.txt -r requirements-transcription.txt
 .\.venv\Scripts\python.exe scripts\42_local_preflight.py --mode docker
 ```
 
@@ -182,7 +183,9 @@ cookie/bootstrap/proxy policy и завершает процесс при неб
 
 Проверяются non-root UID, исключение private sentinel из image, отсутствие
 test dependencies и writable runtime paths. Для разработки/тестов используйте
-requirements-dev.txt; production image ставит только requirements.txt.
+requirements-dev.txt под `constraints-py312.txt`; production image ставит
+core `requirements.txt` и отдельный `requirements-transcription.txt` под тем же
+reviewed constraints lock.
 
 ## Запуск pipeline через Docker
 

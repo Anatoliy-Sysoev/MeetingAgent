@@ -59,8 +59,9 @@ $env:PYTHONIOENCODING = "utf-8"
 Перед запуском на новом ПК выполнить preflight:
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -c constraints-py312.txt `
+  -r requirements.txt -r requirements-transcription.txt
 .\.venv\Scripts\python.exe scripts\42_local_preflight.py --mode docker
 ```
 
@@ -241,8 +242,10 @@ diarization назначает анонимные SPEAKER_XX; реальные �
 
 ## Runtime и dev dependencies
 
-- requirements.txt — только production runtime; именно он ставится в image.
-- requirements-dev.txt — runtime + pytest/ruff для разработки и CI.
+- requirements.txt — лёгкий production core без ASR backend.
+- requirements-transcription.txt — optional offline ASR (`faster-whisper`); в product image ставится явно.
+- constraints-py312.txt — reviewed Python 3.12 resolver lock для core/transcription/diarization/docs/dev.
+- requirements-dev.txt — core + transcription + pytest/ruff/pip-tools/pip-audit для разработки и CI.
 - requirements-diarization.txt — optional image/profile для diarization.
 
 ## Container security smoke

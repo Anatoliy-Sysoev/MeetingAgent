@@ -460,3 +460,36 @@ bucket: primary либо supporting. Первый primary источник вы�
 - production runtime поддерживает один API worker. Межпроцессный lock защищает
   от двойного запуска, но routing статуса между несколькими workers не является
   распределённым job scheduler.
+
+## 2026-07-12 - Python 3.12 Constraints Является Каноническим Dependency Lock
+
+Решение: direct requirement files хранят bounded version ranges по назначению,
+а `constraints-py312.txt` фиксирует единый reviewed resolver result для core,
+offline transcription, optional diarization, documentation и development/audit
+tools. CI, release validation и Docker устанавливают пакеты только под этим
+constraints file.
+
+Почему:
+
+- unpinned fresh install менялся со временем и мог отличаться от проверенной
+  локальной среды;
+- `faster-whisper` утяжелял API/RAG-only install, хотя нужен только offline ASR;
+- локальный `pip list` уже демонстрировал dependency drift;
+- отсутствие advisory gate позволяло известной уязвимости попасть в release.
+
+Следствия:
+
+- `requirements.txt` содержит core, `requirements-transcription.txt` —
+  faster-whisper, `requirements-dev.txt` — core + transcription + test/audit
+  tools;
+- diarization остаётся отдельным optional install profile, но его Windows/Linux
+  wheels входят в общий lock и advisory gate;
+- GigaAM и live остаются отдельными platform-specific profiles вне общего lock,
+  потому что зависят от Torch/audio wheels и устройства;
+- scheduled и release workflows запускают `pip-audit --strict --no-deps` по
+  pinned graph; текущий graph не имеет известных advisories;
+- исключение допускается только с advisory ID, обоснованием, repository issue
+  и ISO expiry; malformed/expired исключение ломает audit fail-closed;
+- Dependabot раз в неделю предлагает обновления Python и GitHub Actions;
+- lock фиксирует версии, но не hashes артефактов. Переход к hash-checking mode
+  рассматривается отдельно, если появится distribution/high-assurance контур.
