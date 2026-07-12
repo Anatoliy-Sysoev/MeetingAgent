@@ -83,7 +83,9 @@
   diarization/dev groups, reviewed Python 3.12 constraints lock, clean pinned
   audit, scheduled and release gates, expiring exception policy and Dependabot
   updates.
-- [ ] PKB-RETRIEVAL-CHARACTERIZATION (#178): characterize and decompose ranking rules.
+- [x] PKB-RETRIEVAL-CHARACTERIZATION (#178): public characterization cases,
+  typed ranking policies, config-driven terminology, deterministic traces and
+  retrieval/source-routing coverage gates.
 - [ ] MA-REPO-DEAD-CODE-CLEANUP (#179): remove empty scaffolds and clarify legacy ownership.
 - [ ] MA-UI-CSP-MODULARIZATION (#180): extract frontend assets and enforce CSP.
 - [ ] MA-MEETING-VECTOR-CACHE-LOCKING (#181): concurrency-safe semantic cache.
