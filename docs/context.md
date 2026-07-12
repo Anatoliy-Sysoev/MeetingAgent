@@ -4,15 +4,19 @@
 
 ## Now
 
-- PKB-RETRIEVAL-CHARACTERIZATION (#178) is implemented and verified: ranking
-  behavior has a public characterization dataset, named typed policies,
-  config-driven terminology, deterministic diagnostics and an enforced
-  branch-coverage gate independent of LLM quality.
-- canonical main state before #178: `ffc812e` / `Lock and audit Python dependencies (#192)`.
-- next audit focus after #178: dead-code and legacy ownership cleanup (#179).
+- MA-REPO-DEAD-CODE-CLEANUP (#179) is implemented and verified: every package
+  and script is classified in a tested runtime inventory, supported CLI paths
+  have smoke tests, compatibility entrypoints emit migration warnings, empty
+  scaffolds are removed and ASR defaults are aligned.
+- canonical main state before #179: `2962197` / `Characterize and decompose retrieval ranking (#197)`.
+- next audit focus after #179: frontend CSP modularization (#180).
 
 ## Done latest
 
+- MA-REPO-DEAD-CODE-CLEANUP (#179): empty apps/templates/packages were removed;
+  `configs/runtime_inventory.yaml` owns every package/script; current CLI help
+  and package imports are smoke-tested; retained v1 entrypoints point to their
+  replacements; offline ASR defaults to `large-v3-turbo` everywhere.
 - PKB-RETRIEVAL-CHARACTERIZATION (#178): BM25 intent boosts, hybrid fusion and
   post-rerank rules are decomposed into independently testable policies;
   customer vocabulary lives in `ranking_profile.yaml` plus ignored local

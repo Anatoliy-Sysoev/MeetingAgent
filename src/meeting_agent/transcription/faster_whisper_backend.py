@@ -5,9 +5,12 @@ from pathlib import Path
 from typing import Any
 
 
+DEFAULT_FASTER_WHISPER_MODEL = "large-v3-turbo"
+
+
 @dataclass(frozen=True)
 class FasterWhisperConfig:
-    model: str = "small"
+    model: str = DEFAULT_FASTER_WHISPER_MODEL
     language: str = "ru"
     compute_type: str = "int8"
     device: str = "cpu"
@@ -75,4 +78,6 @@ def transcribe_faster_whisper(media_path: Path, config: FasterWhisperConfig) -> 
         "beam_size": config.beam_size,
         "vad_filter": config.vad_filter,
     }
-    return FasterWhisperResult(segments=rows, metrics={key: value for key, value in metrics.items() if value is not None})
+    return FasterWhisperResult(
+        segments=rows, metrics={key: value for key, value in metrics.items() if value is not None}
+    )

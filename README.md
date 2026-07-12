@@ -73,9 +73,16 @@ Detailed documentation:
 
 ### Package Status
 
-`src/meeting_agent/` is the planned general MeetingAgent package. The implemented shared meeting-processing layers currently include transcription, diarization, and live-transcription helpers.
+`src/meeting_agent/` contains the implemented product-owned transcription,
+diarization, live-transcription, evaluation, and shared infrastructure layers.
+The integrated API/UI runtime currently lives in `src/asu_june_bot/`; its
+`core/` and `llm/` packages are compatibility shims over `meeting_agent.shared`.
 
-The production-ready reference API/UI runtime currently lives in `src/asu_june_bot/`. Legacy `scripts/01_*` ... `scripts/09_chat.py` are kept for compatibility and migration reference.
+Empty placeholder apps, templates, and package scaffolds have been removed.
+Legacy `scripts/01_*` ... `scripts/18_*` remain only for compatibility and emit
+a migration warning when run. The complete machine-checked ownership inventory
+is `configs/runtime_inventory.yaml`; see
+[Runtime Ownership](docs/en/runtime_ownership.md).
 
 ## Public Examples
 

@@ -20,7 +20,7 @@ rag:
   search_backend: "numpy"
   chunk_size_chars: 3000
   chunk_overlap_chars: 300
-  # Быстрый CPU-профиль ProjectBot; CLI scripts/09_chat.py читает эти значения как default.
+  # Быстрый CPU-профиль Project Knowledge Bot search/chat runtime.
   top_k: 4
   score_threshold: 0.35
   min_sources: 1
@@ -39,16 +39,6 @@ transcription:
   device: "cpu"
   beam_size: 5
   vad_filter: true
-
-live_transcription:
-  model: "small"
-  language: "ru"
-  compute_type: "int8"
-  device: "cpu"
-  chunk_sec: 5
-  beam_size: 3
-  vad_filter: false
-  write_separate_mic_and_system_tracks: true
 
 paths:
   manifest: "data/manifest.jsonl"

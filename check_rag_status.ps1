@@ -1,3 +1,7 @@
+if ($env:MEETINGAGENT_SUPPRESS_LEGACY_WARNING -ne '1') {
+    Write-Warning 'DEPRECATED: check_rag_status.ps1 is v1-only. Use scripts/asu_june_bot_health_v2.py. Migration: docs/ru/runtime_ownership.md'
+}
+
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $LogDir = Join-Path $Root "logs"
 

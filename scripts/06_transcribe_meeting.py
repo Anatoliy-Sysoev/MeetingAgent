@@ -5,6 +5,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+from legacy_entrypoint import warn_legacy_entrypoint
+
 
 def load_transcribe22():
     module_path = Path(__file__).resolve().with_name("22_transcribe_meeting.py")
@@ -32,6 +34,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main() -> int:
+    warn_legacy_entrypoint(__file__)
     args = parse_args(sys.argv[1:])
     transcribe22 = load_transcribe22()
     forwarded = [

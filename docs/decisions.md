@@ -523,3 +523,33 @@ deterministic diagnostics trace.
   pytest;
 - изменение коэффициентов, marker groups или порядка policies требует сначала
   обновить characterization evidence и объяснить behavior change в PR.
+
+## 2026-07-12 - Runtime Inventory Является Канонической Картой Ownership
+
+Решение: каждый Python package и каждый `.py`/`.ps1` в `scripts/` обязан быть
+ровно один раз классифицирован в `configs/runtime_inventory.yaml` как
+`current`, `compatibility` или `planned`. Empty scaffolds без committed contract
+удаляются. Retained compatibility entrypoints остаются запускаемыми, но печатают
+видимое migration warning с текущей заменой.
+
+Почему:
+
+- пустые `apps/*`, `templates/*` и placeholder packages создавали ложное
+  впечатление о готовых продуктовых поверхностях;
+- параллельные v1/v2 имена не позволяли покупателю или contributor определить
+  поддерживаемый entrypoint;
+- документация без machine check быстро расходится с деревом файлов;
+- fallback `small` в нескольких retained ASR paths противоречил каноническому
+  product profile `large-v3-turbo`.
+
+Следствия:
+
+- новый script/package не пройдёт тесты, пока не получит ownership status;
+- current public CLI проходит реальный `--help` smoke без сети/model calls;
+- `asu_june_bot.core` и `asu_june_bot.llm` явно остаются compatibility shims;
+- v1 scripts не удаляются внезапно, existing automation может временно скрыть
+  warning через `MEETINGAGENT_SUPPRESS_LEGACY_WARNING=1`;
+- `DEFAULT_FASTER_WHISPER_MODEL` является единственным code default для offline
+  faster-whisper, а `small` разрешён только как явный draft/dev выбор;
+- scaffold directory возвращается только вместе с кодом, тестами, ownership и
+  документацией.

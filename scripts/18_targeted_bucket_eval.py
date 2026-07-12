@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from legacy_entrypoint import warn_legacy_entrypoint
 from rag_bucket_quality import classify_failure_bucket
 
 
@@ -92,6 +93,7 @@ def run_query(chat_script: str, model: str, query: str) -> dict[str, Any]:
 
 
 def main() -> int:
+    warn_legacy_entrypoint(__file__)
     parser = argparse.ArgumentParser(description="Run targeted eval rerun by retrieval failure bucket")
     parser.add_argument("--review", required=True)
     parser.add_argument("--bucket", required=True)

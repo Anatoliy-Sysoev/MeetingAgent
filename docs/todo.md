@@ -86,7 +86,9 @@
 - [x] PKB-RETRIEVAL-CHARACTERIZATION (#178): public characterization cases,
   typed ranking policies, config-driven terminology, deterministic traces and
   retrieval/source-routing coverage gates.
-- [ ] MA-REPO-DEAD-CODE-CLEANUP (#179): remove empty scaffolds and clarify legacy ownership.
+- [x] MA-REPO-DEAD-CODE-CLEANUP (#179): machine-checked runtime inventory,
+  supported CLI/import smoke, visible legacy migration warnings, empty scaffold
+  removal and canonical ASR defaults.
 - [ ] MA-UI-CSP-MODULARIZATION (#180): extract frontend assets and enforce CSP.
 - [ ] MA-MEETING-VECTOR-CACHE-LOCKING (#181): concurrency-safe semantic cache.
 - [ ] MA-MEETINGAGENT-UI-MOCKUPS: approve target mockups for registry, upload wizard, processing monitor and meeting card before deeper UI refactor.

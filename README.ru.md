@@ -50,7 +50,15 @@ docs/project_knowledge_bot.md
 
 ### Legacy Pipeline
 
-Скрипты `scripts/01_*` ... `scripts/09_chat.py` относятся к legacy MeetingAgent v1 RAG baseline. Они сохранены для совместимости и миграции. Новый runtime должен опираться на `src/asu_june_bot/`, `src/meeting_agent/transcription/` и задокументированные публичные workflows.
+`src/meeting_agent/` содержит реализованные product-owned слои transcription,
+diarization, live transcription, evaluation и shared infrastructure.
+Интегрированный API/UI runtime пока находится в `src/asu_june_bot/`, а его
+`core/` и `llm/` являются compatibility shims поверх `meeting_agent.shared`.
+
+Пустые placeholder apps/templates/packages удалены. Скрипты `scripts/01_*` ...
+`scripts/18_*` сохранены только для совместимости и при запуске показывают
+migration warning. Полный machine-checked inventory находится в
+`configs/runtime_inventory.yaml`; см. [границы runtime](docs/ru/runtime_ownership.md).
 
 ### Planned Package
 

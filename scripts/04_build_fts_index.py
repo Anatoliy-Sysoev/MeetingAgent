@@ -4,11 +4,13 @@ import argparse
 import json
 from pathlib import Path
 
+from legacy_entrypoint import warn_legacy_entrypoint
 from rag_common import ensure_runtime_dirs, load_config, resolve_work_path
 from rag_fts import FTSIndex
 
 
 def main() -> None:
+    warn_legacy_entrypoint(__file__)
     parser = argparse.ArgumentParser(description="Пересборка локального SQLite FTS5/BM25 индекса по chunks.jsonl")
     parser.add_argument("--chunks", default=None, help="Путь к chunks.jsonl. По умолчанию берётся из config.yaml")
     parser.add_argument("--output", default="data/fts_index.sqlite", help="Путь к SQLite FTS5 индексу")
