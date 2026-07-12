@@ -59,6 +59,8 @@ colorama==0.4.6
     #   mkdocs-material
     #   pytest
     #   tqdm
+coverage==7.15.0
+    # via -r requirements-dev.txt
 ctranslate2==4.8.1
     # via faster-whisper
 cyclonedx-python-lib==11.11.0

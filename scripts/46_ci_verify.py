@@ -40,6 +40,7 @@ def main() -> int:
         _run(command)
     _run([sys.executable, "-m", "compileall", "-q", "scripts", "src", "tests"])
     _run([sys.executable, "-m", "pytest", "-q"])
+    _run([sys.executable, "scripts/48_retrieval_coverage.py"])
     return 0
 
 
