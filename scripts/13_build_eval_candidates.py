@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from legacy_entrypoint import warn_legacy_entrypoint
 from rag_common import WORK_ROOT, jsonl_read, stable_id
 
 
@@ -73,6 +74,7 @@ def build_candidate(row: dict[str, Any], index: int) -> dict[str, Any]:
 
 
 def main() -> None:
+    warn_legacy_entrypoint(__file__)
     parser = argparse.ArgumentParser(
         description="Сборка кандидатов eval-кейсов из ручной review-разметки"
     )

@@ -5,6 +5,8 @@ import json
 import sys
 from pathlib import Path
 
+from legacy_entrypoint import warn_legacy_entrypoint
+
 
 WORK_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = WORK_ROOT / "src"
@@ -37,6 +39,7 @@ def print_human(payload: dict) -> None:
 
 
 def main() -> None:
+    warn_legacy_entrypoint(__file__)
     parser = argparse.ArgumentParser(description="Asu June Bot search CLI: hybrid retrieval over MeetingAgent RAG corpus")
     parser.add_argument("query", nargs="+", help="Поисковый запрос")
     parser.add_argument("--top-k", type=int, default=10, help="Количество результатов")

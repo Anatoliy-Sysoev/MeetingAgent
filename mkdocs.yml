@@ -49,6 +49,7 @@ nav:
       - Documentation Parity: en/documentation_parity.md
       - Dependency Management: en/dependency_management.md
       - Retrieval Ranking: en/retrieval_ranking.md
+      - Runtime Ownership: en/runtime_ownership.md
   - Русский:
       - Обзор: ru/index.md
       - Быстрый старт: ru/quickstart.md
@@ -59,6 +60,7 @@ nav:
       - Паритет документации: ru/documentation_parity.md
       - Управление зависимостями: ru/dependency_management.md
       - Ранжирование Retrieval: ru/retrieval_ranking.md
+      - Границы Runtime: ru/runtime_ownership.md
   - Operations:
       - Meeting Pipeline: operations/MEETING_PIPELINE.md
       - Transcript to Protocol: operations/TRANSCRIPT_TO_PROTOCOL_QUICKSTART.md

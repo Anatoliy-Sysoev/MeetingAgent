@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from legacy_entrypoint import warn_legacy_entrypoint
 from rag_common import WORK_ROOT, jsonl_read
 
 
@@ -48,6 +49,7 @@ def run_query(question: str, top_k: int, compact: bool, timeout_sec: int) -> dic
 
 
 def main() -> None:
+    warn_legacy_entrypoint(__file__)
     parser = argparse.ArgumentParser(
         description="Прогон synthetic seed вопросов через scripts/04_query.py"
     )

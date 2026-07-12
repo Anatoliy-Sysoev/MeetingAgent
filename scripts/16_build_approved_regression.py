@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from legacy_entrypoint import warn_legacy_entrypoint
 from rag_common import WORK_ROOT, jsonl_read, stable_id
 
 
@@ -60,6 +61,7 @@ def build_case(row: dict[str, Any], index: int) -> dict[str, Any]:
 
 
 def main() -> None:
+    warn_legacy_entrypoint(__file__)
     parser = argparse.ArgumentParser(description="Build approved regression set from manually reviewed realistic eval JSONL")
     parser.add_argument("--input", default=str(DEFAULT_INPUT), help="Reviewed JSONL with review_verdict/review_comment")
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help="Output approved regression JSONL")

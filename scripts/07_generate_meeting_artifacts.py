@@ -12,6 +12,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
+from legacy_entrypoint import warn_legacy_entrypoint
 from rag_common import load_config
 from rag_ollama import ollama_generate as shared_ollama_generate
 
@@ -1058,6 +1059,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main() -> int:
+    warn_legacy_entrypoint(__file__)
     return run(parse_args(sys.argv[1:]))
 
 

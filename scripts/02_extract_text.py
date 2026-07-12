@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 from docx import Document
 from pptx import Presentation
 
+from legacy_entrypoint import warn_legacy_entrypoint
 from rag_common import (
     ensure_runtime_dirs,
     jsonl_read,
@@ -107,6 +108,7 @@ def extract_one(path: Path) -> list[dict[str, Any]]:
 
 
 def main() -> None:
+    warn_legacy_entrypoint(__file__)
     cfg = load_config()
     ensure_runtime_dirs(cfg)
 

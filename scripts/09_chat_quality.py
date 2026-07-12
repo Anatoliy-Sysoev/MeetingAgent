@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from legacy_entrypoint import warn_legacy_entrypoint
 from rag_bucket_quality import detect_buckets, path_matches_bucket
 from rag_common import is_harmful_security_query, is_project_auth_query
 from rag_retrieval_quality import (
@@ -289,6 +290,7 @@ def patch_chat(chat: Any) -> None:
 
 
 def main() -> None:
+    warn_legacy_entrypoint(__file__)
     chat = load_chat_module()
     patch_chat(chat)
     chat.main()

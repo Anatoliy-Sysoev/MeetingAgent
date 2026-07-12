@@ -6,6 +6,7 @@ from typing import Any
 
 from tqdm import tqdm
 
+from legacy_entrypoint import warn_legacy_entrypoint
 from rag_common import FileLock, chunk_text, ensure_runtime_dirs, jsonl_read, jsonl_write, load_config, resolve_work_path, stable_id
 from rag_metadata import enrich_chunk_metadata
 from rag_ollama import ollama_embed
@@ -80,6 +81,7 @@ def append_embedding_cache(path: Path, rec: dict[str, Any]) -> None:
 
 
 def main() -> None:
+    warn_legacy_entrypoint(__file__)
     cfg = load_config()
     ensure_runtime_dirs(cfg)
 
