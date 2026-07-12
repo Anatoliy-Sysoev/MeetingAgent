@@ -493,3 +493,33 @@ constraints file.
 - Dependabot раз в неделю предлагает обновления Python и GitHub Actions;
 - lock фиксирует версии, но не hashes артефактов. Переход к hash-checking mode
   рассматривается отдельно, если появится distribution/high-assurance контур.
+
+## 2026-07-12 - Ranking Rules Являются Набором Policies С Characterization Gate
+
+Решение: BM25 intent adjustment, hybrid fusion и post-rerank используют общий
+immutable `RankingProfile` и набор именованных typed policies. Перед изменением
+правил фиксируется public synthetic characterization dataset. Каждый
+boost/penalty сохраняет policy, label, multiplier и score before/after в
+deterministic diagnostics trace.
+
+Почему:
+
+- монолитные условные блоки были главным источником скрытых ranking regressions;
+- end-to-end ответ LLM не показывает, на каком этапе потерян релевантный source;
+- customer terminology в generic Python code мешает публичной поставке и
+  независимому использованию продукта;
+- общий line coverage не гарантирует прохождение ranking branches.
+
+Следствия:
+
+- публичные/default marker groups хранятся в
+  `configs/asu_june_bot/ranking_profile.yaml`, private additions — только в
+  ignored `ranking_profile.local.yaml`;
+- `ranking_profile.local.yaml` заменяет указанные list groups целиком, поэтому
+  local group обязан сохранить нужные default markers;
+- policy unit tests и characterization cases проверяются без Ollama, сети и LLM;
+- `scripts/48_retrieval_coverage.py` отдельно контролирует ranking core и
+  source-routing modules; `scripts/46_ci_verify.py` запускает gate после полного
+  pytest;
+- изменение коэффициентов, marker groups или порядка policies требует сначала
+  обновить characterization evidence и объяснить behavior change в PR.

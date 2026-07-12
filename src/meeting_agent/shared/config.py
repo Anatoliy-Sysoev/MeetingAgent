@@ -49,6 +49,7 @@ def load_asu_config(config_dir: Path = DEFAULT_ASU_CONFIG_DIR) -> dict[str, Any]
     for name in (
         "retrieval",
         "source_policy",
+        "ranking_profile",
         "query_expansion",
         "llm",
         "guardrails",

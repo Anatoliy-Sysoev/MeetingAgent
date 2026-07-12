@@ -13,6 +13,7 @@ from asu_june_bot.retrieval.hybrid import build_hybrid_retriever
 from asu_june_bot.retrieval.models import SearchResult
 from asu_june_bot.retrieval.post_rerank import PostReranker
 from asu_june_bot.retrieval.query_intent import classify_query_intent
+from asu_june_bot.retrieval.ranking_profile import build_ranking_profile
 from asu_june_bot.retrieval.vector import OllamaUnavailableError
 
 from .models import SearchDiagnostics, SearchRequest, SearchResponse, SearchStatus, empty_context
@@ -65,7 +66,7 @@ class SearchService:
     ) -> None:
         self.config = config
         self.guard = guard or ProjectGuard()
-        self.post_reranker = post_reranker or PostReranker()
+        self.post_reranker = post_reranker or PostReranker(build_ranking_profile(config))
         self.context_builder = context_builder or ContextBuilder()
         self.work_root = work_root or Path.cwd()
 

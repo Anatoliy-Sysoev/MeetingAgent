@@ -4,13 +4,20 @@
 
 ## Now
 
-- MA-DEPENDENCY-LOCK-AND-AUDIT (#177) is implemented and locally verified on
-  `codex/177-dependency-lock-audit`; PR #192 is awaiting its rebased CI run.
-- canonical main state: `6646224` / `Make CSRF response safety test deterministic (#194)`.
-- next audit focus after #177: characterize and decompose retrieval ranking (#178).
+- PKB-RETRIEVAL-CHARACTERIZATION (#178) is implemented and verified: ranking
+  behavior has a public characterization dataset, named typed policies,
+  config-driven terminology, deterministic diagnostics and an enforced
+  branch-coverage gate independent of LLM quality.
+- canonical main state before #178: `ffc812e` / `Lock and audit Python dependencies (#192)`.
+- next audit focus after #178: dead-code and legacy ownership cleanup (#179).
 
 ## Done latest
 
+- PKB-RETRIEVAL-CHARACTERIZATION (#178): BM25 intent boosts, hybrid fusion and
+  post-rerank rules are decomposed into independently testable policies;
+  customer vocabulary lives in `ranking_profile.yaml` plus ignored local
+  overlay; every applied multiplier emits a deterministic trace; retrieval and
+  source-routing coverage is enforced separately from LLM/API tests.
 - MA-DEPENDENCY-LOCK-AND-AUDIT (#177): Python 3.12 now has a reviewed exact
   constraints graph; core, offline ASR, optional diarization and dev/audit
   groups are separated;

@@ -1,17 +1,21 @@
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import Any
 
 from .bm25 import BM25SearchAdapter
 from .models import SearchResult
 from .query_expansion import QueryExpander
+from .ranking_profile import RankingProfile, build_ranking_profile, default_ranking_profile
 from .source_policy import SourcePolicy
 from .vector import OllamaUnavailableError, VectorSearchAdapter
 
 
 def _chunk_key(result: SearchResult) -> str:
-    return str(result.metadata.get("chunk_id") or f"{result.metadata.get('relative_path')}#{result.metadata.get('chunk_index')}")
+    return str(
+        result.metadata.get("chunk_id")
+        or f"{result.metadata.get('relative_path')}#{result.metadata.get('chunk_index')}"
+    )
 
 
 def _normalize_scores(results: list[SearchResult], attr: str) -> dict[str, float]:
@@ -22,109 +26,30 @@ def _normalize_scores(results: list[SearchResult], attr: str) -> dict[str, float
     max_v = max(values)
     if max_v <= min_v:
         return {_chunk_key(result): 1.0 for result in results}
-    return {_chunk_key(result): (float(getattr(result, attr) or 0.0) - min_v) / (max_v - min_v) for result in results}
+    return {
+        _chunk_key(result): (float(getattr(result, attr) or 0.0) - min_v) / (max_v - min_v)
+        for result in results
+    }
 
 
-def _prefers_lexical_signal(query: str) -> bool:
-    lowered = query.lower()
-    exact_markers = (
-        "project_role",
-        "bearer",
-        "bearer token",
-        "2520",
-        "600 одновременно",
-        "rto",
-        "rpo",
-        "4.1",
-        "4.2",
-        "4.2.5",
-        "9.6",
-        "10.8",
-        "ldaps",
-        "порт 636",
-        "регламент ведения",
-        "регламенты ведения",
-        "регламентные документы",
-        "методики ведения",
-        "методика/регламент",
-        "правила ведения",
-        "реестр нси",
-        "справочники нси",
-        "атрибутные составы",
-        "атрибутный состав",
-        "модель данных нси",
-        "postgresql",
-        "minio",
-        "kubernetes",
-        "k8s",
-        "объектное хранилище",
-        "хранение файлов",
-        "хранение данных",
-        "pdf",
-        "csv",
-        "статусы замечаний",
-        "статусная схема",
-        "аннулир",
-        "матрица ролей",
-        "роли и полномочия",
-        "права доступа",
-        "ограничения прав",
-        "ограничение прав",
-        "паспорт ис",
-        "паспорте ис",
-        "паспорта ис",
-        "связанные документы",
-        "приложения перечислены",
-        "какие приложения",
-        "план послеаварийного восстановления",
-        "список источников",
-        "сведения о системе",
-        "назначение ис",
-        "основное назначение системы",
-    )
-    return any(marker in lowered for marker in exact_markers)
+@dataclass(frozen=True, slots=True)
+class FusionPolicyDecision:
+    policy: str
+    vector_weight: float
+    bm25_weight: float
 
 
-def _prefers_strong_lexical_signal(query: str) -> bool:
-    lowered = query.lower()
-    exact_pr_markers = (
-        "статусы замечаний",
-        "статусная схема",
-        "какие статусы",
-        "аннулир",
-        "матрица ролей",
-        "роли и полномочия",
-        "роли предусмотрены",
-        "какие роли",
-        "права доступа",
-        "ограничения прав",
-        "ограничение прав",
-    )
-    exact_nsi_markers = (
-        "регламенты ведения",
-        "регламентные документы",
-        "методики ведения",
-        "методика/регламент",
-        "правила ведения",
-        "какие справочники нси",
-        "справочники нси",
-        "атрибутные составы",
-        "атрибутный состав",
-        "модель данных нси",
-    )
-    exact_passport_markers = (
-        "паспорте ис",
-        "паспорта ис",
-        "связанные документы",
-        "приложения перечислены",
-        "какие приложения",
-        "план послеаварийного восстановления",
-        "список источников",
-        "сведения о системе",
-        "назначение ис",
-        "основное назначение системы",
-    )
-    return any(marker in lowered for marker in exact_pr_markers + exact_nsi_markers + exact_passport_markers)
+def _select_fusion_policy(
+    query: str,
+    profile: RankingProfile,
+    vector_weight: float,
+    bm25_weight: float,
+) -> FusionPolicyDecision:
+    if profile.has_any("strong_lexical_signal", query):
+        return FusionPolicyDecision("strong_lexical", 0.25, 0.75)
+    if profile.has_any("lexical_signal", query):
+        return FusionPolicyDecision("lexical", 0.42, 0.58)
+    return FusionPolicyDecision("default", vector_weight, bm25_weight)
 
 
 class HybridRetriever:
@@ -137,6 +62,7 @@ class HybridRetriever:
         vector_weight: float = 0.65,
         bm25_weight: float = 0.35,
         hybrid_fallback_to_bm25: bool = True,
+        ranking_profile: RankingProfile | None = None,
     ):
         self.vector_search = vector_search
         self.bm25_search = bm25_search
@@ -145,6 +71,7 @@ class HybridRetriever:
         self.vector_weight = vector_weight
         self.bm25_weight = bm25_weight
         self.hybrid_fallback_to_bm25 = hybrid_fallback_to_bm25
+        self.ranking_profile = ranking_profile or default_ranking_profile()
         self.last_warnings: list[str] = []
 
     def search(
@@ -163,7 +90,9 @@ class HybridRetriever:
 
         if mode in ("hybrid", "vector") and self.vector_search is not None:
             try:
-                vector_results = self.vector_search.search(search_query, candidate_k, include_source_types=include_source_types)
+                vector_results = self.vector_search.search(
+                    search_query, candidate_k, include_source_types=include_source_types
+                )
             except OllamaUnavailableError as exc:
                 if mode == "vector" or not self.hybrid_fallback_to_bm25:
                     raise
@@ -172,15 +101,23 @@ class HybridRetriever:
 
         if mode in ("hybrid", "bm25") and self.bm25_search is not None:
             # BM25 receives the expanded query too, because exact words like MDR/LDAPS/Blitz are useful.
-            bm25_results = self.bm25_search.search(expanded_query, candidate_k, include_source_types=include_source_types)
+            bm25_results = self.bm25_search.search(
+                expanded_query, candidate_k, include_source_types=include_source_types
+            )
 
         if mode == "vector":
-            return self._renumber(self._with_expansion_diagnostics(vector_results[:top_k], expansions, expanded_query))
+            return self._renumber(
+                self._with_expansion_diagnostics(vector_results[:top_k], expansions, expanded_query)
+            )
         if mode == "bm25":
-            return self._renumber(self._with_expansion_diagnostics(bm25_results[:top_k], expansions, expanded_query))
+            return self._renumber(
+                self._with_expansion_diagnostics(bm25_results[:top_k], expansions, expanded_query)
+            )
 
         if not vector_results and bm25_results and self.last_warnings:
-            fallback_results = self._with_expansion_diagnostics(bm25_results[:top_k], expansions, expanded_query)
+            fallback_results = self._with_expansion_diagnostics(
+                bm25_results[:top_k], expansions, expanded_query
+            )
             fallback_results = [
                 replace(
                     result,
@@ -196,14 +133,14 @@ class HybridRetriever:
 
         vector_norm = _normalize_scores(vector_results, "score")
         bm25_norm = _normalize_scores(bm25_results, "score")
-        vector_weight = self.vector_weight
-        bm25_weight = self.bm25_weight
-        if _prefers_strong_lexical_signal(query):
-            vector_weight = 0.25
-            bm25_weight = 0.75
-        elif _prefers_lexical_signal(query):
-            vector_weight = 0.42
-            bm25_weight = 0.58
+        fusion = _select_fusion_policy(
+            query,
+            self.ranking_profile,
+            self.vector_weight,
+            self.bm25_weight,
+        )
+        vector_weight = fusion.vector_weight
+        bm25_weight = fusion.bm25_weight
 
         merged: dict[str, SearchResult] = {}
         for result in vector_results + bm25_results:
@@ -220,6 +157,8 @@ class HybridRetriever:
                     "bm25_component": bm25_component,
                     "vector_weight": vector_weight,
                     "bm25_weight": bm25_weight,
+                    "fusion_policy": fusion.policy,
+                    "ranking_profile_version": self.ranking_profile.version,
                     "expanded_terms": expansions,
                     "expanded_query": expanded_query if expansions else None,
                 }
@@ -241,8 +180,12 @@ class HybridRetriever:
                 merged[key] = replace(
                     existing,
                     score=max(existing.score, score),
-                    vector_score=existing.vector_score if existing.vector_score is not None else result.vector_score,
-                    bm25_score=existing.bm25_score if existing.bm25_score is not None else result.bm25_score,
+                    vector_score=existing.vector_score
+                    if existing.vector_score is not None
+                    else result.vector_score,
+                    bm25_score=existing.bm25_score
+                    if existing.bm25_score is not None
+                    else result.bm25_score,
                     matched_by=matched_by,
                     diagnostics={**existing.diagnostics, **diagnostics},
                 )
@@ -251,7 +194,9 @@ class HybridRetriever:
         return self._renumber(ranked[:top_k])
 
     @staticmethod
-    def _with_expansion_diagnostics(results: list[SearchResult], expansions: list[str], expanded_query: str) -> list[SearchResult]:
+    def _with_expansion_diagnostics(
+        results: list[SearchResult], expansions: list[str], expanded_query: str
+    ) -> list[SearchResult]:
         return [
             replace(
                 result,
@@ -266,7 +211,10 @@ class HybridRetriever:
 
     @staticmethod
     def _renumber(results: list[SearchResult]) -> list[SearchResult]:
-        return [replace(result, source_id=f"SRC-{idx:03d}") for idx, result in enumerate(results, start=1)]
+        return [
+            replace(result, source_id=f"SRC-{idx:03d}")
+            for idx, result in enumerate(results, start=1)
+        ]
 
 
 def build_hybrid_retriever(
@@ -280,13 +228,18 @@ def build_hybrid_retriever(
     query_expansion_cfg = ajb_cfg.get("query_expansion", {})
     source_policy = SourcePolicy(source_policy_cfg)
     query_expander = QueryExpander(query_expansion_cfg)
+    ranking_profile = build_ranking_profile(cfg)
 
     vector_search = None
     bm25_search = None
     if mode in ("hybrid", "vector"):
         vector_search = VectorSearchAdapter(cfg, source_policy)
     if mode in ("hybrid", "bm25"):
-        bm25_search = BM25SearchAdapter(rows, source_policy)
+        bm25_search = BM25SearchAdapter(
+            rows,
+            source_policy,
+            ranking_profile=ranking_profile,
+        )
 
     return HybridRetriever(
         vector_search=vector_search,
@@ -296,4 +249,5 @@ def build_hybrid_retriever(
         vector_weight=float(retrieval_cfg.get("vector_weight", 0.65)),
         bm25_weight=float(retrieval_cfg.get("bm25_weight", 0.35)),
         hybrid_fallback_to_bm25=bool(retrieval_cfg.get("hybrid_fallback_to_bm25", True)),
+        ranking_profile=ranking_profile,
     )
