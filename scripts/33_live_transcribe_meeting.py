@@ -15,7 +15,6 @@ STATUS_TRANSCRIBING = "transcribing"
 STATUS_PROCESSING = "processing"
 STATUS_FAILED = "failed"
 SUPPORTED_ENGINES = {"vosk"}
-VALID_SOURCES = {"MIC", "SYS", "MIX"}
 SOURCE_ARTIFACT_KEYS = {
     "MIC": {
         "live_segments": "live_segments_mic",
@@ -59,9 +58,18 @@ SRC_ROOT = ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from meeting_agent.live_transcription import LiveSessionReport, write_live_artifacts  # noqa: E402
+from meeting_agent.live_transcription import (  # noqa: E402
+    VALID_LIVE_SOURCES,
+    LiveSessionReport,
+    list_audio_devices,
+    preflight_audio_source,
+    write_live_artifacts,
+)
 from meeting_agent.live_transcription.vad import SileroVadConfig  # noqa: E402
 from meeting_agent.live_transcription.vosk_backend import VoskBackendError, VoskLiveConfig, transcribe_vosk_live  # noqa: E402
+
+
+VALID_SOURCES = set(VALID_LIVE_SOURCES)
 
 
 def now_iso() -> str:
@@ -156,6 +164,21 @@ def mark_failed(meeting_path: Path, meeting: dict[str, Any] | None, exc: BaseExc
 
 
 def run(args: argparse.Namespace) -> int:
+    if args.list_audio_sources:
+        payload = {
+            "devices": [device.to_dict() for device in list_audio_devices()],
+            "sources": [
+                preflight_audio_source(source).to_dict()
+                for source in sorted(VALID_SOURCES)
+            ],
+        }
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+    if args.preflight_source:
+        result = preflight_audio_source(args.source)
+        print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
+        return 0 if result.available else 2
+
     meeting_dir = resolve_path(args.meeting_dir)
     meeting_path = meeting_dir / "meeting.json"
     meeting: dict[str, Any] | None = None
@@ -176,6 +199,14 @@ def run(args: argparse.Namespace) -> int:
         ensure_can_write(meeting_dir, args.source, args.force)
         model_path = resolve_path(args.model_path)
         input_wav = resolve_path(args.input_wav) if args.input_wav else None
+
+        if input_wav is None and not args.dry_run:
+            audio_preflight = preflight_audio_source(args.source)
+            if not audio_preflight.available:
+                raise LiveTranscribeError(
+                    f"Audio source {args.source} is unavailable: {audio_preflight.reason}",
+                    stage="preflight",
+                )
 
         if args.dry_run:
             print("dry-run ok")
@@ -262,9 +293,9 @@ def run(args: argparse.Namespace) -> int:
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="MeetingAgent live transcription entrypoint.")
-    parser.add_argument("--meeting-dir", required=True, help="Path to meeting folder.")
+    parser.add_argument("--meeting-dir", help="Path to meeting folder.")
     parser.add_argument("--engine", default="vosk", choices=sorted(SUPPORTED_ENGINES))
-    parser.add_argument("--model-path", required=True, help="Path to local Vosk model directory.")
+    parser.add_argument("--model-path", help="Path to local Vosk model directory.")
     parser.add_argument("--source", default="MIC", choices=sorted(VALID_SOURCES), help="Audio source label.")
     parser.add_argument("--input-wav", help="Optional mono 16 kHz PCM WAV for deterministic smoke runs.")
     parser.add_argument("--duration-sec", type=float, default=None, help="Limit live capture or WAV simulation duration.")
@@ -278,7 +309,30 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--no-partials", action="store_true", help="Do not write live partial hypotheses.")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
-    return parser.parse_args(argv)
+    discovery = parser.add_mutually_exclusive_group()
+    discovery.add_argument(
+        "--list-audio-sources",
+        action="store_true",
+        help="List local devices plus MIC/SYS/MIX source readiness and exit.",
+    )
+    discovery.add_argument(
+        "--preflight-source",
+        action="store_true",
+        help="Preflight the selected live source without starting capture.",
+    )
+    args = parser.parse_args(argv)
+    if not args.list_audio_sources and not args.preflight_source:
+        if not args.meeting_dir:
+            parser.error(
+                "--meeting-dir is required unless --list-audio-sources or "
+                "--preflight-source is used."
+            )
+        if not args.model_path:
+            parser.error(
+                "--model-path is required unless --list-audio-sources or "
+                "--preflight-source is used."
+            )
+    return args
 
 
 def main() -> int:
