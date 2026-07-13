@@ -15,6 +15,7 @@ from asu_june_bot.jobs.runner import (
     JobNotFound,
     JobNotRunning,
     JobRunner,
+    JobStateUnavailable,
     PreflightFailed,
     _read_meeting_status,
     stage_catalog,
@@ -25,6 +26,16 @@ from asu_june_bot.jobs.readiness import pipeline_readiness
 from asu_june_bot.meetings.service import MeetingsService, _safe_meeting_id
 
 router = APIRouter(tags=["jobs"])
+
+
+def _job_error(status_code: int, exc: JobAlreadyRunning | JobStateUnavailable) -> HTTPException:
+    return HTTPException(
+        status_code=status_code,
+        detail={
+            "code": str(getattr(exc, "code", "job_state_unavailable"))[:80],
+            "message": str(getattr(exc, "public_message", str(exc)))[:240],
+        },
+    )
 
 
 def _get_runner(request: Request) -> JobRunner:
@@ -70,7 +81,15 @@ async def pipeline_readiness_map(
     meeting_dir = service.root / meeting_id
     if not (meeting_dir / "meeting.json").exists():
         raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
-    payload = pipeline_readiness(meeting_id, meeting_dir)
+    try:
+        live_session_active = runner.live_session_active(meeting_id)
+    except JobStateUnavailable as exc:
+        raise _job_error(503, exc) from exc
+    payload = pipeline_readiness(
+        meeting_id,
+        meeting_dir,
+        live_session_active=live_session_active,
+    )
     payload["job_recovery"] = runner.recovery_summary(meeting_id)
     return JSONResponse(content=payload)
 
@@ -136,7 +155,9 @@ async def start_pipeline(
             stage_options={"transcribe": {"asr_engine": body.asr_engine}},
         )
     except JobAlreadyRunning as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise _job_error(409, exc) from exc
+    except JobStateUnavailable as exc:
+        raise _job_error(503, exc) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return JSONResponse(status_code=202, content=pipeline.as_dict())
@@ -180,7 +201,9 @@ async def retry_stage(
             meeting_id=meeting_id, stage=stage, meeting_dir=meeting_dir
         )
     except JobAlreadyRunning as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise _job_error(409, exc) from exc
+    except JobStateUnavailable as exc:
+        raise _job_error(503, exc) from exc
     except PreflightFailed as exc:
         raise HTTPException(status_code=422, detail=f"Preflight failed: {exc.detail}") from exc
     return JSONResponse(status_code=202, content=job.as_dict())
@@ -218,7 +241,9 @@ async def start_job(
             stage_options={"asr_engine": body.asr_engine} if body and stage == "transcribe" else None,
         )
     except JobAlreadyRunning as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise _job_error(409, exc) from exc
+    except JobStateUnavailable as exc:
+        raise _job_error(503, exc) from exc
     except PreflightFailed as exc:
         raise HTTPException(status_code=422, detail=f"Preflight failed: {exc.detail}") from exc
 

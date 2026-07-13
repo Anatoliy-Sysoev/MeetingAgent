@@ -139,6 +139,14 @@ class JobStore:
         with IngestLock(self.lock_path, timeout_seconds=30):
             return deepcopy(self._read_unlocked())
 
+    def has_active_for_meeting(self, meeting_id: str) -> bool:
+        with IngestLock(self.lock_path, timeout_seconds=30):
+            state = self._read_unlocked()
+            return any(
+                isinstance(record, dict) and record.get("meeting_id") == meeting_id
+                for record in (state.get("active_job"), state.get("active_pipeline"))
+            )
+
     def reserve_job(
         self,
         record: dict[str, Any],

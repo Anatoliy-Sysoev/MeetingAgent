@@ -399,6 +399,17 @@ def test_workspace_js_does_not_persist_csrf_token(tmp_path: Path) -> None:
     assert "sessionStorage" not in body
 
 
+def test_workspace_renders_bounded_machine_conflict_message(tmp_path: Path) -> None:
+    make_meeting(tmp_path)
+    client, _, _ = make_client(tmp_path)
+    body = client.get(f"/meetings/{MEETING_ID}/workspace").text + load_ui_asset(
+        "workspace.js"
+    )
+
+    assert 'typeof d.detail.message === "string"' in body
+    assert "d.detail.message.slice(0, 240)" in body
+
+
 def test_workspace_html_has_error_container(tmp_path: Path) -> None:
     make_meeting(tmp_path)
     client, _, _ = make_client(tmp_path)
