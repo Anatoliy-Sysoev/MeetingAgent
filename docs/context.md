@@ -4,22 +4,21 @@
 
 ## Now
 
-- TEST-DEPENDENCY-AUDIT-WINDOWS-UTF8 (#209) is implemented on its review
-  branch: the audit child process receives deterministic UTF-8 semantics even
-  when the Windows user/venv path contains Cyrillic characters.
-- canonical main before #209: `81d159b` / `Add honest live audio source preflight (#210)`.
-- MA-LIVE-AUDIO-CAPTURE-V1 (#164) is implemented on its v2 review branch:
-  device inventory and MIC/SYS/MIX preflight never open a stream; readiness
-  separates device discovery from current backend support; MIC is runnable;
-  real SYS/MIX fail closed while deterministic input-WAV smoke stays available.
-- canonical main before #164: `736f1a4` / `Harden privacy and public runtime errors (#203)`.
-- next product work is real Windows loopback/resampling (#204), streaming VAD
-  (#205), Live session API/UI (#206/#207) and offline refinement (#208);
+- MA-LIVE-LOOPBACK-CAPTURE-V1 (#204) is implemented on its review branch:
+  Windows SYS preflight discovers real PyAudioWPatch loopback inputs without
+  opening a stream; runtime capture uses native PCM and stateful SoXR conversion
+  to canonical mono 16 kHz before Vosk. MIX remains fail-closed.
+- canonical main before #204: `5b3958d` / `Make dependency audit UTF-8 deterministic (#211)`.
+- next product work is streaming VAD (#205), Live session API/UI (#206/#207)
+  and offline refinement (#208);
   history purge #167 remains gated by explicit owner approval and a verified
   backup.
 
 ## Done latest
 
+- MA-LIVE-LOOPBACK-CAPTURE-V1 (#204): added real Windows system-audio capture,
+  source-specific device selection, native stereo downmix/resampling, bounded
+  path-free runtime metrics and deterministic hardware/mocked coverage.
 - TEST-DEPENDENCY-AUDIT-WINDOWS-UTF8 (#209): removed the locale-dependent
   `pip_api` startup failure without changing the parent shell environment.
 - MA-LIVE-AUDIO-CAPTURE-V1 (#164): added no-capture source inventory/preflight,
@@ -210,8 +209,6 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- MA-LIVE-LOOPBACK-CAPTURE-V1 (#204): implement Windows SYS capture and deterministic
-  stereo 44.1/48 kHz -> mono 16 kHz conversion behind the #164 contract.
 - MA-LIVE-STREAMING-VAD-V1 (#205): preserve real capture timestamps while
   filtering microphone/loopback silence.
 - MA-LIVE-SESSION-API-V1 / MA-LIVE-UI-V1 (#206/#207): add explicit live session

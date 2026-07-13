@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+import wave
 from pathlib import Path
 
 import pytest
@@ -87,29 +88,17 @@ class FakeSoundDevice:
     @classmethod
     def check_input_settings(cls, **settings):
         cls.format_checked = True
-        assert settings == {"channels": 1, "dtype": "int16", "samplerate": 16_000}
+        assert settings == {
+            "device": None,
+            "channels": 1,
+            "dtype": "int16",
+            "samplerate": 16_000,
+        }
 
     @classmethod
     def RawInputStream(cls, *args, **kwargs):
         cls.stream_opened = True
         raise AssertionError("preflight must not open an audio stream")
-
-
-class OutputOnlyNoWasapiSoundDevice:
-    @staticmethod
-    def query_hostapis():
-        return [{"name": "MME"}]
-
-    @staticmethod
-    def query_devices():
-        return [
-            {
-                "name": "Speakers",
-                "hostapi": 0,
-                "max_input_channels": 0,
-                "max_output_channels": 2,
-            }
-        ]
 
 
 class MicrophoneOnlySoundDevice:
@@ -127,6 +116,40 @@ class MicrophoneOnlySoundDevice:
                 "max_output_channels": 0,
             }
         ]
+
+
+class FakeLoopbackManager:
+    terminated = False
+    stream_opened = False
+
+    @staticmethod
+    def _device():
+        return {
+            "index": 19,
+            "name": "Synthetic speakers [Loopback]",
+            "maxInputChannels": 2,
+            "maxOutputChannels": 0,
+            "defaultSampleRate": 48_000.0,
+            "isLoopbackDevice": True,
+        }
+
+    def get_loopback_device_info_generator(self):
+        yield self._device()
+
+    def get_default_wasapi_loopback(self):
+        return self._device()
+
+    def open(self, **_kwargs):
+        type(self).stream_opened = True
+        raise AssertionError("preflight must not open a loopback stream")
+
+    def terminate(self):
+        type(self).terminated = True
+
+
+class FakePyAudioModule:
+    paInt16 = 8
+    PyAudio = FakeLoopbackManager
 
 
 def test_audio_device_listing_marks_only_wasapi_output_as_loopback_candidate() -> None:
@@ -219,38 +242,83 @@ def test_audio_preflight_mic_rejects_unsupported_capture_format() -> None:
     assert result.reason == "mic_capture_format_unsupported"
 
 
-def test_audio_preflight_sys_candidate_is_honestly_blocked_until_capture_exists() -> None:
+def test_audio_preflight_mic_checks_the_selected_device_index() -> None:
+    class SelectedDeviceSoundDevice(FakeSoundDevice):
+        checked_device = None
+
+        @classmethod
+        def check_input_settings(cls, **settings):
+            cls.checked_device = settings["device"]
+
     result = preflight_audio_source(
-        "SYS", sd_module=FakeSoundDevice, system_name="Windows"
+        "MIC",
+        sd_module=SelectedDeviceSoundDevice,
+        system_name="Windows",
+        audio_device_index=0,
     )
 
-    assert result.available is False
-    assert result.device_available is True
-    assert result.capture_supported is False
-    assert result.reason == "sys_loopback_capture_not_implemented"
-    assert [device.name for device in result.devices] == ["Speakers"]
+    assert result.available is True
+    assert SelectedDeviceSoundDevice.checked_device == 0
 
 
-def test_audio_preflight_sys_requires_wasapi_candidate() -> None:
+def test_audio_preflight_sys_is_runnable_with_wasapi_loopback_backend() -> None:
+    FakeLoopbackManager.stream_opened = False
+    FakeLoopbackManager.terminated = False
+
     result = preflight_audio_source(
-        "SYS", sd_module=OutputOnlyNoWasapiSoundDevice, system_name="Windows"
+        "SYS", pyaudio_module=FakePyAudioModule, system_name="Windows"
+    )
+
+    assert result.available is True
+    assert result.device_available is True
+    assert result.capture_supported is True
+    assert result.reason is None
+    assert [device.name for device in result.devices] == [
+        "Synthetic speakers [Loopback]"
+    ]
+    assert result.devices[0].default_samplerate == 48_000.0
+    assert FakeLoopbackManager.stream_opened is False
+    assert FakeLoopbackManager.terminated is True
+
+
+def test_audio_preflight_sys_requires_loopback_backend() -> None:
+    result = preflight_audio_source(
+        "SYS", pyaudio_module=False, system_name="Windows"
     )
 
     assert result.available is False
     assert result.device_available is False
-    assert result.reason == "sys_loopback_device_missing"
+    assert result.reason == "sys_loopback_backend_missing"
 
 
 def test_audio_preflight_sys_is_windows_only() -> None:
-    result = preflight_audio_source("SYS", sd_module=FakeSoundDevice, system_name="Linux")
+    result = preflight_audio_source(
+        "SYS", pyaudio_module=FakePyAudioModule, system_name="Linux"
+    )
 
     assert result.available is False
     assert result.reason == "sys_loopback_windows_only"
 
 
+def test_audio_preflight_sys_rejects_unknown_explicit_device_index() -> None:
+    result = preflight_audio_source(
+        "SYS",
+        pyaudio_module=FakePyAudioModule,
+        system_name="Windows",
+        audio_device_index=999,
+    )
+
+    assert result.available is False
+    assert result.device_available is False
+    assert result.reason == "sys_loopback_device_not_found"
+
+
 def test_audio_preflight_mix_never_mislabels_mic_only_capture() -> None:
     result = preflight_audio_source(
-        "MIX", sd_module=MicrophoneOnlySoundDevice, system_name="Windows"
+        "MIX",
+        sd_module=MicrophoneOnlySoundDevice,
+        pyaudio_module=False,
+        system_name="Windows",
     )
 
     assert result.available is False
@@ -260,12 +328,41 @@ def test_audio_preflight_mix_never_mislabels_mic_only_capture() -> None:
 
 
 def test_audio_preflight_mix_requires_backend_after_both_devices_exist() -> None:
-    result = preflight_audio_source("MIX", sd_module=FakeSoundDevice, system_name="Windows")
+    result = preflight_audio_source(
+        "MIX",
+        sd_module=FakeSoundDevice,
+        pyaudio_module=FakePyAudioModule,
+        system_name="Windows",
+    )
 
     assert result.available is False
     assert result.device_available is True
     assert result.capture_supported is False
     assert result.reason == "mix_capture_not_implemented"
+
+
+def test_audio_preflight_mix_preserves_colliding_backend_device_indexes() -> None:
+    class CollidingLoopbackManager(FakeLoopbackManager):
+        @staticmethod
+        def _device():
+            return {**FakeLoopbackManager._device(), "index": 0}
+
+    class CollidingPyAudioModule:
+        paInt16 = 8
+        PyAudio = CollidingLoopbackManager
+
+    result = preflight_audio_source(
+        "MIX",
+        sd_module=FakeSoundDevice,
+        pyaudio_module=CollidingPyAudioModule,
+        system_name="Windows",
+    )
+
+    assert result.reason == "mix_capture_not_implemented"
+    assert [(device.index, device.hostapi) for device in result.devices] == [
+        (0, "Windows WASAPI"),
+        (0, "Windows WASAPI loopback"),
+    ]
 
 
 def test_audio_preflight_rejects_unknown_source() -> None:
@@ -373,7 +470,7 @@ def test_live_cli_lists_devices_and_source_readiness_without_meeting(
     monkeypatch.setattr(
         cli,
         "preflight_audio_source",
-        lambda source: AudioSourcePreflight(
+        lambda source, **_kwargs: AudioSourcePreflight(
             source=source,
             available=source == "MIC",
             device_available=source == "MIC",
@@ -398,7 +495,7 @@ def test_live_cli_preflight_exit_code_is_automation_friendly(monkeypatch, capsys
     monkeypatch.setattr(
         cli,
         "preflight_audio_source",
-        lambda source: AudioSourcePreflight(
+        lambda source, **_kwargs: AudioSourcePreflight(
             source=source,
             available=False,
             device_available=True,
@@ -422,7 +519,7 @@ def test_live_cli_preflight_returns_zero_for_runnable_mic(monkeypatch, capsys) -
     monkeypatch.setattr(
         cli,
         "preflight_audio_source",
-        lambda source: AudioSourcePreflight(
+        lambda source, **_kwargs: AudioSourcePreflight(
             source=source,
             available=True,
             device_available=True,
@@ -459,7 +556,7 @@ def test_live_cli_blocks_unavailable_source_without_mutating_meeting(
     monkeypatch.setattr(
         cli,
         "preflight_audio_source",
-        lambda source: AudioSourcePreflight(
+        lambda source, **_kwargs: AudioSourcePreflight(
             source=source,
             available=False,
             device_available=True,
@@ -498,20 +595,23 @@ def test_live_cli_runnable_mic_preflight_starts_backend(tmp_path: Path, monkeypa
     )
     model_dir = tmp_path / "vosk-model-small-ru-0.22"
     model_dir.mkdir()
-    seen: dict[str, str] = {}
-    monkeypatch.setattr(
-        cli,
-        "preflight_audio_source",
-        lambda source: AudioSourcePreflight(
+    seen: dict[str, object] = {}
+
+    def fake_preflight(source, **kwargs):
+        seen["preflight_source"] = source
+        seen["preflight_device_index"] = kwargs.get("audio_device_index")
+        return AudioSourcePreflight(
             source=source,
             available=True,
             device_available=True,
             capture_supported=True,
-        ),
-    )
+        )
+
+    monkeypatch.setattr(cli, "preflight_audio_source", fake_preflight)
 
     def fake_transcribe(config):
-        seen["source"] = config.source
+        seen["backend_source"] = config.source
+        seen["backend_device_index"] = config.audio_device_index
         return type(
             "FakeResult",
             (),
@@ -528,12 +628,19 @@ def test_live_cli_runnable_mic_preflight_starts_backend(tmp_path: Path, monkeypa
             str(model_dir),
             "--source",
             "MIC",
+            "--audio-device-index",
+            "0",
             "--force",
         ]
     )
 
     assert exit_code == 0
-    assert seen == {"source": "MIC"}
+    assert seen == {
+        "preflight_source": "MIC",
+        "preflight_device_index": 0,
+        "backend_source": "MIC",
+        "backend_device_index": 0,
+    }
 
 
 def test_live_cli_refuses_overwrite_without_force(tmp_path: Path, capsys) -> None:
@@ -823,3 +930,46 @@ def test_vosk_backend_reports_microphone_runtime_metrics(tmp_path: Path, monkeyp
 
     assert result.metrics["input_status_events"] == 2
     assert result.metrics["queue_timeouts"] == 3
+
+
+def test_vosk_wav_metrics_do_not_expose_input_path(tmp_path: Path, monkeypatch) -> None:
+    import meeting_agent.live_transcription.vosk_backend as backend
+
+    model_dir = tmp_path / "vosk-model-small-ru-0.22"
+    model_dir.mkdir()
+    wav_path = tmp_path / "private" / "source.wav"
+    wav_path.parent.mkdir()
+    with wave.open(str(wav_path), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(16_000)
+        wav.writeframes(b"\x00\x00" * 160)
+
+    class FakeModel:
+        def __init__(self, _path: str) -> None:
+            pass
+
+    class FakeRecognizer:
+        def __init__(self, _model, _sample_rate: float) -> None:
+            pass
+
+        def SetWords(self, _enabled: bool) -> None:
+            pass
+
+        def AcceptWaveform(self, _block: bytes) -> bool:
+            return False
+
+        def PartialResult(self) -> str:
+            return '{"partial": ""}'
+
+        def FinalResult(self) -> str:
+            return '{"text": ""}'
+
+    monkeypatch.setattr(backend, "_load_vosk", lambda: (FakeRecognizer, FakeModel))
+
+    result = transcribe_vosk_live(
+        VoskLiveConfig(model_path=model_dir, source="SYS", input_wav=wav_path)
+    )
+
+    assert result.metrics["input_mode"] == "wav"
+    assert str(wav_path) not in repr(result.metrics)

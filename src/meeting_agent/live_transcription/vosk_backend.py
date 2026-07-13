@@ -11,6 +11,11 @@ from typing import Any
 
 from .schema import LiveSegment
 from .vad import SileroVadConfig, VadBackendError, SpeechWindow, block_overlaps_speech, detect_silero_speech_windows
+from .wasapi_loopback import (
+    Pcm16MonoResampler,
+    WasapiLoopbackError,
+    open_wasapi_loopback_stream,
+)
 
 
 @dataclass(frozen=True)
@@ -21,6 +26,7 @@ class VoskLiveConfig:
     block_ms: int = 300
     duration_sec: float | None = None
     input_wav: Path | None = None
+    audio_device_index: int | None = None
     save_partials: bool = True
     vad: str = "none"
     silero_vad: SileroVadConfig = SileroVadConfig()
@@ -150,8 +156,18 @@ def transcribe_vosk_live(config: VoskLiveConfig) -> VoskLiveResult:
         raise VoskBackendError("--block-ms must be positive.")
     if config.vad not in {"none", "silero"}:
         raise VoskBackendError(f"Unsupported VAD mode: {config.vad}")
+    if config.source not in {"MIC", "SYS", "MIX"}:
+        raise VoskBackendError(f"Unsupported live source: {config.source}")
     if config.vad == "silero" and config.input_wav is None:
         raise VoskBackendError("Silero VAD currently requires --input-wav. Microphone streaming VAD is planned.")
+    if config.input_wav is None and config.source == "MIX":
+        raise VoskBackendError("Live MIX capture is not implemented")
+    if (
+        config.input_wav is None
+        and config.source == "SYS"
+        and config.sample_rate != 16_000
+    ):
+        raise VoskBackendError("Live SYS capture requires canonical 16000 Hz output")
 
     KaldiRecognizer, Model = _load_vosk()
     model = Model(str(config.model_path))
@@ -168,8 +184,20 @@ def transcribe_vosk_live(config: VoskLiveConfig) -> VoskLiveResult:
     try:
         if config.input_wav is not None:
             audio_seconds = _transcribe_wav(config, recognizer, model_label, segments, partials)
-        else:
+        elif config.source == "MIC":
             audio_seconds = _transcribe_microphone(config, recognizer, model_label, segments, partials, runtime_metrics)
+        else:
+            try:
+                audio_seconds = _transcribe_system_loopback(
+                    config,
+                    recognizer,
+                    model_label,
+                    segments,
+                    partials,
+                    runtime_metrics,
+                )
+            except WasapiLoopbackError as exc:
+                raise VoskBackendError(str(exc)) from exc
     except KeyboardInterrupt:
         interrupted = True
 
@@ -192,7 +220,7 @@ def transcribe_vosk_live(config: VoskLiveConfig) -> VoskLiveResult:
         metrics={
             "duration": round(audio_seconds, 3),
             "elapsed_seconds": round(time.time() - started, 3),
-            "input_wav": str(config.input_wav) if config.input_wav else None,
+            "input_mode": "wav" if config.input_wav else "capture",
             "vad": config.vad,
             "interrupted": interrupted,
             **runtime_metrics,
@@ -299,8 +327,19 @@ def _transcribe_microphone(
         blocksize=frames_per_block,
         dtype="int16",
         channels=1,
+        device=config.audio_device_index,
         callback=callback,
     ):
+        runtime_metrics.update(
+            {
+                "capture_backend": "sounddevice",
+                "input_device_index": config.audio_device_index,
+                "input_sample_rate": config.sample_rate,
+                "input_channels": 1,
+                "output_sample_rate": config.sample_rate,
+                "output_channels": 1,
+            }
+        )
         while True:
             if max_frames is not None and frames_read >= max_frames:
                 break
@@ -326,3 +365,100 @@ def _transcribe_microphone(
                 partials=partials,
             )
     return frames_read / config.sample_rate
+
+
+def _transcribe_system_loopback(
+    config: VoskLiveConfig,
+    recognizer: Any,
+    model_label: str,
+    segments: list[LiveSegment],
+    partials: list[dict[str, Any]],
+    runtime_metrics: dict[str, Any],
+) -> float:
+    max_frames = (
+        int(config.sample_rate * config.duration_sec)
+        if config.duration_sec is not None
+        else None
+    )
+    output_frames = 0
+    read_errors = 0
+    interrupted = False
+
+    def accept_canonical(block: bytes) -> None:
+        nonlocal output_frames
+        if not block:
+            return
+        block_frames = len(block) // 2
+        if max_frames is not None:
+            remaining = max(0, max_frames - output_frames)
+            if remaining <= 0:
+                return
+            if block_frames > remaining:
+                block = block[: remaining * 2]
+                block_frames = remaining
+        cursor_start = output_frames / config.sample_rate
+        output_frames += block_frames
+        cursor_end = output_frames / config.sample_rate
+        _accept_block(
+            recognizer,
+            block,
+            cursor_start=cursor_start,
+            cursor_end=cursor_end,
+            config=config,
+            model_label=model_label,
+            segments=segments,
+            partials=partials,
+        )
+
+    with open_wasapi_loopback_stream(
+        device_index=config.audio_device_index,
+        block_ms=config.block_ms,
+    ) as opened:
+        device = opened.device
+        frames_per_block = max(1, int(device.sample_rate * config.block_ms / 1000))
+        converter = Pcm16MonoResampler(
+            input_rate=device.sample_rate,
+            input_channels=device.channels,
+            output_rate=config.sample_rate,
+        )
+        runtime_metrics.update(
+            {
+                "capture_backend": "pyaudiowpatch",
+                "input_device_index": device.index,
+                "input_sample_rate": device.sample_rate,
+                "input_channels": device.channels,
+                "input_dtype": "int16",
+                "output_sample_rate": config.sample_rate,
+                "output_channels": 1,
+                "output_dtype": "int16",
+                "resampler": "soxr_hq",
+            }
+        )
+        try:
+            try:
+                while max_frames is None or output_frames < max_frames:
+                    try:
+                        native_block = opened.stream.read(
+                            frames_per_block,
+                            exception_on_overflow=False,
+                        )
+                    except Exception as exc:  # noqa: BLE001 - normalize native read failures
+                        read_errors += 1
+                        raise WasapiLoopbackError(
+                            "WASAPI loopback stream read failed"
+                        ) from exc
+                    accept_canonical(converter.convert(native_block))
+            except KeyboardInterrupt:
+                interrupted = True
+            accept_canonical(converter.flush())
+        finally:
+            runtime_metrics.update(
+                {
+                    "input_frames": converter.input_frames,
+                    "output_frames": output_frames,
+                    "resampler_clips": converter.clips,
+                    "read_errors": read_errors,
+                    "interrupted": interrupted,
+                }
+            )
+    return output_frames / config.sample_rate

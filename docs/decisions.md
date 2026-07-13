@@ -671,3 +671,34 @@ SYS и MIX возвращают blocked reason и не запускают microp
 - inventory может показывать loopback candidates, не объявляя feature готовой;
 - real SYS/MIX capture, streaming VAD, session API/UI и offline refinement
   реализуются отдельными задачами поверх стабильного контракта.
+
+## 2026-07-13 - Windows SYS Использует PyAudioWPatch И Stateful SoXR
+
+Решение: live-источник `SYS` на Windows захватывается через virtual WASAPI
+loopback input из PyAudioWPatch. Native signed 16-bit PCM читается с реальными
+channel count/sample rate устройства и stateful-конвертером SoXR HQ приводится
+к canonical mono 16 kHz PCM перед передачей в Vosk.
+
+Почему:
+
+- high-level API `sounddevice` не предоставляет надёжный portable loopback
+  stream, хотя видит Windows output devices;
+- PyAudioWPatch предоставляет отдельные WASAPI loopback input devices и не
+  требует маскировать системный звук под microphone capture;
+- системные устройства обычно работают в stereo 44.1/48 kHz, а Vosk-контракт
+  MeetingAgent использует mono 16 kHz;
+- stateful resampling сохраняет непрерывность между capture blocks и стабильную
+  шкалу времени;
+- выбранный device index является source-specific и не объединяется с индексами
+  `sounddevice` в единое пространство.
+
+Следствия:
+
+- `requirements-live.txt` ставит PyAudioWPatch только на Windows, а SoXR остаётся
+  optional live dependency на всех платформах;
+- preflight не открывает stream, а runtime повторно проверяет, что выбранный
+  device действительно является loopback input;
+- отчёт хранит только технические числовые метрики capture/conversion без имени
+  устройства и абсолютных локальных путей;
+- аппаратный `MIX` остаётся fail-closed до отдельной реализации синхронного
+  захвата и смешивания MIC+SYS.
