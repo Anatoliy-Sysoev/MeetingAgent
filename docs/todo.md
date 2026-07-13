@@ -96,6 +96,11 @@
   newline-agnostic on Windows and Linux checkouts.
 - [x] MA-MEETING-VECTOR-CACHE-LOCKING (#181): locked and atomic semantic cache,
   concurrent first-fill deduplication, malformed-tail recovery and rebuild CLI.
+- [x] MA-PRIVACY-RUNTIME-HARDENING (#162): no speaker/source PII or original
+  hashes in public anonymization output, relative-only meeting index rows,
+  bounded path-safe preflight errors, atomic last_error and correct readiness status.
+- [ ] MA-LIVE-AUDIO-CAPTURE-V1 (#164): review and finish MIC/SYS/MIX discovery,
+  no-capture preflight and public source contract against current main.
 - [ ] MA-MEETINGAGENT-UI-MOCKUPS: approve target mockups for registry, upload wizard, processing monitor and meeting card before deeper UI refactor.
 
 ## Meeting Product Backlog

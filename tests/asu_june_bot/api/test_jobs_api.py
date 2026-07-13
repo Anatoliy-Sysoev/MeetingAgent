@@ -14,8 +14,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from asu_june_bot.api.app import create_app  # noqa: E402
-from asu_june_bot.auth.models import Principal  # noqa: E402
-from asu_june_bot.auth.permissions import EDITOR_PERMISSIONS, ROLE_PERMISSIONS, VIEWER_PERMISSIONS  # noqa: E402
+from asu_june_bot.auth.permissions import ROLE_PERMISSIONS, VIEWER_PERMISSIONS  # noqa: E402
 from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
 from asu_june_bot.auth.service import AdminService, LocalAuthService  # noqa: E402
 from asu_june_bot.jobs.runner import JobRunner, JobState  # noqa: E402
@@ -389,6 +388,34 @@ def test_preflight_fail_returns_422_process_not_started(
     assert all("--dry-run" in call for call in real_calls)
     # Runner slot freed
     assert runner.active_job is None
+
+
+def test_preflight_failure_response_redacts_absolute_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    make_meeting(tmp_path)
+    client, _runner = make_client(tmp_path)
+    leaked_path = tmp_path / MEETING_ID / "transcript" / "segments.jsonl"
+
+    async def fake_subprocess(*args, stdout, stderr):
+        if "--dry-run" in args:
+            return _ImmediateProcess(
+                returncode=1,
+                stderr=f"failed reading {leaked_path}".encode("utf-8"),
+            )
+        return _ImmediateProcess(returncode=0)
+
+    import asu_june_bot.jobs.runner as runner_mod
+
+    monkeypatch.setattr(runner_mod, "_create_subprocess", fake_subprocess)
+
+    resp = client.post(f"/meetings/{MEETING_ID}/jobs/transcribe", headers=AUTH)
+
+    assert resp.status_code == 422
+    assert str(tmp_path) not in resp.text
+    assert str(leaked_path) not in resp.text
+    assert "<path>" in resp.text
 
 
 # ------------------------------------------------------------------

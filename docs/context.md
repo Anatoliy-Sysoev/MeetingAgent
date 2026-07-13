@@ -4,17 +4,19 @@
 
 ## Now
 
-- MA-MEETING-VECTOR-CACHE-LOCKING (#181) is implemented on its review branch:
-  meeting Q&A cache initialization and updates are thread/process safe, first
-  fills are deduplicated, writes are atomic, damaged JSONL tails self-repair,
-  and a public rebuild CLI is available.
-- canonical main state before #181: `53b0318` / `Make Workspace UI tests newline-agnostic (#201)`.
-- next product decision: approve MeetingAgent registry/upload/processing/card
-  mockups before the deeper UI redesign; Git history purge #167 remains gated
-  by explicit owner approval.
+- MA-PRIVACY-RUNTIME-HARDENING (#162) is implemented on its v2 review branch:
+  transcript metadata and reports no longer retain speaker/source PII or
+  reproducible original-value hashes; meeting index rows are relative-only;
+  preflight errors are bounded/path-redacted; meeting-card error writes are
+  atomic; readiness reports `processing_status`.
+- canonical main before #162: `d336ca0` / `Make meeting vector cache concurrency-safe (#202)`.
+- next implementation review is MA-LIVE-AUDIO-CAPTURE-V1 (#164); Git history
+  purge #167 remains gated by explicit owner approval and a verified backup.
 
 ## Done latest
 
+- MA-PRIVACY-RUNTIME-HARDENING (#162): closed the remaining public-surface
+  privacy gaps without reviving the obsolete pre-CSP UI diff from PR #163.
 - MA-MEETING-VECTOR-CACHE-LOCKING (#181): moved semantic cache I/O behind a
   shared advisory lock; first-query chunk embeddings are computed once across
   concurrent threads/processes; valid rows from all embedding models survive
@@ -198,14 +200,13 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- MA-MEETING-VECTOR-CACHE-LOCKING (#181): serialize and atomically compact the
-  shared meeting embeddings cache under concurrent API workers/processes.
+- MA-LIVE-AUDIO-CAPTURE-V1 (#164): re-review the existing source discovery and
+  preflight branch against current main, then merge only the current contract.
 - SEC-P0-GIT-HISTORY-PURGE (#167): backup, verify and coordinate the force rewrite; do not execute implicitly.
 
 ## Open decisions / blockers
 
 - #167 rewrites published history and invalidates old clones; it is blocked on explicit owner approval and a verified backup.
-- PR #163 for #162 is currently conflict-dirty and must be rebased before merge; do not duplicate its scoped anonymization/index/runner fixes.
 - Admin console contract is defined; dedicated admin UI, aggregate jobs/audit/settings endpoints and destructive meeting admin actions remain future implementation work.
 - Guard pure decision API is available for deterministic tests; future guard behavior changes must use it as a measurement boundary.
 - Local preflight can fail until Ollama is running and exposes `bge-m3` + `qwen3.5:4b` through the active model store.

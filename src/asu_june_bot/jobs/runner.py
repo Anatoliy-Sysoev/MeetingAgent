@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import shutil
 import sys
+import tempfile
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -350,6 +352,10 @@ _HISTORY_MAX = 20
 
 # Repo root is used as an additional redaction root for all jobs.
 _REPO_ROOT = _ROOT.resolve()
+_UNKNOWN_ABSOLUTE_PATH_START_RE = re.compile(
+    r"(?i)(?<![\w:>])(?:[A-Z]:[\\/]|\\\\|/(?=[^/\s]+[/\\]))"
+)
+_MAX_PUBLIC_ERROR_CHARS = 500
 
 
 def _now_iso() -> str:
@@ -371,11 +377,45 @@ def _path_variants(path: Path) -> set[str]:
 
 
 def _redact_paths(line: str, roots: list[Path]) -> str:
-    """Replace occurrences of known server filesystem roots with '<path>'."""
+    """Replace known roots and conservatively truncate unknown absolute paths."""
     for root in roots:
         for variant in _path_variants(root):
             line = re.sub(re.escape(variant), "<path>", line, flags=re.IGNORECASE)
+    unknown_path = _UNKNOWN_ABSOLUTE_PATH_START_RE.search(line)
+    if unknown_path is not None:
+        line = f"{line[:unknown_path.start()]}<path>"
     return line
+
+
+def _write_json_atomic(path: Path, data: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=str(path.parent),
+        text=True,
+    )
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_path, path)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+
+def _public_error_detail(detail: str, *, meeting_dir: Path | None = None) -> str:
+    roots = [_REPO_ROOT]
+    if meeting_dir is not None:
+        roots.append(meeting_dir.resolve())
+    cleaned = _redact_paths(str(detail or "").strip(), roots)
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    if len(cleaned) > _MAX_PUBLIC_ERROR_CHARS:
+        cleaned = cleaned[: _MAX_PUBLIC_ERROR_CHARS - 3].rstrip() + "..."
+    return cleaned or "preflight failed"
 
 
 class JobError(RuntimeError):
@@ -680,7 +720,7 @@ def _write_last_error(meeting_dir: Path, *, stage: str, job_id: str, exit_code: 
             "timestamp": _now_iso(),
             "job_id": job_id,
         }
-        card_path.write_text(json.dumps(card, ensure_ascii=False, indent=2), encoding="utf-8")
+        _write_json_atomic(card_path, card)
     except Exception:  # noqa: BLE001
         return
 
@@ -695,7 +735,7 @@ def _clear_last_error(meeting_dir: Path, *, stage: str) -> None:
         last = card.get("last_error")
         if isinstance(last, dict) and last.get("stage") == stage:
             card.pop("last_error", None)
-            card_path.write_text(json.dumps(card, ensure_ascii=False, indent=2), encoding="utf-8")
+            _write_json_atomic(card_path, card)
     except Exception:  # noqa: BLE001
         return
 
@@ -1025,7 +1065,7 @@ class JobRunner:
             if preflight_fn is not None:
                 err = preflight_fn(meeting_dir)
                 if err:
-                    raise PreflightFailed(err)
+                    raise PreflightFailed(_public_error_detail(err, meeting_dir=meeting_dir))
             if supports_dry_run:
                 proc = await _create_subprocess(
                     *cmd,
@@ -1051,7 +1091,9 @@ class JobRunner:
                 self._persist_job_update(job, "job_preflight_finished")
                 if proc.returncode != 0:
                     detail = (stderr_bytes or b"").decode("utf-8", errors="replace").strip()
-                    raise PreflightFailed(detail or "dry-run failed")
+                    raise PreflightFailed(
+                        _public_error_detail(detail or "dry-run failed", meeting_dir=meeting_dir)
+                    )
             if job.status == "cancelled":
                 await self._finish_job_without_monitor(
                     job, event_type="job_cancelled_before_launch"

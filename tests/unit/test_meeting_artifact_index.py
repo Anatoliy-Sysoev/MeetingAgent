@@ -60,6 +60,7 @@ def test_to_index_rows_exports_decision_with_timestamp(tmp_path: Path) -> None:
     assert "Разделить поддержку" in rows[0]["text"]
     assert "Уверенность: 0.86" in rows[0]["text"]
     assert "Спикеры: Алексей Петров" in rows[0]["text"]
+    assert "source_path" not in rows[0]
 
 
 def test_upsert_rows_preserves_meeting_chunks(tmp_path: Path) -> None:
