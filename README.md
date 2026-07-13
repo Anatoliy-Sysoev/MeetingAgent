@@ -252,6 +252,24 @@ Dry-run:
   --dry-run
 ```
 
+List local devices and the effective MIC/SYS/MIX readiness without opening an
+audio stream:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py --list-audio-sources
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --preflight-source --source MIC
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --preflight-source --source SYS
+```
+
+`--preflight-source` exits with code `0` only when the current backend can run
+the source and with code `2` when it is blocked. The JSON result separates
+`device_available` from `capture_supported`: MIC is currently runnable;
+Windows WASAPI output devices are reported as SYS loopback candidates, but SYS
+and MIX remain blocked until their real capture/resampling backend is added.
+They are never silently recorded from the microphone.
+
 Deterministic smoke from a prepared mono 16 kHz WAV:
 
 ```powershell
@@ -267,6 +285,10 @@ Deterministic smoke from a prepared mono 16 kHz WAV:
 ```
 
 For live microphone sessions, `Ctrl+C` is treated as a graceful stop: accumulated segments are finalized and written. Live draft completion leaves `processing_status=processing`, so final offline ASR can still run afterwards.
+
+Prepared `--input-wav` smoke runs may use MIC, SYS, or MIX labels because they do
+not start hardware capture. Every live result remains a draft and must be
+refined by canonical offline ASR before final meeting artifacts are generated.
 
 ## Docker
 

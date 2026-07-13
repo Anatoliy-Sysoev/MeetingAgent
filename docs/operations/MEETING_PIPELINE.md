@@ -196,6 +196,26 @@ models/vosk/vosk-model-small-ru-0.22/
   --dry-run
 ```
 
+Inventory и hardware/backend preflight без открытия audio stream:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --list-audio-sources
+
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --preflight-source `
+  --source MIC
+
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --preflight-source `
+  --source SYS
+```
+
+`--preflight-source` возвращает JSON и exit code `0`, только если источник
+готов к запуску текущим backend; blocked source возвращает exit code `2`.
+Поля `device_available` и `capture_supported` разделены: наличие Windows WASAPI
+output candidate ещё не означает, что SYS loopback capture реализован.
+
 Smoke по готовому `source/audio_16k_mono.wav`:
 
 ```powershell
@@ -253,7 +273,7 @@ VAD modes:
 
 - `--vad silero` пока поддержан только вместе с `--input-wav`. Streaming VAD для микрофона и system-loopback нужно реализовывать отдельно, чтобы не сломать таймкоды.
 - В `--vad silero` компрессии таймкодов нет: пропущенные non-speech blocks учитываются в реальном времени файла. Но finalized segment может получать хвостовой fallback span блока, на котором Vosk завершил фразу. Для smoke сравнивать нужно попадание segment в speech window, а не равенство span с `--vad none`.
-- System-loopback capture и ресэмплинг 44.1/48 кГц stereo -> 16 кГц mono еще не реализованы в live CLI.
+- System-loopback capture, MIC+SYS mixing и ресэмплинг 44.1/48 кГц stereo -> 16 кГц mono еще не реализованы в live CLI. `SYS`/`MIX` без `--input-wav` fail closed и не маскируются под MIC.
 - Микрофонный runtime пишет в `live_report.<SOURCE>.json` счетчики `input_status_events` и `queue_timeouts`; ненулевые значения нужно смотреть при диагностике overflow/dropout.
 
 ### 5. Optional Speaker Diarization
