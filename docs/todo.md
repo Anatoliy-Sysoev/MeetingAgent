@@ -94,7 +94,8 @@
   coverage for upload/pipeline/Workspace workflows.
 - [x] TEST-WORKSPACE-CRLF-PARSING (#200): Workspace static UI assertions are
   newline-agnostic on Windows and Linux checkouts.
-- [ ] MA-MEETING-VECTOR-CACHE-LOCKING (#181): concurrency-safe semantic cache.
+- [x] MA-MEETING-VECTOR-CACHE-LOCKING (#181): locked and atomic semantic cache,
+  concurrent first-fill deduplication, malformed-tail recovery and rebuild CLI.
 - [ ] MA-MEETINGAGENT-UI-MOCKUPS: approve target mockups for registry, upload wizard, processing monitor and meeting card before deeper UI refactor.
 
 ## Meeting Product Backlog

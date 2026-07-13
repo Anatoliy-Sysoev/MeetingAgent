@@ -509,6 +509,33 @@ JSON-вывод для интеграции с ботом или UI:
   --index-only
 ```
 
+### 9.1. Восстановление Meeting Q&A Embedding Cache
+
+Meeting-scoped semantic Q&A лениво пишет chunk embeddings в
+`data/meeting_embeddings_cache.jsonl`. Запись защищена общим thread/process
+lock и публикуется атомарно. Конкурентные первые запросы не создают повторные
+rows и не считают один chunk повторно; повреждённая или оборванная JSONL-строка
+пропускается, а при следующей записи cache автоматически очищается.
+
+Проверить, сколько строк можно восстановить, ничего не меняя:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\49_rebuild_meeting_vector_cache.py `
+  --cache-path data\meeting_embeddings_cache.jsonl `
+  --dry-run
+```
+
+Удалить malformed/invalid/duplicate rows и атомарно пересобрать cache:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\49_rebuild_meeting_vector_cache.py `
+  --cache-path data\meeting_embeddings_cache.jsonl
+```
+
+Команда не вызывает Ollama и не меняет `embedding_model`. Valid rows всех
+моделей сохраняются. Если cache или lock недоступен во время пользовательского
+Q&A, API не падает и использует lexical fallback.
+
 ### 10. LLM Map-Reduce Analysis
 
 Структурированные артефакты встречи создаются после enrichment:

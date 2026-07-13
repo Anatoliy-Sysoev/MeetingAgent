@@ -31,6 +31,11 @@ Use the meeting scripts for the current meeting pipeline:
 - `32_index_meeting_artifacts.py`;
 - `33_live_transcribe_meeting.py` (optional draft live workflow).
 
+Meeting cache maintenance:
+
+- `49_rebuild_meeting_vector_cache.py` validates and atomically compacts the
+  meeting-scoped semantic Q&A cache without calling Ollama.
+
 ## Legacy Baseline
 
 Scripts `01_*` through `18_*`, `asu_june_bot_search.py`, and the `rag_*`
