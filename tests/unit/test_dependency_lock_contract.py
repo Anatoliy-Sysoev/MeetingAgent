@@ -67,6 +67,14 @@ def test_every_direct_group_is_covered_by_compatible_pin() -> None:
                 f"{lock_filename}: {live_pins[name]} violates {requirement.specifier}"
             )
 
+    gigaam_pins = _pins("constraints-gigaam-py312-windows.txt")
+    for requirement in _direct_requirements(ROOT / "requirements-gigaam.txt"):
+        name = canonicalize_name(requirement.name)
+        assert name in gigaam_pins, f"GigaAM lock: missing pin for {requirement.name}"
+        assert gigaam_pins[name] in requirement.specifier, (
+            f"GigaAM lock: {gigaam_pins[name]} violates {requirement.specifier}"
+        )
+
 
 def test_pyproject_groups_match_requirement_inputs() -> None:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
@@ -185,6 +193,24 @@ def test_platform_live_locks_match_all_shared_core_pins() -> None:
             )
 
 
+def test_gigaam_lock_is_isolated_cpu_only_and_matches_reviewed_source() -> None:
+    pins = _pins("constraints-gigaam-py312-windows.txt")
+    assert pins["numpy"].major == 2
+    assert pins["onnx"] == Version("1.22.0")
+    assert pins["onnxruntime"] == Version("1.23.2")
+    assert pins["torch"] == Version("2.13.0+cpu")
+    assert pins["torchaudio"] == Version("2.11.0+cpu")
+    lock_input = (ROOT / "requirements-gigaam-lock-py312.in").read_text(
+        encoding="utf-8"
+    )
+    direct = (ROOT / "requirements-gigaam.txt").read_text(encoding="utf-8")
+    assert "--extra-index-url https://download.pytorch.org/whl/cpu" in lock_input
+    assert "-r requirements-gigaam.txt" in lock_input
+    assert "6e4b027c6fb554e09e8b9059b757a175295ab879" in direct
+    assert "cuda-toolkit" not in lock_input.lower()
+    assert "nvidia-" not in lock_input.lower()
+
+
 def test_windows_only_live_marker_matches_pyproject() -> None:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     project_live = {
@@ -222,7 +248,9 @@ def test_lock_and_audit_are_wired_into_delivery_workflows() -> None:
     assert "windows-latest" in audit
     assert "constraints-live-py312-linux.txt" in audit
     assert "constraints-live-py312-windows.txt" in audit
+    assert "constraints-gigaam-py312-windows.txt" in audit
     assert "requirements-live.txt" in audit
+    assert "requirements-gigaam-lock-py312.in" in audit
     assert 'python scripts/47_dependency_audit.py --requirements "${{ matrix.requirements }}"' in audit
     assert "|| true" not in audit
     assert "requirements-transcription.txt" in dockerfile

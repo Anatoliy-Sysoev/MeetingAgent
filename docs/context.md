@@ -4,16 +4,20 @@
 
 ## Now
 
-- MA-DEPS-SOUNDDEVICE05-COMPAT (#242) independently validates sounddevice 0.5.5,
-  synchronizes shared core/live exact pins and repairs the documented standalone
-  core+live install contract on Windows and Linux.
-- canonical main before this task: `44949cf` / `build: validate NumPy 2
-  compatibility (#245)`.
+- MA-DEPS-GIGAAM-RUNTIME-COMPAT (#243) defines a separate exact Windows/Python
+  3.12 CPU lock and validates the real local GigaAM model without changing core.
+- canonical main before this task: `f56dbb1` / `build: validate sounddevice 0.5
+  runtime (#246)`.
 - History purge #167 remains gated by explicit owner approval and backup.
   Dependency follow-ups are tracked as #236 and #241-#244; UI mockups are #237.
 
 ## Done latest
 
+- MA-DEPS-GIGAAM-RUNTIME-COMPAT (#243): pins the isolated CPU graph to NumPy
+  2.5.1, ONNX 1.22.0, ONNX Runtime 1.23.2, Torch 2.13.0 and TorchAudio 2.11.0;
+  clean install, `pip check`, zero-advisory audit, upstream source/model load,
+  ONNX utility import and deterministic short-speech inference pass. ONNX 1.22
+  deliberately replaces upstream 1.19 because the old line has advisories.
 - MA-DEPS-SOUNDDEVICE05-COMPAT (#242): locks sounddevice 0.5.5 and NumPy 2.5.1
   on both platforms; clean Windows/Linux installs pass `pip check` and advisory
   audit; 101 live tests and a non-persisting one-second 16 kHz Windows MIC smoke
@@ -284,8 +288,8 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- MA-PRODUCT-SPLIT-PHASE-2 (#235): move MeetingAgent-owned routes/services out
-  of the Project Knowledge Bot package while preserving public paths.
+- MA-DEPS-DOCS-MATERIAL97 (#244): review the documentation theme independently
+  with a clean install, strict build, links and advisory status.
 - MA-DEPS-MAJOR-COMPATIBILITY (#236): review major dependency upgrades in
   isolated runtime groups instead of one conflicting Dependabot batch.
 - MA-MEETINGAGENT-UI-MOCKUPS (#237): approve table-first product mockups before

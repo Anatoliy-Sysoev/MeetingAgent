@@ -23,7 +23,7 @@ constraints without adding Torch/Vosk to the base installation.
 | Browser UI smoke | `requirements-browser.txt` | Dedicated CI/local browser tests |
 | Live/Vosk | `requirements-live.txt` | Optional isolated runtime |
 | Diarization | `requirements-diarization.txt` | Optional image/environment |
-| GigaAM | `requirements-gigaam.txt` | Optional isolated Python environment |
+| GigaAM | `requirements-gigaam.txt` + `constraints-gigaam-py312-windows.txt` | Optional isolated Windows/Python 3.12 environment |
 
 ## Major Compatibility Matrix
 
@@ -34,7 +34,7 @@ in one row does not approve another row.
 |---|---|---|---|
 | Core, retrieval and diarization NumPy | `numpy>=1.26,<3`; Python 3.12 lock `2.5.1` | Approved: clean Windows install, `pip check`, advisory audit, persisted 1.26 `.npy` load, retrieval suite, ONNX Runtime sessions for both diarization models and sherpa diarizer construction | Roll back the range to `<2` and lock to `1.26.4`; #241 |
 | Live MIC through sounddevice | `sounddevice>=0.5.5,<0.6`; platform locks `0.5.5` | Approved: clean Windows/Linux installs, `pip check`, advisory audit, 101 live tests and a non-persisting 16 kHz Windows MIC callback smoke | Restore range `<0.5` and locks `0.4.7`; #242 |
-| Isolated GigaAM ONNX/TorchAudio | `onnx==1.19.*`, `onnxruntime==1.25.*`, `torchaudio>=2.6` | Pending an exact isolated Python 3.12 lock and real short-audio model smoke | Keep the existing isolated runtime; #243 |
+| Isolated GigaAM ONNX/TorchAudio | Python 3.12 lock: `onnx 1.22.0`, `onnxruntime 1.23.2`, `torch 2.13.0+cpu`, `torchaudio 2.11.0+cpu` | Approved: clean Windows install, `pip check`, zero-advisory audit, upstream source import/model load, ONNX utility import and deterministic short-speech inference | Rebuild the isolated venv from this lock; reviewed GigaAM commit `6e4b027c...`; #243 |
 | Documentation theme | `mkdocs-material==9.5.50` | Pending strict build and link validation against 9.7.x | Retain `9.5.50`; #244 |
 
 The umbrella review is tracked by #236. Do not combine these rows into one
@@ -56,6 +56,23 @@ On Linux, replace the second constraints file with
 `https://download.pytorch.org/whl/cpu` and install no CUDA packages. On Windows,
 prefer a short environment path such as `C:\ma-live` when long paths are
 disabled; Torch can otherwise fail to unpack with `WinError 206`.
+
+Install GigaAM only in its isolated Windows/Python 3.12 environment:
+
+```powershell
+py -3.12 -m venv C:\ma-gigaam312
+C:\ma-gigaam312\Scripts\python.exe -m pip install `
+  -c constraints-gigaam-py312-windows.txt `
+  -r requirements-gigaam.txt
+C:\ma-gigaam312\Scripts\python.exe -m pip check
+```
+
+Use the reviewed `salute-developers/GigaAM` commit
+`6e4b027c6fb554e09e8b9059b757a175295ab879` as the source tree. Upstream pins
+ONNX 1.19, but that line has known advisories; the MeetingAgent inference-only
+profile deliberately uses ONNX 1.22.0. Torch model load, short-speech ASR and
+`gigaam.onnx_utils` import are verified. Exporting GigaAM models to ONNX remains
+outside the supported product path.
 
 Create a product environment:
 
@@ -93,6 +110,8 @@ py -3.12 -m venv .venv-lock
   --output-file constraints-py312.txt requirements-lock-py312.in
 .\.venv-lock\Scripts\python.exe -m piptools compile --resolver=backtracking --strip-extras --allow-unsafe `
   --output-file constraints-live-py312-windows.txt requirements-live-lock-py312.in
+.\.venv-lock\Scripts\python.exe -m piptools compile --resolver=backtracking --strip-extras --allow-unsafe `
+  --output-file constraints-gigaam-py312-windows.txt requirements-gigaam-lock-py312.in
 .\.venv\Scripts\python.exe scripts\47_dependency_audit.py
 ```
 
@@ -131,9 +150,9 @@ local-version pin is rejected fail-closed.
 Optional diarization is resolved in `constraints-py312.txt`, but it is installed
 only when explicitly requested. Live audio uses separate Windows/Linux CPU
 locks; the scheduled workflow audits core, live-linux, and live-windows graphs
-independently. GigaAM remains outside the reviewed locks because it has a
-separate Torch/runtime profile. Keep it isolated and run `pip check` plus an
-environment audit before deployment.
+independently. GigaAM has its own reviewed Windows lock and scheduled audit
+entry because it has a separate Torch/runtime profile; it must not be combined
+with core or live environments.
 
 Primary references: [pip-audit](https://github.com/pypa/pip-audit),
 [pip-tools](https://pip-tools.readthedocs.io/en/stable/), and

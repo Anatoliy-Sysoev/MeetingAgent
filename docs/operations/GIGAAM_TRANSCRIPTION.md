@@ -11,17 +11,36 @@
 - локальные исходники или установленный пакет GigaAM;
 - модель: `gigaam/v3_e2e_rnnt`;
 - рабочий ASCII-cache: `%ProgramData%\gigaam_cache`;
-- отдельное окружение Python 3.12 рекомендуется для совместимости wheels;
+- отдельное окружение Python 3.12 обязательно для проверенного runtime;
 - `ffmpeg` и `ffprobe` доступны из PATH.
 
-Опциональные зависимости backend-а зафиксированы в `requirements-gigaam.txt`. На Windows/Python 3.14 пакет `onnx==1.19.*` может не иметь готового wheel и падать при сборке из исходников. В этом случае нужен Python с готовым `onnx` wheel или заранее подготовленная GigaAM-среда; основной MeetingAgent runtime от этих зависимостей не зависит.
+Опциональные ranges backend-а зафиксированы в `requirements-gigaam.txt`, а
+точный Windows/Python 3.12 graph - в
+`constraints-gigaam-py312-windows.txt`. Проверенный source revision:
+`salute-developers/GigaAM@6e4b027c6fb554e09e8b9059b757a175295ab879`.
+
+```powershell
+git clone https://github.com/salute-developers/GigaAM.git "$env:USERPROFILE\GigaAM"
+git -C "$env:USERPROFILE\GigaAM" checkout 6e4b027c6fb554e09e8b9059b757a175295ab879
+py -3.12 -m venv C:\ma-gigaam312
+C:\ma-gigaam312\Scripts\python.exe -m pip install `
+  -c constraints-gigaam-py312-windows.txt `
+  -r requirements-gigaam.txt
+C:\ma-gigaam312\Scripts\python.exe -m pip check
+```
+
+Короткий ASCII path для venv снижает риск `WinError 206` при распаковке Torch.
+Upstream pin ONNX 1.19 не используется: в нём есть известные advisory. Exact
+lock фиксирует проверенный inference-only override ONNX 1.22.0; модельная
+загрузка, short-speech ASR и импорт `gigaam.onnx_utils` проходят. ONNX export
+модели не является поддерживаемым сценарием MeetingAgent.
 
 Причина ASCII-cache: `sentencepiece` в GigaAM может падать на пути к tokenizer с кириллицей в `%USERPROFILE%\.cache\gigaam`. Поэтому wrapper использует `%ProgramData%\gigaam_cache` и при необходимости копирует туда уже скачанные файлы модели.
 
 ## Основная Команда В Карточку Встречи
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py `
+C:\ma-gigaam312\Scripts\python.exe scripts\22_transcribe_meeting.py `
   --meeting-dir meetings\YYYY-MM-DD__slug `
   --engine gigaam `
   --model v3_e2e_rnnt `

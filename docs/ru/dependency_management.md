@@ -23,7 +23,7 @@ Optional live runtime имеет отдельные точные lock-файлы
 | Browser UI smoke | `requirements-browser.txt` | Отдельные CI/local browser tests |
 | Live/Vosk | `requirements-live.txt` | Изолированный optional runtime |
 | Diarization | `requirements-diarization.txt` | Optional image/окружение |
-| GigaAM | `requirements-gigaam.txt` | Изолированное Python-окружение |
+| GigaAM | `requirements-gigaam.txt` + `constraints-gigaam-py312-windows.txt` | Изолированное Windows/Python 3.12 окружение |
 
 ## Матрица Совместимости Major-Обновлений
 
@@ -34,7 +34,7 @@ Major- и native-runtime-обновления проверяются незав�
 |---|---|---|---|
 | Core, retrieval и diarization NumPy | `numpy>=1.26,<3`; Python 3.12 lock `2.5.1` | Одобрено: чистая Windows-установка, `pip check`, advisory audit, загрузка сохранённого в 1.26 `.npy`, retrieval suite, ONNX Runtime sessions обеих diarization-моделей и создание sherpa diarizer | Вернуть range `<2` и lock `1.26.4`; #241 |
 | Live MIC через sounddevice | `sounddevice>=0.5.5,<0.6`; platform locks `0.5.5` | Одобрено: чистые Windows/Linux-установки, `pip check`, advisory audit, 101 live-тест и не сохраняющий аудио Windows MIC callback smoke на 16 кГц | Вернуть range `<0.5` и locks `0.4.7`; #242 |
-| Изолированный GigaAM ONNX/TorchAudio | `onnx==1.19.*`, `onnxruntime==1.25.*`, `torchaudio>=2.6` | Ожидается exact isolated Python 3.12 lock и реальный smoke короткого аудио | Сохранить существующий изолированный runtime; #243 |
+| Изолированный GigaAM ONNX/TorchAudio | Python 3.12 lock: `onnx 1.22.0`, `onnxruntime 1.23.2`, `torch 2.13.0+cpu`, `torchaudio 2.11.0+cpu` | Одобрено: чистая Windows-установка, `pip check`, audit без advisory, импорт upstream source, загрузка модели, импорт ONNX utilities и детерминированный short-speech inference | Пересобрать изолированный venv по этому lock; проверенный GigaAM commit `6e4b027c...`; #243 |
 | Тема документации | `mkdocs-material==9.5.50` | Ожидается strict build и link validation на 9.7.x | Сохранить `9.5.50`; #244 |
 
 Общий review отслеживается в #236. Эти строки нельзя снова объединять в один
@@ -57,6 +57,23 @@ Live runtime на Windows:
 Windows при отключённой поддержке long paths используйте короткий путь
 окружения, например `C:\ma-live`: иначе Torch может завершить распаковку с
 `WinError 206`.
+
+GigaAM устанавливается только в отдельное Windows/Python 3.12 окружение:
+
+```powershell
+py -3.12 -m venv C:\ma-gigaam312
+C:\ma-gigaam312\Scripts\python.exe -m pip install `
+  -c constraints-gigaam-py312-windows.txt `
+  -r requirements-gigaam.txt
+C:\ma-gigaam312\Scripts\python.exe -m pip check
+```
+
+Используйте source tree `salute-developers/GigaAM` на проверенном commit
+`6e4b027c6fb554e09e8b9059b757a175295ab879`. Upstream фиксирует ONNX 1.19, но
+эта линия содержит известные advisory, поэтому inference-only profile
+MeetingAgent намеренно использует ONNX 1.22.0. Проверены загрузка Torch-модели,
+короткая речевая транскрибация и импорт `gigaam.onnx_utils`. Экспорт GigaAM в
+ONNX не входит в поддерживаемый product path.
 
 Создание product environment:
 
@@ -94,6 +111,8 @@ py -3.12 -m venv .venv-lock
   --output-file constraints-py312.txt requirements-lock-py312.in
 .\.venv-lock\Scripts\python.exe -m piptools compile --resolver=backtracking --strip-extras --allow-unsafe `
   --output-file constraints-live-py312-windows.txt requirements-live-lock-py312.in
+.\.venv-lock\Scripts\python.exe -m piptools compile --resolver=backtracking --strip-extras --allow-unsafe `
+  --output-file constraints-gigaam-py312-windows.txt requirements-gigaam-lock-py312.in
 .\.venv\Scripts\python.exe scripts\47_dependency_audit.py
 ```
 
@@ -131,8 +150,8 @@ local-version pin отклоняется fail-closed.
 Optional diarization разрешается в `constraints-py312.txt`, но устанавливается
 только явно. Live audio использует отдельные Windows/Linux CPU locks; scheduled
 workflow проверяет core, live-linux и live-windows graphs независимо. GigaAM
-остаётся вне reviewed locks из-за отдельного Torch/runtime profile. Держите его
-изолированным, запускайте `pip check` и audit environment перед deployment.
+имеет собственный reviewed Windows lock и отдельный scheduled audit entry из-за
+особого Torch/runtime profile; смешивать его с core или live environment нельзя.
 
 Первичные источники: [pip-audit](https://github.com/pypa/pip-audit),
 [pip-tools](https://pip-tools.readthedocs.io/en/stable/) и

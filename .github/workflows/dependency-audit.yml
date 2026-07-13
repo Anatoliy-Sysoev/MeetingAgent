@@ -24,6 +24,9 @@ jobs:
           - name: live-windows
             os: windows-latest
             requirements: constraints-live-py312-windows.txt
+          - name: gigaam-windows
+            os: windows-latest
+            requirements: constraints-gigaam-py312-windows.txt
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
@@ -39,7 +42,10 @@ jobs:
             constraints-py312.txt
             constraints-live-py312-linux.txt
             constraints-live-py312-windows.txt
+            constraints-gigaam-py312-windows.txt
             requirements-dev.txt
+            requirements-gigaam.txt
+            requirements-gigaam-lock-py312.in
             requirements-live.txt
             requirements-live-lock-py312.in
 

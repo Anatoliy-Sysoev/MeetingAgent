@@ -1,0 +1,7 @@
+# Resolver input for the isolated Windows/Python 3.12 GigaAM runtime.
+#
+# The GigaAM source itself is reviewed separately at commit
+# 6e4b027c6fb554e09e8b9059b757a175295ab879. This lock intentionally contains
+# only its runtime dependency graph and CPU-only PyTorch wheels.
+--extra-index-url https://download.pytorch.org/whl/cpu
+-r requirements-gigaam.txt
