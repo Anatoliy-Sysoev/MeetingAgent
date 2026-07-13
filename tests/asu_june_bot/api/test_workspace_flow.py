@@ -17,12 +17,12 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from asu_june_bot.api.routes_workspace import _WORKSPACE_HTML  # noqa: E402
+from asu_june_bot.api.ui_assets import load_ui_asset, load_ui_template  # noqa: E402
 
 
 @pytest.fixture(scope="module")
 def html() -> str:
-    return _WORKSPACE_HTML
+    return load_ui_template("workspace.html") + load_ui_asset("workspace.js")
 
 
 # ---------------------------------------------------------------------------

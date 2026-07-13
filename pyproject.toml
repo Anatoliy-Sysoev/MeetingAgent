@@ -37,6 +37,9 @@ dev = [
   "pytest>=8.3,<10",
   "ruff>=0.9,<1"
 ]
+browser = [
+  "playwright>=1.61,<2"
+]
 transcription = [
   "faster-whisper>=1.1,<2"
 ]
@@ -54,6 +57,13 @@ live = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.setuptools.package-data]
+"asu_june_bot.api" = [
+  "ui/templates/*.html",
+  "ui/assets/v1/*.css",
+  "ui/assets/v1/*.js"
+]
 
 [tool.ruff]
 line-length = 100

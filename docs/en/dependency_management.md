@@ -15,6 +15,7 @@ and development tools.
 | Core API/RAG | `requirements.txt` | Yes |
 | Offline ASR | `requirements-transcription.txt` | Product install and image |
 | Development/audit | `requirements-dev.txt` | Development and CI only |
+| Browser UI smoke | `requirements-browser.txt` | Dedicated CI/local browser tests |
 | Live/Vosk | `requirements-live.txt` | Optional isolated runtime |
 | Diarization | `requirements-diarization.txt` | Optional image/environment |
 | GigaAM | `requirements-gigaam.txt` | Optional isolated Python environment |
@@ -33,6 +34,15 @@ For development:
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -c constraints-py312.txt `
   -r requirements-dev.txt
+```
+
+For browser-level product UI tests, install the test-only library and Chromium:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -c constraints-py312.txt `
+  -r requirements-browser.txt
+.\.venv\Scripts\python.exe -m playwright install chromium
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\browser -q
 ```
 
 ## Updating The Lock

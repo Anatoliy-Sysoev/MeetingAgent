@@ -15,6 +15,7 @@ resolver result для core, offline-транскрибации, optional diariz
 | Core API/RAG | `requirements.txt` | Да |
 | Offline ASR | `requirements-transcription.txt` | Product install и image |
 | Development/audit | `requirements-dev.txt` | Только development и CI |
+| Browser UI smoke | `requirements-browser.txt` | Отдельные CI/local browser tests |
 | Live/Vosk | `requirements-live.txt` | Изолированный optional runtime |
 | Diarization | `requirements-diarization.txt` | Optional image/окружение |
 | GigaAM | `requirements-gigaam.txt` | Изолированное Python-окружение |
@@ -33,6 +34,15 @@ py -3.12 -m venv .venv
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -c constraints-py312.txt `
   -r requirements-dev.txt
+```
+
+Для browser-level проверки product UI установите test-only library и Chromium:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -c constraints-py312.txt `
+  -r requirements-browser.txt
+.\.venv\Scripts\python.exe -m playwright install chromium
+.\.venv\Scripts\python.exe -m pytest tests\asu_june_bot\browser -q
 ```
 
 ## Обновление Lock

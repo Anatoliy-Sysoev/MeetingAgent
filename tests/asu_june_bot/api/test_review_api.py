@@ -17,6 +17,7 @@ if str(SRC) not in sys.path:
 
 from asu_june_bot.api.app import create_app  # noqa: E402
 from asu_june_bot.api.bootstrap_policy import BootstrapPolicy  # noqa: E402
+from asu_june_bot.api.ui_assets import load_ui_asset  # noqa: E402
 from asu_june_bot.auth.passwords import hash_password  # noqa: E402
 from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
 from asu_june_bot.auth.service import AdminService, LocalAuthService  # noqa: E402
@@ -346,7 +347,7 @@ def test_export_does_not_expose_prompt_internals(client: TestClient, review_queu
 def _get_html(client: TestClient) -> str:
     resp = client.get("/")
     assert resp.status_code == 200
-    return resp.text
+    return resp.text + load_ui_asset("bot.js")
 
 
 def test_review_ui_csrf_uses_auth_csrf_endpoint(client: TestClient) -> None:

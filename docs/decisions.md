@@ -553,3 +553,33 @@ deterministic diagnostics trace.
   faster-whisper, а `small` разрешён только как явный draft/dev выбор;
 - scaffold directory возвращается только вместе с кодом, тестами, ownership и
   документацией.
+
+## 2026-07-12 - Product UI Использует Versioned Assets И Restrictive CSP
+
+Решение: `/`, `/ui`, `/MeetingAgent` и meeting Workspace отдают только
+package-data HTML templates и внешние CSS/JavaScript из `/assets/v1/`. Product
+pages получают restrictive Content-Security-Policy: scripts/styles/connect
+разрешены только с `self`, inline script/style и `eval` не разрешены, framing и
+object embedding запрещены. Dynamic runtime data строится через DOM/text APIs.
+
+Почему:
+
+- monolithic Python string templates смешивали routing, layout и behavior и
+  делали review почти невозможным;
+- inline handlers/styles не позволяли включить CSP без `unsafe-inline`;
+- строковые unit tests не исполняли JavaScript и уже пропустили реальный UX-баг
+  speaker-mapping status;
+- wheel install обязан содержать UI так же, как editable Git checkout.
+
+Следствия:
+
+- `pyproject.toml` явно включает templates/assets в wheel package data;
+- `/assets/v1/*` имеет годовой immutable cache. После изменения содержимого
+  public asset URL/version необходимо поднять, а templates переключить на
+  новый path; изменять закэшированный v1 после release нельзя;
+- CSRF остаётся в памяти страницы, browser auth — в HttpOnly cookie; Web Storage
+  для credentials, tokens и ответов запрещён тестами;
+- `requirements-browser.txt` и отдельный CI job устанавливают Chromium и
+  запускают browser smoke без ASR, embeddings и LLM calls;
+- Swagger `/docs` не получает product-only CSP, пока не будет переведён на
+  self-hosted assets отдельной задачей.

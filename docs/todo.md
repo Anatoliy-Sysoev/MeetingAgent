@@ -89,13 +89,13 @@
 - [x] MA-REPO-DEAD-CODE-CLEANUP (#179): machine-checked runtime inventory,
   supported CLI/import smoke, visible legacy migration warnings, empty scaffold
   removal and canonical ASR defaults.
-- [ ] MA-UI-CSP-MODULARIZATION (#180): extract frontend assets and enforce CSP.
+- [x] MA-UI-CSP-MODULARIZATION (#180): packaged versioned frontend assets,
+  restrictive self-only CSP, immutable asset delivery and browser-level smoke
+  coverage for upload/pipeline/Workspace workflows.
 - [ ] MA-MEETING-VECTOR-CACHE-LOCKING (#181): concurrency-safe semantic cache.
 - [ ] MA-MEETINGAGENT-UI-MOCKUPS: approve target mockups for registry, upload wizard, processing monitor and meeting card before deeper UI refactor.
 
 ## Meeting Product Backlog
-
-- [ ] MA-MEETINGAGENT-UI-REFACTOR: split monolithic inline Workspace/MeetingAgent HTML into maintainable frontend assets after mockups are approved.
 
 
 ## Project Knowledge Bot / Guard / Auth Backlog
