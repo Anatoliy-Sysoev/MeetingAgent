@@ -989,3 +989,28 @@ objects удаляются без вызова `str()`/`repr()`. Если contex
 - sensitive custom ctx не может протащить секрет обратно через formatted `msg`;
 - глубина, число элементов, длина строк и `loc` ограничены;
 - стандартные безопасные сообщения и numeric ctx сохраняются без изменения.
+
+## 2026-07-13 - Official GitHub Actions Работают На Reviewed Node 24 Majors
+
+Решение: все repository workflows используют проверенные актуальные major tags:
+`actions/checkout@v7`, `actions/setup-python@v6`,
+`actions/upload-pages-artifact@v5` и `actions/deploy-pages@v5`. Unit contract
+сканирует каждый workflow и требует явного review перед добавлением нового
+official action или сменой major.
+
+Почему:
+
+- прежние checkout/setup-python majors запускались через deprecated Node 20
+  compatibility path;
+- Node 24 actions требуют runner `2.327.1+`, что выполняется для используемых
+  GitHub-hosted `*-latest` runners;
+- `upload-pages-artifact@v5` является composite action и использует pinned
+  `upload-artifact` v7, а остальные выбранные actions объявляют `node24`;
+- автоматический Dependabot bump без regression contract не закрывает риск
+  возврата устаревшего major в другом workflow.
+
+Следствия:
+
+- permissions, cache inputs, triggers и job topology не меняются;
+- новый official action сначала добавляется в reviewed allowlist теста;
+- self-hosted runner при будущем включении должен быть версии `2.327.1+`.
