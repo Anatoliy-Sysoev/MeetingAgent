@@ -273,13 +273,16 @@ Install optional live dependencies:
 .\.venv\Scripts\python.exe -m pip install `
   -c constraints-py312.txt `
   -c constraints-live-py312-windows.txt `
+  -r requirements.txt `
   -r requirements-live.txt
 .\.venv\Scripts\python.exe -m pip check
 ```
 
 Linux uses `constraints-live-py312-linux.txt`. Both platform locks select the
 official PyTorch CPU index and keep Torch/Silero outside the core install and
-base Docker image.
+base Docker image. On Windows, use a short environment path such as
+`C:\ma-live` when long-path support is disabled; Torch can otherwise fail to
+unpack with `WinError 206` before sounddevice is installed.
 
 Keep Vosk models under ignored `models/`, for example:
 

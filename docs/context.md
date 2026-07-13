@@ -4,16 +4,21 @@
 
 ## Now
 
-- MA-DEPS-NUMPY2-COMPAT (#241) independently validates NumPy 2.5.1 for core
-  retrieval/index persistence and the sherpa/ONNX diarization runtime, without
-  widening live, GigaAM or documentation dependency ranges.
-- canonical main before this task: `f5fa207` / `Split MeetingAgent core runtime
-  from Project Knowledge Bot (#240)`.
+- MA-DEPS-SOUNDDEVICE05-COMPAT (#242) independently validates sounddevice 0.5.5,
+  synchronizes shared core/live exact pins and repairs the documented standalone
+  core+live install contract on Windows and Linux.
+- canonical main before this task: `44949cf` / `build: validate NumPy 2
+  compatibility (#245)`.
 - History purge #167 remains gated by explicit owner approval and backup.
   Dependency follow-ups are tracked as #236 and #241-#244; UI mockups are #237.
 
 ## Done latest
 
+- MA-DEPS-SOUNDDEVICE05-COMPAT (#242): locks sounddevice 0.5.5 and NumPy 2.5.1
+  on both platforms; clean Windows/Linux installs pass `pip check` and advisory
+  audit; 101 live tests and a non-persisting one-second 16 kHz Windows MIC smoke
+  pass. A contract test now rejects any shared core/live pin conflict, and docs
+  require core+live inputs plus a short Windows venv path when long paths are off.
 - MA-DEPS-NUMPY2-COMPAT (#241): widened only the core/diarization NumPy range to
   `<3`, locked Python 3.12 to 2.5.1, added persisted-index cross-major coverage
   and validated a clean install, `pip check`, advisory audit, retrieval tests

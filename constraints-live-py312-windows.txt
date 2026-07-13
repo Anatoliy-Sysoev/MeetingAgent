@@ -47,7 +47,7 @@ mpmath==1.3.0
     # via sympy
 networkx==3.6.1
     # via torch
-numpy==1.26.4
+numpy==2.5.1
     # via
     #   -c constraints-py312.txt
     #   soxr
@@ -67,7 +67,7 @@ requests==2.34.2
     #   vosk
 silero-vad==6.2.1
     # via -r requirements-live.txt
-sounddevice==0.4.7
+sounddevice==0.5.5
     # via -r requirements-live.txt
 soxr==1.1.0
     # via -r requirements-live.txt

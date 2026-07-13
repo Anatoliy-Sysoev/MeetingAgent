@@ -33,7 +33,7 @@ Major- и native-runtime-обновления проверяются незав�
 | Контур | Проверенный direct range / exact lock | Статус и доказательства | Откат / tracking |
 |---|---|---|---|
 | Core, retrieval и diarization NumPy | `numpy>=1.26,<3`; Python 3.12 lock `2.5.1` | Одобрено: чистая Windows-установка, `pip check`, advisory audit, загрузка сохранённого в 1.26 `.npy`, retrieval suite, ONNX Runtime sessions обеих diarization-моделей и создание sherpa diarizer | Вернуть range `<2` и lock `1.26.4`; #241 |
-| Live MIC через sounddevice | `sounddevice>=0.4.6,<0.5`; platform locks сохраняют `0.4.7` | Ожидается отдельный Windows callback/device smoke | Сохранить `0.4.7`; #242 |
+| Live MIC через sounddevice | `sounddevice>=0.5.5,<0.6`; platform locks `0.5.5` | Одобрено: чистые Windows/Linux-установки, `pip check`, advisory audit, 101 live-тест и не сохраняющий аудио Windows MIC callback smoke на 16 кГц | Вернуть range `<0.5` и locks `0.4.7`; #242 |
 | Изолированный GigaAM ONNX/TorchAudio | `onnx==1.19.*`, `onnxruntime==1.25.*`, `torchaudio>=2.6` | Ожидается exact isolated Python 3.12 lock и реальный smoke короткого аудио | Сохранить существующий изолированный runtime; #243 |
 | Тема документации | `mkdocs-material==9.5.50` | Ожидается strict build и link validation на 9.7.x | Сохранить `9.5.50`; #244 |
 
@@ -46,13 +46,17 @@ Live runtime на Windows:
 .\.venv\Scripts\python.exe -m pip install `
   -c constraints-py312.txt `
   -c constraints-live-py312-windows.txt `
+  -r requirements.txt `
   -r requirements-live.txt
 .\.venv\Scripts\python.exe -m pip check
 ```
 
 На Linux замените второй constraints на
 `constraints-live-py312-linux.txt`. Оба platform lock используют
-`https://download.pytorch.org/whl/cpu` и не устанавливают CUDA packages.
+`https://download.pytorch.org/whl/cpu` и не устанавливают CUDA packages. На
+Windows при отключённой поддержке long paths используйте короткий путь
+окружения, например `C:\ma-live`: иначе Torch может завершить распаковку с
+`WinError 206`.
 
 Создание product environment:
 
