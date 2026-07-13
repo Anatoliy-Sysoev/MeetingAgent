@@ -4,15 +4,22 @@
 
 ## Now
 
-- TEST-WORKSPACE-CRLF-PARSING (#200) fixes the Windows-only canonical verifier
-  regression after #180 by normalizing loaded UI fixture line endings before
-  line-sensitive static JavaScript assertions.
-- canonical main state before #200: `ebe4fe2` / `Harden and modularize product UI assets (#199)`.
-- MA-MEETING-VECTOR-CACHE-LOCKING (#181) remains the active audit task after
-  this hotfix merges.
+- MA-MEETING-VECTOR-CACHE-LOCKING (#181) is implemented on its review branch:
+  meeting Q&A cache initialization and updates are thread/process safe, first
+  fills are deduplicated, writes are atomic, damaged JSONL tails self-repair,
+  and a public rebuild CLI is available.
+- canonical main state before #181: `53b0318` / `Make Workspace UI tests newline-agnostic (#201)`.
+- next product decision: approve MeetingAgent registry/upload/processing/card
+  mockups before the deeper UI redesign; Git history purge #167 remains gated
+  by explicit owner approval.
 
 ## Done latest
 
+- MA-MEETING-VECTOR-CACHE-LOCKING (#181): moved semantic cache I/O behind a
+  shared advisory lock; first-query chunk embeddings are computed once across
+  concurrent threads/processes; valid rows from all embedding models survive
+  deterministic deduplication; malformed, invalid and truncated records are
+  removed by atomic rewrite; storage failures retain lexical fallback.
 - TEST-WORKSPACE-CRLF-PARSING (#200): Workspace UI static tests now behave the
   same for LF and CRLF checkouts while preserving all CSRF, polling, DOM and
   auth assertions.

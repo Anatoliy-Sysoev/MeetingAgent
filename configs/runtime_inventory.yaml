@@ -62,6 +62,7 @@ scripts:
     - scripts/46_ci_verify.py
     - scripts/47_dependency_audit.py
     - scripts/48_retrieval_coverage.py
+    - scripts/49_rebuild_meeting_vector_cache.py
     - scripts/asu_june_bot_api.py
     - scripts/asu_june_bot_audit_sources_v2.py
     - scripts/asu_june_bot_build_chunks_v2.py
@@ -142,6 +143,7 @@ supported_cli_help:
   - scripts/43_anonymize_transcript.py
   - scripts/44_evaluate_meeting_summary.py
   - scripts/45_validate_release_notes.py
+  - scripts/49_rebuild_meeting_vector_cache.py
   - scripts/asu_june_bot_api.py
   - scripts/asu_june_bot_chat.py
   - scripts/asu_june_bot_search_v2.py

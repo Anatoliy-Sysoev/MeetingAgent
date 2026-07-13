@@ -583,3 +583,37 @@ object embedding запрещены. Dynamic runtime data строится че�
   запускают browser smoke без ASR, embeddings и LLM calls;
 - Swagger `/docs` не получает product-only CSP, пока не будет переведён на
   self-hosted assets отдельной задачей.
+
+## 2026-07-13 - Meeting Embedding Cache Остаётся JSONL, Но Пишется Как Atomic Store
+
+Решение: `data/meeting_embeddings_cache.jsonl` сохраняет совместимый JSONL
+контракт, но больше не дополняется plain append. First-fill и rebuild выполняют
+read/deduplicate/write transaction под общим advisory lock для threads и local
+processes; новый snapshot создаётся во временном файле, синхронизируется через
+`fsync` и публикуется `os.replace`.
+
+Почему:
+
+- параллельные первые Q&A-запросы могли повторно считать одни chunk embeddings
+  и записывать дубли или перемешанные JSONL bytes;
+- локальный CPU-first продукт уже использует `concurrency=1` для тяжёлых
+  стадий, поэтому сериализация только первого cache fill приемлема;
+- SQLite/новая vector DB для одного append-only cache увеличила бы packaging и
+  migration surface без продуктовой пользы;
+- lexical fallback обязан работать даже при lock timeout, повреждённом cache
+  или недоступной файловой системе.
+
+Следствия:
+
+- identity остаётся `meeting_id + chunk_id + text_sha256 + embedding_model`;
+- lock удерживается во время вычисления отсутствующих chunk embeddings, поэтому
+  конкурентный процесс после ожидания повторно читает cache и не делает ту же
+  работу;
+- malformed/truncated/invalid и duplicate rows безопасно пропускаются при
+  чтении и удаляются при следующей atomic записи;
+- vector с размерностью, отличной от текущего query embedding, считается
+  повреждённым и переэмбеддится, а не участвует в усечённом `zip` cosine;
+- `scripts/49_rebuild_meeting_vector_cache.py --dry-run` проверяет cache, а
+  запуск без `--dry-run` детерминированно compact/rebuild-ит его;
+- query embedding не кэшируется, а ошибка cache/backend возвращает `None` в
+  retriever и сохраняет штатный lexical retrieval path.
