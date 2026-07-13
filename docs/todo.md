@@ -102,8 +102,8 @@
 - [x] MA-LIVE-AUDIO-CAPTURE-V1 (#164): no-capture MIC/SYS/MIX inventory and
   preflight, separate device/backend readiness, fail-closed SYS/MIX runtime and
   deterministic file-smoke compatibility.
-- [ ] MA-LIVE-LOOPBACK-CAPTURE-V1 (#204): implement Windows SYS capture and 44.1/48 kHz
-  stereo -> 16 kHz mono conversion.
+- [x] MA-LIVE-LOOPBACK-CAPTURE-V1 (#204): real Windows SYS capture through
+  PyAudioWPatch plus stateful SoXR stereo 44.1/48 kHz -> mono 16 kHz conversion.
 - [ ] MA-LIVE-STREAMING-VAD-V1 (#205): apply Silero VAD to microphone/loopback streams
   while preserving real-time timestamps.
 - [ ] MA-LIVE-SESSION-API-V1 (#206): add authenticated start/stop/status/event

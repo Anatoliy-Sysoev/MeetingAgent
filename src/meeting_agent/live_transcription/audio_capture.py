@@ -5,6 +5,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from .wasapi_loopback import LoopbackDiscovery, discover_wasapi_loopbacks
+
 
 VALID_LIVE_SOURCES = frozenset({"MIC", "SYS", "MIX"})
 LIVE_SAMPLE_RATE = 16_000
@@ -168,12 +170,13 @@ def _result(
     )
 
 
-def _mic_format_supported(sd: Any) -> bool:
+def _mic_format_supported(sd: Any, device_index: int | None) -> bool:
     check_input_settings = getattr(sd, "check_input_settings", None)
     if not callable(check_input_settings):
         return False
     try:
         check_input_settings(
+            device=device_index,
             channels=LIVE_CHANNELS,
             dtype=LIVE_DTYPE,
             samplerate=LIVE_SAMPLE_RATE,
@@ -183,11 +186,28 @@ def _mic_format_supported(sd: Any) -> bool:
     return True
 
 
+def _loopback_audio_devices(discovery: LoopbackDiscovery) -> list[AudioDevice]:
+    return [
+        AudioDevice(
+            index=device.index,
+            name=device.name,
+            hostapi="Windows WASAPI loopback",
+            max_input_channels=device.channels,
+            max_output_channels=0,
+            default_samplerate=float(device.sample_rate),
+            loopback_candidate=True,
+        )
+        for device in discovery.devices
+    ]
+
+
 def preflight_audio_source(
     source: str,
     *,
     sd_module: Any | None = None,
+    pyaudio_module: Any | None = None,
     system_name: str | None = None,
+    audio_device_index: int | None = None,
 ) -> AudioSourcePreflight:
     """Report whether the current backend can capture one explicit source."""
     normalized = str(source or "").upper()
@@ -198,6 +218,34 @@ def preflight_audio_source(
             capture_supported=False,
             reason="unsupported_source",
             devices=[],
+        )
+
+    current_system = (system_name or platform.system()).lower()
+    if normalized == "SYS":
+        if current_system != "windows":
+            return _result(
+                normalized,
+                device_available=False,
+                capture_supported=False,
+                reason="sys_loopback_windows_only",
+                devices=[],
+            )
+        discovery = discover_wasapi_loopbacks(pyaudio_module=pyaudio_module)
+        loopback_devices = _loopback_audio_devices(discovery)
+        selected = discovery.select(audio_device_index)
+        reason = discovery.reason
+        if reason is None and selected is None:
+            reason = (
+                "sys_loopback_device_not_found"
+                if audio_device_index is not None
+                else "sys_loopback_default_missing"
+            )
+        return _result(
+            normalized,
+            device_available=selected is not None,
+            capture_supported=selected is not None,
+            reason=reason,
+            devices=loopback_devices,
         )
 
     sd = _load_sounddevice(sd_module)
@@ -221,7 +269,23 @@ def preflight_audio_source(
                 reason="mic_input_device_missing",
                 devices=[],
             )
-        format_supported = _mic_format_supported(sd)
+        selected_input = next(
+            (
+                device
+                for device in input_devices
+                if device.index == audio_device_index
+            ),
+            None,
+        )
+        if audio_device_index is not None and selected_input is None:
+            return _result(
+                normalized,
+                device_available=False,
+                capture_supported=False,
+                reason="mic_input_device_not_found",
+                devices=input_devices,
+            )
+        format_supported = _mic_format_supported(sd, audio_device_index)
         return _result(
             normalized,
             device_available=True,
@@ -230,37 +294,12 @@ def preflight_audio_source(
             devices=input_devices,
         )
 
-    current_system = (system_name or platform.system()).lower()
-    loopback_devices = [device for device in devices if device.loopback_candidate]
-    if normalized == "SYS":
-        if current_system != "windows":
-            return _result(
-                normalized,
-                device_available=False,
-                capture_supported=False,
-                reason="sys_loopback_windows_only",
-                devices=[],
-            )
-        if not loopback_devices:
-            return _result(
-                normalized,
-                device_available=False,
-                capture_supported=False,
-                reason="sys_loopback_device_missing",
-                devices=[],
-            )
-        return _result(
-            normalized,
-            device_available=True,
-            capture_supported=False,
-            reason="sys_loopback_capture_not_implemented",
-            devices=loopback_devices,
-        )
-
     mic_devices = [device for device in devices if device.max_input_channels > 0]
-    mix_devices = list(
-        {device.index: device for device in [*mic_devices, *loopback_devices]}.values()
-    )
+    discovery = discover_wasapi_loopbacks(pyaudio_module=pyaudio_module)
+    loopback_devices = _loopback_audio_devices(discovery)
+    # sounddevice and PyAudioWPatch use independent device-index namespaces.
+    # Keep both inventories even when their numeric indexes happen to collide.
+    mix_devices = [*mic_devices, *loopback_devices]
     if current_system != "windows":
         return _result(
             normalized,
@@ -269,7 +308,8 @@ def preflight_audio_source(
             reason="mix_loopback_windows_only",
             devices=mic_devices,
         )
-    if not mic_devices or not loopback_devices:
+    selected_loopback = discovery.select(audio_device_index)
+    if not mic_devices or selected_loopback is None:
         return _result(
             normalized,
             device_available=False,

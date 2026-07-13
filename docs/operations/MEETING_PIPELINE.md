@@ -213,8 +213,23 @@ Inventory и hardware/backend preflight без открытия audio stream:
 
 `--preflight-source` возвращает JSON и exit code `0`, только если источник
 готов к запуску текущим backend; blocked source возвращает exit code `2`.
-Поля `device_available` и `capture_supported` разделены: наличие Windows WASAPI
-output candidate ещё не означает, что SYS loopback capture реализован.
+Поля `device_available` и `capture_supported` разделены. MIC использует
+`sounddevice`. На Windows источник SYS использует настоящий virtual loopback
+input через PyAudioWPatch, а stateful SoXR приводит native stereo 44.1/48 kHz
+PCM к canonical mono 16 kHz PCM. Индексы устройств source-specific: для SYS
+нужно брать индекс из `sources[].devices` соответствующего результата
+`--list-audio-sources`.
+
+Захват системного звука на Windows:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --meeting-dir meetings\YYYY-MM-DD__slug `
+  --engine vosk `
+  --model-path models\vosk\vosk-model-small-ru-0.22 `
+  --source SYS `
+  --audio-device-index <sys-loopback-index>
+```
 
 Smoke по готовому `source/audio_16k_mono.wav`:
 
@@ -273,7 +288,12 @@ VAD modes:
 
 - `--vad silero` пока поддержан только вместе с `--input-wav`. Streaming VAD для микрофона и system-loopback нужно реализовывать отдельно, чтобы не сломать таймкоды.
 - В `--vad silero` компрессии таймкодов нет: пропущенные non-speech blocks учитываются в реальном времени файла. Но finalized segment может получать хвостовой fallback span блока, на котором Vosk завершил фразу. Для smoke сравнивать нужно попадание segment в speech window, а не равенство span с `--vad none`.
-- System-loopback capture, MIC+SYS mixing и ресэмплинг 44.1/48 кГц stereo -> 16 кГц mono еще не реализованы в live CLI. `SYS`/`MIX` без `--input-wav` fail closed и не маскируются под MIC.
+- System-loopback capture реализован только на Windows через PyAudioWPatch.
+  Захват использует native формат loopback-устройства и stateful SoXR для
+  преобразования stereo 44.1/48 кГц -> mono 16 кГц; имена устройств и локальные
+  пути не записываются в runtime metrics.
+- MIC+SYS mixing ещё не реализован: live `MIX` без `--input-wav` fail closed и
+  не маскируется под MIC.
 - Микрофонный runtime пишет в `live_report.<SOURCE>.json` счетчики `input_status_events` и `queue_timeouts`; ненулевые значения нужно смотреть при диагностике overflow/dropout.
 
 ### 5. Optional Speaker Diarization

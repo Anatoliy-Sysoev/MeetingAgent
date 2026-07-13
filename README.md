@@ -223,7 +223,9 @@ The workspace includes:
 - one-click pipeline profiles through `POST /meetings/{id}/jobs/pipeline`;
 - meeting-scoped search and Q&A with vector retrieval fallback, timestamps, speaker labels, and source citations.
 
-The current product gap is not the basic pipeline, but the next layer of product contracts: artifact manifest, stage error/retry contract, and a smoother upload-to-review UI flow.
+The current product gap is no longer the basic offline pipeline. Remaining work
+is concentrated in the live-session lifecycle and UI, streaming VAD, MIC+SYS
+mixing, offline refinement, and deeper product administration.
 
 ### Live Transcription
 
@@ -265,10 +267,23 @@ audio stream:
 
 `--preflight-source` exits with code `0` only when the current backend can run
 the source and with code `2` when it is blocked. The JSON result separates
-`device_available` from `capture_supported`: MIC is currently runnable;
-Windows WASAPI output devices are reported as SYS loopback candidates, but SYS
-and MIX remain blocked until their real capture/resampling backend is added.
-They are never silently recorded from the microphone.
+`device_available` from `capture_supported`. MIC uses `sounddevice`. On Windows,
+SYS uses a real PyAudioWPatch WASAPI loopback input and stateful SoXR conversion
+from the device's native stereo 44.1/48 kHz PCM to canonical mono 16 kHz PCM.
+Device indexes are source-specific; use the index shown under the selected
+source in `--list-audio-sources`. MIX remains blocked until simultaneous MIC+SYS
+capture is implemented, and no source silently falls back to the microphone.
+
+Windows system-audio capture:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --meeting-dir "<meeting-dir>" `
+  --engine vosk `
+  --model-path models\vosk\vosk-model-small-ru-0.22 `
+  --source SYS `
+  --audio-device-index <sys-loopback-index>
+```
 
 Deterministic smoke from a prepared mono 16 kHz WAV:
 
