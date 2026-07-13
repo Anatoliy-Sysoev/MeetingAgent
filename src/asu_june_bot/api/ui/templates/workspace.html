@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Meeting Workspace</title>
+  <link rel="stylesheet" href="/assets/v1/workspace.css" />
+</head>
+<body data-meeting-id="__MEETING_ID__">
+
+<div id="auth-overlay">
+  <div class="auth-box">
+    <h2 id="auth-overlay-title">Login required</h2>
+    <p id="auth-overlay-detail">You must be logged in to view this meeting.</p>
+    <a href="/" class="primary button-link">Open login</a>
+  </div>
+</div>
+
+<div class="header">
+  <a class="back" href="/" title="Back to meetings list">&#8592;</a>
+  <div class="title" id="hdr-title">Loading&hellip;</div>
+  <div class="meta" id="hdr-date"></div>
+  <span class="badge" id="hdr-status"></span>
+  <span class="badge" id="hdr-auth">Checking auth...</span>
+  <button id="hdr-refresh-btn" title="Refresh">&#8635; Refresh</button>
+</div>
+
+<div class="workspace">
+
+  <!-- Left: transcript -->
+  <div class="panel transcript-col">
+    <div class="panel-header">
+      Transcript
+      <span id="seg-count" class="seg-count"></span>
+    </div>
+    <div class="transcript-search">
+      <input id="seg-filter" type="text" placeholder="Filter transcript&hellip;" />
+    </div>
+    <div class="transcript-list" id="transcript-list">
+      <div class="empty">Loading transcript&hellip;</div>
+    </div>
+  </div>
+
+  <!-- Right column -->
+  <div class="right-col">
+
+    <!-- Media player -->
+    <div class="panel">
+      <div class="panel-header">Media</div>
+      <div class="panel-body" id="media-panel">
+        <div class="empty">Loading media&hellip;</div>
+      </div>
+    </div>
+
+    <!-- Artifacts -->
+    <div class="panel">
+      <div class="panel-header">
+        Artifacts
+        <button id="close-artifact-btn" class="compact-btn" hidden>Close</button>
+      </div>
+      <div class="panel-body" id="artifacts-panel">
+        <div class="empty">Loading artifacts&hellip;</div>
+      </div>
+    </div>
+
+    <!-- Speaker mapping -->
+    <div class="panel">
+      <div class="panel-header">Speaker mapping</div>
+      <div class="panel-body">
+        <div id="speaker-map-panel" class="speaker-map-list">
+          <div class="empty">Loading speakers&hellip;</div>
+        </div>
+        <div class="speaker-actions">
+          <button id="speaker-map-save-btn">Save mapping</button>
+          <span id="speaker-map-status" class="speaker-status"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pipeline controls / status -->
+    <div class="panel">
+      <div class="panel-header">
+        Pipeline
+        <button id="jobs-refresh-btn" class="compact-btn">&#8635; Refresh</button>
+      </div>
+      <div class="panel-body">
+        <div id="jobs-status" class="jobs-status">
+          <div class="empty">Loading&hellip;</div>
+        </div>
+        <div id="jobs-last-error" class="err-msg" hidden></div>
+        <div id="jobs-error" class="err-msg" hidden></div>
+        <div id="pipeline-actions" class="pipeline-actions"></div>
+        <div id="jobs-stages" class="jobs-stages"></div>
+        <div id="pipeline-results" class="pipeline-results"></div>
+      </div>
+    </div>
+
+    <!-- Q&A -->
+    <div class="panel">
+      <div class="panel-header">Q&amp;A</div>
+      <div class="panel-body">
+        <div class="qa-section">
+          <h4>Ask about this meeting</h4>
+          <textarea id="qa-question" class="qa-input"
+                    placeholder="Ask a question about this meeting&hellip;"></textarea>
+          <div class="qa-row">
+            <button id="qa-ask-btn">Ask</button>
+          </div>
+          <div id="qa-availability" class="qa-mode"></div>
+          <div id="qa-chat-status" class="qa-status"></div>
+          <div id="qa-chat-mode" class="qa-mode"></div>
+          <div id="qa-chat-error" class="qa-error"></div>
+          <div id="qa-answer" class="qa-answer"></div>
+          <div id="qa-refusal" class="qa-refusal"></div>
+          <div id="qa-citations"></div>
+        </div>
+
+        <div class="qa-section">
+          <h4>Search in meeting</h4>
+          <div class="qa-row">
+            <input id="qa-search-input" class="qa-input" type="text"
+                   placeholder="Search transcript &amp; artifacts&hellip;" />
+            <button id="qa-search-btn">Search</button>
+          </div>
+          <div id="qa-search-status" class="qa-status"></div>
+          <div id="qa-search-mode" class="qa-mode"></div>
+          <div id="qa-search-error" class="qa-error"></div>
+          <div id="qa-search-results"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- right-col -->
+
+</div><!-- workspace -->
+
+<script src="/assets/v1/workspace.js" defer></script>
+</body>
+</html>

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -12,14 +14,12 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from asu_june_bot.api.app import create_app  # noqa: E402
+from asu_june_bot.api.ui_assets import load_ui_asset  # noqa: E402
 from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
 from asu_june_bot.auth.service import LocalAuthService  # noqa: E402
 from asu_june_bot.chat.models import ChatResponse, ChatSource  # noqa: E402
 from asu_june_bot.auth.throttle import LoginThrottle  # noqa: E402
 from asu_june_bot.core.limits import MAX_QUERY_CHARS  # noqa: E402
-
-import os
-import tempfile
 
 TOKEN = "test-chat-token"
 AUTH = {"Authorization": f"Bearer {TOKEN}"}
@@ -111,14 +111,15 @@ def test_ui_endpoint_returns_local_chat_page() -> None:
         client.__exit__(None, None, None)
 
     assert response.status_code == 200
-    assert "АСУ Джун бот" in response.text
-    assert "Проектные вопросы" in response.text
-    assert "Способ поиска" in response.text
-    assert "Сбалансированный" in response.text
-    assert "/chat" in response.text
-    assert "max_tokens: 1400" in response.text
-    assert "runtimeWarning" in response.text
-    assert str(MAX_QUERY_CHARS) in response.text
+    ui = response.text + load_ui_asset("bot.js")
+    assert "АСУ Джун бот" in ui
+    assert "Проектные вопросы" in ui
+    assert "Способ поиска" in ui
+    assert "Сбалансированный" in ui
+    assert "/chat" in ui
+    assert "max_tokens: 1400" in ui
+    assert "runtimeWarning" in ui
+    assert str(MAX_QUERY_CHARS) in ui
 
 
 def test_chat_endpoint_project_query() -> None:

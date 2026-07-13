@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>АСУ Джун бот</title>
+  <link rel="stylesheet" href="/assets/v1/bot.css" />
+</head>
+<body data-max-query-chars="__MAX_QUERY_CHARS__">
+  <div class="app-shell">
+    <aside class="rail" aria-label="Основная навигация">
+      <div class="rail-logo">АСУ</div>
+      <button class="rail-btn active" title="Чаты" aria-label="Чаты">Ч</button>
+      <button class="rail-btn" title="Источники" aria-label="Источники">И</button>
+      <button class="rail-btn" title="Настройки" aria-label="Настройки">Н</button>
+    </aside>
+
+    <aside class="sidebar">
+      <div class="sidebar-title">
+        <h2>Чаты</h2>
+        <button class="small-action" type="button" disabled>Новый</button>
+      </div>
+      <div class="chat-list">
+        <div class="chat-item active">
+          <div class="chat-name">Проектные вопросы</div>
+          <div class="chat-meta">Текущая сессия по базе АСУ</div>
+        </div>
+        <div class="chat-item">
+          <div class="chat-name">Проверка ФТТ</div>
+          <div class="chat-meta">Отдельный чат для требований</div>
+          <span class="future-label">позже</span>
+        </div>
+        <div class="chat-item">
+          <div class="chat-name">ПМИ и сценарии</div>
+          <div class="chat-meta">Вопросы по испытаниям</div>
+          <span class="future-label">позже</span>
+        </div>
+        <div class="chat-item">
+          <div class="chat-name">Архитектура и ЦТА</div>
+          <div class="chat-meta">Технические решения проекта</div>
+          <span class="future-label">позже</span>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="brand">
+          <div>
+            <h1>АСУ Джун бот</h1>
+            <div class="brand-subtitle">Локальный помощник по проектной базе знаний</div>
+          </div>
+        </div>
+        <div class="topbar-right">
+          <span class="badge" id="authStatus">проверка входа...</span>
+          <div class="status-pill" id="topStatus">Готов к вопросу</div>
+        </div>
+      </header>
+
+      <div class="panel auth-panel" id="authPanel" hidden>
+        <div class="field-header">
+          <div>
+            <div class="field-title">Вход</div>
+            <div class="muted">Для вопросов к базе знаний нужна локальная учётная запись.</div>
+          </div>
+        </div>
+        <div class="settings-grid">
+          <div class="setting">
+            <label for="loginEmail">Email</label>
+            <input type="email" id="loginEmail" autocomplete="username" placeholder="user@example.com" />
+          </div>
+          <div class="setting">
+            <label for="loginPassword">Пароль</label>
+            <input type="password" id="loginPassword" autocomplete="current-password" placeholder="••••••••" />
+          </div>
+        </div>
+        <div class="action-row">
+          <div class="muted" id="loginError"></div>
+          <button id="loginSubmit" class="primary-btn" type="button">Войти</button>
+        </div>
+      </div>
+
+      <div class="workspace">
+        <nav class="tabs" aria-label="Разделы результата">
+          <button class="tab-btn active" type="button" data-tab="chat">Чат</button>
+          <button class="tab-btn" type="button" data-tab="sources">Источники</button>
+          <button class="tab-btn" type="button" data-tab="diagnostics">Диагностика</button>
+          <button class="tab-btn" type="button" data-tab="review">Разметка</button>
+        </nav>
+
+        <section id="tab-chat" class="tab-panel active">
+          <div class="panel question-panel">
+            <div class="field-header">
+              <div>
+                <div class="field-title">Вопрос</div>
+                <div class="muted">Задавайте вопросы только по материалам проекта АСУ.</div>
+              </div>
+              <div id="counter" class="badge">0 / __MAX_QUERY_CHARS__</div>
+            </div>
+
+            <textarea id="query" maxlength="__MAX_QUERY_CHARS__" placeholder="Например: какие требования ФТТ относятся к строительному контролю?"></textarea>
+
+            <div class="settings-grid">
+              <div class="setting">
+                <label for="mode">Способ поиска</label>
+                <select id="mode">
+                  <option value="hybrid" selected>Сбалансированный</option>
+                  <option value="vector">По смыслу вопроса</option>
+                  <option value="bm25">По точным словам и номерам</option>
+                </select>
+                <div class="setting-hint" id="modeHint">Ищет и по смыслу, и по точным совпадениям. Обычно лучший вариант.</div>
+              </div>
+
+              <div class="setting">
+                <label for="model">Модель ответа</label>
+                <select id="model">
+                  <option value="qwen3.5:4b" selected>Единая локальная модель</option>
+                </select>
+                <div class="setting-hint" id="modelHint">Основной режим: стабильнее для проектных вопросов, но отвечает не мгновенно.</div>
+              </div>
+
+              <div class="setting">
+                <label for="topK">Глубина поиска</label>
+                <select id="topK">
+                  <option value="5">Быстро</option>
+                  <option value="8" selected>Стандартно</option>
+                  <option value="10">Расширенно</option>
+                </select>
+                <div class="setting-hint" id="topKHint">Сколько фрагментов документов брать в работу. Стандартно достаточно для большинства вопросов.</div>
+              </div>
+
+              <div class="setting">
+                <label for="diagnosticsMode">Подробности ответа</label>
+                <select id="diagnosticsMode">
+                  <option value="on" selected>Показать источники и диагностику</option>
+                  <option value="off">Показать только ответ</option>
+                </select>
+                <div class="setting-hint" id="diagnosticsHint">Для проверки качества оставляйте включённым: будет видно, откуда взят ответ.</div>
+              </div>
+            </div>
+
+            <div class="action-row">
+              <div class="muted">Ctrl + Enter тоже отправляет вопрос.</div>
+              <button id="send" class="primary-btn" type="button">Спросить</button>
+            </div>
+          </div>
+
+          <div class="panel answer-panel">
+            <div class="field-header">
+              <div class="field-title">Ответ</div>
+              <div class="result-meta">
+                <span id="answerStatus" class="badge">нет запроса</span>
+                <span id="sourceCount" class="badge">источники: 0</span>
+              </div>
+            </div>
+            <div id="runtimeWarning" class="runtime-warning"></div>
+            <div id="answer" class="answer-box">Здесь появится ответ по проектным источникам.</div>
+          </div>
+        </section>
+
+        <section id="tab-sources" class="tab-panel">
+          <div class="panel answer-panel">
+            <div class="field-header">
+              <div>
+                <div class="field-title">Источники</div>
+                <div class="muted">Фрагменты документов, на которые опирался ответ.</div>
+              </div>
+              <span id="sourcesSummary" class="badge">нет данных</span>
+            </div>
+            <div id="sources" class="sources-list">
+              <div class="empty-state">Спросите что-нибудь в чате, чтобы увидеть найденные источники.</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-diagnostics" class="tab-panel">
+          <div class="panel answer-panel">
+            <div class="field-header">
+              <div>
+                <div class="field-title">Диагностика</div>
+                <div class="muted">Технический след запроса для проверки качества поиска и ответа.</div>
+              </div>
+              <span id="diagnosticsSummary" class="badge">выключено до первого запроса</span>
+            </div>
+            <pre id="diagnostics">{}</pre>
+          </div>
+        </section>
+
+        <section id="tab-review" class="tab-panel">
+          <div class="panel answer-panel">
+            <div class="field-header">
+              <div>
+                <div class="field-title">Разметка запросов</div>
+                <div class="muted">Ручная разметка chat runs для формирования eval/regression cases. Только admin.</div>
+              </div>
+              <div class="review-actions">
+                <button class="small-action" type="button" id="reviewLoad">Загрузить</button>
+                <a id="reviewExportLink" href="/admin/review/chat-runs/export" target="_blank" rel="noopener noreferrer" class="small-action action-link">Экспорт</a>
+              </div>
+            </div>
+            <div class="review-filters">
+              <select id="reviewFilterStatus" class="review-filter">
+                <option value="">Статус: все</option>
+                <option value="answered">answered</option>
+                <option value="refused">refused</option>
+                <option value="error">error</option>
+              </select>
+              <select id="reviewFilterGuard" class="review-filter">
+                <option value="">Guard: все</option>
+                <option value="allow">allow</option>
+                <option value="refuse">refuse</option>
+                <option value="clarify">clarify</option>
+              </select>
+              <select id="reviewFilterLabel" class="review-filter">
+                <option value="">Label: все</option>
+                <option value="correct">correct</option>
+                <option value="false_refuse">false_refuse</option>
+                <option value="false_clarify">false_clarify</option>
+                <option value="bad_source">bad_source</option>
+                <option value="needs_case">needs_case</option>
+                <option value="off_topic_ok">off_topic_ok</option>
+                <option value="needs_review">needs_review</option>
+              </select>
+            </div>
+            <div id="reviewStatus" class="muted review-status">Нажмите «Загрузить» для получения runs.</div>
+            <div id="reviewList"></div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="/assets/v1/bot.js" defer></script>
+</body>
+</html>

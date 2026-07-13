@@ -1,0 +1,2 @@
+# Browser-level product UI smoke tests. Browser binaries are installed separately.
+playwright>=1.61,<2

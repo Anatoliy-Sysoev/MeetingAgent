@@ -43,6 +43,7 @@ def test_every_direct_group_is_covered_by_compatible_pin() -> None:
         "requirements.txt",
         "requirements-transcription.txt",
         "requirements-dev.txt",
+        "requirements-browser.txt",
         "requirements-docs.txt",
     ):
         for requirement in _direct_requirements(ROOT / filename):
@@ -72,6 +73,10 @@ def test_pyproject_groups_match_requirement_inputs() -> None:
     dev = {
         canonicalize_name(req.name) for req in _direct_requirements(ROOT / "requirements-dev.txt")
     }
+    browser = {
+        canonicalize_name(req.name)
+        for req in _direct_requirements(ROOT / "requirements-browser.txt")
+    }
     assert runtime == {
         canonicalize_name(Requirement(value).name) for value in project["dependencies"]
     }
@@ -91,6 +96,10 @@ def test_pyproject_groups_match_requirement_inputs() -> None:
         canonicalize_name(Requirement(value).name)
         for value in project["optional-dependencies"]["dev"]
     }
+    assert browser == {
+        canonicalize_name(Requirement(value).name)
+        for value in project["optional-dependencies"]["browser"]
+    }
 
 
 def test_heavy_optional_dependencies_stay_outside_base_runtime() -> None:
@@ -103,13 +112,15 @@ def test_heavy_optional_dependencies_stay_outside_base_runtime() -> None:
     assert "faster-whisper" in transcription
 
 
-def test_lock_input_includes_dev_and_optional_diarization_graphs() -> None:
+def test_lock_input_includes_dev_browser_and_optional_diarization_graphs() -> None:
     lock_input = (ROOT / "requirements-lock-py312.in").read_text(encoding="utf-8")
     assert "-r requirements-dev.txt" in lock_input
+    assert "-r requirements-browser.txt" in lock_input
     assert "-r requirements-diarization.txt" in lock_input
     pins = _pins()
     assert "sherpa-onnx" in pins
     assert "soundfile" in pins
+    assert "playwright" in pins
 
 
 def test_lock_and_audit_are_wired_into_delivery_workflows() -> None:
@@ -121,6 +132,8 @@ def test_lock_and_audit_are_wired_into_delivery_workflows() -> None:
     docs = (ROOT / ".github" / "workflows" / "docs-pages.yml").read_text(encoding="utf-8")
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     assert "-c constraints-py312.txt -r requirements-dev.txt" in ci
+    assert "-c constraints-py312.txt -r requirements-browser.txt" in ci
+    assert "python -m playwright install --with-deps chromium" in ci
     assert "python scripts/47_dependency_audit.py" in release
     assert "schedule:" in audit
     assert "python scripts/47_dependency_audit.py" in audit

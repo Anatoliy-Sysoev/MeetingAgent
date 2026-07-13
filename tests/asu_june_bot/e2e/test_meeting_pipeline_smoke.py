@@ -35,6 +35,8 @@ SCRIPTS = ROOT / "scripts"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from asu_june_bot.api.ui_assets import load_ui_asset  # noqa: E402
+
 
 def _import_script(name: str) -> types.ModuleType:
     """Import a numbered script from the scripts/ directory by filename stem."""
@@ -57,7 +59,7 @@ from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
 from asu_june_bot.auth.service import AdminService, LocalAuthService  # noqa: E402
 from asu_june_bot.auth.throttle import LoginThrottle  # noqa: E402
 from asu_june_bot.jobs.runner import STAGE_COMMANDS, JobRunner  # noqa: E402
-from asu_june_bot.llm import LLMError, LLMResponse  # noqa: E402
+from asu_june_bot.llm import LLMResponse  # noqa: E402
 from asu_june_bot.meetings.qa import MeetingQAService  # noqa: E402
 from asu_june_bot.meetings.service import MeetingsService  # noqa: E402
 
@@ -246,7 +248,11 @@ def test_chunk_creates_chunks_jsonl(tmp_path: Path) -> None:
     chunks_path = meeting_dir / "transcript" / "chunks.jsonl"
     assert chunks_path.exists()
 
-    rows = [json.loads(l) for l in chunks_path.read_text(encoding="utf-8").splitlines() if l.strip()]
+    rows = [
+        json.loads(line)
+        for line in chunks_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert rows, "chunk produced no rows"
     for row in rows:
         assert row.get("meeting_id") == MEETING_ID
@@ -268,9 +274,9 @@ def test_chunk_text_contains_expected_phrases(tmp_path: Path) -> None:
 
     chunks_path = meeting_dir / "transcript" / "chunks.jsonl"
     combined = " ".join(
-        json.loads(l)["text"]
-        for l in chunks_path.read_text(encoding="utf-8").splitlines()
-        if l.strip()
+        json.loads(line)["text"]
+        for line in chunks_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
     )
     assert "бюджет" in combined.lower()
     assert "риск" in combined.lower()
@@ -310,7 +316,11 @@ def test_enrich_creates_enriched_chunks_jsonl(tmp_path: Path) -> None:
     enriched_path = meeting_dir / "artifacts" / "enriched_chunks.jsonl"
     assert enriched_path.exists()
 
-    rows = [json.loads(l) for l in enriched_path.read_text(encoding="utf-8").splitlines() if l.strip()]
+    rows = [
+        json.loads(line)
+        for line in enriched_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert rows
     for row in rows:
         assert row.get("meeting_id") == MEETING_ID
@@ -326,18 +336,22 @@ def test_enrich_preserves_chunk_ids(tmp_path: Path) -> None:
     _seed_chunks(meeting_dir)
 
     chunk_ids = {
-        json.loads(l)["chunk_id"]
-        for l in (meeting_dir / "transcript" / "chunks.jsonl").read_text(encoding="utf-8").splitlines()
-        if l.strip()
+        json.loads(line)["chunk_id"]
+        for line in (meeting_dir / "transcript" / "chunks.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
     }
 
     mod = _import_script("enrich")
     mod.run(mod.parse_args(["--meeting-dir", str(meeting_dir)]))
 
     enriched_ids = {
-        json.loads(l)["chunk_id"]
-        for l in (meeting_dir / "artifacts" / "enriched_chunks.jsonl").read_text(encoding="utf-8").splitlines()
-        if l.strip()
+        json.loads(line)["chunk_id"]
+        for line in (meeting_dir / "artifacts" / "enriched_chunks.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
     }
     assert chunk_ids == enriched_ids, "enrich changed or dropped chunk_ids"
 
@@ -365,7 +379,11 @@ def test_index_creates_meeting_chunks_jsonl(tmp_path: Path) -> None:
     assert rc == 0
     assert chunks_out.exists()
 
-    rows = [json.loads(l) for l in chunks_out.read_text(encoding="utf-8").splitlines() if l.strip()]
+    rows = [
+        json.loads(line)
+        for line in chunks_out.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert rows
     for row in rows:
         assert row["meeting_id"] == MEETING_ID
@@ -382,10 +400,14 @@ def test_index_upsert_replaces_same_meeting_rows(tmp_path: Path) -> None:
     args = mod.parse_args(["--meeting-dir", str(meeting_dir), "--output", str(chunks_out)])
 
     mod.run(args)
-    first_count = sum(1 for l in chunks_out.read_text(encoding="utf-8").splitlines() if l.strip())
+    first_count = sum(
+        1 for line in chunks_out.read_text(encoding="utf-8").splitlines() if line.strip()
+    )
 
     mod.run(mod.parse_args(["--meeting-dir", str(meeting_dir), "--output", str(chunks_out)]))
-    second_count = sum(1 for l in chunks_out.read_text(encoding="utf-8").splitlines() if l.strip())
+    second_count = sum(
+        1 for line in chunks_out.read_text(encoding="utf-8").splitlines() if line.strip()
+    )
 
     assert second_count == first_count, "second index run duplicated rows"
 
@@ -405,7 +427,11 @@ def test_index_upsert_preserves_other_meetings(tmp_path: Path) -> None:
     mod = _import_script("index")
     mod.run(mod.parse_args(["--meeting-dir", str(meeting_dir), "--output", str(chunks_out)]))
 
-    rows = [json.loads(l) for l in chunks_out.read_text(encoding="utf-8").splitlines() if l.strip()]
+    rows = [
+        json.loads(line)
+        for line in chunks_out.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     other_rows = [r for r in rows if r["meeting_id"] == OTHER_MEETING_ID]
     assert other_rows, "index upsert deleted other-meeting row"
 
@@ -418,7 +444,11 @@ def test_index_rows_have_relative_path_not_absolute(tmp_path: Path) -> None:
     mod = _import_script("index")
     mod.run(mod.parse_args(["--meeting-dir", str(meeting_dir), "--output", str(chunks_out)]))
 
-    rows = [json.loads(l) for l in chunks_out.read_text(encoding="utf-8").splitlines() if l.strip()]
+    rows = [
+        json.loads(line)
+        for line in chunks_out.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     for row in rows:
         rel = row.get("relative_path", "")
         assert not rel.startswith("/"), f"absolute relative_path leaked: {rel}"
@@ -558,7 +588,11 @@ def test_full_pipeline_chain_produces_indexed_chunks(tmp_path: Path) -> None:
     assert analyze_mod.run(analyze_mod.parse_args(["--meeting-dir", str(meeting_dir), "--mode", "extractive", "--force"])) == 0
 
     # Indexed rows exist.
-    rows = [json.loads(l) for l in chunks_out.read_text(encoding="utf-8").splitlines() if l.strip()]
+    rows = [
+        json.loads(line)
+        for line in chunks_out.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert any(r["meeting_id"] == MEETING_ID for r in rows)
 
     # Analyze artifacts exist.
@@ -755,8 +789,11 @@ def test_chat_citation_order_follows_answer_references(tmp_path: Path) -> None:
     index_mod = _import_script("index")
     index_mod.run(index_mod.parse_args(["--meeting-dir", str(meeting_dir), "--output", str(chunks_out)]))
 
-    rows = [json.loads(l) for l in chunks_out.read_text(encoding="utf-8").splitlines() if l.strip()
-            if l.strip() and json.loads(l).get("meeting_id") == MEETING_ID]
+    rows = [
+        json.loads(line)
+        for line in chunks_out.read_text(encoding="utf-8").splitlines()
+        if line.strip() and json.loads(line).get("meeting_id") == MEETING_ID
+    ]
 
     # Only meaningful if there are at least 2 indexed rows.
     if len(rows) < 2:
@@ -843,7 +880,7 @@ def test_stage_catalog_sorted_by_order() -> None:
 def test_workspace_html_no_inline_handlers(tmp_path: Path) -> None:
     import re
 
-    meeting_dir = build_meeting_dir(tmp_path)
+    build_meeting_dir(tmp_path)
     client, _, _ = make_client(tmp_path / "meetings")
     body = client.get(f"/meetings/{MEETING_ID}/workspace", headers=AUTH).text
     matches = re.findall(r'\son[a-z]+\s*=\s*"', body)
@@ -851,16 +888,19 @@ def test_workspace_html_no_inline_handlers(tmp_path: Path) -> None:
 
 
 def test_workspace_html_uses_create_element_for_dynamic_content(tmp_path: Path) -> None:
-    meeting_dir = build_meeting_dir(tmp_path)
+    build_meeting_dir(tmp_path)
     client, _, _ = make_client(tmp_path / "meetings")
-    body = client.get(f"/meetings/{MEETING_ID}/workspace", headers=AUTH).text
+    body = (
+        client.get(f"/meetings/{MEETING_ID}/workspace", headers=AUTH).text
+        + load_ui_asset("workspace.js")
+    )
     assert "createElement" in body
     assert "textContent" in body
     assert "replaceChildren" in body
 
 
 def test_workspace_html_no_local_storage(tmp_path: Path) -> None:
-    meeting_dir = build_meeting_dir(tmp_path)
+    build_meeting_dir(tmp_path)
     client, _, _ = make_client(tmp_path / "meetings")
     body = client.get(f"/meetings/{MEETING_ID}/workspace", headers=AUTH).text
     assert "localStorage" not in body

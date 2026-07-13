@@ -15,6 +15,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from asu_june_bot.api.app import create_app  # noqa: E402
+from asu_june_bot.api.ui_assets import load_ui_asset  # noqa: E402
 from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
 from asu_june_bot.auth.service import LocalAuthService  # noqa: E402
 from asu_june_bot.auth.throttle import LoginThrottle  # noqa: E402
@@ -308,10 +309,11 @@ def test_workspace_returns_html(tmp_path: Path) -> None:
     assert resp.status_code == 200
     assert "text/html" in resp.headers["content-type"]
     body = resp.text
-    assert MEETING_ID in body
-    assert "media-player" in body or "audio" in body
+    assert f'data-meeting-id="{MEETING_ID}"' in body
+    assert "media-panel" in body
     assert "transcript-list" in body
     assert "artifacts-panel" in body
+    assert 'src="/assets/v1/workspace.js"' in body
 
 
 def test_workspace_unknown_meeting_serves_html(tmp_path: Path) -> None:
@@ -423,13 +425,13 @@ def test_workspace_nonexistent_meeting_serves_html_not_404(tmp_path: Path) -> No
     assert "2026-01-01--does-not-exist" not in resp.text  # id in JS, not in URL form
 
 
-def test_workspace_meeting_id_safely_embedded_in_js(tmp_path: Path) -> None:
-    """meeting_id is embedded via json.dumps; no raw string injection into JS."""
+def test_workspace_meeting_id_safely_embedded_in_data_attribute(tmp_path: Path) -> None:
+    """meeting_id is HTML-escaped in a data attribute, never injected into JS."""
     make_meeting(tmp_path)
     resp = make_client(tmp_path).get(f"/meetings/{MEETING_ID}/workspace")
     assert resp.status_code == 200
-    # The ID appears as a proper JSON string literal in JS
-    assert f'"{MEETING_ID}"' in resp.text
+    assert f'data-meeting-id="{MEETING_ID}"' in resp.text
+    assert "const MEETING_ID" not in resp.text
 
 
 # ------------------------------------------------------------------
@@ -448,7 +450,7 @@ def test_workspace_artifact_key_with_single_quote_not_in_onclick(tmp_path: Path)
 
     resp = make_client(tmp_path).get(f"/meetings/{MEETING_ID}/workspace")
     assert resp.status_code == 200
-    body = resp.text
+    body = resp.text + load_ui_asset("workspace.js")
     # The raw payload must not appear unescaped inside an onclick="..." attribute
     assert f"onclick=\"viewArtifact('{malicious_key}')" not in body
     assert "alert(1)" not in body
@@ -465,7 +467,7 @@ def test_workspace_template_uses_data_attribute_not_onclick_for_artifact_key(tmp
     make_meeting(tmp_path)
     resp = make_client(tmp_path).get(f"/meetings/{MEETING_ID}/workspace")
     assert resp.status_code == 200
-    body = resp.text
+    body = resp.text + load_ui_asset("workspace.js")
     # The dangerous pattern (inline onclick with artifact key interpolated) must be absent
     assert "onclick=\"viewArtifact('" not in body
     # The safe pattern (dataset property + listener) must be present in the JS template.
@@ -569,7 +571,7 @@ def test_workspace_media_switcher_no_inline_onclick(tmp_path: Path) -> None:
     make_meeting(tmp_path)
     resp = make_client(tmp_path).get(f"/meetings/{MEETING_ID}/workspace")
     assert resp.status_code == 200
-    body = resp.text
+    body = resp.text + load_ui_asset("workspace.js")
     assert "onclick=\"switchMedia(" not in body
     assert "onclick='switchMedia(" not in body
 
@@ -579,8 +581,7 @@ def test_workspace_media_switcher_uses_data_attribute(tmp_path: Path) -> None:
     make_meeting(tmp_path)
     resp = make_client(tmp_path).get(f"/meetings/{MEETING_ID}/workspace")
     assert resp.status_code == 200
-    body = resp.text
+    body = resp.text + load_ui_asset("workspace.js")
     assert "media-switch-btn" in body
-    assert "data-media-id" in body
     assert "dataset.mediaId" in body
     assert "dataset.artifactKey" in body

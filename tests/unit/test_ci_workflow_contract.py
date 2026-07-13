@@ -46,5 +46,7 @@ def test_workflow_runs_full_canonical_verifier_with_minimal_permissions() -> Non
     assert "cache: pip" in workflow
     assert "timeout-minutes: 20" in workflow
     assert "python scripts/46_ci_verify.py" in workflow
-    assert "pytest tests/asu_june_bot" not in workflow
+    verify_job = workflow.split("\n  browser:\n", maxsplit=1)[0]
+    assert "pytest tests/asu_june_bot" not in verify_job
+    assert "python -m pytest tests/asu_june_bot/browser -q" in workflow
     assert "cancel-in-progress: true" in workflow

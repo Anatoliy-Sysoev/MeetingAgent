@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MeetingAgent</title>
+  <link rel="stylesheet" href="/assets/v1/meetingagent.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="nav">
+      <div class="brand">
+        <div class="brand-title">MeetingAgent</div>
+        <div class="brand-subtitle">Встречи, транскрипты, протоколы</div>
+      </div>
+      <nav class="nav-list">
+        <button class="nav-item active" type="button" data-section="meetings">Встречи</button>
+        <button class="nav-item" type="button" data-section="new-meeting">Новая запись</button>
+        <button class="nav-item" type="button" data-section="operations">Обработка</button>
+        <a class="nav-link" href="/ui">Джун бот</a>
+      </nav>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1 id="pageTitle">Встречи</h1>
+          <p id="pageSubtitle">Реестр записей, статусы обработки и быстрый запуск pipeline.</p>
+        </div>
+        <div class="auth">
+          <div id="authStatus">Проверка входа...</div>
+          <div class="login-panel" id="loginPanel">
+            <label>Email
+              <input id="loginEmail" type="email" placeholder="admin@local" autocomplete="username" />
+            </label>
+            <label>Пароль
+              <input id="loginPassword" type="password" placeholder="Пароль" autocomplete="current-password" />
+            </label>
+            <button id="loginSubmit" class="primary" type="button">Войти</button>
+          </div>
+        </div>
+      </header>
+      <div class="content">
+        <div class="banner" id="message"></div>
+
+        <section class="grid" id="section-meetings">
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">Быстрые действия</div>
+                <div class="panel-note">Основные сценарии без технических деталей.</div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="actions">
+                <button class="primary" id="showUploadBtn" type="button">Загрузить запись</button>
+                <button id="refreshMeetingsBtn" type="button">Обновить реестр</button>
+                <a href="/ui"><button type="button">Открыть Джун бота</button></a>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">Реестр встреч</div>
+                <div class="panel-note" id="meetingsCount">Загрузка...</div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Дата</th>
+                      <th>Название</th>
+                      <th>Статус</th>
+                      <th>Источник</th>
+                      <th>Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody id="meetingsTable"></tbody>
+                </table>
+              </div>
+              <div class="empty" id="meetingsEmpty">Встречи не загружены.</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="grid" id="section-new-meeting" hidden>
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">Новая запись</div>
+                <div class="panel-note">Загрузка mp4/mp3/wav/m4a в локальную карточку встречи.</div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <form class="form-grid" id="uploadForm">
+                <label>Файл записи
+                  <input id="meetingFile" name="file" type="file" accept=".mp4,.mp3,.wav,.m4a,.webm,.ogg" required />
+                </label>
+                <label>Название встречи
+                  <input id="meetingTitle" name="title" type="text" placeholder="Например: Паспорт проекта" />
+                </label>
+                <label>Дата встречи
+                  <input id="meetingDate" name="date" type="date" />
+                </label>
+                <label>Сценарий после загрузки
+                  <select id="postUploadAction">
+                    <option value="none">Только создать карточку</option>
+                    <option value="transcript_only">Запустить транскрибацию</option>
+                    <option value="full">Запустить полный pipeline</option>
+                  </select>
+                </label>
+                <label>Движок транскрибации
+                  <select id="asrEngine">
+                    <option value="faster-whisper">faster-whisper large-v3-turbo</option>
+                    <option value="gigaam">GigaAM</option>
+                  </select>
+                </label>
+                <div class="panel-note">
+                  faster-whisper — продуктовый локальный профиль по умолчанию.
+                  GigaAM требует заранее подготовленного локального optional runtime.
+                </div>
+                <div class="actions">
+                  <button class="primary" id="uploadSubmit" type="submit">Загрузить</button>
+                  <button id="resetUploadBtn" type="button">Очистить</button>
+                </div>
+              </form>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">Результат загрузки</div>
+                <div class="panel-note">После загрузки можно открыть workspace или запустить обработку.</div>
+              </div>
+            </div>
+            <div class="panel-body" id="uploadResult">
+              <div class="empty">Здесь появится созданная карточка встречи.</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="grid" id="section-operations" hidden>
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">Активная обработка</div>
+                <div class="panel-note">Текущая задача pipeline/job runner.</div>
+              </div>
+            </div>
+            <div class="panel-body" id="activeJobPanel">
+              <div class="empty">Активная задача не найдена.</div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">Как запускать</div>
+                <div class="panel-note">Пользовательский поток обработки записи.</div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <ol>
+                <li>Откройте вкладку <b>Новая запись</b> и выберите видео или аудио.</li>
+                <li>Выберите сценарий: только транскрипт или полный pipeline.</li>
+                <li>После старта откройте карточку встречи и следите за стадиями.</li>
+                <li>Готовые артефакты появятся в Workspace: транскрипт, спикеры, протокол, задачи, риски.</li>
+              </ol>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="/assets/v1/meetingagent.js" defer></script>
+</body>
+</html>

@@ -22,6 +22,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from asu_june_bot.api.app import create_app  # noqa: E402
+from asu_june_bot.api.ui_assets import load_ui_asset  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -29,7 +30,7 @@ def ui_html() -> str:
     client = TestClient(create_app(), raise_server_exceptions=False)
     resp = client.get("/ui")
     assert resp.status_code == 200
-    return resp.text
+    return resp.text + load_ui_asset("bot.js")
 
 
 # ---------------------------------------------------------------------------
