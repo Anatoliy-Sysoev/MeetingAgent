@@ -248,6 +248,34 @@ def test_admin_can_list_users(client: TestClient) -> None:
     assert len(body["users"]) == 1
 
 
+def test_admin_user_list_total_counts_all_pages(client: TestClient) -> None:
+    bootstrap(client)
+    cookie, csrf = admin_login(client)
+    for index in range(3):
+        response = client.post(
+            "/admin/users",
+            json={
+                "email": f"page-{index}@example.com",
+                "password": "somepass12",
+                "roles": ["viewer"],
+            },
+            cookies={"ma_session": cookie},
+            headers={"X-CSRF-Token": csrf},
+        )
+        assert response.status_code == 201
+
+    response = client.get(
+        "/admin/users?offset=1&limit=2",
+        cookies={"ma_session": cookie},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["users"]) == 2
+    assert body["total"] == 4
+    assert body["offset"] == 1
+    assert body["limit"] == 2
+
+
 # ------------------------------------------------------------------
 # 22. Admin can read user
 # ------------------------------------------------------------------
@@ -363,6 +391,33 @@ def test_create_user_unknown_role_returns_422(client: TestClient) -> None:
         headers={"X-CSRF-Token": csrf},
     )
     assert resp.status_code == 422
+
+
+def test_admin_user_write_fields_are_bounded(client: TestClient) -> None:
+    result = bootstrap(client)
+    cookie, csrf = admin_login(client)
+    headers = {"X-CSRF-Token": csrf}
+    cookies = {"ma_session": cookie}
+
+    response = client.patch(
+        f"/admin/users/{result['user_id']}",
+        json={"display_name": "x" * 201},
+        cookies=cookies,
+        headers=headers,
+    )
+    assert response.status_code == 422
+
+    response = client.post(
+        "/admin/users",
+        json={
+            "email": "bounded@example.com",
+            "password": "somepass12",
+            "roles": ["viewer", "editor", "admin", "viewer"],
+        },
+        cookies=cookies,
+        headers=headers,
+    )
+    assert response.status_code == 422
 
 
 def test_duplicate_email_returns_409(client: TestClient) -> None:

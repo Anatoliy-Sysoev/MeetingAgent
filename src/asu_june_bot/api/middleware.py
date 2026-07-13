@@ -27,7 +27,7 @@ CONTENT_SECURITY_POLICY = "; ".join(
 
 
 def _is_product_ui_path(path: str) -> bool:
-    return path in {"/", "/ui", "/MeetingAgent"} or (
+    return path in {"/", "/ui", "/MeetingAgent", "/admin"} or (
         path.startswith("/meetings/") and path.endswith("/workspace")
     )
 

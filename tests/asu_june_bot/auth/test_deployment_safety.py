@@ -36,6 +36,7 @@ from asu_june_bot.auth.deployment_safety import (  # noqa: E402
     check_and_fail_if_unsafe,
     validate_deployment_safety,
 )
+from asu_june_bot.api.bootstrap_policy import BootstrapPolicy  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -446,7 +447,7 @@ class FakeState:
     chat_service: object = field(default_factory=object)
     meeting_qa_service: object = field(default_factory=object)
     auth_repository: object = field(default_factory=object)
-    bootstrap_policy: object = field(default_factory=object)
+    bootstrap_policy: BootstrapPolicy = field(default_factory=BootstrapPolicy)
     trusted_proxy_cidrs: list = field(default_factory=list)
 
 

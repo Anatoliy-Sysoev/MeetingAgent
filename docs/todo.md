@@ -58,6 +58,9 @@
 - [x] MA-MEETING-INDEX-ATOMIC-UPDATES (#153): meeting chunks/artifacts index upserts skip malformed runtime JSONL lines and write through lock + atomic replace.
 - [x] MA-WORKSPACE-AUTH-STATE-CLARITY (#154): Workspace header shows explicit auth state and CSRF 403 does not trigger misleading login overlay.
 - [x] MA-DIARIZATION-RUNTIME-PREFLIGHT (#160): diarization dry-run/readiness/job preflight checks optional sherpa-onnx runtime deps and blocks the UI stage with `diarization_runtime_missing` instead of producing repeated failed jobs.
+- [x] MA-ADMIN-CONSOLE-USERS-V1 (#234): protected `/admin` user/role lifecycle,
+  explicit account status confirmation, real bounded pagination, redacted
+  security/bootstrap summary and permission-gated product navigation.
 
 ## Active / Next
 
@@ -152,8 +155,8 @@
 
 ## Project Knowledge Bot / Guard / Auth Backlog
 
-- [ ] MA-ADMIN-CONSOLE-USERS-V1 (#234): implement the dedicated users/roles UI
-  over the existing admin API; jobs/audit/settings remain later slices.
+- Admin jobs/audit/runtime-settings views remain later independently scoped
+  slices; the users/roles surface is complete in #234.
 
 ## Documentation / OSS Backlog
 

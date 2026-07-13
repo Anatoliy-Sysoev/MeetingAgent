@@ -146,11 +146,12 @@ Invoke-RestMethod http://127.0.0.1:8000/health
 Open the local UI:
 
 ```text
+http://127.0.0.1:8000/MeetingAgent
 http://127.0.0.1:8000/
 http://127.0.0.1:8000/ui
 ```
 
-The built-in web UI supports local login, displays the current auth state, obtains CSRF tokens through `GET /auth/csrf`, and sends authenticated `/chat` requests from the browser. Product pages use packaged versioned assets and a restrictive self-only Content Security Policy without inline scripts or styles. See [API and Auth Setup](docs/en/API_AUTH_SETUP.md).
+The built-in web UI supports local login, displays the current auth state, obtains CSRF tokens through `GET /auth/csrf`, and sends authenticated requests from the browser. Administrators with `users.manage` can open `http://127.0.0.1:8000/admin` after login to manage bounded user pages, roles and account status and to review redacted deployment/bootstrap safety. Product pages use packaged versioned assets and a restrictive self-only Content Security Policy without inline scripts or styles. See [API and Auth Setup](docs/en/API_AUTH_SETUP.md).
 
 ### 4. Ask A CLI Question
 

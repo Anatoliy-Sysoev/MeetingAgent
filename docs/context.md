@@ -4,16 +4,21 @@
 
 ## Now
 
-- MA-LIVE-UNIFIED-TIMELINE-V1 (#233) derives one bounded, chronological MIX
-  transcript from final MIC/SYS segments without blending source audio or
-  weakening source provenance.
-- canonical main before this task: `d57e0f5` / `ci: upgrade official actions to
-  Node 24 (#232)`.
+- MA-ADMIN-CONSOLE-USERS-V1 (#234) adds a session-only browser surface for
+  bounded user pages, role/display-name changes, explicit enable/disable and
+  redacted deployment/bootstrap safety state.
+- canonical main before this task: `332b2dc` / `Add unified live conversation
+  timeline (#238)`.
 - History purge #167 remains gated by explicit owner approval and backup.
-  Product follow-ups are tracked as #234-#237.
+  Product follow-ups are tracked as #235-#237.
 
 ## Done latest
 
+- MA-ADMIN-CONSOLE-USERS-V1 (#234): protected `/admin` requires a local browser
+  user with `users.manage`; all writes use session CSRF, user pagination reports
+  the real total, status changes require explicit confirmation, last-admin
+  protections remain authoritative and admin navigation stays hidden from
+  unauthorized users across MeetingAgent, Workspace and Project Knowledge Bot.
 - MA-LIVE-UNIFIED-TIMELINE-V1 (#233): final MIC/SYS segments are clock-aligned
   into atomic no-index MIX artifacts; the authenticated bounded timeline API
   and Workspace Conversation view retain source/origin references, tolerate one
@@ -265,8 +270,6 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- MA-ADMIN-CONSOLE-USERS-V1 (#234): turn the existing admin user API contract
-  into an operator-facing user/role management surface.
 - MA-PRODUCT-SPLIT-PHASE-2 (#235): move MeetingAgent-owned routes/services out
   of the Project Knowledge Bot package while preserving public paths.
 - MA-DEPS-MAJOR-COMPATIBILITY (#236): review major dependency upgrades in
@@ -277,7 +280,9 @@ GET  /admin/review/chat-runs/export
 ## Open decisions / blockers
 
 - #167 rewrites published history and invalidates old clones; it is blocked on explicit owner approval and a verified backup.
-- Admin console contract is defined; dedicated admin UI, aggregate jobs/audit/settings endpoints and destructive meeting admin actions remain future implementation work.
+- Admin users/roles and redacted security status are available at `/admin`;
+  aggregate jobs/audit/settings endpoints and destructive meeting admin actions
+  remain future implementation work.
 - Guard pure decision API is available for deterministic tests; future guard behavior changes must use it as a measurement boundary.
 - Local preflight can fail until Ollama is running and exposes `bge-m3` + `qwen3.5:4b` through the active model store.
 - Transcript anonymization is heuristic and requires manual review before publishing anonymized examples or eval fixtures; see `docs/operations/TRANSCRIPT_ANONYMIZATION.md`.
