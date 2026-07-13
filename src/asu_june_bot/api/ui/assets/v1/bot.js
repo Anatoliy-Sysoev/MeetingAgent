@@ -33,6 +33,7 @@ const maxChars = Number(document.body.dataset.maxQueryChars || "0");
     const diagnostics = document.getElementById('diagnostics');
     const diagnosticsSummary = document.getElementById('diagnosticsSummary');
     const authStatus = document.getElementById('authStatus');
+    const adminNav = document.getElementById('adminNav');
     const authPanel = document.getElementById('authPanel');
     const loginEmail = document.getElementById('loginEmail');
     const loginPassword = document.getElementById('loginPassword');
@@ -62,12 +63,15 @@ const maxChars = Number(document.body.dataset.maxQueryChars || "0");
           const roles = Array.isArray(me.roles) && me.roles.length ? ` (${me.roles.join(', ')})` : '';
           authStatus.textContent = `вы вошли: ${who}${roles}`;
           authStatus.className = 'badge ok';
+          const permissions = Array.isArray(me.permissions) ? me.permissions : [];
+          adminNav.hidden = !permissions.includes('users.manage');
           authPanel.hidden = true;
           return true;
         }
       } catch (_) { /* fallthrough */ }
       authStatus.textContent = 'вход не выполнен';
       authStatus.className = 'badge error';
+      adminNav.hidden = true;
       authPanel.hidden = false;
       return false;
     }

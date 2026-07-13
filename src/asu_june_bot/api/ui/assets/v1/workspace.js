@@ -1281,9 +1281,15 @@ async function safeDetail(resp) {
 
 async function loadPermissions() {
   const resp = await fetch("/auth/me");
-  if (resp.status === 401) { show401(); _permissions = new Set(); return; }
+  if (resp.status === 401) {
+    show401();
+    _permissions = new Set();
+    document.getElementById("hdr-admin-link").hidden = true;
+    return;
+  }
   if (!resp.ok) {
     _permissions = new Set();
+    document.getElementById("hdr-admin-link").hidden = true;
     const auth = document.getElementById("hdr-auth");
     if (auth) {
       auth.textContent = "Auth unavailable";
@@ -1293,6 +1299,7 @@ async function loadPermissions() {
   }
   const d = await resp.json();
   _permissions = new Set(Array.isArray(d.permissions) ? d.permissions : []);
+  document.getElementById("hdr-admin-link").hidden = !_permissions.has("users.manage");
   hideAuthOverlay();
   const auth = document.getElementById("hdr-auth");
   if (auth) {

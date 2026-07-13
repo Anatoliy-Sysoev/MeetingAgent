@@ -32,6 +32,8 @@ PRODUCT_PAGES = (
 ASSET_NAMES = (
     "bot.css",
     "bot.js",
+    "admin.css",
+    "admin.js",
     "meetingagent.css",
     "meetingagent.js",
     "workspace.css",
@@ -59,6 +61,31 @@ def test_product_page_has_restrictive_csp(client: TestClient, path: str) -> None
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["x-frame-options"] == "DENY"
     assert response.headers["referrer-policy"] == "no-referrer"
+
+
+def test_admin_page_has_restrictive_csp_for_authenticated_admin() -> None:
+    from asu_june_bot.api.routes_admin_ui import require_admin_page
+
+    app = create_app()
+    app.dependency_overrides[require_admin_page] = lambda: object()
+    admin_client = TestClient(app, raise_server_exceptions=False)
+    response = admin_client.get("/admin")
+    assert response.status_code == 200
+    assert response.headers["content-security-policy"] == CONTENT_SECURITY_POLICY
+    assert "'unsafe-inline'" not in response.headers["content-security-policy"]
+
+
+def test_admin_page_contains_only_external_scripts_and_styles() -> None:
+    from asu_june_bot.api.routes_admin_ui import require_admin_page
+
+    app = create_app()
+    app.dependency_overrides[require_admin_page] = lambda: object()
+    admin_client = TestClient(app, raise_server_exceptions=False)
+    html = admin_client.get("/admin").text
+    assert "<style" not in html.lower()
+    assert not re.search(r"<script(?![^>]*\ssrc=)[^>]*>", html, re.IGNORECASE)
+    assert not re.search(r"\sstyle\s*=", html, re.IGNORECASE)
+    assert not re.search(r"\son[a-z]+\s*=", html, re.IGNORECASE)
 
 
 @pytest.mark.parametrize("path", PRODUCT_PAGES)

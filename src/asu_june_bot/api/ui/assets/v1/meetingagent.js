@@ -70,12 +70,15 @@ const state = {
       const resp = await fetch("/auth/me");
       if (!resp.ok) {
         state.user = null;
+        byId("adminNav").hidden = true;
         status.textContent = "Вход не выполнен";
         loginPanel.classList.add("visible");
         return;
       }
       const data = await safeJson(resp);
       state.user = data;
+      const permissions = Array.isArray(data && data.permissions) ? data.permissions : [];
+      byId("adminNav").hidden = !permissions.includes("users.manage");
       const roles = data && data.roles ? data.roles.join(", ") : "user";
       status.textContent = `вы вошли: ${data.email} (${roles})`;
       loginPanel.classList.remove("visible");

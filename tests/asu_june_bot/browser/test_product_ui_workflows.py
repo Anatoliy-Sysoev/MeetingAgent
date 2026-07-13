@@ -30,6 +30,10 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from asu_june_bot.api.middleware import request_context_middleware  # noqa: E402
+from asu_june_bot.api.routes_admin_ui import (  # noqa: E402
+    require_admin_page,
+    router as admin_ui_router,
+)
 from asu_june_bot.api.routes_meetingagent_ui import router as meetingagent_router  # noqa: E402
 from asu_june_bot.api.routes_workspace import router as workspace_router  # noqa: E402
 from asu_june_bot.api.ui_assets import UI_ASSETS_V1_DIR  # noqa: E402
@@ -48,6 +52,8 @@ def _build_ui_app() -> FastAPI:
     )
     app.include_router(meetingagent_router)
     app.include_router(workspace_router)
+    app.include_router(admin_ui_router)
+    app.dependency_overrides[require_admin_page] = lambda: object()
     return app
 
 
@@ -172,6 +178,7 @@ def test_meetingagent_upload_and_pipeline_workflow(page: Page, ui_base_url: str)
     assert response is not None
     assert "script-src 'self'" in response.headers["content-security-policy"]
     expect(page.locator("#authStatus")).to_contain_text("admin@local")
+    expect(page.locator("#adminNav")).to_be_hidden()
 
     page.locator("#showUploadBtn").click()
     page.locator("#meetingFile").set_input_files(
@@ -782,6 +789,156 @@ def test_workspace_live_mic_start_partial_stop_and_final(
     refinement_headers = captured["refinement_headers"]
     assert isinstance(refinement_headers, dict)
     assert refinement_headers.get("x-csrf-token") == "live-browser-csrf"
+    assert errors == []
+
+
+def test_admin_console_user_lifecycle(page: Page, ui_base_url: str) -> None:
+    captured: dict[str, object] = {}
+    users: list[dict[str, object]] = [
+        {
+            "user_id": "admin-1",
+            "email": "admin@local",
+            "display_name": "Administrator",
+            "status": "active",
+            "roles": ["admin"],
+            "created_at": "2026-07-13T10:00:00+00:00",
+            "updated_at": "2026-07-13T10:00:00+00:00",
+            "last_login_at": "2026-07-13T10:05:00+00:00",
+        },
+        {
+            "user_id": "viewer-1",
+            "email": "viewer@local",
+            "display_name": "Viewer",
+            "status": "active",
+            "roles": ["viewer"],
+            "created_at": "2026-07-13T10:00:00+00:00",
+            "updated_at": "2026-07-13T10:00:00+00:00",
+            "last_login_at": None,
+        },
+    ]
+
+    def handle_api(route: Route) -> None:
+        request = route.request
+        parsed = urlparse(request.url)
+        path = parsed.path
+        if path == "/auth/me":
+            _fulfill_json(
+                route,
+                {
+                    "email": "admin@local",
+                    "display_name": "Administrator",
+                    "roles": ["admin"],
+                    "permissions": ["users.manage"],
+                },
+            )
+        elif path == "/auth/csrf":
+            _fulfill_json(route, {"csrf_token": "admin-browser-csrf"})
+        elif path == "/admin/security/status":
+            _fulfill_json(
+                route,
+                {
+                    "deployment_mode": "local",
+                    "findings": [],
+                    "error_count": 0,
+                    "warning_count": 0,
+                    "trusted_proxy_policy": {"configured": False, "count": 0},
+                    "bootstrap_policy": {
+                        "remote_allowed": False,
+                        "secret_configured": False,
+                        "first_admin_created": True,
+                    },
+                },
+            )
+        elif path == "/admin/users" and request.method == "GET":
+            query = parse_qs(parsed.query)
+            offset = int(query.get("offset", ["0"])[0])
+            limit = int(query.get("limit", ["25"])[0])
+            _fulfill_json(
+                route,
+                {
+                    "users": users[offset:offset + limit],
+                    "total": len(users),
+                    "offset": offset,
+                    "limit": limit,
+                },
+            )
+        elif path == "/admin/users" and request.method == "POST":
+            payload = json.loads(request.post_data or "{}")
+            captured["create"] = payload
+            captured["create_headers"] = request.headers
+            created = {
+                "user_id": "editor-1",
+                "email": payload["email"],
+                "display_name": payload.get("display_name"),
+                "status": "active",
+                "roles": payload.get("roles", []),
+                "created_at": "2026-07-13T11:00:00+00:00",
+                "updated_at": "2026-07-13T11:00:00+00:00",
+                "last_login_at": None,
+            }
+            users.append(created)
+            _fulfill_json(route, created, status=201)
+        elif path == "/admin/users/viewer-1" and request.method == "PATCH":
+            payload = json.loads(request.post_data or "{}")
+            captured["edit"] = payload
+            captured["edit_headers"] = request.headers
+            users[1]["display_name"] = payload["display_name"]
+            users[1]["roles"] = payload["roles"]
+            _fulfill_json(route, users[1])
+        elif path == "/admin/users/viewer-1/disable" and request.method == "POST":
+            captured["disable_headers"] = request.headers
+            users[1]["status"] = "disabled"
+            _fulfill_json(route, users[1])
+        else:
+            route.continue_()
+
+    page.route("**/*", handle_api)
+    errors = _capture_browser_errors(page)
+    response = page.goto(f"{ui_base_url}/admin", wait_until="networkidle")
+    assert response is not None
+    assert "script-src 'self'" in response.headers["content-security-policy"]
+    expect(page.locator("#session-user")).to_have_text("Administrator")
+    expect(page.locator("#security-mode")).to_have_text("local")
+    expect(page.locator("#users-total")).to_have_text("2 пользователей")
+
+    page.locator("#create-user-btn").click()
+    expect(page.locator("#create-user-dialog")).to_be_visible()
+    page.locator("#create-email").fill("editor@local")
+    page.locator("#create-display-name").fill("Editor")
+    page.locator("#create-password").fill("temporary-password")
+    page.locator('input[name="create-role"][value="editor"]').check()
+    page.locator("#create-user-form button[type=submit]").click()
+    expect(page.locator("#page-message")).to_have_text("Пользователь создан.")
+    expect(page.locator("#users-total")).to_have_text("3 пользователей")
+    assert captured["create"] == {
+        "email": "editor@local",
+        "display_name": "Editor",
+        "password": "temporary-password",
+        "roles": ["viewer", "editor"],
+    }
+
+    viewer_row = page.locator("#users-body tr").filter(has_text="viewer@local")
+    viewer_row.get_by_role("button", name="Изменить").click()
+    page.locator("#edit-display-name").fill("Project viewer")
+    page.locator('input[name="edit-role"][value="editor"]').check()
+    page.locator("#edit-user-form button[type=submit]").click()
+    expect(page.locator("#page-message")).to_have_text("Параметры пользователя обновлены.")
+    assert captured["edit"] == {
+        "display_name": "Project viewer",
+        "roles": ["viewer", "editor"],
+    }
+
+    viewer_row = page.locator("#users-body tr").filter(has_text="viewer@local")
+    viewer_row.get_by_role("button", name="Отключить").click()
+    expect(page.locator("#status-dialog")).to_be_visible()
+    page.locator("#status-confirm-btn").click()
+    expect(page.locator("#page-message")).to_have_text("Пользователь отключён.")
+    expect(viewer_row.locator(".status")).to_have_text("disabled")
+
+    for key in ("create_headers", "edit_headers", "disable_headers"):
+        headers = captured[key]
+        assert isinstance(headers, dict)
+        assert headers.get("x-csrf-token") == "admin-browser-csrf"
     assert errors == []
 
 
