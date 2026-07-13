@@ -964,3 +964,28 @@ JobRunner. Для каждой source сохраняется состояние 
 - list/detail показывают `source_kind=live_session` и язык без локальных путей;
 - реальный WAV регистрируется только после успешной MIC/SYS live-сессии;
 - offline extract/transcribe остаются blocked до появления настоящего source.
+
+## 2026-07-13 - Validation Context Публикуется Только Как Bounded JSON-Safe Data
+
+Решение: глобальный `RequestValidationError` handler рекурсивно сохраняет только
+ограниченные JSON primitives, списки и словари. Exception objects, циклы,
+non-finite numbers, sensitive/input/path keys, локальные locations и неизвестные
+objects удаляются без вызова `str()`/`repr()`. Если context мог участвовать в
+формировании чувствительного message, клиент получает стабильный generic text.
+
+Почему:
+
+- Pydantic помещает исходный `ValueError` в `ctx.error`, который JSONResponse не
+  может сериализовать и превращает ожидаемый 422 в 500;
+- текст исключения может содержать пользовательское значение или локальный путь;
+- произвольный nested context нельзя считать доверенным только потому, что он
+  сформирован validator-ом;
+- безопасные built-in constraints (`gt`, `min_length` и подобные JSON values)
+  полезны клиенту и должны оставаться совместимыми.
+
+Следствия:
+
+- model-level `ValueError` возвращает controlled 422 без raw input/exception;
+- sensitive custom ctx не может протащить секрет обратно через formatted `msg`;
+- глубина, число элементов, длина строк и `loc` ограничены;
+- стандартные безопасные сообщения и numeric ctx сохраняются без изменения.
