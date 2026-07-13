@@ -823,6 +823,25 @@ index. Core `constraints-py312.txt`, base install и Docker image live packages
 - GigaAM остаётся отдельным несовместимым runtime profile и не смешивается с
   live environment.
 
+## 2026-07-13 - NumPy 2 Принимается Как Отдельно Проверенный ABI-Шаг
+
+Решение: core и diarization direct ranges расширяются до `numpy>=1.26,<3`, а
+reviewed Python 3.12 lock фиксируется на NumPy 2.5.1. Откат остаётся простым:
+вернуть upper bound `<2` и exact pin 1.26.4.
+
+Почему:
+
+- код не использует удалённые NumPy aliases и хранит embeddings в стандартном
+  `float32 .npy`;
+- regression test загружает под NumPy 2 файл, созданный NumPy 1.26.4, поэтому
+  существующие индексы не требуют принудительной пересборки;
+- clean Windows Python 3.12 install проходит `pip check` и advisory audit;
+- `ctranslate2`, `pandas`, `onnxruntime`, `soundfile` и `sherpa-onnx` импортируются
+  вместе, обе реальные diarization ONNX-модели открываются CPU provider, а
+  `OfflineSpeakerDiarization` успешно строится;
+- sounddevice, GigaAM/TorchAudio и MkDocs Material остаются отдельными review
+  surfaces #242-#244 и не получают косвенного одобрения этим решением.
+
 ## 2026-07-13 - Live Session API Использует Bounded Polling И Single-Owner State
 
 Решение: lifecycle live-записи управляется отдельным аутентифицированным API.
