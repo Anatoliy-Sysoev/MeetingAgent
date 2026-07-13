@@ -1,5 +1,6 @@
 # Optional dependencies for local live transcription.
 # Keep separate from requirements.txt because microphone/audio backends are runtime-specific.
+# Install with the matching constraints-live-py312-{windows,linux}.txt lock.
 vosk>=0.3.45,<0.4
 sounddevice>=0.4.6,<0.5
 PyAudioWPatch>=0.2.12.7,<0.3; sys_platform == "win32"

@@ -70,6 +70,41 @@ def test_audit_environment_forces_utf8_under_non_ascii_windows_path() -> None:
     assert environment["KEEP_ME"] == "present"
 
 
+def test_audit_projection_normalizes_only_reviewed_cpu_wheels(tmp_path: Path) -> None:
+    source = tmp_path / "live-lock.txt"
+    source.write_text(
+        "--extra-index-url https://download.pytorch.org/whl/cpu\n"
+        "torch==2.13.0+cpu\n"
+        "torchaudio==2.11.0+cpu ; python_version < \"3.15\"\n"
+        "vosk==0.3.45\n",
+        encoding="utf-8",
+    )
+    target = tmp_path / "audit.txt"
+
+    assert audit.write_audit_projection(source, target) == 2
+    assert target.read_text(encoding="utf-8") == (
+        "torch==2.13.0\n"
+        "torchaudio==2.11.0 ; python_version < \"3.15\"\n"
+        "vosk==0.3.45\n"
+    )
+
+
+def test_audit_projection_rejects_unreviewed_local_version(tmp_path: Path) -> None:
+    source = tmp_path / "lock.txt"
+    source.write_text("example==1.0+private\n", encoding="utf-8")
+
+    with pytest.raises(audit.AuditConfigurationError, match="local-version"):
+        audit.write_audit_projection(source, tmp_path / "audit.txt")
+
+
+def test_audit_projection_rejects_oversized_lock(tmp_path: Path) -> None:
+    source = tmp_path / "lock.txt"
+    source.write_bytes(b"x" * (audit.MAX_REQUIREMENTS_BYTES + 1))
+
+    with pytest.raises(audit.AuditConfigurationError, match="too large"):
+        audit.write_audit_projection(source, tmp_path / "audit.txt")
+
+
 def test_main_passes_utf8_environment_to_audit_process(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -90,7 +125,15 @@ def test_main_passes_utf8_environment_to_audit_process(
     )
 
     def fake_run(command, *, cwd, env, check):
-        seen.update(command=command, cwd=cwd, env=env, check=check)
+        requirements_index = command.index("--requirement") + 1
+        projection = Path(command[requirements_index])
+        seen.update(
+            command=command,
+            cwd=cwd,
+            env=env,
+            check=check,
+            projection=projection.read_text(encoding="utf-8"),
+        )
         return SimpleNamespace(returncode=7)
 
     monkeypatch.setattr(audit.subprocess, "run", fake_run)
@@ -102,6 +145,7 @@ def test_main_passes_utf8_environment_to_audit_process(
     assert seen["check"] is False
     assert seen["env"]["PYTHONUTF8"] == "1"
     assert seen["env"]["PYTHONIOENCODING"] == "utf-8"
+    assert seen["projection"] == "example==1.0\n"
     assert audit.os.environ["PYTHONUTF8"] == "0"
     assert audit.os.environ["PYTHONIOENCODING"] == "cp1251"
 

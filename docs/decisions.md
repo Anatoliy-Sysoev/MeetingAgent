@@ -543,8 +543,8 @@ constraints file.
   tools;
 - diarization остаётся отдельным optional install profile, но его Windows/Linux
   wheels входят в общий lock и advisory gate;
-- GigaAM и live остаются отдельными platform-specific profiles вне общего lock,
-  потому что зависят от Torch/audio wheels и устройства;
+- GigaAM остаётся отдельным profile вне reviewed locks; live использует
+  отдельные platform-specific CPU locks и не входит в core constraints;
 - scheduled и release workflows запускают `pip-audit --strict --no-deps` по
   pinned graph; текущий graph не имеет известных advisories;
 - исключение допускается только с advisory ID, обоснованием, repository issue
@@ -786,3 +786,39 @@ channel count/sample rate устройства и stateful-конвертеро�
   локальных путей, а потеря аудио поднимает warning `mic_audio_dropped`;
 - качество текста на потерянном интервале восстановить нельзя: метрики и warning
   делают деградацию явной для UI/оператора.
+
+## 2026-07-13 - Live Runtime Имеет Отдельные CPU Locks По Платформам
+
+Решение: optional live runtime фиксируется в
+`constraints-live-py312-windows.txt` и `constraints-live-py312-linux.txt`.
+Оба файла строятся из `requirements-live-lock-py312.in` под Python 3.12,
+наследуют shared pins из core constraints и используют официальный PyTorch CPU
+index. Core `constraints-py312.txt`, base install и Docker image live packages
+не содержат.
+
+Почему:
+
+- Windows resolver не видит Linux-only зависимости PyPI Torch, поэтому единый
+  platform-generated lock не является точным для обеих ОС;
+- обычный PyPI Torch на Linux тянет CUDA graph, хотя MeetingAgent live является
+  local CPU workload;
+- PyAudioWPatch нужен только Windows WASAPI loopback и не должен попадать в
+  Linux lock;
+- constraints отделяют воспроизводимость optional runtime от его установки по
+  умолчанию.
+
+Следствия:
+
+- Windows install использует core constraints + Windows live constraints;
+  Linux install - core constraints + Linux live constraints;
+- оба lock-файла фиксируют `torch`/`torchaudio` CPU builds и не содержат CUDA;
+- scheduled dependency audit запускает отдельные core, live-linux и
+  live-windows jobs, поэтому platform marker PyAudioWPatch проверяется на
+  Windows;
+- для advisory lookup только reviewed `torch`/`torchaudio` pins с суффиксом
+  `+cpu` проецируются на ту же публичную базовую версию; любой другой local
+  version pin отклоняется fail-closed;
+- изменение direct live ranges требует пересборки обоих locks, clean install,
+  `pip check`, import smoke и проверки загрузки Silero model;
+- GigaAM остаётся отдельным несовместимым runtime profile и не смешивается с
+  live environment.

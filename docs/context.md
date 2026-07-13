@@ -4,18 +4,22 @@
 
 ## Now
 
-- MA-LIVE-MIC-BACKPRESSURE (#215) is implemented on its review branch: MIC uses
-  a configurable bounded callback queue, never waits for recognition, drops the
-  oldest queued block on overflow and fills the missing absolute frame interval
-  with silence so later transcript timestamps remain wall-clock aligned.
-- canonical main before #215: `679a42e` / `Make idle WASAPI loopback capture interruptible (#217)`.
-- next product work is a reviewed live dependency lock/audit (#214), Live
-  session API/UI (#206/#207), and offline refinement (#208).
+- MA-LIVE-DEPENDENCY-LOCK (#214) is implemented on its review branch: optional
+  live dependencies have exact Python 3.12 Windows/Linux locks, both use the
+  official CPU-only PyTorch index, and the scheduled audit covers core plus both
+  platform graphs.
+- canonical main before #214: `63ee86c` / `Bound microphone backpressure without timestamp drift (#218)`.
+- next product work is Live session API/UI (#206/#207) and offline refinement
+  (#208).
   history purge #167 remains gated by explicit owner approval and a verified
   backup.
 
 ## Done latest
 
+- MA-LIVE-DEPENDENCY-LOCK (#214): added platform-specific exact live locks,
+  kept Torch/Vosk outside core/Docker, validated clean Windows and Linux
+  installs plus real Silero model loads, and expanded scheduled advisory audit
+  to core, live-linux and live-windows graphs.
 - MA-LIVE-MIC-BACKPRESSURE (#215): bounded the MIC callback queue, added
   deterministic oldest-first overflow handling, absolute-frame gap recovery,
   path-free loss/queue metrics, report warnings and duration/Ctrl+C regression

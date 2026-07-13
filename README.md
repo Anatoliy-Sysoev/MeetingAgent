@@ -234,8 +234,16 @@ Live transcription is an optional draft workflow. The first supported backend is
 Install optional live dependencies:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements-live.txt
+.\.venv\Scripts\python.exe -m pip install `
+  -c constraints-py312.txt `
+  -c constraints-live-py312-windows.txt `
+  -r requirements-live.txt
+.\.venv\Scripts\python.exe -m pip check
 ```
+
+Linux uses `constraints-live-py312-linux.txt`. Both platform locks select the
+official PyTorch CPU index and keep Torch/Silero outside the core install and
+base Docker image.
 
 Keep Vosk models under ignored `models/`, for example:
 
