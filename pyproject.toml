@@ -51,7 +51,7 @@ diarization = [
 ]
 live = [
   "vosk>=0.3.45,<0.4",
-  "sounddevice>=0.4.6,<0.5",
+  "sounddevice>=0.5.5,<0.6",
   "PyAudioWPatch>=0.2.12.7,<0.3; sys_platform == 'win32'",
   "soxr>=1.0,<2",
   "silero-vad>=6.0.0,<7"

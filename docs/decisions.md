@@ -842,6 +842,30 @@ reviewed Python 3.12 lock фиксируется на NumPy 2.5.1. Откат о
 - sounddevice, GigaAM/TorchAudio и MkDocs Material остаются отдельными review
   surfaces #242-#244 и не получают косвенного одобрения этим решением.
 
+## 2026-07-13 - sounddevice 0.5.5 Принимается Только С Синхронными Live Locks
+
+Решение: Windows/Linux live locks фиксируют sounddevice 0.5.5 и все общие с
+core exact pins, включая NumPy 2.5.1. Direct range становится
+`sounddevice>=0.5.5,<0.6`. Standalone live install обязан устанавливать и
+`requirements.txt`, и `requirements-live.txt` под обоими constraints.
+
+Почему:
+
+- прежние platform locks удерживали NumPy 1.26.4 после перехода core на 2.5.1,
+  из-за чего documented install с двумя constraints был неразрешим;
+- новый contract-test сравнивает каждый общий core/live pin и не позволит
+  повторить такой рассинхрон;
+- clean Windows и Linux installs проходят `pip check`, import smoke и advisory
+  audit без CUDA packages;
+- Windows MIC на 16 кГц дал 10 callbacks и 16000 корректных кадров за секунду,
+  без status events и без сохранения аудио;
+- длинный Windows `%TEMP%` path может ломать распаковку глубокого дерева Torch с
+  `WinError 206`, поэтому для live runtime рекомендуется короткий ASCII venv
+  path; это deployment constraint Torch, а не причина удерживать sounddevice.
+
+Откат: вернуть sounddevice range `<0.5`, exact pins 0.4.7 и пересобрать оба live
+lock-файла; core/live shared pins при этом всё равно должны оставаться равными.
+
 ## 2026-07-13 - Live Session API Использует Bounded Polling И Single-Owner State
 
 Решение: lifecycle live-записи управляется отдельным аутентифицированным API.

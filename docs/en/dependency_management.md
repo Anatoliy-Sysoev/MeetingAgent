@@ -33,7 +33,7 @@ in one row does not approve another row.
 | Surface | Reviewed direct range / exact lock | Status and evidence | Rollback / tracking |
 |---|---|---|---|
 | Core, retrieval and diarization NumPy | `numpy>=1.26,<3`; Python 3.12 lock `2.5.1` | Approved: clean Windows install, `pip check`, advisory audit, persisted 1.26 `.npy` load, retrieval suite, ONNX Runtime sessions for both diarization models and sherpa diarizer construction | Roll back the range to `<2` and lock to `1.26.4`; #241 |
-| Live MIC through sounddevice | `sounddevice>=0.4.6,<0.5`; platform locks retain `0.4.7` | Pending dedicated Windows callback and device smoke | Retain `0.4.7`; #242 |
+| Live MIC through sounddevice | `sounddevice>=0.5.5,<0.6`; platform locks `0.5.5` | Approved: clean Windows/Linux installs, `pip check`, advisory audit, 101 live tests and a non-persisting 16 kHz Windows MIC callback smoke | Restore range `<0.5` and locks `0.4.7`; #242 |
 | Isolated GigaAM ONNX/TorchAudio | `onnx==1.19.*`, `onnxruntime==1.25.*`, `torchaudio>=2.6` | Pending an exact isolated Python 3.12 lock and real short-audio model smoke | Keep the existing isolated runtime; #243 |
 | Documentation theme | `mkdocs-material==9.5.50` | Pending strict build and link validation against 9.7.x | Retain `9.5.50`; #244 |
 
@@ -46,13 +46,16 @@ Install the live runtime on Windows:
 .\.venv\Scripts\python.exe -m pip install `
   -c constraints-py312.txt `
   -c constraints-live-py312-windows.txt `
+  -r requirements.txt `
   -r requirements-live.txt
 .\.venv\Scripts\python.exe -m pip check
 ```
 
 On Linux, replace the second constraints file with
 `constraints-live-py312-linux.txt`. Both platform locks use
-`https://download.pytorch.org/whl/cpu` and install no CUDA packages.
+`https://download.pytorch.org/whl/cpu` and install no CUDA packages. On Windows,
+prefer a short environment path such as `C:\ma-live` when long paths are
+disabled; Torch can otherwise fail to unpack with `WinError 206`.
 
 Create a product environment:
 

@@ -179,12 +179,16 @@ Optional dependencies:
 .\.venv\Scripts\python.exe -m pip install `
   -c constraints-py312.txt `
   -c constraints-live-py312-windows.txt `
+  -r requirements.txt `
   -r requirements-live.txt
 .\.venv\Scripts\python.exe -m pip check
 ```
 
 Для Linux используйте `constraints-live-py312-linux.txt`. Оба lock-файла
 фиксируют CPU-only Torch/Silero graph; CUDA packages в live runtime не входят.
+На Windows при отключённой поддержке long paths создавайте live-окружение в
+коротком ASCII-пути, например `C:\ma-live`: глубокое дерево лицензий Torch может
+иначе завершить распаковку с `WinError 206`.
 
 Vosk-модель хранится локально в ignored `models/`, например:
 
