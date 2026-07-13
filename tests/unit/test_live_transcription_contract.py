@@ -812,7 +812,18 @@ def test_live_cli_passes_silero_vad_config_to_backend(tmp_path: Path, monkeypatc
         seen["threshold"] = config.silero_vad.threshold
         seen["min_speech_ms"] = config.silero_vad.min_speech_ms
         seen["input_wav"] = config.input_wav
-        return type("FakeResult", (), {"segments": [], "partials": [], "metrics": {"duration": 0.0}})()
+        return type(
+            "FakeResult",
+            (),
+            {
+                "segments": [],
+                "partials": [],
+                "metrics": {
+                    "duration": 0.0,
+                    "vad_warnings": ["vad_no_speech_detected"],
+                },
+            },
+        )()
 
     monkeypatch.setattr(cli, "transcribe_vosk_live", fake_transcribe)
 
@@ -841,6 +852,18 @@ def test_live_cli_passes_silero_vad_config_to_backend(tmp_path: Path, monkeypatc
         "min_speech_ms": 300,
         "input_wav": wav_path,
     }
+    report = json.loads(
+        (
+            meeting_dir
+            / "transcript"
+            / "live"
+            / "live_report.MIC.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert report["warnings"] == [
+        "no_final_segments",
+        "vad_no_speech_detected",
+    ]
 
 
 def test_speech_window_overlap_detection() -> None:
@@ -872,7 +895,15 @@ def test_vosk_backend_keyboard_interrupt_returns_partial_result(tmp_path: Path, 
         def FinalResult(self) -> str:
             return json.dumps({"text": "финальная фраза"})
 
-    def fake_transcribe_microphone(config, _recognizer, _model_label, segments, partials, _runtime_metrics):
+    def fake_transcribe_microphone(
+        config,
+        _recognizer,
+        _model_label,
+        segments,
+        partials,
+        _runtime_metrics,
+        _timeline,
+    ):
         segments.append(
             LiveSegment(
                 segment_id="live-seg-000000",
@@ -918,7 +949,15 @@ def test_vosk_backend_reports_microphone_runtime_metrics(tmp_path: Path, monkeyp
         def FinalResult(self) -> str:
             return json.dumps({"text": ""})
 
-    def fake_transcribe_microphone(_config, _recognizer, _model_label, _segments, _partials, runtime_metrics):
+    def fake_transcribe_microphone(
+        _config,
+        _recognizer,
+        _model_label,
+        _segments,
+        _partials,
+        runtime_metrics,
+        _timeline,
+    ):
         runtime_metrics["input_status_events"] = 2
         runtime_metrics["queue_timeouts"] = 3
         return 0.0
