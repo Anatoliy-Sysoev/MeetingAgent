@@ -14,7 +14,7 @@ import time
 import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 import uvicorn
@@ -317,6 +317,20 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
                     ]
                 },
             )
+        elif path == f"{prefix}/live/preflight":
+            _fulfill_json(
+                route,
+                {
+                    "source": "MIC",
+                    "available": False,
+                    "reason": "model_missing",
+                    "model_ready": False,
+                    "devices": [],
+                    "devices_truncated": False,
+                },
+            )
+        elif path == f"{prefix}/live/sessions/active":
+            _fulfill_json(route, {"meeting_id": MEETING_ID, "session": None})
         elif path == "/jobs/active":
             _fulfill_json(route, {})
         elif path == f"{prefix}/jobs/pipeline" and request.method == "POST":
@@ -407,4 +421,204 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
     pipeline_headers = captured["pipeline_headers"]
     assert isinstance(pipeline_headers, dict)
     assert pipeline_headers.get("x-csrf-token") == "workspace-csrf"
+    assert errors == []
+
+
+def test_workspace_live_mic_start_partial_stop_and_final(
+    page: Page,
+    ui_base_url: str,
+) -> None:
+    captured: dict[str, object] = {}
+    live_started = False
+    live_stopped = False
+    session_id = "live-browser-session"
+
+    def session_payload() -> dict[str, object]:
+        status = "completed" if live_stopped else "running"
+        return {
+            "session_id": session_id,
+            "meeting_id": MEETING_ID,
+            "source": "MIC",
+            "status": status,
+            "engine": "vosk",
+            "model": "vosk-model-small-ru",
+            "vad": "silero",
+            "created_at": "2026-07-13T12:00:00+00:00",
+            "started_at": "2026-07-13T12:00:00+00:00",
+            "updated_at": "2026-07-13T12:00:02+00:00",
+            "finished_at": "2026-07-13T12:00:02+00:00" if live_stopped else None,
+            "last_event_id": 4 if live_stopped else 2,
+            "warnings": ["mic_audio_dropped"] if live_stopped else [],
+            "error": None,
+            "artifact_keys": ["live_segments_mic"] if live_stopped else [],
+            "is_active": not live_stopped,
+        }
+
+    def handle_api(route: Route) -> None:
+        nonlocal live_started, live_stopped
+        request = route.request
+        parsed = urlparse(request.url)
+        path = parsed.path
+        query = parse_qs(parsed.query)
+        prefix = f"/meetings/{MEETING_ID}"
+        if path == "/auth/me":
+            _fulfill_json(
+                route,
+                {
+                    "email": "editor@local",
+                    "permissions": [
+                        "jobs.read",
+                        "jobs.start",
+                        "jobs.cancel",
+                        "transcripts.read",
+                        "artifacts.read",
+                    ],
+                },
+            )
+        elif path == "/auth/csrf":
+            _fulfill_json(route, {"csrf_token": "live-browser-csrf"})
+        elif path == prefix:
+            _fulfill_json(
+                route,
+                {
+                    "meeting_id": MEETING_ID,
+                    "title": "Live browser smoke",
+                    "date": "2026-07-13",
+                    "processing_status": "transcribing" if live_started else "new",
+                },
+            )
+        elif path == f"{prefix}/media":
+            _fulfill_json(route, {"media": []})
+        elif path == f"{prefix}/transcript/segments":
+            _fulfill_json(route, {"segments": []})
+        elif path == f"{prefix}/speakers":
+            _fulfill_json(route, {"speakers": []})
+        elif path == f"{prefix}/artifacts":
+            _fulfill_json(route, {"artifacts": []})
+        elif path == f"{prefix}/jobs/stages":
+            _fulfill_json(route, {"stages": []})
+        elif path == f"{prefix}/pipeline/readiness":
+            _fulfill_json(route, {"stages": []})
+        elif path == f"{prefix}/artifacts/manifest":
+            _fulfill_json(route, {"artifacts": []})
+        elif path == "/jobs/active":
+            _fulfill_json(route, {})
+        elif path == f"{prefix}/live/preflight":
+            source = query.get("source", ["MIC"])[0]
+            device = 7 if source == "MIC" else 12
+            _fulfill_json(
+                route,
+                {
+                    "source": source,
+                    "available": True,
+                    "reason": None,
+                    "model_ready": True,
+                    "devices": [
+                        {"device_index": device, "label": f"Audio device {device}"}
+                    ],
+                    "devices_truncated": False,
+                },
+            )
+        elif path == f"{prefix}/live/sessions/active":
+            source = query.get("source", [""])[0]
+            active = session_payload() if source == "MIC" and live_started and not live_stopped else None
+            _fulfill_json(route, {"meeting_id": MEETING_ID, "session": active})
+        elif path == f"{prefix}/live/sessions" and request.method == "POST":
+            live_started = True
+            captured["start_body"] = json.loads(request.post_data or "{}")
+            captured["start_headers"] = request.headers
+            _fulfill_json(route, session_payload(), status=202)
+        elif path == f"{prefix}/live/sessions/{session_id}" and request.method == "GET":
+            _fulfill_json(route, session_payload())
+        elif path == f"{prefix}/live/sessions/{session_id}/events":
+            after = int(query.get("after", ["0"])[0])
+            if live_stopped and after < 4:
+                events = [
+                    {
+                        "event_id": 3,
+                        "type": "final",
+                        "source": "MIC",
+                        "text": "Финальная реплика из микрофона.",
+                        "start": 0.0,
+                        "end": 1.2,
+                        "is_final": True,
+                    },
+                    {"event_id": 4, "type": "status", "status": "completed"},
+                ]
+                next_after = 4
+            elif not live_stopped and after < 2:
+                events = [
+                    {
+                        "event_id": 2,
+                        "type": "partial",
+                        "source": "MIC",
+                        "text": "Черновая реплика",
+                        "start": 0.0,
+                        "end": 0.4,
+                        "is_final": False,
+                    }
+                ]
+                next_after = 2
+            else:
+                events = []
+                next_after = after
+            _fulfill_json(
+                route,
+                {
+                    "session_id": session_id,
+                    "meeting_id": MEETING_ID,
+                    "source": "MIC",
+                    "status": "completed" if live_stopped else "running",
+                    "events": events,
+                    "oldest_event_id": 1,
+                    "newest_event_id": 4 if live_stopped else 2,
+                    "next_after": next_after,
+                    "truncated": False,
+                    "partial_events_durable": False,
+                },
+            )
+        elif path == f"{prefix}/live/sessions/{session_id}/stop" and request.method == "POST":
+            live_stopped = True
+            captured["stop_headers"] = request.headers
+            _fulfill_json(route, session_payload())
+        else:
+            route.continue_()
+
+    page.route("**/*", handle_api)
+    errors = _capture_browser_errors(page)
+    response = page.goto(
+        f"{ui_base_url}/meetings/{MEETING_ID}/workspace",
+        wait_until="networkidle",
+    )
+    assert response is not None
+    expect(page.locator("#live-mic-badge")).to_have_text("Ready")
+    expect(page.locator("#live-sys-badge")).to_have_text("Ready")
+    expect(page.locator("#live-panel")).to_contain_text("draft and is not indexed")
+
+    page.locator("#live-mic-start").click()
+    expect(page.locator("#live-mic-badge")).to_have_text("Recording")
+    expect(page.locator("#live-mic-partial")).to_have_text("Черновая реплика")
+    expect(page.get_by_role("button", name="Run full pipeline")).to_be_disabled()
+    expect(page.locator("#live-sys-start")).to_be_enabled()
+    assert captured["start_body"] == {
+        "source": "MIC",
+        "vad": "silero",
+        "force": False,
+    }
+    start_headers = captured["start_headers"]
+    assert isinstance(start_headers, dict)
+    assert start_headers.get("x-csrf-token") == "live-browser-csrf"
+
+    page.locator("#live-mic-stop").click()
+    expect(page.locator("#live-mic-badge")).to_have_text("Completed")
+    expect(page.locator("#live-mic-partial")).to_have_text("No active partial")
+    expect(page.locator("#live-mic-finals")).to_contain_text(
+        "Финальная реплика из микрофона."
+    )
+    expect(page.locator("#live-mic-finals")).to_contain_text("MIC")
+    expect(page.locator("#live-mic-warnings")).to_contain_text("mic audio dropped")
+    expect(page.get_by_role("button", name="Run full pipeline")).to_be_enabled()
+    stop_headers = captured["stop_headers"]
+    assert isinstance(stop_headers, dict)
+    assert stop_headers.get("x-csrf-token") == "live-browser-csrf"
     assert errors == []
