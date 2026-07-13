@@ -108,7 +108,11 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def choose_media(meeting_dir: Path, meeting: dict[str, Any]) -> Path:
+def choose_media(
+    meeting_dir: Path,
+    meeting: dict[str, Any],
+    preferred_media_path: str | None = None,
+) -> Path:
     media_files = meeting.get("source", {}).get("media_files", [])
     if not media_files:
         raise TranscribeMeetingError("meeting.json has no source.media_files.", stage="preflight")
@@ -116,17 +120,36 @@ def choose_media(meeting_dir: Path, meeting: dict[str, Any]) -> Path:
     preferred = ["source/audio_16k_mono.wav"]
     candidates = []
     for media in media_files:
-        value = media.get("path")
+        value = media.get("path") if isinstance(media, dict) else None
         if value:
-            candidates.append(str(value))
-    ordered = preferred + [value for value in candidates if value not in preferred]
+            candidates.append(str(value).replace("\\", "/"))
+    if preferred_media_path:
+        selected = str(preferred_media_path).replace("\\", "/")
+        selected_path = Path(selected)
+        if selected_path.is_absolute() or ".." in selected_path.parts:
+            raise TranscribeMeetingError(
+                "--media-path must be a safe relative meeting media path.",
+                stage="preflight",
+            )
+        if selected not in candidates:
+            raise TranscribeMeetingError(
+                "--media-path must reference source.media_files.",
+                stage="preflight",
+            )
+        ordered = [selected]
+    else:
+        ordered = preferred + [value for value in candidates if value not in preferred]
 
     for value in ordered:
         path = Path(value)
         if path.is_absolute():
             raise TranscribeMeetingError("source.media_files paths must be relative to meeting directory.", stage="preflight")
-        resolved = meeting_dir / path
-        if resolved.exists():
+        resolved = (meeting_dir / path).resolve()
+        try:
+            resolved.relative_to(meeting_dir.resolve())
+        except ValueError:
+            continue
+        if resolved.is_file():
             return resolved
 
     raise TranscribeMeetingError("No existing media file found in meeting source.media_files.", stage="preflight")
@@ -343,7 +366,11 @@ def run(args: argparse.Namespace) -> int:
             print(str(exc))
             return 0
 
-        media_path = choose_media(meeting_dir, meeting) if args.engine != "from-segments" else None
+        media_path = (
+            choose_media(meeting_dir, meeting, args.media_path)
+            if args.engine != "from-segments"
+            else None
+        )
         if args.dry_run:
             print("dry-run ok")
             print(f"meeting_dir: {meeting_dir}")
@@ -460,6 +487,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--meeting-dir", required=True, help="Path to meeting folder.")
     parser.add_argument("--engine", required=True, choices=sorted(SUPPORTED_ENGINES))
     parser.add_argument("--segments-path", help="Input JSONL for --engine from-segments.")
+    parser.add_argument(
+        "--media-path",
+        help="Optional registered source.media_files path to transcribe.",
+    )
     parser.add_argument("--model", default=None, help="ASR model name. Defaults depend on engine.")
     parser.add_argument("--language", default="ru")
     parser.add_argument("--compute-type", default="int8")

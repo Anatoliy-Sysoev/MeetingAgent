@@ -106,6 +106,10 @@ def _live_settings(config: dict[str, Any]) -> dict[str, Any]:
         "active_sessions_max": integer("active_sessions_max", 2),
         "max_state_bytes": integer("max_state_bytes", 4 * 1024 * 1024),
         "stop_timeout_seconds": number("stop_timeout_seconds", 15.0),
+        "audio_archive_max_bytes": integer("audio_archive_max_bytes", 2_000_000_000),
+        "audio_archive_min_free_bytes": integer(
+            "audio_archive_min_free_bytes", 256 * 1024 * 1024
+        ),
     }
 
 
@@ -183,6 +187,8 @@ def build_app_state(config: dict[str, Any] | None = None) -> AppState:
             active_sessions_max=live_cfg["active_sessions_max"],
             max_state_bytes=live_cfg["max_state_bytes"],
             stop_timeout_seconds=live_cfg["stop_timeout_seconds"],
+            audio_archive_max_bytes=live_cfg["audio_archive_max_bytes"],
+            audio_archive_min_free_bytes=live_cfg["audio_archive_min_free_bytes"],
         ),
         auth_repository=auth_repository,
         local_auth_service=LocalAuthService(

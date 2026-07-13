@@ -208,6 +208,9 @@
         "live_report_mic": {
           "$ref": "#/$defs/relative_path"
         },
+        "live_audio_mic": {
+          "$ref": "#/$defs/relative_path"
+        },
         "live_segments_sys": {
           "$ref": "#/$defs/relative_path"
         },
@@ -224,6 +227,9 @@
           "$ref": "#/$defs/relative_path"
         },
         "live_report_sys": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_audio_sys": {
           "$ref": "#/$defs/relative_path"
         },
         "live_segments_mix": {

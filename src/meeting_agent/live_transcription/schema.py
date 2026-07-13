@@ -12,6 +12,7 @@ SOURCE_ARTIFACT_KEYS = {
         "live_srt": "live_srt_mic",
         "live_vtt": "live_vtt_mic",
         "live_report": "live_report_mic",
+        "live_audio": "live_audio_mic",
     },
     "SYS": {
         "live_segments": "live_segments_sys",
@@ -20,6 +21,7 @@ SOURCE_ARTIFACT_KEYS = {
         "live_srt": "live_srt_sys",
         "live_vtt": "live_vtt_sys",
         "live_report": "live_report_sys",
+        "live_audio": "live_audio_sys",
     },
     "MIX": {
         "live_segments": "live_segments_mix",
