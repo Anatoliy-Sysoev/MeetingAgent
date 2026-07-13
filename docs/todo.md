@@ -1,6 +1,6 @@
 # Todo
 
-Обновлено: 2026-07-12.
+Обновлено: 2026-07-13.
 
 ## Done
 
@@ -92,6 +92,8 @@
 - [x] MA-UI-CSP-MODULARIZATION (#180): packaged versioned frontend assets,
   restrictive self-only CSP, immutable asset delivery and browser-level smoke
   coverage for upload/pipeline/Workspace workflows.
+- [x] TEST-WORKSPACE-CRLF-PARSING (#200): Workspace static UI assertions are
+  newline-agnostic on Windows and Linux checkouts.
 - [ ] MA-MEETING-VECTOR-CACHE-LOCKING (#181): concurrency-safe semantic cache.
 - [ ] MA-MEETINGAGENT-UI-MOCKUPS: approve target mockups for registry, upload wizard, processing monitor and meeting card before deeper UI refactor.
 

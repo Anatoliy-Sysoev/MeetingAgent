@@ -20,9 +20,19 @@ if str(SRC) not in sys.path:
 from asu_june_bot.api.ui_assets import load_ui_asset, load_ui_template  # noqa: E402
 
 
+def _normalize_newlines(value: str) -> str:
+    return value.replace("\r\n", "\n").replace("\r", "\n")
+
+
 @pytest.fixture(scope="module")
 def html() -> str:
-    return load_ui_template("workspace.html") + load_ui_asset("workspace.js")
+    return _normalize_newlines(
+        load_ui_template("workspace.html") + load_ui_asset("workspace.js")
+    )
+
+
+def test_workspace_fixture_normalizes_windows_line_endings() -> None:
+    assert _normalize_newlines("function f() {\r\n}\r\n") == "function f() {\n}\n"
 
 
 # ---------------------------------------------------------------------------
