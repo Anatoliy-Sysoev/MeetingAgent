@@ -68,7 +68,7 @@ def test_live_controls_have_accessible_status_and_labels(html: str) -> None:
     assert 'aria-labelledby="live-mic-title"' in html
     assert 'aria-labelledby="live-sys-title"' in html
     assert 'aria-live="polite"' in html
-    assert html.count('role="log"') == 2
+    assert html.count('role="log"') == 3
     assert 'aria-relevant="additions text"' in html
     assert 'role="alert"' in html
     assert 'for="live-mic-device"' in html
@@ -83,6 +83,33 @@ def test_live_api_contract_is_fully_wired(html: str) -> None:
     assert "${sessionId}/stop`" in html
     assert "/live/refinement?${query.toString()}" in html
     assert "/live/refinement`" in html
+    assert "/live/timeline" in html
+
+
+def test_live_conversation_is_bounded_source_aware_and_dom_safe(html: str) -> None:
+    assert 'id="live-conversation-title">Conversation' in html
+    assert 'id="live-conversation-finals"' in html
+    assert 'aria-label="Unified live conversation transcript"' in html
+    assert "LIVE_CONVERSATION_ROWS_MAX = 500" in html
+    assert "function liveConversationRows" in html
+    assert "function renderLiveConversation" in html
+    assert "origin_segment_id" in html
+    assert 'source.dataset.source = rowData.source' in html
+    block = html[html.index("function renderLiveConversation") :]
+    block = block[: block.index("async function loadLiveTimeline")]
+    assert "textContent" in block
+    assert "replaceChildren" in block
+    assert "innerHTML" not in block
+
+
+def test_live_conversation_refreshes_saved_mix_after_session_completion(html: str) -> None:
+    poll = _function_block(html, "pollLiveTrack")
+    assert "const wasActive = liveIsActive(state.session)" in poll
+    assert "await loadLiveTimeline()" in poll
+    load = _function_block(html, "loadLiveTimeline")
+    assert "after=0&limit=${LIVE_CONVERSATION_ROWS_MAX}" in load
+    assert "total - LIVE_CONVERSATION_ROWS_MAX" in load
+    assert "timeline_started_at" in load
 
 
 def test_live_refinement_uses_csrf_and_tracks_durable_job(html: str) -> None:

@@ -16,6 +16,7 @@ from asu_june_bot.live_sessions import (
 from asu_june_bot.live_sessions.store import LiveSessionStore, LiveSessionStoreError
 from asu_june_bot.meetings.service import MeetingsService
 from meeting_agent.live_transcription.audio_capture import AudioDevice, AudioSourcePreflight
+from meeting_agent.live_transcription.mix import LiveMixError
 from meeting_agent.live_transcription.schema import LiveSegment
 from meeting_agent.live_transcription.vosk_backend import VoskLiveResult
 
@@ -286,7 +287,11 @@ def test_start_stop_finalizes_artifacts_and_meeting_card(tmp_path: Path) -> None
         card = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
         assert card["processing_status"] == "processing"
         assert card["source"]["audio_tracks"] == ["MIC"]
+        assert card["source"]["derived_tracks"] == ["MIX"]
         assert "live_segments_mic" in card["artifacts"]
+        assert card["artifacts"]["live_segments_mix"] == (
+            "transcript/live/live_segments.MIX.jsonl"
+        )
         assert card["artifacts"]["live_segments_mic"].startswith("transcript/live/")
         assert card["artifacts"]["live_segments_mic"] in card["rag"]["no_index_artifacts"]
         assert (meeting_dir / card["artifacts"]["live_report_mic"]).is_file()
@@ -320,6 +325,62 @@ def test_start_stop_finalizes_artifacts_and_meeting_card(tmp_path: Path) -> None
             }
         ]
         assert "Users" not in json.dumps(media)
+        timeline = service.timeline(MEETING_ID)
+        assert timeline["source"] == "MIX"
+        assert timeline["segments"][0]["source"] == "MIC"
+        assert timeline["segments"][0]["origin_segment_id"] == "live-seg-000000"
+    finally:
+        service.shutdown()
+
+
+def test_two_completed_sources_rebuild_one_chronological_mix(tmp_path: Path) -> None:
+    meeting_dir = _meeting(tmp_path / "meetings")
+    mic = _BlockingTranscriber()
+    service = _service(tmp_path, transcriber=mic)
+    try:
+        mic_session = service.start(MEETING_ID, source="MIC")
+        assert mic.started.wait(timeout=1)
+        service.stop(MEETING_ID, mic_session["session_id"])
+
+        sys = _BlockingTranscriber()
+        service.transcriber = sys
+        sys_session = service.start(MEETING_ID, source="SYS")
+        assert sys.started.wait(timeout=1)
+        service.stop(MEETING_ID, sys_session["session_id"])
+
+        timeline = service.timeline(MEETING_ID)
+        assert [row["source"] for row in timeline["segments"]] == ["MIC", "SYS"]
+        assert len({row["segment_id"] for row in timeline["segments"]}) == 2
+        card = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
+        assert sorted(card["source"]["audio_tracks"]) == ["MIC", "SYS"]
+        for key in (
+            "live_segments_mix",
+            "live_partials_mix",
+            "live_transcript_mix",
+            "live_srt_mix",
+            "live_vtt_mix",
+            "live_report_mix",
+        ):
+            assert card["artifacts"][key] in card["rag"]["no_index_artifacts"]
+    finally:
+        service.shutdown()
+
+
+def test_mix_derivation_failure_is_nonfatal_and_visible(tmp_path: Path, monkeypatch) -> None:
+    _meeting(tmp_path / "meetings")
+    transcriber = _BlockingTranscriber()
+    service = _service(tmp_path, transcriber=transcriber)
+    monkeypatch.setattr(
+        "asu_june_bot.live_sessions.service.build_derived_mix_artifacts",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(LiveMixError("broken")),
+    )
+    try:
+        started = service.start(MEETING_ID, source="MIC")
+        assert transcriber.started.wait(timeout=1)
+        stopped = service.stop(MEETING_ID, started["session_id"])
+
+        assert stopped["status"] == "completed"
+        assert "live_mix_derivation_failed" in stopped["warnings"]
     finally:
         service.shutdown()
 

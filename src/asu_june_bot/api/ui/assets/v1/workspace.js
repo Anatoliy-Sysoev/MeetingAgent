@@ -17,6 +17,7 @@ let _actionInProgress = false;
 
 const LIVE_SOURCES = ["MIC", "SYS"];
 const LIVE_FINAL_ROWS_MAX = 250;
+const LIVE_CONVERSATION_ROWS_MAX = 500;
 const LIVE_POLL_INTERVAL_MS = 750;
 const _liveTracks = {
   MIC: {
@@ -33,6 +34,13 @@ const _liveTracks = {
 let _livePollTimer = null;
 let _liveClockTimer = null;
 let _livePollInFlight = false;
+const _liveTimeline = {
+  segments: [],
+  timelineStartedAt: null,
+  warnings: [],
+  revision: 0,
+  renderedKey: null,
+};
 
 // ---- auth ----
 function showAuthOverlay(title, detail) {
@@ -464,6 +472,139 @@ function renderLiveFinals(source) {
   state.renderedFinalsRevision = state.finalsRevision;
 }
 
+function liveEpoch(value) {
+  const timestamp = Date.parse(String(value || ""));
+  return Number.isFinite(timestamp) ? timestamp / 1000 : null;
+}
+
+function liveConversationRows() {
+  const activeSources = new Set(
+    LIVE_SOURCES.filter((source) => liveIsActive(_liveTracks[source].session))
+  );
+  const saved = _liveTimeline.segments.filter(
+    (segment) => !activeSources.has(segment.source)
+  );
+  const savedEpoch = saved.length > 0 ? liveEpoch(_liveTimeline.timelineStartedAt) : null;
+  const sessionEpochs = LIVE_SOURCES.map((source) => ({
+    source,
+    epoch: liveEpoch(_liveTracks[source].session && _liveTracks[source].session.started_at),
+  })).filter((item) => (
+    item.epoch !== null &&
+    (liveIsActive(_liveTracks[item.source].session) || _liveTracks[item.source].finals.length > 0)
+  ));
+  const candidates = sessionEpochs.map((item) => item.epoch);
+  if (savedEpoch !== null) candidates.push(savedEpoch);
+  const timelineEpoch = candidates.length > 0 ? Math.min(...candidates) : 0;
+  const rows = new Map();
+
+  for (const segment of saved) {
+    const source = segment.source === "SYS" ? "SYS" : "MIC";
+    const key = `${source}:${String(segment.origin_segment_id || segment.segment_id || "")}`;
+    const offset = savedEpoch === null ? 0 : Math.max(0, savedEpoch - timelineEpoch);
+    rows.set(key, {
+      key,
+      source,
+      start: offset + (Number(segment.start) || 0),
+      end: offset + (Number(segment.end) || 0),
+      text: String(segment.text || ""),
+    });
+  }
+
+  for (const source of LIVE_SOURCES) {
+    const state = _liveTracks[source];
+    const sessionEpoch = liveEpoch(state.session && state.session.started_at);
+    const offset = sessionEpoch === null ? 0 : Math.max(0, sessionEpoch - timelineEpoch);
+    for (const event of state.finals) {
+      const originId = String(event.segmentId || `event-${event.eventId}`);
+      const key = `${source}:${originId}`;
+      rows.set(key, {
+        key,
+        source,
+        start: offset + (Number(event.start) || 0),
+        end: offset + (Number(event.end) || 0),
+        text: String(event.text || ""),
+      });
+    }
+  }
+
+  return [...rows.values()]
+    .filter((row) => row.text.trim())
+    .sort((left, right) => (
+      left.start - right.start ||
+      (left.source === right.source ? 0 : left.source === "MIC" ? -1 : 1) ||
+      left.key.localeCompare(right.key) ||
+      left.end - right.end
+    ))
+    .slice(-LIVE_CONVERSATION_ROWS_MAX);
+}
+
+function renderLiveConversation() {
+  const list = document.getElementById("live-conversation-finals");
+  const badge = document.getElementById("live-conversation-badge");
+  if (!list || !badge) return;
+  const renderKey = JSON.stringify({
+    timeline: _liveTimeline.revision,
+    tracks: LIVE_SOURCES.map((source) => ({
+      revision: _liveTracks[source].finalsRevision,
+      status: _liveTracks[source].session && _liveTracks[source].session.status,
+      startedAt: _liveTracks[source].session && _liveTracks[source].session.started_at,
+    })),
+  });
+  if (_liveTimeline.renderedKey === renderKey) return;
+  const rows = liveConversationRows();
+  badge.textContent = rows.length > 0 ? `${rows.length} final lines` : "MIX draft";
+  badge.className = `badge${rows.length > 0 ? " ok" : ""}`;
+  badge.title = _liveTimeline.warnings.length > 0
+    ? _liveTimeline.warnings.map((warning) => String(warning).replace(/_/g, " ")).join("; ")
+    : "Derived final MIC and SYS transcript timeline";
+  if (rows.length === 0) {
+    list.replaceChildren(_mkEmptyMsg("No final conversation lines yet"));
+    _liveTimeline.renderedKey = renderKey;
+    return;
+  }
+  const nodes = rows.map((rowData) => {
+    const row = _mkEl("div", "live-conversation-row");
+    const source = _mkEl("span", "live-conversation-source");
+    source.dataset.source = rowData.source;
+    source.textContent = rowData.source;
+    const content = _mkEl("div", "live-conversation-content");
+    const meta = _mkEl("div", "live-conversation-meta");
+    meta.textContent = `${fmtSec(rowData.start)}–${fmtSec(rowData.end)}`;
+    const text = _mkEl("div", "live-conversation-text");
+    text.textContent = rowData.text;
+    content.append(meta, text);
+    row.append(source, content);
+    return row;
+  });
+  list.replaceChildren(...nodes);
+  list.scrollTop = list.scrollHeight;
+  _liveTimeline.renderedKey = renderKey;
+}
+
+async function loadLiveTimeline() {
+  const base = `/meetings/${encodeURIComponent(MEETING_ID)}/live/timeline`;
+  try {
+    let resp = await apiFetch(`${base}?after=0&limit=${LIVE_CONVERSATION_ROWS_MAX}`);
+    if (!resp || !resp.ok) return;
+    let body = await resp.json();
+    const total = Number(body.total) || 0;
+    if (total > LIVE_CONVERSATION_ROWS_MAX) {
+      const after = Math.max(0, total - LIVE_CONVERSATION_ROWS_MAX);
+      resp = await apiFetch(`${base}?after=${after}&limit=${LIVE_CONVERSATION_ROWS_MAX}`);
+      if (!resp || !resp.ok) return;
+      body = await resp.json();
+    }
+    _liveTimeline.segments = Array.isArray(body.segments) ? body.segments : [];
+    _liveTimeline.timelineStartedAt = body.timeline_started_at || null;
+    _liveTimeline.warnings = Array.isArray(body.warnings) ? body.warnings.slice(0, 50) : [];
+    _liveTimeline.revision += 1;
+    _liveTimeline.renderedKey = null;
+    renderLiveConversation();
+  } catch (e) {
+    setLiveGlobalError("The saved conversation timeline could not be refreshed.");
+  }
+}
+
 function refinementStatusLabel(state) {
   const labels = {
     unavailable: "No draft",
@@ -589,6 +730,7 @@ function renderLiveTrack(source) {
   renderLiveDeviceOptions(source);
   renderLiveWarnings(source);
   renderLiveFinals(source);
+  renderLiveConversation();
   renderLiveRefinement(source);
   updateLiveElapsed();
 }
@@ -725,6 +867,8 @@ function applyLiveEvents(source, events) {
       if (text) {
         state.finals.push({
           eventId,
+          segmentId: String(event.segment_id || `event-${eventId}`),
+          source,
           text,
           start: Number(event.start) || 0,
           end: Number(event.end) || 0,
@@ -741,6 +885,7 @@ function applyLiveEvents(source, events) {
 async function pollLiveTrack(source) {
   const state = _liveTracks[source];
   if (!state.session || !state.session.session_id) return;
+  const wasActive = liveIsActive(state.session);
   const sessionId = encodeURIComponent(state.session.session_id);
   const prefix = `/meetings/${encodeURIComponent(MEETING_ID)}/live/sessions/${sessionId}`;
   const [eventsResp, statusResp] = await Promise.all([
@@ -758,6 +903,7 @@ async function pollLiveTrack(source) {
   state.session = await statusResp.json();
   if (state.session && !state.session.is_active) state.partial = "";
   renderLiveTrack(source);
+  if (wasActive && !liveIsActive(state.session)) await loadLiveTimeline();
 }
 
 function stopLiveTimersIfIdle() {
@@ -793,13 +939,14 @@ async function pollLiveSessions() {
 
 async function loadLive() {
   setLiveGlobalError("");
-  await Promise.all(
-    LIVE_SOURCES.flatMap((source) => [
+  await Promise.all([
+    loadLiveTimeline(),
+    ...LIVE_SOURCES.flatMap((source) => [
       refreshLivePreflight(source),
       loadActiveLiveSession(source),
       loadLiveRefinement(source),
-    ])
-  );
+    ]),
+  ]);
   if (LIVE_SOURCES.some((source) => liveIsActive(_liveTracks[source].session))) {
     startLiveTimers();
     await pollLiveSessions();

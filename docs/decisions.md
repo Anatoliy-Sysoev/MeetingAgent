@@ -1014,3 +1014,32 @@ official action или сменой major.
 - permissions, cache inputs, triggers и job topology не меняются;
 - новый official action сначала добавляется в reviewed allowlist теста;
 - self-hosted runner при будущем включении должен быть версии `2.327.1+`.
+
+## 2026-07-13 - Live MIX Является Derived Transcript, А Не Raw Audio Mix
+
+Решение: сохранять MIC и SYS как независимые source-of-truth WAV/JSONL, а
+`MIX` строить только как производную хронологию final-сегментов. Независимые
+таймкоды выравниваются по `started_at` source reports; каждая MIX-строка хранит
+origin source, origin segment id и исходные start/end. Hardware/raw PCM MIX
+остаётся fail closed.
+
+Почему:
+
+- предварительное смешивание PCM ухудшает ASR и теряет provenance дорожки;
+- MIC и SYS могут стартовать не одновременно, поэтому сортировки локальных
+  `start` недостаточно;
+- Workspace нужен единый читаемый диалог, но canonical transcript всё равно
+  должен появляться только после offline refinement;
+- производное представление можно безопасно пересобрать без изменения source
+  artifacts.
+
+Следствия:
+
+- после завершения MIC или SYS MIX пересобирается под meeting lock и публикует
+  каждый файл атомарно; canonical JSONL является последним commit marker;
+- одна отсутствующая/пустая дорожка допустима и отражается bounded warning;
+- `GET /meetings/{id}/live/timeline` требует `transcripts.read`, ограничивает
+  pagination и не отдаёт локальные пути;
+- Workspace показывает до 500 combined final rows с MIC/SYS badges;
+- все MIX artifacts всегда остаются в `rag.no_index_artifacts`; evidence может
+  появиться только из canonical offline ASR.
