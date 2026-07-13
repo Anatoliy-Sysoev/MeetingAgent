@@ -6,7 +6,6 @@ packages:
   current:
     - asu_june_bot
     - asu_june_bot.api
-    - asu_june_bot.auth
     - asu_june_bot.chat
     - asu_june_bot.eval
     - asu_june_bot.evals
@@ -14,24 +13,30 @@ packages:
     - asu_june_bot.guardrails
     - asu_june_bot.health
     - asu_june_bot.ingestion
-    - asu_june_bot.jobs
-    - asu_june_bot.live_sessions
-    - asu_june_bot.meetings
     - asu_june_bot.observability
     - asu_june_bot.packaging
     - asu_june_bot.qh
     - asu_june_bot.retrieval
     - asu_june_bot.search
     - meeting_agent
+    - meeting_agent.api
+    - meeting_agent.auth
     - meeting_agent.diarization
     - meeting_agent.evaluation
     - meeting_agent.live_transcription
+    - meeting_agent.jobs
+    - meeting_agent.live_sessions
+    - meeting_agent.meetings
     - meeting_agent.shared
     - meeting_agent.shared.llm
     - meeting_agent.transcription
   compatibility:
+    - asu_june_bot.auth
     - asu_june_bot.core
+    - asu_june_bot.jobs
+    - asu_june_bot.live_sessions
     - asu_june_bot.llm
+    - asu_june_bot.meetings
   planned: []
 
 scripts:
@@ -64,6 +69,7 @@ scripts:
     - scripts/47_dependency_audit.py
     - scripts/48_retrieval_coverage.py
     - scripts/49_rebuild_meeting_vector_cache.py
+    - scripts/meeting_agent_api.py
     - scripts/asu_june_bot_api.py
     - scripts/asu_june_bot_audit_sources_v2.py
     - scripts/asu_june_bot_build_chunks_v2.py
@@ -145,6 +151,7 @@ supported_cli_help:
   - scripts/44_evaluate_meeting_summary.py
   - scripts/45_validate_release_notes.py
   - scripts/49_rebuild_meeting_vector_cache.py
+  - scripts/meeting_agent_api.py
   - scripts/asu_june_bot_api.py
   - scripts/asu_june_bot_chat.py
   - scripts/asu_june_bot_search_v2.py
@@ -158,7 +165,6 @@ removed_paths:
   - templates/documents
   - templates/meetings
   - templates/prompts
-  - src/meeting_agent/api
   - src/meeting_agent/classification
   - src/meeting_agent/config
   - src/meeting_agent/core
@@ -166,7 +172,6 @@ removed_paths:
   - src/meeting_agent/extraction
   - src/meeting_agent/ingest
   - src/meeting_agent/integrations
-  - src/meeting_agent/meetings
   - src/meeting_agent/observability
   - src/meeting_agent/rag
   - src/meeting_agent/storage

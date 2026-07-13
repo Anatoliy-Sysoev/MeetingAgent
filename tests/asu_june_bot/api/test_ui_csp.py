@@ -165,7 +165,7 @@ def test_template_renderer_rejects_implicit_replacement_marker() -> None:
 
 def test_ui_templates_and_assets_are_declared_as_wheel_package_data() -> None:
     config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    patterns = set(config["tool"]["setuptools"]["package-data"]["asu_june_bot.api"])
+    patterns = set(config["tool"]["setuptools"]["package-data"]["meeting_agent.api"])
     assert patterns == {
         "ui/templates/*.html",
         "ui/assets/v1/*.css",

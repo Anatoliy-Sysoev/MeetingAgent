@@ -11,7 +11,8 @@ machine-local config overlays Docker daemon.
 ## Сервисы
 
 ```text
-api          - FastAPI Project Knowledge Bot, endpoints /health, /search, /chat, /ui
+core         - optional profile: independent MeetingAgent Core API/UI on port 8001
+api          - integrated MeetingAgent + Project Knowledge Bot API/UI on port 8000
 bot          - Telegram adapter поверх http://api:8000/chat, запускается profile bot
 diarization  - optional image с requirements-diarization.txt для sherpa-onnx и meeting CLI
 ```
@@ -73,6 +74,19 @@ py -3.12 -m venv .venv
 docker compose build api
 docker compose up api
 ```
+
+Только независимый MeetingAgent Core:
+
+```powershell
+docker compose --profile core up --build core
+```
+
+По умолчанию core публикуется на `127.0.0.1:8001`; порт меняется через
+`MEETINGAGENT_CORE_API_PORT`.
+
+`core` и `api` — альтернативные runtime entrypoints. Не запускайте их
+одновременно с общими writable volumes `data`, `logs` и `meetings`: оба владеют
+одним auth/job/live state и одной коллекцией meeting cards.
 
 Проверка:
 

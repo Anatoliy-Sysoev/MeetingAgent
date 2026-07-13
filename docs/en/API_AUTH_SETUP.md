@@ -682,7 +682,7 @@ MEETINGAGENT_API_TOKEN=<generate with: python -c "import secrets; print(secrets.
 
 ### What is validated at startup
 
-The validator (`src/asu_june_bot/auth/deployment_safety.py`) checks:
+The validator (`src/meeting_agent/auth/deployment_safety.py`) checks:
 
 | Finding code | Checked | self_hosted severity |
 |---|---|---|

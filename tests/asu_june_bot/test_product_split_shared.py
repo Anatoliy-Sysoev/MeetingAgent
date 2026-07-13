@@ -34,9 +34,9 @@ def test_legacy_shared_imports_are_compatible(tmp_path: Path) -> None:
 def test_meeting_owned_code_uses_shared_imports() -> None:
     root = Path(__file__).resolve().parents[2]
     meeting_owned = [
-        root / "src" / "asu_june_bot" / "meetings" / "qa.py",
-        root / "src" / "asu_june_bot" / "meetings" / "vector_index.py",
-        root / "src" / "asu_june_bot" / "api" / "routes_meetings.py",
+        root / "src" / "meeting_agent" / "meetings" / "qa.py",
+        root / "src" / "meeting_agent" / "meetings" / "vector_index.py",
+        root / "src" / "meeting_agent" / "api" / "routes_meetings.py",
         root / "scripts" / "29_analyze_meeting.py",
         root / "scripts" / "31_meeting_search.py",
     ]

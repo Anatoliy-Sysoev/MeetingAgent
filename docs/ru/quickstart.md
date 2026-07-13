@@ -29,6 +29,14 @@ ollama pull qwen3.5:4b
 
 ## Запуск API
 
+Только MeetingAgent Core:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\meeting_agent_api.py --host 127.0.0.1 --port 8000
+```
+
+Интегрированный MeetingAgent + Project Knowledge Bot:
+
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_api.py --host 127.0.0.1 --port 8000
 ```
@@ -44,6 +52,7 @@ Invoke-RestMethod http://127.0.0.1:8000/health
 ```text
 http://127.0.0.1:8000/
 http://127.0.0.1:8000/ui
+http://127.0.0.1:8000/MeetingAgent
 ```
 
 ## Задать Вопрос

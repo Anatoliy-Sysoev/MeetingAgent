@@ -61,6 +61,9 @@
 - [x] MA-ADMIN-CONSOLE-USERS-V1 (#234): protected `/admin` user/role lifecycle,
   explicit account status confirmation, real bounded pagination, redacted
   security/bootstrap summary and permission-gated product navigation.
+- [x] MA-PRODUCT-SPLIT-PHASE-2 (#235): MeetingAgent API/auth/meetings/jobs/live
+  ownership moved to the independently startable core; integrated PKB runtime
+  and deprecated legacy imports remain backward compatible.
 
 ## Active / Next
 
@@ -148,8 +151,6 @@
 
 ## Meeting Product Backlog
 
-- [ ] MA-PRODUCT-SPLIT-PHASE-2 (#235): move MeetingAgent-owned API/services to
-  the core package and reduce the current compatibility bridge.
 - [ ] MA-DEPS-MAJOR-COMPATIBILITY (#236): validate NumPy/audio/ONNX/docs major
   upgrades as separate compatibility groups with their own constraints.
 

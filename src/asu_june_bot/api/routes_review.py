@@ -5,8 +5,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from asu_june_bot.api.auth import require_admin_action_permission, require_admin_user_permission
-from asu_june_bot.auth.models import Principal
+from meeting_agent.api.auth import require_admin_action_permission, require_admin_user_permission
+from meeting_agent.auth.models import Principal
 from asu_june_bot.observability.review_queue import VALID_LABELS, ReviewQueue
 
 router = APIRouter(prefix="/admin/review", tags=["review"])
