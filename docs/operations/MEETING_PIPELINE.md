@@ -275,6 +275,66 @@ transcript/live/live_report.<SOURCE>.json
 - Ctrl+C во время live-записи считается штатным завершением: backend финализирует накопленные segments/partials и пишет артефакты.
 - После live draft статус остается `processing`, а не `transcribed`; это не блокирует финальный offline ASR.
 
+#### Live Session API
+
+API v1 управляет тем же Vosk backend через аутентифицированный lifecycle:
+
+```text
+GET  /meetings/{meeting_id}/live/preflight
+GET  /meetings/{meeting_id}/live/sessions/active
+POST /meetings/{meeting_id}/live/sessions
+GET  /meetings/{meeting_id}/live/sessions/{session_id}
+GET  /meetings/{meeting_id}/live/sessions/{session_id}/events?after=0&limit=100
+POST /meetings/{meeting_id}/live/sessions/{session_id}/stop
+```
+
+Пример запуска через machine token:
+
+```powershell
+$headers = @{ Authorization = "Bearer $env:MEETINGAGENT_API_TOKEN" }
+$body = @{ source = "MIC"; vad = "silero" } | ConvertTo-Json
+$session = Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://127.0.0.1:8000/meetings/<meeting_id>/live/sessions" `
+  -Headers $headers `
+  -ContentType "application/json" `
+  -Body $body
+
+Invoke-RestMethod `
+  -Uri "http://127.0.0.1:8000/meetings/<meeting_id>/live/sessions/$($session.session_id)/events?after=0&limit=100" `
+  -Headers $headers
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://127.0.0.1:8000/meetings/<meeting_id>/live/sessions/$($session.session_id)/stop" `
+  -Headers $headers
+```
+
+Контракт безопасности и восстановления:
+
+- read требует `jobs.read`, start - `jobs.start`, stop - `jobs.cancel`;
+- cookie/session POST дополнительно требует `X-CSRF-Token`; bearer machine token
+  не использует cookie и освобождён от CSRF;
+- одновременно разрешена одна активная сессия на пару meeting/source;
+- глобальный `live.active_sessions_max` по умолчанию равен 2, чтобы пара MIC+SYS
+  не превращалась в неограниченную загрузку Vosk models/CPU;
+- публичный preflight отдаёт только `device_index` и ограниченный label, без
+  host API, channel/rate diagnostics, model path и raw exceptions;
+- model readiness проверяет минимальный Vosk layout (`am/final.mdl`,
+  `conf/model.conf` и graph FST), а не только наличие каталога;
+- event ring ограничен, один ответ возвращает не более 200 событий;
+- status/final events сохраняются атомарно в
+  `paths.live_sessions_state`; partial events остаются только в памяти;
+- `stop` ставит stop signal, ждёт bounded timeout и даёт Vosk выполнить
+  `FinalResult()` перед записью draft artifacts;
+- незавершённая запись после рестарта API становится `stale`, а карточка
+  получает path-free `last_error.code=api_restart`;
+- state file имеет process-level owner lock. Текущий runtime запускается с
+  одним API worker; второй процесс с тем же state path завершает startup
+  fail-closed;
+- live draft по-прежнему включается в `rag.no_index_artifacts` и не заменяет
+  offline transcript.
+
 VAD modes:
 
 ```text

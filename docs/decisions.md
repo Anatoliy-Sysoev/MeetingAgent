@@ -822,3 +822,38 @@ index. Core `constraints-py312.txt`, base install и Docker image live packages
   `pip check`, import smoke и проверки загрузки Silero model;
 - GigaAM остаётся отдельным несовместимым runtime profile и не смешивается с
   live environment.
+
+## 2026-07-13 - Live Session API Использует Bounded Polling И Single-Owner State
+
+Решение: lifecycle live-записи управляется отдельным аутентифицированным API.
+Один background worker владеет одной парой meeting/source, stop передаётся в
+Vosk через `threading.Event`, а клиент читает bounded partial/final/status events
+по курсору `after`. Status и final events сохраняются в atomic JSON snapshot;
+частые partial hypotheses остаются memory-only. State path удерживает
+process-level owner lock на всё время жизни API.
+
+Почему:
+
+- запуск capture из HTTP request не должен удерживать request до конца встречи;
+- polling даёт стабильный и тестируемый v1-контракт без преждевременного
+  WebSocket transport;
+- continuous whole-file rewrite на каждый partial создаёт лишний I/O и большой
+  crash surface, тогда как final/status нужны для restart recovery;
+- два API workers не могут безопасно владеть одним локальным PortAudio stream и
+  in-memory event ring, поэтому второй owner должен завершать startup fail-closed;
+- stop обязан пройти через штатный Vosk `FinalResult()`, а не убивать worker.
+
+Следствия:
+
+- browser start/stop требует RBAC и CSRF, machine bearer использует те же
+  action permissions без cookie CSRF;
+- незавершённые durable records после API restart детерминированно становятся
+  `stale` и записывают path-free `api_restart` в meeting card;
+- публичные ответы не содержат model path, host API, channel/rate diagnostics,
+  raw device errors или абсолютные пути;
+- event response явно сообщает `partial_events_durable=false` и потерю старого
+  cursor через `truncated=true`;
+- глобальный active-session budget равен двум по умолчанию: MIC+SYS разрешены,
+  но число одновременно загруженных Vosk models ограничено;
+- multi-worker API и WebSocket не поддерживаются этим контрактом; UI v1
+  использует polling, а offline refinement остаётся отдельным этапом.

@@ -106,8 +106,9 @@
   PyAudioWPatch plus stateful SoXR stereo 44.1/48 kHz -> mono 16 kHz conversion.
 - [x] MA-LIVE-STREAMING-VAD-V1 (#205): apply Silero VAD to microphone/loopback streams
   while preserving real-time timestamps.
-- [ ] MA-LIVE-SESSION-API-V1 (#206): add authenticated start/stop/status/event
-  lifecycle, duplicate-session protection and restart recovery.
+- [x] MA-LIVE-SESSION-API-V1 (#206): authenticated preflight/start/stop/status/
+  event lifecycle, bounded durable state, duplicate protection, graceful stop
+  and deterministic stale recovery.
 - [ ] MA-LIVE-UI-V1 (#207): add browser controls for
   start/stop, partial/final transcript and status.
 - [ ] MA-LIVE-OFFLINE-REFINEMENT-V1 (#208): retain the live draft, then trigger and

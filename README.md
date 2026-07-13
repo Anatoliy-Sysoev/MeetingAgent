@@ -224,8 +224,8 @@ The workspace includes:
 - meeting-scoped search and Q&A with vector retrieval fallback, timestamps, speaker labels, and source citations.
 
 The current product gap is no longer the basic offline pipeline. Remaining work
-is concentrated in the live-session lifecycle and UI, streaming VAD, MIC+SYS
-mixing, offline refinement, and deeper product administration.
+is concentrated in the live browser UI, simultaneous MIC+SYS mixing, offline
+refinement, and deeper product administration.
 
 ### Live Transcription
 
@@ -250,6 +250,9 @@ Keep Vosk models under ignored `models/`, for example:
 ```text
 models/vosk/vosk-model-small-ru-0.22/
 ```
+
+API preflight checks the minimum Vosk layout (`am/final.mdl`,
+`conf/model.conf`, and a supported graph FST), not only the directory name.
 
 Dry-run:
 
@@ -332,6 +335,33 @@ inside a native blocking read and later timestamps remain aligned.
 Prepared `--input-wav` smoke runs may use MIC, SYS, or MIX labels because they do
 not start hardware capture. Every live result remains a draft and must be
 refined by canonical offline ASR before final meeting artifacts are generated.
+
+Authenticated live sessions are also available through the local API:
+
+```text
+GET  /meetings/{meeting_id}/live/preflight
+GET  /meetings/{meeting_id}/live/sessions/active
+POST /meetings/{meeting_id}/live/sessions
+GET  /meetings/{meeting_id}/live/sessions/{session_id}
+GET  /meetings/{meeting_id}/live/sessions/{session_id}/events
+POST /meetings/{meeting_id}/live/sessions/{session_id}/stop
+```
+
+Read operations require `jobs.read`. Start and stop require `jobs.start` and
+`jobs.cancel`; cookie-authenticated browser writes also require the session
+CSRF token. Event polling is bounded to 200 rows per request. Final transcript
+and status events are kept in an atomic bounded snapshot, while high-frequency
+partial hypotheses remain memory-only and are explicitly reported as
+non-durable. A restart marks an unfinished session `stale` and leaves a
+path-free `api_restart` marker on the meeting card.
+
+The live-session state file has one process owner. Running multiple API workers
+against the same `paths.live_sessions_state` fails closed instead of allowing
+duplicate capture. The current deployment contract is therefore one API worker
+per local runtime. `live.active_sessions_max` defaults to `2`, which permits a
+MIC and SYS pair but bounds concurrent Vosk model/CPU use. WebSocket transport
+and browser controls belong to the next UI milestone; the v1 API uses bounded
+polling.
 
 ## Docker
 
