@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+from argparse import Namespace
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -50,6 +52,58 @@ def test_valid_exception_becomes_ignore_flag(tmp_path: Path) -> None:
     assert "--strict" in command
     assert "--no-deps" in command
     assert "--disable-pip" in command
+
+
+def test_audit_environment_forces_utf8_under_non_ascii_windows_path() -> None:
+    environment = audit.build_audit_environment(
+        {
+            "VIRTUAL_ENV": r"C:\Users\Пользователь\Проект\.venv",
+            "PYTHONUTF8": "0",
+            "PYTHONIOENCODING": "cp1251",
+            "KEEP_ME": "present",
+        }
+    )
+
+    assert environment["VIRTUAL_ENV"].endswith(r"Пользователь\Проект\.venv")
+    assert environment["PYTHONUTF8"] == "1"
+    assert environment["PYTHONIOENCODING"] == "utf-8"
+    assert environment["KEEP_ME"] == "present"
+
+
+def test_main_passes_utf8_environment_to_audit_process(
+    tmp_path: Path, monkeypatch
+) -> None:
+    requirements = tmp_path / "constraints.txt"
+    requirements.write_text("example==1.0\n", encoding="utf-8")
+    exceptions = tmp_path / "exceptions.json"
+    _write(exceptions, [])
+    seen: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        audit,
+        "parse_args",
+        lambda: Namespace(
+            requirements=requirements,
+            exceptions=exceptions,
+            check_config=False,
+        ),
+    )
+
+    def fake_run(command, *, cwd, env, check):
+        seen.update(command=command, cwd=cwd, env=env, check=check)
+        return SimpleNamespace(returncode=7)
+
+    monkeypatch.setattr(audit.subprocess, "run", fake_run)
+    monkeypatch.setenv("PYTHONUTF8", "0")
+    monkeypatch.setenv("PYTHONIOENCODING", "cp1251")
+
+    assert audit.main() == 7
+    assert seen["cwd"] == audit.ROOT
+    assert seen["check"] is False
+    assert seen["env"]["PYTHONUTF8"] == "1"
+    assert seen["env"]["PYTHONIOENCODING"] == "utf-8"
+    assert audit.os.environ["PYTHONUTF8"] == "0"
+    assert audit.os.environ["PYTHONIOENCODING"] == "cp1251"
 
 
 @pytest.mark.parametrize(

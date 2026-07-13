@@ -63,8 +63,11 @@ py -3.12 -m venv .venv-lock
 ## Политика Advisory
 
 Scheduled и release workflows запускают `pip-audit` по точному pinned graph.
-Известная уязвимость или ошибка сбора зависимостей ломает gate. Исключение
-допускается только в `security/dependency-audit-exceptions.json` и обязано иметь:
+Известная уязвимость или ошибка сбора зависимостей ломает gate. Дочерний
+audit-процесс всегда использует UTF-8 I/O, поэтому Windows checkout под профилем
+с не-ASCII символами даёт тот же результат, что CI, не меняя окружение
+родительского PowerShell. Исключение допускается только в
+`security/dependency-audit-exceptions.json` и обязано иметь:
 
 - идентификатор CVE, GHSA или PYSEC;
 - конкретное обоснование;

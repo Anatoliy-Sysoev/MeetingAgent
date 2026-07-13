@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
+from collections.abc import Mapping
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -115,6 +117,15 @@ def build_audit_command(requirements: Path, advisory_ids: list[str]) -> list[str
     return command
 
 
+def build_audit_environment(
+    base_environment: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    environment = dict(os.environ if base_environment is None else base_environment)
+    environment["PYTHONUTF8"] = "1"
+    environment["PYTHONIOENCODING"] = "utf-8"
+    return environment
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Audit the reviewed Python 3.12 dependency lock.")
     parser.add_argument("--requirements", type=Path, default=DEFAULT_REQUIREMENTS)
@@ -139,9 +150,15 @@ def main() -> int:
         print(f"Dependency audit policy valid; active exceptions: {len(advisory_ids)}")
         return 0
     command = build_audit_command(args.requirements, advisory_ids)
+    environment = build_audit_environment()
     print(f"Auditing pinned dependencies; reviewed exceptions: {len(advisory_ids)}")
     try:
-        return subprocess.run(command, cwd=ROOT, check=False).returncode
+        return subprocess.run(
+            command,
+            cwd=ROOT,
+            env=environment,
+            check=False,
+        ).returncode
     except OSError as exc:
         raise SystemExit("pip-audit is not installed in this environment") from exc
 

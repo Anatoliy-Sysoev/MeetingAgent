@@ -63,8 +63,11 @@ Do not hand-edit one transitive pin without checking the complete resolver.
 ## Advisory Policy
 
 The scheduled and release workflows run `pip-audit` against the exact pinned
-graph. The audit fails on known vulnerabilities and collection errors. An
-exception is allowed only in `security/dependency-audit-exceptions.json` with:
+graph. The audit fails on known vulnerabilities and collection errors. The
+audit child process always uses UTF-8 I/O, so Windows checkouts under non-ASCII
+user profiles produce the same result as CI without changing the parent shell.
+An exception is allowed only in `security/dependency-audit-exceptions.json`
+with:
 
 - a CVE, GHSA, or PYSEC identifier;
 - a concrete justification;
