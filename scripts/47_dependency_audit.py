@@ -6,6 +6,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from collections.abc import Mapping
 from datetime import date
 from pathlib import Path
@@ -17,11 +18,17 @@ DEFAULT_REQUIREMENTS = ROOT / "constraints-py312.txt"
 DEFAULT_EXCEPTIONS = ROOT / "security" / "dependency-audit-exceptions.json"
 MAX_EXCEPTIONS_BYTES = 64 * 1024
 MAX_EXCEPTIONS = 50
+MAX_REQUIREMENTS_BYTES = 2 * 1024 * 1024
 _ADVISORY_RE = re.compile(
     r"^(?:CVE-\d{4}-\d{4,}|GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}|PYSEC-\d{4}-\d+)$",
     re.IGNORECASE,
 )
 _ISSUE_RE = re.compile(r"^https://github\.com/Anatoliy-Sysoev/MeetingAgent/issues/\d+$")
+_CPU_LOCAL_PIN_RE = re.compile(
+    r"^(?P<name>torch|torchaudio)==(?P<version>[^;+\s]+)\+cpu(?P<marker>\s*;\s*.+)?$",
+    re.IGNORECASE,
+)
+_ANY_LOCAL_PIN_RE = re.compile(r"^[A-Za-z0-9_.-]+==[^;\s]+\+[^;\s]+(?:\s*;\s*.+)?$")
 
 
 class AuditConfigurationError(ValueError):
@@ -126,6 +133,45 @@ def build_audit_environment(
     return environment
 
 
+def write_audit_projection(source: Path, target: Path) -> int:
+    """Project trusted CPU wheel pins onto their auditable upstream versions."""
+    try:
+        if source.stat().st_size > MAX_REQUIREMENTS_BYTES:
+            raise AuditConfigurationError("Dependency lock file is too large")
+        text = source.read_text(encoding="utf-8")
+    except AuditConfigurationError:
+        raise
+    except (OSError, UnicodeError) as exc:
+        raise AuditConfigurationError("Dependency lock file is unreadable") from exc
+    if len(text.encode("utf-8")) > MAX_REQUIREMENTS_BYTES:
+        raise AuditConfigurationError("Dependency lock file is too large")
+
+    normalized = 0
+    output: list[str] = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if line.startswith("--index-url") or line.startswith("--extra-index-url"):
+            continue
+        match = _CPU_LOCAL_PIN_RE.fullmatch(line)
+        if match:
+            marker = match.group("marker") or ""
+            output.append(
+                f"{match.group('name').lower()}=={match.group('version')}{marker}"
+            )
+            normalized += 1
+            continue
+        if _ANY_LOCAL_PIN_RE.fullmatch(line):
+            raise AuditConfigurationError(
+                "Unsupported local-version dependency pin in audit lock"
+            )
+        output.append(raw_line)
+    try:
+        target.write_text("\n".join(output) + "\n", encoding="utf-8", newline="\n")
+    except OSError as exc:
+        raise AuditConfigurationError("Dependency audit projection is unwritable") from exc
+    return normalized
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Audit the reviewed Python 3.12 dependency lock.")
     parser.add_argument("--requirements", type=Path, default=DEFAULT_REQUIREMENTS)
@@ -146,21 +192,35 @@ def main() -> int:
         raise SystemExit(str(exc)) from exc
     if not args.requirements.is_file():
         raise SystemExit("Dependency lock file is missing")
-    if args.check_config:
-        print(f"Dependency audit policy valid; active exceptions: {len(advisory_ids)}")
-        return 0
-    command = build_audit_command(args.requirements, advisory_ids)
-    environment = build_audit_environment()
-    print(f"Auditing pinned dependencies; reviewed exceptions: {len(advisory_ids)}")
     try:
-        return subprocess.run(
-            command,
-            cwd=ROOT,
-            env=environment,
-            check=False,
-        ).returncode
-    except OSError as exc:
-        raise SystemExit("pip-audit is not installed in this environment") from exc
+        with tempfile.TemporaryDirectory(prefix="meetingagent-dependency-audit-") as temp_dir:
+            projected = Path(temp_dir) / "requirements.txt"
+            normalized = write_audit_projection(args.requirements, projected)
+            if args.check_config:
+                print(
+                    "Dependency audit policy valid; "
+                    f"active exceptions: {len(advisory_ids)}; "
+                    f"normalized CPU pins: {normalized}"
+                )
+                return 0
+            command = build_audit_command(projected, advisory_ids)
+            environment = build_audit_environment()
+            print(
+                "Auditing pinned dependencies; "
+                f"reviewed exceptions: {len(advisory_ids)}; "
+                f"normalized CPU pins: {normalized}"
+            )
+            try:
+                return subprocess.run(
+                    command,
+                    cwd=ROOT,
+                    env=environment,
+                    check=False,
+                ).returncode
+            except OSError as exc:
+                raise SystemExit("pip-audit is not installed in this environment") from exc
+    except AuditConfigurationError as exc:
+        raise SystemExit(str(exc)) from exc
 
 
 if __name__ == "__main__":

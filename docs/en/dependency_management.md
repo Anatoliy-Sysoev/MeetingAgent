@@ -10,6 +10,11 @@ version ranges; `constraints-py312.txt` records the reviewed, exact resolver
 result for core, offline transcription, optional diarization, documentation,
 and development tools.
 
+The optional live runtime has separate exact locks:
+`constraints-live-py312-windows.txt` and
+`constraints-live-py312-linux.txt`. They remain compatible with the core
+constraints without adding Torch/Vosk to the base installation.
+
 | Group | File | Included by default |
 |---|---|---|
 | Core API/RAG | `requirements.txt` | Yes |
@@ -19,6 +24,20 @@ and development tools.
 | Live/Vosk | `requirements-live.txt` | Optional isolated runtime |
 | Diarization | `requirements-diarization.txt` | Optional image/environment |
 | GigaAM | `requirements-gigaam.txt` | Optional isolated Python environment |
+
+Install the live runtime on Windows:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install `
+  -c constraints-py312.txt `
+  -c constraints-live-py312-windows.txt `
+  -r requirements-live.txt
+.\.venv\Scripts\python.exe -m pip check
+```
+
+On Linux, replace the second constraints file with
+`constraints-live-py312-linux.txt`. Both platform locks use
+`https://download.pytorch.org/whl/cpu` and install no CUDA packages.
 
 Create a product environment:
 
@@ -54,8 +73,15 @@ py -3.12 -m venv .venv-lock
 .\.venv-lock\Scripts\python.exe -m pip install "pip-tools==7.5.3"
 .\.venv-lock\Scripts\python.exe -m piptools compile --resolver=backtracking --strip-extras --allow-unsafe `
   --output-file constraints-py312.txt requirements-lock-py312.in
+.\.venv-lock\Scripts\python.exe -m piptools compile --resolver=backtracking --strip-extras --allow-unsafe `
+  --output-file constraints-live-py312-windows.txt requirements-live-lock-py312.in
 .\.venv\Scripts\python.exe scripts\47_dependency_audit.py
 ```
+
+Build the Linux live lock with the same command in a Python 3.12 Linux
+environment and output `constraints-live-py312-linux.txt`. A live range change
+requires both locks, a clean install, `pip check`, imports, and a Silero model
+load smoke.
 
 Review the complete lock diff and run the canonical test suite before merging.
 Do not hand-edit one transitive pin without checking the complete resolver.
@@ -78,11 +104,18 @@ Expired, duplicate, malformed, or undocumented exceptions fail closed. There
 are currently no active exceptions. `pip-audit` detects known package
 advisories; it is not malware detection or a substitute for code review.
 
+The official CPU index identifies Torch wheels with a `+cpu` local-version
+suffix that `pip-audit` cannot resolve on PyPI directly. The audit projection
+removes the index directive and maps only reviewed `torch` and `torchaudio`
+`+cpu` pins to the identical public base version for advisory lookup. Any other
+local-version pin is rejected fail-closed.
+
 Optional diarization is resolved in `constraints-py312.txt`, but it is installed
-only when explicitly requested. GigaAM and live audio remain outside this lock
-because their Torch/audio wheels and device bindings are platform-specific. Keep
-those environments isolated, apply their bounded direct requirement files, run
-`pip check`, and audit the resulting environment before deployment.
+only when explicitly requested. Live audio uses separate Windows/Linux CPU
+locks; the scheduled workflow audits core, live-linux, and live-windows graphs
+independently. GigaAM remains outside the reviewed locks because it has a
+separate Torch/runtime profile. Keep it isolated and run `pip check` plus an
+environment audit before deployment.
 
 Primary references: [pip-audit](https://github.com/pypa/pip-audit),
 [pip-tools](https://pip-tools.readthedocs.io/en/stable/), and

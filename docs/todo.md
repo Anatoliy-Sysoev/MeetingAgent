@@ -114,8 +114,9 @@
   compare canonical offline ASR without indexing the draft.
 - [x] MA-LIVE-LOOPBACK-IDLE-SAFETY (#213): make bounded SYS capture and Ctrl+C
   interruptible when the Windows output device emits no loopback packets.
-- [ ] MA-LIVE-DEPENDENCY-LOCK (#214): own an exact Python 3.12 live dependency
-  resolution and include it in scheduled vulnerability audits.
+- [x] MA-LIVE-DEPENDENCY-LOCK (#214): exact CPU-only Python 3.12 Windows/Linux
+  live locks, clean-install contract and scheduled audit matrix without adding
+  Torch/Vosk to core or the base image.
 - [x] MA-LIVE-MIC-BACKPRESSURE (#215): bounded non-blocking MIC callback queue,
   deterministic oldest-block eviction, absolute-frame silence recovery and
   path-free queue/loss metrics with report warnings.

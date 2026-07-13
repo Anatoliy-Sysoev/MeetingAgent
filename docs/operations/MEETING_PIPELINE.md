@@ -176,8 +176,15 @@ Live-транскрибация отделена от offline ASR. Ее зада
 Optional dependencies:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements-live.txt
+.\.venv\Scripts\python.exe -m pip install `
+  -c constraints-py312.txt `
+  -c constraints-live-py312-windows.txt `
+  -r requirements-live.txt
+.\.venv\Scripts\python.exe -m pip check
 ```
+
+Для Linux используйте `constraints-live-py312-linux.txt`. Оба lock-файла
+фиксируют CPU-only Torch/Silero graph; CUDA packages в live runtime не входят.
 
 Vosk-модель хранится локально в ignored `models/`, например:
 
