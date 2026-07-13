@@ -16,6 +16,11 @@ Use `scripts/asu_june_bot_*.py` for the current Project Knowledge Bot runtime:
 - corpus health checks;
 - guarded evaluation helpers.
 
+API entrypoints are intentionally separate:
+
+- `meeting_agent_api.py` starts independent MeetingAgent Core;
+- `asu_june_bot_api.py` starts the integrated Core + Project Knowledge Bot runtime.
+
 Use the meeting scripts for the current meeting pipeline:
 
 - `20_ingest_meeting.py`;

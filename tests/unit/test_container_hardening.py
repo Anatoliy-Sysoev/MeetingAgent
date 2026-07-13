@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT / "scripts"
@@ -76,9 +77,12 @@ def test_non_loopback_publish_is_allowed_only_after_explicit_opt_in() -> None:
 
 def test_compose_binds_localhost_and_hardens_services() -> None:
     compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    services = yaml.safe_load(compose)["services"]
 
     assert "${MEETINGAGENT_BIND_HOST:-127.0.0.1}" in compose
-    assert compose.count("read_only: true") == 3
-    assert compose.count("no-new-privileges:true") == 3
-    assert compose.count("cap_drop:") == 3
+    assert {"core", "api", "bot", "diarization"} <= set(services)
+    for service in services.values():
+        assert service["read_only"] is True
+        assert "no-new-privileges:true" in service["security_opt"]
+        assert "ALL" in service["cap_drop"]
     assert "container_name:" not in compose

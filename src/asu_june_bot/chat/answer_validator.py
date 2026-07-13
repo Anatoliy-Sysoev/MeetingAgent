@@ -2,18 +2,23 @@ from __future__ import annotations
 
 import re
 
+from meeting_agent.shared.answer_validation import (
+    NO_ANSWER_MARKERS,
+    has_no_answer_marker,
+)
+
 from .models import ChatSource
+
+__all__ = [
+    "AnswerValidator",
+    "NO_ANSWER_MARKERS",
+    "extract_source_refs",
+    "has_no_answer_marker",
+]
 
 
 SOURCE_REF_RE = re.compile(r"\[(S\d+(?:\s*,\s*S\d+)*)\]")
 SINGLE_SOURCE_RE = re.compile(r"S\d+")
-NO_ANSWER_MARKERS = (
-    "в переданных источниках данных недостаточно",
-    "в предоставленных источниках информации для ответа",
-    "в источниках нет информации",
-    "нет данных для ответа",
-    "недостаточно данных",
-)
 EXTERNAL_KNOWLEDGE_MARKERS = (
     "по общим данным",
     "обычно используется",
@@ -37,11 +42,6 @@ def extract_source_refs(text: str) -> list[str]:
             if ref not in refs:
                 refs.append(ref)
     return refs
-
-
-def has_no_answer_marker(text: str) -> bool:
-    lowered = (text or "").lower()
-    return any(marker in lowered for marker in NO_ANSWER_MARKERS)
 
 
 def _word_count(text: str) -> int:
