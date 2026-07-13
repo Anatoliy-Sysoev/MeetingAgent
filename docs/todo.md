@@ -112,7 +112,7 @@
   start/stop, partial/final transcript and status.
 - [ ] MA-LIVE-OFFLINE-REFINEMENT-V1 (#208): retain the live draft, then trigger and
   compare canonical offline ASR without indexing the draft.
-- [ ] TEST-DEPENDENCY-AUDIT-WINDOWS-UTF8 (#209): force deterministic UTF-8
+- [x] TEST-DEPENDENCY-AUDIT-WINDOWS-UTF8 (#209): force deterministic UTF-8
   subprocess semantics for pip-audit under Cyrillic Windows profile paths.
 - [ ] MA-MEETINGAGENT-UI-MOCKUPS: approve target mockups for registry, upload wizard, processing monitor and meeting card before deeper UI refactor.
 

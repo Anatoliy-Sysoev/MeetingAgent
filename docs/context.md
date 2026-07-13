@@ -4,6 +4,10 @@
 
 ## Now
 
+- TEST-DEPENDENCY-AUDIT-WINDOWS-UTF8 (#209) is implemented on its review
+  branch: the audit child process receives deterministic UTF-8 semantics even
+  when the Windows user/venv path contains Cyrillic characters.
+- canonical main before #209: `81d159b` / `Add honest live audio source preflight (#210)`.
 - MA-LIVE-AUDIO-CAPTURE-V1 (#164) is implemented on its v2 review branch:
   device inventory and MIC/SYS/MIX preflight never open a stream; readiness
   separates device discovery from current backend support; MIC is runnable;
@@ -13,11 +17,11 @@
   (#205), Live session API/UI (#206/#207) and offline refinement (#208);
   history purge #167 remains gated by explicit owner approval and a verified
   backup.
-- dependency audit itself is clean with forced UTF-8, but its Windows launcher
-  is not robust to a Cyrillic profile path; regression/fix is tracked in #209.
 
 ## Done latest
 
+- TEST-DEPENDENCY-AUDIT-WINDOWS-UTF8 (#209): removed the locale-dependent
+  `pip_api` startup failure without changing the parent shell environment.
 - MA-LIVE-AUDIO-CAPTURE-V1 (#164): added no-capture source inventory/preflight,
   automation-friendly result codes and an honest hardware/backend readiness
   contract that prevents MIC audio from being mislabeled as SYS or MIX.
@@ -214,8 +218,6 @@ GET  /admin/review/chat-runs/export
   lifecycle plus start/stop/partial/final UI after capture timing is stable.
 - MA-LIVE-OFFLINE-REFINEMENT-V1 (#208): preserve the draft and produce the
   canonical offline transcript without indexing live artifacts.
-- TEST-DEPENDENCY-AUDIT-WINDOWS-UTF8 (#209): make audit startup deterministic
-  under non-ASCII Windows user paths.
 - SEC-P0-GIT-HISTORY-PURGE (#167): backup, verify and coordinate the force rewrite; do not execute implicitly.
 
 ## Open decisions / blockers
