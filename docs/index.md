@@ -18,7 +18,8 @@ Use this documentation site for browsable public docs. The repository `README.md
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -c constraints-py312.txt -r requirements-docs.txt
-.\.venv\Scripts\python.exe -m mkdocs build
+.\.venv\Scripts\python.exe -m mkdocs build --strict
 ```
 
-The generated static site is written to ignored `site/`.
+The strict build validates internal document targets and anchors. The generated
+static site is written to ignored `site/`.

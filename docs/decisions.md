@@ -1138,3 +1138,28 @@ ONNX 1.22.0, ONNX Runtime 1.23.2, Torch 2.13.0+cpu и TorchAudio 2.11.0+cpu.
 - при отключённых Windows long paths используется короткий venv path;
 - изменение source revision или ONNX/Torch pins требует повторного clean
   install, advisory audit, model-load и short-speech smoke.
+
+## 2026-07-13 - Material 9.7 Используется Как Maintenance-Only Docs Theme
+
+Решение: documentation site фиксируется на `mkdocs-material==9.7.6` и
+`mkdocs==1.6.1`. Pages и локальная release-проверка используют
+`mkdocs build --strict`; встроенная validation повышена до `warn` для missing
+targets, unrecognized relative links и anchors, что превращает их в build errors.
+
+Почему:
+
+- 9.7.6 является актуальным maintenance release с исправлениями после 9.5.50;
+- текущая тема/search-конфигурация не использует deprecated projects/typeset
+  plugins и проходит strict build без миграции контента;
+- clean Python 3.12 install проходит `pip check`, а exact lock не содержит
+  известных advisory;
+- Material больше не получает новые features, поэтому крупные UI/docs
+  инвестиции в эту тему создадут лишний migration debt.
+
+Следствия:
+
+- rollback остаётся `mkdocs-material==9.5.50` с пересборкой exact lock;
+- Pages не публикует документацию с битой внутренней ссылкой или anchor;
+- новые deprecated Material plugins не включаются;
+- переход на Zensical рассматривается отдельным ADR до завершения периода
+  критических fixes, без смешивания с runtime dependency PR.

@@ -35,7 +35,7 @@ Major- и native-runtime-обновления проверяются незав�
 | Core, retrieval и diarization NumPy | `numpy>=1.26,<3`; Python 3.12 lock `2.5.1` | Одобрено: чистая Windows-установка, `pip check`, advisory audit, загрузка сохранённого в 1.26 `.npy`, retrieval suite, ONNX Runtime sessions обеих diarization-моделей и создание sherpa diarizer | Вернуть range `<2` и lock `1.26.4`; #241 |
 | Live MIC через sounddevice | `sounddevice>=0.5.5,<0.6`; platform locks `0.5.5` | Одобрено: чистые Windows/Linux-установки, `pip check`, advisory audit, 101 live-тест и не сохраняющий аудио Windows MIC callback smoke на 16 кГц | Вернуть range `<0.5` и locks `0.4.7`; #242 |
 | Изолированный GigaAM ONNX/TorchAudio | Python 3.12 lock: `onnx 1.22.0`, `onnxruntime 1.23.2`, `torch 2.13.0+cpu`, `torchaudio 2.11.0+cpu` | Одобрено: чистая Windows-установка, `pip check`, audit без advisory, импорт upstream source, загрузка модели, импорт ONNX utilities и детерминированный short-speech inference | Пересобрать изолированный venv по этому lock; проверенный GigaAM commit `6e4b027c...`; #243 |
-| Тема документации | `mkdocs-material==9.5.50` | Ожидается strict build и link validation на 9.7.x | Сохранить `9.5.50`; #244 |
+| Тема документации | `mkdocs-material==9.7.6`; MkDocs `1.6.1` | Одобрено: чистая Python 3.12 docs-установка, `pip check`, audit lock без advisory, strict build и встроенная проверка targets/anchors | Откатить Material на `9.5.50`; оценить Zensical до завершения maintenance support; #244 |
 
 Общий review отслеживается в #236. Эти строки нельзя снова объединять в один
 автоматический dependency PR.
@@ -122,6 +122,16 @@ output `constraints-live-py312-linux.txt`. После изменения live ra
 
 Перед merge просмотрите полный diff lock-файла и запустите canonical test suite.
 Нельзя вручную менять один transitive pin без проверки полного resolver graph.
+
+Material for MkDocs 9.7 находится в maintenance mode: получает критические
+bug/security fixes, но не новые функции. MeetingAgent использует только
+стабильную тему Material и search plugin, без deprecated projects/typeset
+plugins. Текущий сайт остаётся на 9.7.6, а возможный переход на Zensical должен
+быть отдельным архитектурным решением. Release gate запускает
+`mkdocs build --strict` со встроенной в MkDocs 1.6 проверкой отсутствующих
+document targets, нераспознанных относительных ссылок и anchors. См. официальное
+[объявление 9.7](https://squidfunk.github.io/mkdocs-material/blog/2025/11/11/insiders-now-free-for-everyone/)
+и [MkDocs validation](https://www.mkdocs.org/user-guide/configuration/#validation).
 
 ## Политика Advisory
 

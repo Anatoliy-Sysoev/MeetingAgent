@@ -4,6 +4,7 @@ import re
 import tomllib
 from pathlib import Path
 
+import yaml
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
 from packaging.version import Version
@@ -266,3 +267,22 @@ def test_lock_and_audit_are_wired_into_delivery_workflows() -> None:
 def test_documentation_entrypoint_installs_under_constraints() -> None:
     docs_index = (ROOT / "docs" / "index.md").read_text(encoding="utf-8")
     assert "-c constraints-py312.txt -r requirements-docs.txt" in docs_index
+    assert "mkdocs build --strict" in docs_index
+
+
+def test_docs_theme_and_internal_link_validation_are_release_gated() -> None:
+    pins = _pins()
+    assert pins["mkdocs"] == Version("1.6.1")
+    assert pins["mkdocs-material"] == Version("9.7.6")
+    config = yaml.safe_load((ROOT / "mkdocs.yml").read_text(encoding="utf-8"))
+    assert config["theme"]["name"] == "material"
+    assert config["validation"]["links"] == {
+        "not_found": "warn",
+        "absolute_links": "relative_to_docs",
+        "unrecognized_links": "warn",
+        "anchors": "warn",
+    }
+    workflow = (ROOT / ".github" / "workflows" / "docs-pages.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "mkdocs build --strict" in workflow
