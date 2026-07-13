@@ -175,7 +175,10 @@ def run(args: argparse.Namespace) -> int:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 0
     if args.preflight_source:
-        result = preflight_audio_source(args.source)
+        result = preflight_audio_source(
+            args.source,
+            audio_device_index=args.audio_device_index,
+        )
         print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
         return 0 if result.available else 2
 
@@ -201,7 +204,10 @@ def run(args: argparse.Namespace) -> int:
         input_wav = resolve_path(args.input_wav) if args.input_wav else None
 
         if input_wav is None and not args.dry_run:
-            audio_preflight = preflight_audio_source(args.source)
+            audio_preflight = preflight_audio_source(
+                args.source,
+                audio_device_index=args.audio_device_index,
+            )
             if not audio_preflight.available:
                 raise LiveTranscribeError(
                     f"Audio source {args.source} is unavailable: {audio_preflight.reason}",
@@ -214,6 +220,8 @@ def run(args: argparse.Namespace) -> int:
             print(f"engine: {args.engine}")
             print(f"model_path: {model_path}")
             print(f"source: {args.source}")
+            if args.audio_device_index is not None:
+                print(f"audio_device_index: {args.audio_device_index}")
             if input_wav:
                 print(f"input_wav: {input_wav}")
             return 0
@@ -233,6 +241,7 @@ def run(args: argparse.Namespace) -> int:
                     block_ms=args.block_ms,
                     duration_sec=args.duration_sec,
                     input_wav=input_wav,
+                    audio_device_index=args.audio_device_index,
                     save_partials=not args.no_partials,
                     vad=args.vad,
                     silero_vad=SileroVadConfig(
@@ -297,6 +306,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--engine", default="vosk", choices=sorted(SUPPORTED_ENGINES))
     parser.add_argument("--model-path", help="Path to local Vosk model directory.")
     parser.add_argument("--source", default="MIC", choices=sorted(VALID_SOURCES), help="Audio source label.")
+    parser.add_argument(
+        "--audio-device-index",
+        type=int,
+        default=None,
+        help="Optional source-specific device index from --list-audio-sources.",
+    )
     parser.add_argument("--input-wav", help="Optional mono 16 kHz PCM WAV for deterministic smoke runs.")
     parser.add_argument("--duration-sec", type=float, default=None, help="Limit live capture or WAV simulation duration.")
     parser.add_argument("--sample-rate", type=int, default=16_000)
@@ -321,6 +336,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="Preflight the selected live source without starting capture.",
     )
     args = parser.parse_args(argv)
+    if args.audio_device_index is not None and args.audio_device_index < 0:
+        parser.error("--audio-device-index must be non-negative.")
     if not args.list_audio_sources and not args.preflight_source:
         if not args.meeting_dir:
             parser.error(
