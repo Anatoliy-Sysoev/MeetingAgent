@@ -171,6 +171,20 @@ def test_platform_live_locks_use_cpu_torch_and_correct_windows_marker() -> None:
     assert 'pyaudiowpatch==0.2.12.8 ; sys_platform == "win32"' in windows_text
 
 
+def test_platform_live_locks_match_all_shared_core_pins() -> None:
+    core = _pins()
+    for filename in (
+        "constraints-live-py312-linux.txt",
+        "constraints-live-py312-windows.txt",
+    ):
+        live = _pins(filename)
+        for name in sorted(core.keys() & live.keys()):
+            assert live[name] == core[name], (
+                f"{filename}: {name}=={live[name]} conflicts with "
+                f"constraints-py312.txt ({core[name]})"
+            )
+
+
 def test_windows_only_live_marker_matches_pyproject() -> None:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     project_live = {
