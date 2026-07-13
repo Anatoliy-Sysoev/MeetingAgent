@@ -221,11 +221,13 @@ The workspace includes:
 - artifact viewer;
 - pipeline stage controls and readiness map;
 - one-click pipeline profiles through `POST /meetings/{id}/jobs/pipeline`;
+- live MIC/SYS draft controls with source preflight, partial/final rows, elapsed
+  time and capture warnings;
 - meeting-scoped search and Q&A with vector retrieval fallback, timestamps, speaker labels, and source citations.
 
 The current product gap is no longer the basic offline pipeline. Remaining work
-is concentrated in the live browser UI, simultaneous MIC+SYS mixing, offline
-refinement, and deeper product administration.
+is concentrated in automatic offline refinement after a live draft, simultaneous
+MIC+SYS mixing into one derived track, and deeper product administration.
 
 ### Live Transcription
 
@@ -347,6 +349,15 @@ GET  /meetings/{meeting_id}/live/sessions/{session_id}/events
 POST /meetings/{meeting_id}/live/sessions/{session_id}/stop
 ```
 
+The same lifecycle is available in the meeting Workspace. Open
+`/meetings/<meeting_id>/workspace`, then use the **Live transcription** panel.
+MIC and SYS are separate tracks with separate device selectors, partial preview,
+final rows, elapsed time and health warnings. The UI never labels one source as
+the other and does not allow an offline pipeline job and live capture to be
+started at the same time. Replacing an existing draft is an explicit opt-in.
+Native controls, status regions and keyboard focus remain usable without inline
+handlers or browser storage.
+
 Read operations require `jobs.read`. Start and stop require `jobs.start` and
 `jobs.cancel`; cookie-authenticated browser writes also require the session
 CSRF token. Event polling is bounded to 200 rows per request. Final transcript
@@ -360,8 +371,8 @@ against the same `paths.live_sessions_state` fails closed instead of allowing
 duplicate capture. The current deployment contract is therefore one API worker
 per local runtime. `live.active_sessions_max` defaults to `2`, which permits a
 MIC and SYS pair but bounds concurrent Vosk model/CPU use. WebSocket transport
-and browser controls belong to the next UI milestone; the v1 API uses bounded
-polling.
+is not required by the v1 browser surface; it uses bounded cursor polling and
+keeps only the newest 250 final rows in the DOM.
 
 ## Docker
 

@@ -44,6 +44,116 @@
   <!-- Right column -->
   <div class="right-col">
 
+    <!-- Live transcription -->
+    <div class="panel live-panel" id="live-panel" aria-labelledby="live-panel-title">
+      <div class="panel-header">
+        <span id="live-panel-title">Live transcription</span>
+        <button id="live-refresh-btn" class="compact-btn" type="button"
+                aria-label="Refresh live source readiness">&#8635; Refresh</button>
+      </div>
+      <div class="panel-body">
+        <div class="live-draft-banner" role="note">
+          Live text is a draft and is not indexed. Run offline transcription after the
+          meeting to create the canonical transcript.
+        </div>
+        <div id="live-global-error" class="err-msg" role="alert" hidden></div>
+
+        <div class="live-tracks">
+          <section class="live-track" data-live-source="MIC" aria-labelledby="live-mic-title">
+            <div class="live-track-heading">
+              <div>
+                <h3 id="live-mic-title">Microphone</h3>
+                <span class="live-source-label">MIC</span>
+              </div>
+              <span id="live-mic-badge" class="badge">Checking</span>
+            </div>
+            <p id="live-mic-readiness" class="live-readiness" role="status"
+               aria-live="polite">Checking source readiness...</p>
+            <div class="live-field">
+              <label for="live-mic-device">Audio device</label>
+              <select id="live-mic-device" data-live-device="MIC"></select>
+            </div>
+            <div class="live-field">
+              <label for="live-mic-vad">Voice activity detection</label>
+              <select id="live-mic-vad" data-live-vad="MIC">
+                <option value="silero" selected>Silero VAD</option>
+                <option value="none">Disabled</option>
+              </select>
+            </div>
+            <label class="live-force-label">
+              <input id="live-mic-force" type="checkbox" data-live-force="MIC" />
+              Replace an existing MIC draft
+            </label>
+            <div class="live-controls">
+              <button id="live-mic-start" class="primary" type="button"
+                      data-live-start="MIC">Start MIC</button>
+              <button id="live-mic-stop" class="cancel-btn" type="button"
+                      data-live-stop="MIC" disabled>Stop MIC</button>
+              <span id="live-mic-elapsed" class="live-elapsed">00:00</span>
+            </div>
+            <div id="live-mic-error" class="err-msg" role="alert" hidden></div>
+            <ul id="live-mic-warnings" class="live-warnings"
+                aria-label="Microphone capture warnings"></ul>
+            <div class="live-partial-wrap">
+              <span class="live-caption">Current partial</span>
+              <p id="live-mic-partial" class="live-partial" aria-live="polite">Waiting for speech...</p>
+            </div>
+            <div id="live-mic-finals" class="live-final-list" role="log"
+                 aria-live="polite" aria-relevant="additions text"
+                 aria-label="Final microphone transcript">
+              <p class="empty">No final MIC lines yet</p>
+            </div>
+          </section>
+
+          <section class="live-track" data-live-source="SYS" aria-labelledby="live-sys-title">
+            <div class="live-track-heading">
+              <div>
+                <h3 id="live-sys-title">System audio</h3>
+                <span class="live-source-label">SYS</span>
+              </div>
+              <span id="live-sys-badge" class="badge">Checking</span>
+            </div>
+            <p id="live-sys-readiness" class="live-readiness" role="status"
+               aria-live="polite">Checking source readiness...</p>
+            <div class="live-field">
+              <label for="live-sys-device">Loopback device</label>
+              <select id="live-sys-device" data-live-device="SYS"></select>
+            </div>
+            <div class="live-field">
+              <label for="live-sys-vad">Voice activity detection</label>
+              <select id="live-sys-vad" data-live-vad="SYS">
+                <option value="silero" selected>Silero VAD</option>
+                <option value="none">Disabled</option>
+              </select>
+            </div>
+            <label class="live-force-label">
+              <input id="live-sys-force" type="checkbox" data-live-force="SYS" />
+              Replace an existing SYS draft
+            </label>
+            <div class="live-controls">
+              <button id="live-sys-start" class="primary" type="button"
+                      data-live-start="SYS">Start SYS</button>
+              <button id="live-sys-stop" class="cancel-btn" type="button"
+                      data-live-stop="SYS" disabled>Stop SYS</button>
+              <span id="live-sys-elapsed" class="live-elapsed">00:00</span>
+            </div>
+            <div id="live-sys-error" class="err-msg" role="alert" hidden></div>
+            <ul id="live-sys-warnings" class="live-warnings"
+                aria-label="System audio capture warnings"></ul>
+            <div class="live-partial-wrap">
+              <span class="live-caption">Current partial</span>
+              <p id="live-sys-partial" class="live-partial" aria-live="polite">Waiting for speech...</p>
+            </div>
+            <div id="live-sys-finals" class="live-final-list" role="log"
+                 aria-live="polite" aria-relevant="additions text"
+                 aria-label="Final system audio transcript">
+              <p class="empty">No final SYS lines yet</p>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
     <!-- Media player -->
     <div class="panel">
       <div class="panel-header">Media</div>

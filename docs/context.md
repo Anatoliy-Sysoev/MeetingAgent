@@ -4,17 +4,20 @@
 
 ## Now
 
-- MA-LIVE-SESSION-API-V1 (#206) is implemented on its review branch: authenticated
-  preflight/start/stop/status/event endpoints, atomic bounded durable state,
-  graceful Vosk finalization, duplicate prevention, deterministic stale recovery
-  and path-free public diagnostics are covered by behavioral tests.
-- canonical main before #206: `85381a1` / `Add platform-specific live dependency locks and audit coverage (#219)`.
-- next product work is Live UI (#207) and offline refinement (#208).
+- MA-LIVE-UI-V1 (#207) is implemented on its review branch: Workspace now has
+  distinct MIC/SYS preflight, device/VAD controls, graceful start/stop, bounded
+  partial/final rendering, elapsed time and capture warnings with browser-level
+  workflow coverage.
+- canonical main before #207: `36ebbc7` / `Add authenticated live session API (#221)`.
+- next product work is automatic offline refinement after a live draft (#208).
   history purge #167 remains gated by explicit owner approval and a verified
   backup.
 
 ## Done latest
 
+- MA-LIVE-UI-V1 (#207): added an authenticated CSP-safe Workspace surface for
+  MIC/SYS drafts, explicit blocked reasons and replace semantics, cursor-based
+  polling, keyboard-native controls and UI-level live/offline mutual exclusion.
 - MA-LIVE-SESSION-API-V1 (#206): added RBAC/CSRF-protected lifecycle routes,
   source preflight DTO sanitization, bounded polling, memory-only partials,
   durable final/status events, process-owner locking, graceful stop and stale
@@ -232,11 +235,12 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- MA-LIVE-UI-V1 (#207): consume the authenticated #206 polling contract in a
-  start/stop/partial/final browser workspace.
 - MA-LIVE-OFFLINE-REFINEMENT-V1 (#208): preserve the draft and produce the
   canonical offline transcript without indexing live artifacts.
-- SEC-P0-GIT-HISTORY-PURGE (#167): backup, verify and coordinate the force rewrite; do not execute implicitly.
+- MA-LIVE-PIPELINE-COORDINATION (#222): enforce cross-process server-side
+  mutual exclusion between live capture and offline jobs.
+- MA-LIVE-MEETING-CREATION (#223): create an ad-hoc live-only meeting from the
+  browser without requiring a media upload.
 
 ## Open decisions / blockers
 
