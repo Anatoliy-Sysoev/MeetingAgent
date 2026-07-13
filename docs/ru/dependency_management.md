@@ -32,13 +32,22 @@ Major- и native-runtime-обновления проверяются незав�
 
 | Контур | Проверенный direct range / exact lock | Статус и доказательства | Откат / tracking |
 |---|---|---|---|
-| Core, retrieval и diarization NumPy | `numpy>=1.26,<3`; Python 3.12 lock `2.5.1` | Одобрено: чистая Windows-установка, `pip check`, advisory audit, загрузка сохранённого в 1.26 `.npy`, retrieval suite, ONNX Runtime sessions обеих diarization-моделей и создание sherpa diarizer | Вернуть range `<2` и lock `1.26.4`; #241 |
+| Core и retrieval NumPy | `numpy>=1.26,<3`; Python 3.12 lock `2.5.1` | Одобрено: чистая Windows-установка, `pip check`, advisory audit, загрузка сохранённого в 1.26 `.npy` и retrieval suite с coverage gates | Вернуть range `<2` и lock `1.26.4`; #241 |
+| Offline transcription | `faster-whisper>=1.1,<2`; lock `1.2.1`, CTranslate2 `4.8.1`, NumPy `2.5.1` | Проверено без изменения: clean import и canonical transcription tests проходят; ASR model/default в этом compatibility batch не менялись | Сохранить предыдущий exact lock или завести отдельный real-model ASR review; #236 |
+| Diarization | `sherpa-onnx>=1.13.2,<2`, `onnxruntime>=1.17,<2`; lock `1.13.4` / `1.27.0`, NumPy `2.5.1` | Одобрено: обе реальные локальные ONNX-модели открываются CPU provider, sherpa diarizer успешно создаётся | Откатить NumPy на `1.26.4` и предыдущий exact graph; #241 |
 | Live MIC через sounddevice | `sounddevice>=0.5.5,<0.6`; platform locks `0.5.5` | Одобрено: чистые Windows/Linux-установки, `pip check`, advisory audit, 101 live-тест и не сохраняющий аудио Windows MIC callback smoke на 16 кГц | Вернуть range `<0.5` и locks `0.4.7`; #242 |
 | Изолированный GigaAM ONNX/TorchAudio | Python 3.12 lock: `onnx 1.22.0`, `onnxruntime 1.23.2`, `torch 2.13.0+cpu`, `torchaudio 2.11.0+cpu` | Одобрено: чистая Windows-установка, `pip check`, audit без advisory, импорт upstream source, загрузка модели, импорт ONNX utilities и детерминированный short-speech inference | Пересобрать изолированный venv по этому lock; проверенный GigaAM commit `6e4b027c...`; #243 |
 | Тема документации | `mkdocs-material==9.7.6`; MkDocs `1.6.1` | Одобрено: чистая Python 3.12 docs-установка, `pip check`, audit lock без advisory, strict build и встроенная проверка targets/anchors | Откатить Material на `9.5.50`; оценить Zensical до завершения maintenance support; #244 |
 
 Общий review отслеживается в #236. Эти строки нельзя снова объединять в один
 автоматический dependency PR.
+
+Python-обновления Dependabot намеренно не группируются. Каждый PR обязан вместе
+обновить соответствующие direct range и exact lock, затем выполнить smoke из
+своей строки compatibility matrix. Unit contract запрещает catch-all группу
+`patterns: ["*"]`, потому что раньше она объединила NumPy, audio, GigaAM и docs
+в непроверяемый batch. GitHub Actions можно оставить grouped: их majors отдельно
+ограничивает workflow allowlist test.
 
 Live runtime на Windows:
 

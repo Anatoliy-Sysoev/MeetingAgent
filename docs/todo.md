@@ -151,8 +151,9 @@
 
 ## Meeting Product Backlog
 
-- [ ] MA-DEPS-MAJOR-COMPATIBILITY (#236): validate NumPy/audio/ONNX/docs major
-  upgrades as separate compatibility groups with their own constraints.
+- [x] MA-DEPS-MAJOR-COMPATIBILITY (#236): validate core/transcription/
+  diarization/live/GigaAM/docs separately and prohibit catch-all Python
+  Dependabot grouping.
 - [x] MA-DEPS-NUMPY2-COMPAT (#241): validate NumPy 2.5.1 with exact Python 3.12
   constraints, cross-major persisted-index coverage and real ONNX/sherpa smoke.
 - [x] MA-DEPS-SOUNDDEVICE05-COMPAT (#242): review sounddevice 0.5.x with exact

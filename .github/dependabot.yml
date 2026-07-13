@@ -4,10 +4,6 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-    groups:
-      python-runtime:
-        patterns:
-          - "*"
     open-pull-requests-limit: 5
 
   - package-ecosystem: github-actions

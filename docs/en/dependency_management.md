@@ -32,13 +32,22 @@ in one row does not approve another row.
 
 | Surface | Reviewed direct range / exact lock | Status and evidence | Rollback / tracking |
 |---|---|---|---|
-| Core, retrieval and diarization NumPy | `numpy>=1.26,<3`; Python 3.12 lock `2.5.1` | Approved: clean Windows install, `pip check`, advisory audit, persisted 1.26 `.npy` load, retrieval suite, ONNX Runtime sessions for both diarization models and sherpa diarizer construction | Roll back the range to `<2` and lock to `1.26.4`; #241 |
+| Core and retrieval NumPy | `numpy>=1.26,<3`; Python 3.12 lock `2.5.1` | Approved: clean Windows install, `pip check`, advisory audit, persisted 1.26 `.npy` load and retrieval suite with coverage gates | Roll back the range to `<2` and lock to `1.26.4`; #241 |
+| Offline transcription | `faster-whisper>=1.1,<2`; lock `1.2.1`, CTranslate2 `4.8.1`, NumPy `2.5.1` | Reviewed unchanged: clean import and canonical transcription tests pass; no ASR model/default change in this compatibility batch | Keep the previous exact lock or scope a separate real-model ASR review; #236 |
+| Diarization | `sherpa-onnx>=1.13.2,<2`, `onnxruntime>=1.17,<2`; lock `1.13.4` / `1.27.0`, NumPy `2.5.1` | Approved: both real local ONNX models open with the CPU provider and the sherpa diarizer constructs successfully | Roll back NumPy to `1.26.4` and the prior exact graph; #241 |
 | Live MIC through sounddevice | `sounddevice>=0.5.5,<0.6`; platform locks `0.5.5` | Approved: clean Windows/Linux installs, `pip check`, advisory audit, 101 live tests and a non-persisting 16 kHz Windows MIC callback smoke | Restore range `<0.5` and locks `0.4.7`; #242 |
 | Isolated GigaAM ONNX/TorchAudio | Python 3.12 lock: `onnx 1.22.0`, `onnxruntime 1.23.2`, `torch 2.13.0+cpu`, `torchaudio 2.11.0+cpu` | Approved: clean Windows install, `pip check`, zero-advisory audit, upstream source import/model load, ONNX utility import and deterministic short-speech inference | Rebuild the isolated venv from this lock; reviewed GigaAM commit `6e4b027c...`; #243 |
 | Documentation theme | `mkdocs-material==9.7.6`; MkDocs `1.6.1` | Approved: clean Python 3.12 docs install, `pip check`, zero-advisory lock audit, strict build and built-in target/anchor validation | Roll back Material to `9.5.50`; evaluate Zensical before maintenance support ends; #244 |
 
 The umbrella review is tracked by #236. Do not combine these rows into one
 automated dependency PR.
+
+Python Dependabot updates are intentionally ungrouped. Each PR must update the
+matching direct range and exact lock together, then run the smoke evidence for
+that compatibility row. The catch-all `patterns: ["*"]` group is forbidden by
+a unit contract because it previously combined unrelated NumPy, audio, GigaAM
+and docs upgrades into an unreviewable batch. GitHub Actions may remain grouped:
+their action majors are separately constrained by the workflow allowlist test.
 
 Install the live runtime on Windows:
 
