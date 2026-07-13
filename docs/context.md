@@ -1,18 +1,21 @@
 # Текущий Контекст
 
-Обновлено: 2026-07-12.
+Обновлено: 2026-07-13.
 
 ## Now
 
-- MA-UI-CSP-MODULARIZATION (#180) is implemented on its review branch: the
-  three product UIs use packaged versioned HTML/CSS/JS assets, strict CSP and
-  browser-level Chromium smoke tests for upload, pipeline, transcript, speaker
-  mapping, artifacts and meeting Q&A.
-- canonical main state before #180: `b6f6205` / `Clarify runtime ownership and remove dead scaffolds (#198)`.
-- next audit focus after #180: concurrency-safe meeting vector cache (#181).
+- TEST-WORKSPACE-CRLF-PARSING (#200) fixes the Windows-only canonical verifier
+  regression after #180 by normalizing loaded UI fixture line endings before
+  line-sensitive static JavaScript assertions.
+- canonical main state before #200: `ebe4fe2` / `Harden and modularize product UI assets (#199)`.
+- MA-MEETING-VECTOR-CACHE-LOCKING (#181) remains the active audit task after
+  this hotfix merges.
 
 ## Done latest
 
+- TEST-WORKSPACE-CRLF-PARSING (#200): Workspace UI static tests now behave the
+  same for LF and CRLF checkouts while preserving all CSRF, polling, DOM and
+  auth assertions.
 - MA-UI-CSP-MODULARIZATION (#180): removed monolithic inline HTML/CSS/JS from
   API route modules; added allowlisted package-data templates and immutable
   `/assets/v1/*` delivery; product pages enforce a self-only CSP without
