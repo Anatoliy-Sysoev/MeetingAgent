@@ -1,39 +1,30 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 
-from asu_june_bot import __version__
 from asu_june_bot.api.dependencies import build_app_state
-from asu_june_bot.api.errors import register_error_handlers
-from asu_june_bot.api.host_policy import TrustedHostPolicyMiddleware, build_allowed_hosts
-from asu_june_bot.api.middleware import request_context_middleware
-from asu_june_bot.api.routes_admin import router as admin_router
-from asu_june_bot.api.routes_admin_ui import router as admin_ui_router
 from asu_june_bot.api.routes_review import router as review_router
-from asu_june_bot.api.routes_auth import router as auth_router
 from asu_june_bot.api.routes_chat import router as chat_router
-from asu_june_bot.api.routes_health import router as health_router
-from asu_june_bot.api.routes_ingest import router as ingest_router
-from asu_june_bot.api.routes_jobs import router as jobs_router
-from asu_june_bot.api.routes_live import router as live_router
-from asu_june_bot.api.routes_meetingagent_ui import router as meetingagent_ui_router
-from asu_june_bot.api.routes_meetings import router as meetings_router
+from asu_june_bot.api.routes_health import router as bot_health_router
 from asu_june_bot.api.routes_search import router as search_router
 from asu_june_bot.api.routes_ui import router as ui_router
-from asu_june_bot.api.routes_workspace import router as workspace_router
-from asu_june_bot.api.ui_assets import UI_ASSETS_V1_DIR
-from asu_june_bot.core.config import load_config
+from meeting_agent import __version__
+from meeting_agent.api.app import (
+    bind_core_state,
+    include_core_product_routes,
+    install_core_infrastructure,
+)
+from meeting_agent.shared.config import load_config
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     state = build_app_state(config=app.state.startup_config)
-    app.state.asu_june_bot = state
+    bind_core_state(app, state)
     try:
         yield
     finally:
@@ -49,31 +40,13 @@ def create_app(config: dict | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.startup_config = resolved_config
-    app.add_middleware(
-        TrustedHostPolicyMiddleware,
-        allowed_hosts=build_allowed_hosts(resolved_config),
-    )
-    app.middleware("http")(request_context_middleware)
-    register_error_handlers(app)
-    app.mount(
-        "/assets/v1",
-        StaticFiles(directory=UI_ASSETS_V1_DIR, check_dir=True),
-        name="ui-assets-v1",
-    )
+    install_core_infrastructure(app, resolved_config)
     app.include_router(ui_router)
-    app.include_router(meetingagent_ui_router)
-    app.include_router(workspace_router)
-    app.include_router(health_router)
-    app.include_router(auth_router)
-    app.include_router(admin_ui_router)
-    app.include_router(admin_router)
+    include_core_product_routes(app)
+    app.include_router(bot_health_router)
     app.include_router(review_router)
     app.include_router(search_router)
     app.include_router(chat_router)
-    app.include_router(ingest_router)
-    app.include_router(meetings_router)
-    app.include_router(jobs_router)
-    app.include_router(live_router)
     return app
 
 

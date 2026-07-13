@@ -61,7 +61,7 @@ live = [
 testpaths = ["tests"]
 
 [tool.setuptools.package-data]
-"asu_june_bot.api" = [
+"meeting_agent.api" = [
   "ui/templates/*.html",
   "ui/assets/v1/*.css",
   "ui/assets/v1/*.js"

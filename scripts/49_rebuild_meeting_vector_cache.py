@@ -5,8 +5,8 @@ import argparse
 import json
 from pathlib import Path
 
-from asu_june_bot.meetings.vector_cache import rebuild_meeting_embedding_cache
-from asu_june_bot.meetings.vector_index import DEFAULT_MEETING_EMBEDDINGS_CACHE
+from meeting_agent.meetings.vector_cache import rebuild_meeting_embedding_cache
+from meeting_agent.meetings.vector_index import DEFAULT_MEETING_EMBEDDINGS_CACHE
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

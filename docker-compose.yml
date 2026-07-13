@@ -1,4 +1,40 @@
 services:
+  core:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: meetingagent:local
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MEETING_AGENT_CONFIG_PATH: /app/config.docker.yaml
+      MEETINGAGENT_BIND_HOST: ${MEETINGAGENT_BIND_HOST:-127.0.0.1}
+    ports:
+      - "${MEETINGAGENT_BIND_HOST:-127.0.0.1}:${MEETINGAGENT_CORE_API_PORT:-8001}:8000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./meetings:/app/meetings
+      - ./config.docker.yaml:/app/config.docker.yaml:ro
+    command: ["python", "scripts/meeting_agent_api.py", "--host", "0.0.0.0", "--port", "8000"]
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    profiles:
+      - core
+
   api:
     build:
       context: .

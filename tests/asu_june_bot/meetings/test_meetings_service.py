@@ -362,17 +362,18 @@ def test_parse_upload_limit_rejects_invalid_values(value) -> None:
 
 
 def test_build_app_state_passes_limit_into_service(monkeypatch) -> None:
-    import asu_june_bot.api.dependencies as deps
+    import meeting_agent.api.dependencies as core_deps
+    from asu_june_bot.api import dependencies as deps
 
     captured = {}
-    real_service = deps.MeetingsService
+    real_service = core_deps.MeetingsService
 
     def spy(*args, **kwargs):
         captured.update(kwargs)
         return real_service(*args, **kwargs)
 
     monkeypatch.setattr(
-        deps,
+        core_deps,
         "load_config",
         lambda: {
             "meetings": {
@@ -381,7 +382,7 @@ def test_build_app_state_passes_limit_into_service(monkeypatch) -> None:
             }
         },
     )
-    monkeypatch.setattr(deps, "MeetingsService", spy)
+    monkeypatch.setattr(core_deps, "MeetingsService", spy)
     state = deps.build_app_state()
     try:
         assert captured.get("max_text_artifact_bytes") == 2048
@@ -395,9 +396,10 @@ def test_build_app_state_passes_limit_into_service(monkeypatch) -> None:
 def test_build_app_state_wires_durable_job_store(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import asu_june_bot.api.dependencies as deps
+    import meeting_agent.api.dependencies as core_deps
+    from asu_june_bot.api import dependencies as deps
 
-    monkeypatch.setattr(deps, "check_and_fail_if_unsafe", lambda _config: None)
+    monkeypatch.setattr(core_deps, "check_and_fail_if_unsafe", lambda _config: None)
     state = deps.build_app_state(
         {
             "work_root_path": tmp_path,

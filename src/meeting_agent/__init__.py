@@ -1,6 +1,3 @@
-"""MeetingAgent product package."""
-
-__all__ = ["__version__"]
+"""MeetingAgent core package."""
 
 __version__ = "0.1.0"
-
