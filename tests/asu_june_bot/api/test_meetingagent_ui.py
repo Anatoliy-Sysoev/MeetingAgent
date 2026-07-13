@@ -67,3 +67,8 @@ def test_meetingagent_ui_uses_dom_api_for_dynamic_content(html: str) -> None:
 def test_meetingagent_ui_does_not_use_browser_storage(html: str) -> None:
     assert "localStorage" not in html
     assert "sessionStorage" not in html
+
+
+def test_meetingagent_ui_renders_bounded_machine_conflict_message(html: str) -> None:
+    assert 'typeof data.detail.message === "string"' in html
+    assert "data.detail.message.slice(0, 240)" in html

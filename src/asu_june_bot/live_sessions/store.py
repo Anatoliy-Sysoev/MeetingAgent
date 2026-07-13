@@ -282,6 +282,15 @@ class LiveSessionStore:
         with IngestLock(self.lock_path, timeout_seconds=30):
             return deepcopy(self._read_unlocked())
 
+    def has_active_for_meeting(self, meeting_id: str) -> bool:
+        with IngestLock(self.lock_path, timeout_seconds=30):
+            state = self._read_unlocked()
+            return any(
+                record.get("meeting_id") == meeting_id
+                and record.get("status") in ACTIVE_STATUSES
+                for record in state["sessions"]
+            )
+
     def reserve(self, record: dict[str, Any]) -> None:
         _validate_record(record, events_max=self.events_max)
 

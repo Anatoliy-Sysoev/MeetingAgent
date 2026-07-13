@@ -340,6 +340,11 @@ Invoke-RestMethod `
 - одновременно разрешена одна активная сессия на пару meeting/source;
 - глобальный `live.active_sessions_max` по умолчанию равен 2, чтобы пара MIC+SYS
   не превращалась в неограниченную загрузку Vosk models/CPU;
+- live capture и offline stage/pipeline для одной карточки взаимоисключаются
+  на сервере. Общий `paths.meeting_work_lock` атомарно проверяет opposing
+  durable-state и резервирует победивший запуск без отдельного lock-state;
+- конфликт отдаётся как bounded `409` с кодом `live_session_active` либо
+  `offline_job_active`; тот же код виден в pipeline readiness/live preflight;
 - публичный preflight отдаёт только `device_index` и ограниченный label, без
   host API, channel/rate diagnostics, model path и raw exceptions;
 - model readiness проверяет минимальный Vosk layout (`am/final.mdl`,
@@ -389,9 +394,10 @@ time и итоговые capture warnings. MIC и SYS никогда не объ
 
 Кнопка start требует `jobs.start`, stop - `jobs.cancel`; browser POST получает
 CSRF через `/auth/csrf`. При активной pipeline job live start заблокирован, а
-при активной live-сессии Workspace не предлагает запуск offline pipeline. Это
-защищает обычный UI-сценарий от конкурирующих тяжёлых задач; machine clients
-должны соблюдать тот же operational rule.
+при активной live-сессии Workspace не предлагает запуск offline pipeline.
+Сервер применяет то же ограничение к browser и bearer machine clients; две
+одновременные заявки сериализуются межпроцессным lock и ровно одна получает
+reservation. Раздельные MIC+SYS дорожки остаются разрешены.
 
 Если для source уже существует finalized draft, повторная запись возможна
 только после явного выбора `Replace an existing ... draft`. Live-строки
@@ -901,6 +907,8 @@ logs/jobs_state.json
 ```yaml
 paths:
   jobs_state: logs/jobs_state.json
+  live_sessions_state: logs/live_sessions_state.json
+  meeting_work_lock: logs/meeting_work.lock
 ```
 
 Правила восстановления:
@@ -917,14 +925,19 @@ paths:
 - Cancel идемпотентен; process tree завершается целиком (`taskkill /T /F` на
   Windows, process group на Linux/Unix);
 - snapshot больше 4 МиБ или повреждённый JSON останавливает API fail-closed.
+- `meeting_work.lock` не хранит owner-state: OS освобождает advisory lock при
+  завершении процесса, а stale/terminal записи очищают существующие recovery
+  процедуры job/live store. Поэтому рестарт не оставляет отдельную вечную
+  блокировку между live и offline обработкой.
 
 Recovery виден в `GET /meetings/{id}/pipeline/readiness` как `job_recovery` и
 в Pipeline-панели Workspace. Для production используйте один API worker:
 durable reservation безопасна между процессами, но status routing не является
 распределённой очередью задач.
 
-`logs/jobs_state.json` и `.lock` — локальные runtime-файлы. Их нельзя добавлять
-в Git или переносить между машинами как часть meeting card.
+`logs/jobs_state.json`, `logs/live_sessions_state.json`, `meeting_work.lock` и
+их `.lock`-файлы — локальный runtime. Их нельзя добавлять в Git или переносить
+между машинами как часть meeting card.
 
 ## Оконный Offline-Pipeline
 

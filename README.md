@@ -388,7 +388,13 @@ The same lifecycle is available in the meeting Workspace. Open
 MIC and SYS are separate tracks with separate device selectors, partial preview,
 final rows, elapsed time and health warnings. The UI never labels one source as
 the other and does not allow an offline pipeline job and live capture to be
-started at the same time. Replacing an existing draft is an explicit opt-in.
+started at the same time. The API enforces the same rule for browser, bearer
+token and concurrent machine clients: one cross-process lock atomically checks
+the opposing durable state and reserves the winning operation. `MIC` and `SYS`
+may still run together within `live.active_sessions_max`. Conflicts return a
+bounded `409` with `live_session_active` or `offline_job_active`; readiness and
+live preflight expose the same reason. Replacing an existing draft is an
+explicit opt-in.
 Native controls, status regions and keyboard focus remain usable without inline
 handlers or browser storage.
 

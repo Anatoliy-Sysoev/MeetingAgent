@@ -184,6 +184,7 @@ def test_live_blocked_reasons_are_controlled(html: str) -> None:
         "sys_loopback_backend_missing",
         "live_session_capacity",
         "live_artifact_exists",
+        "offline_job_active",
     ):
         assert f"{code}:" in html
     response_block = _function_block(html, "liveResponseMessage")

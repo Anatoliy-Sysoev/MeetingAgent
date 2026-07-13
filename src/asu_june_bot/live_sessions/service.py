@@ -15,6 +15,11 @@ from pathlib import Path
 from typing import Any, Callable
 
 from asu_june_bot.meetings.ingest_lock import IngestLock, IngestLockTimeoutError
+from asu_june_bot.meeting_work import (
+    MeetingWorkConflict,
+    MeetingWorkCoordinator,
+    MeetingWorkStateError,
+)
 from meeting_agent.live_transcription import (
     AudioSourcePreflight,
     LiveSessionReport,
@@ -183,6 +188,8 @@ class LiveSessionService:
         audio_archive_min_free_bytes: int = DEFAULT_ARCHIVE_MIN_FREE_BYTES,
         transcriber: Callable[[VoskLiveConfig], VoskLiveResult] = transcribe_vosk_live,
         source_preflight: Callable[..., AudioSourcePreflight] = preflight_audio_source,
+        store: LiveSessionStore | None = None,
+        coordinator: MeetingWorkCoordinator | None = None,
     ) -> None:
         if vad not in {"none", "silero"}:
             raise ValueError("live.vad must be none or silero")
@@ -217,13 +224,21 @@ class LiveSessionService:
         self.audio_archive_min_free_bytes = audio_archive_min_free_bytes
         self.transcriber = transcriber
         self.source_preflight = source_preflight
-        self.store = LiveSessionStore(
+        if store is not None and Path(state_path).resolve() != store.path.resolve():
+            raise ValueError("state_path does not match the supplied live store")
+        self.store = store or LiveSessionStore(
             state_path,
             sessions_max=sessions_max,
             active_sessions_max=active_sessions_max,
             events_max=events_max,
             max_state_bytes=max_state_bytes,
         )
+        if (
+            coordinator is not None
+            and Path(coordinator.live_store.path).resolve() != self.store.path.resolve()
+        ):
+            raise ValueError("Meeting work coordinator uses a different live store")
+        self.coordinator = coordinator
         self._runtime_lock = IngestLock(
             self.store.path.with_suffix(self.store.path.suffix + ".runtime.lock"),
             timeout_seconds=0.25,
@@ -382,7 +397,14 @@ class LiveSessionService:
             "artifact_keys": [],
         }
         try:
-            self.store.reserve(record)
+            if self.coordinator is not None:
+                self.coordinator.reserve_live(record)
+            else:
+                self.store.reserve(record)
+        except MeetingWorkConflict as exc:
+            raise LiveSessionConflict(exc.code, exc.public_message) from exc
+        except MeetingWorkStateError as exc:
+            raise LiveSessionError(exc.code, exc.public_message) from exc
         except LiveSessionStoreConflict as exc:
             if "capacity" in str(exc).lower():
                 raise LiveSessionConflict(
@@ -473,6 +495,14 @@ class LiveSessionService:
             if not candidates:
                 return None
             return self._public_record(candidates[-1])
+
+    def offline_work_active(self, meeting_id: str) -> bool:
+        if self.coordinator is None:
+            return False
+        try:
+            return self.coordinator.offline_active(meeting_id)
+        except MeetingWorkStateError as exc:
+            raise LiveSessionError(exc.code, exc.public_message) from exc
 
     def events(
         self,

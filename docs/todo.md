@@ -116,8 +116,9 @@
 - [x] MA-LIVE-OFFLINE-REFINEMENT-V1 (#208): retain the live draft, run canonical
   offline ASR through the durable runner and expose safe source-scoped status/
   comparison without indexing the draft.
-- [ ] MA-LIVE-PIPELINE-COORDINATION (#222): enforce server-side mutual exclusion
-  between live capture and offline stage/pipeline jobs.
+- [x] MA-LIVE-PIPELINE-COORDINATION (#222): shared cross-process reservation
+  enforces server-side mutual exclusion between live capture and offline
+  stage/pipeline jobs while preserving MIC+SYS capture.
 - [ ] MA-LIVE-MEETING-CREATION (#223): create a schema-valid live-only meeting
   from `/MeetingAgent` without uploading media first.
 - [ ] API-VALIDATION-CTX-SANITIZATION (#227): recursively sanitize non-JSON

@@ -93,7 +93,12 @@ def _block_reason_token(stage: str, detail: str | None) -> str:
     return _BLOCK_TOKENS.get(stage, "prerequisite_missing")
 
 
-def pipeline_readiness(meeting_id: str, meeting_dir: Path) -> dict[str, Any]:
+def pipeline_readiness(
+    meeting_id: str,
+    meeting_dir: Path,
+    *,
+    live_session_active: bool = False,
+) -> dict[str, Any]:
     """Build the readiness map for all runnable stages of one meeting."""
     card = _read_card(meeting_dir)
     stages: list[dict[str, Any]] = []
@@ -111,6 +116,10 @@ def pipeline_readiness(meeting_id: str, meeting_dir: Path) -> dict[str, Any]:
             state, can_run = "done", False
             reason = "already_done"
             detail = "stage output already exists; re-run requires force"
+        elif live_session_active:
+            state, can_run = "blocked", False
+            reason = "live_session_active"
+            detail = "stop live capture before starting offline meeting processing"
         elif block_detail is not None:
             state, can_run = "blocked", False
             reason = _block_reason_token(stage, block_detail)

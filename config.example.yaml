@@ -58,6 +58,8 @@ paths:
   jobs_state: "logs/jobs_state.json"
   # Durable bounded live-session state. Partial hypotheses remain memory-only.
   live_sessions_state: "logs/live_sessions_state.json"
+  # Cross-process advisory lock for live/offline work on the same meeting.
+  meeting_work_lock: "logs/meeting_work.lock"
 
 live:
   # Optional local Vosk runtime. The API boots without the optional packages,

@@ -405,6 +405,8 @@ def test_build_app_state_wires_durable_job_store(
                 "auth_db": str(tmp_path / "auth.db"),
                 "meetings_root": str(tmp_path / "meetings"),
                 "jobs_state": "runtime/jobs.json",
+                "live_sessions_state": "runtime/live.json",
+                "meeting_work_lock": "runtime/meeting_work.lock",
             },
         }
     )
@@ -414,7 +416,14 @@ def test_build_app_state_wires_durable_job_store(
         assert state.job_runner.store.path == (tmp_path / "runtime" / "jobs.json").resolve()
         assert state.job_runner.meetings_root == tmp_path / "meetings"
         assert state.live_session_service.store.path == (
-            tmp_path / "logs" / "live_sessions_state.json"
+            tmp_path / "runtime" / "live.json"
+        ).resolve()
+        assert state.job_runner.coordinator is state.live_session_service.coordinator
+        assert state.job_runner.coordinator is not None
+        assert state.job_runner.coordinator.job_store is state.job_runner.store
+        assert state.job_runner.coordinator.live_store is state.live_session_service.store
+        assert state.job_runner.coordinator.lock_path == (
+            tmp_path / "runtime" / "meeting_work.lock"
         ).resolve()
     finally:
         state.live_session_service.shutdown()
