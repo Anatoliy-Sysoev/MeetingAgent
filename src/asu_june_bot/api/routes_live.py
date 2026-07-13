@@ -139,6 +139,30 @@ async def live_preflight(
     return JSONResponse(content=payload)
 
 
+@router.get("/meetings/{meeting_id}/live/timeline")
+async def live_timeline(
+    meeting_id: str,
+    after: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=1_000),
+    _principal: Annotated[
+        Principal,
+        Depends(require_permission("transcripts.read")),
+    ] = None,
+    service: LiveSessionService = Depends(_get_service),
+) -> JSONResponse:
+    try:
+        payload = await asyncio.to_thread(
+            service.timeline,
+            meeting_id,
+            after=after,
+            limit=limit,
+        )
+    except (LiveSessionError, LiveSessionStoreError) as exc:
+        raise _http_error(exc) from exc
+    payload["meeting_id"] = meeting_id
+    return JSONResponse(content=payload)
+
+
 @router.get("/meetings/{meeting_id}/live/refinement")
 async def get_live_refinement(
     meeting_id: str,

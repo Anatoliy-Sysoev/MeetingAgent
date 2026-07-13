@@ -34,7 +34,9 @@ if str(SRC_ROOT) not in sys.path:
 
 from meeting_agent.live_transcription import (  # noqa: E402
     VALID_LIVE_SOURCES,
+    LiveMixError,
     LiveSessionReport,
+    build_derived_mix_artifacts,
     list_audio_devices,
     preflight_audio_source,
     write_live_artifacts,
@@ -144,6 +146,7 @@ def update_meeting_artifacts(
         "live_transcript",
         "live_srt",
         "live_vtt",
+        "live_report",
         "live_audio",
     ):
         if key not in source_keys:
@@ -346,6 +349,30 @@ def run(args: argparse.Namespace) -> int:
             args.source,
             duration_seconds=report.duration_seconds,
         )
+        if args.source in {"MIC", "SYS"}:
+            try:
+                mix = build_derived_mix_artifacts(
+                    output_dir,
+                    generated_at=finished_at,
+                )
+            except (LiveMixError, OSError, UnicodeError, ValueError):
+                mix = None
+                print(
+                    "WARNING: live MIX timeline could not be derived; "
+                    "source artifacts remain valid.",
+                    file=sys.stderr,
+                )
+            if mix is not None:
+                update_meeting_artifacts(
+                    meeting,
+                    meeting_dir,
+                    mix.written,
+                    "MIX",
+                    duration_seconds=max(
+                        (segment.end for segment in mix.segments),
+                        default=0.0,
+                    ),
+                )
         validate_schema(meeting)
         write_json_atomic(meeting_path, meeting)
 
