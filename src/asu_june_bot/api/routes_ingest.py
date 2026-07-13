@@ -10,8 +10,9 @@ from typing import Annotated
 import jsonschema
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field
 
-from asu_june_bot.api.auth import require_write_access
+from asu_june_bot.api.auth import require_action_permission, require_write_access
 from asu_june_bot.auth.models import Principal
 from asu_june_bot.meetings.service import (
     MAX_MEETING_TITLE_CHARS,
@@ -30,6 +31,14 @@ _UNSAFE_FILENAME_CHARS = frozenset('<>:"|?*\x00')
 _SCHEMA_PATH = (
     Path(__file__).resolve().parents[3] / "configs" / "schemas" / "meeting.schema.json"
 )
+
+
+class LiveMeetingCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=MAX_MEETING_TITLE_CHARS)
+    language: str = Field(default="ru", min_length=2, max_length=35)
+    date: datetime.date | None = None
 
 
 def _get_meetings_service(request: Request) -> MeetingsService:
@@ -132,6 +141,51 @@ def _buffer_upload(file: UploadFile, *, suffix: str, max_bytes: int) -> Buffered
     except BaseException:
         _unlink_temp(tmp_path)
         raise
+
+
+@router.post("/live", status_code=201)
+def create_live_meeting(
+    body: LiveMeetingCreateRequest,
+    _principal: Annotated[
+        Principal,
+        Depends(require_action_permission("meetings.upload")),
+    ],
+    service: MeetingsService = Depends(_get_meetings_service),
+) -> JSONResponse:
+    """Create a live-only card without uploading or inventing source media."""
+    meeting_date = (body.date or datetime.date.today()).isoformat()
+    try:
+        card = service.create_live_meeting(
+            title=body.title,
+            meeting_date=meeting_date,
+            language=body.language,
+            schema_path=_SCHEMA_PATH,
+        )
+    except IngestLockTimeoutError as exc:
+        raise _error(503, "ingest_busy", "Another meeting creation transaction is active") from exc
+    except jsonschema.ValidationError as exc:
+        raise _error(
+            422,
+            "meeting_card_validation_failed",
+            "Meeting metadata did not pass validation",
+        ) from exc
+    except ValueError as exc:
+        raise _error(422, "invalid_meeting_metadata", "Meeting metadata is invalid") from exc
+    except (OSError, RuntimeError) as exc:
+        raise _error(500, "meeting_create_failed", "Meeting could not be created") from exc
+
+    meeting_id = str(card["meeting_id"])
+    return JSONResponse(
+        status_code=201,
+        content={
+            "meeting_id": meeting_id,
+            "title": card["title"],
+            "date": card["date"],
+            "language": card["language"],
+            "source_kind": "live_session",
+            "workspace_url": f"/meetings/{meeting_id}/workspace",
+        },
+    )
 
 
 @router.post("/ingest", status_code=201)

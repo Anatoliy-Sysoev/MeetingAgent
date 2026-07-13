@@ -227,9 +227,9 @@ The workspace includes:
 - meeting-scoped search and Q&A with vector retrieval fallback, timestamps, speaker labels, and source citations.
 
 The current product gap is no longer the basic offline pipeline. Remaining work
-is concentrated in server-enforced live/pipeline coordination, creating
-live-only meetings in the browser, simultaneous MIC+SYS mixing into one derived
-track, and deeper product administration.
+is concentrated in simultaneous MIC+SYS mixing into one derived track and
+deeper product administration. Live-only cards, live/offline coordination and
+source-scoped offline refinement are available in the browser.
 
 ### Live Transcription
 
@@ -373,6 +373,7 @@ To select one retained source explicitly for a manual canonical pass:
 Authenticated live sessions are also available through the local API:
 
 ```text
+POST /meetings/live
 GET  /meetings/{meeting_id}/live/preflight
 GET  /meetings/{meeting_id}/live/refinement
 POST /meetings/{meeting_id}/live/refinement
@@ -382,6 +383,13 @@ GET  /meetings/{meeting_id}/live/sessions/{session_id}
 GET  /meetings/{meeting_id}/live/sessions/{session_id}/events
 POST /meetings/{meeting_id}/live/sessions/{session_id}/stop
 ```
+
+`POST /meetings/live` creates a schema-valid live-only card from a bounded
+title, language and optional date. Cookie callers require `meetings.upload` and
+the session CSRF token. The card has `source.kind=live_session` and no invented
+media or index rows; a source-scoped WAV is registered only after successful
+MIC/SYS capture. In `/MeetingAgent`, use **Create live meeting** to create the
+card and open its Workspace directly.
 
 The same lifecycle is available in the meeting Workspace. Open
 `/meetings/<meeting_id>/workspace`, then use the **Live transcription** panel.

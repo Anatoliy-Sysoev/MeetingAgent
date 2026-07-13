@@ -300,6 +300,7 @@ source/live_audio.<SOURCE>.wav        # только реальный MIC/SYS ca
 API v1 управляет тем же Vosk backend через аутентифицированный lifecycle:
 
 ```text
+POST /meetings/live
 GET  /meetings/{meeting_id}/live/preflight
 GET  /meetings/{meeting_id}/live/refinement?source=MIC
 POST /meetings/{meeting_id}/live/refinement
@@ -309,6 +310,16 @@ GET  /meetings/{meeting_id}/live/sessions/{session_id}
 GET  /meetings/{meeting_id}/live/sessions/{session_id}/events?after=0&limit=100
 POST /meetings/{meeting_id}/live/sessions/{session_id}/stop
 ```
+
+Для новой live-встречи загрузка файла не нужна. `POST /meetings/live` принимает
+JSON с обязательным `title`, опциональными `date` (`YYYY-MM-DD`) и `language`
+(`ru` по умолчанию). Он атомарно создаёт schema-valid карточку с
+`source.kind=live_session`, `audio_tracks=[MIC,SYS]`, пустыми `artifacts` и
+`rag.indexed_artifacts`, затем возвращает `workspace_url`. Карточка не содержит
+фиктивный `media_files`; реальный `source/live_audio.<SOURCE>.wav` появляется
+только после успешной финализации capture. Browser-сценарий доступен через
+**Создать live-встречу** на `/MeetingAgent`; cookie POST требует
+`meetings.upload` и `X-CSRF-Token`.
 
 Пример запуска через machine token:
 

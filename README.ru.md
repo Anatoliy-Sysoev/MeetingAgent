@@ -157,7 +157,13 @@ http://127.0.0.1:8000/meetings/<meeting_id>/workspace
 
 Workspace включает медиаплеер, кликабельный транскрипт, просмотр артефактов, readiness map, stage controls, one-click pipeline profiles и meeting-scoped Q&A с vector retrieval, таймкодами, speaker labels и citations.
 
-Текущий следующий слой работ: стабильный artifact manifest, продуктовый контракт ошибок/retry и цельный upload-to-review flow.
+Для записи без готового файла откройте `http://127.0.0.1:8000/MeetingAgent`,
+выберите **Создать live-встречу**, укажите название/дату/язык и перейдите в
+Workspace. Карточка создаётся без фиктивного media; source-scoped WAV появится
+только после успешного MIC/SYS capture. Browser POST защищён RBAC и CSRF.
+
+Текущий следующий слой работ: производный MIC+SYS MIX и углубление продуктового
+администрирования.
 
 ## Публичные Примеры
 

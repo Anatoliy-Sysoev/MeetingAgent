@@ -34,6 +34,14 @@ def test_meetingagent_ui_lists_and_uploads_meetings(html: str) -> None:
     assert 'id="uploadForm"' in html
 
 
+def test_meetingagent_ui_creates_live_meeting_and_opens_workspace(html: str) -> None:
+    assert 'id="liveMeetingForm"' in html
+    assert 'apiFetch("/meetings/live"' in html
+    assert '"X-CSRF-Token": state.csrf' in html
+    assert "window.location.assign(workspaceUrl)" in html
+    assert 'id="liveMeetingLanguage"' in html
+
+
 def test_meetingagent_ui_starts_pipeline_profiles(html: str) -> None:
     assert "/jobs/pipeline" in html
     assert "transcript_only" in html
@@ -46,7 +54,7 @@ def test_meetingagent_ui_starts_pipeline_profiles(html: str) -> None:
 
 
 def test_meetingagent_ui_uses_csrf_for_mutating_requests(html: str) -> None:
-    for endpoint in ("/meetings/ingest", "/jobs/pipeline"):
+    for endpoint in ("/meetings/ingest", "/meetings/live", "/jobs/pipeline"):
         idx = html.index(endpoint)
         context = html[max(0, idx - 850): idx + 500]
         assert "X-CSRF-Token" in context, context

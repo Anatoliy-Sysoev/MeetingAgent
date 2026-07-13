@@ -940,3 +940,27 @@ JobRunner. Для каждой source сохраняется состояние 
 - readiness и preflight отражают server-side blocked reason;
 - advisory lock снимается ОС при завершении процесса, а owner-state остаётся
   только в существующих recoverable stores.
+
+## 2026-07-13 - Live-Встреча Создаётся Отдельной Карточкой Без Fake Media
+
+Решение: browser/API создаёт live-only карточку через `POST /meetings/live`.
+Выделение collision-safe `meeting_id` и публикация готовой папки выполняются
+под тем же межпроцессным ingest lock, что и upload. Карточка получает
+`source.kind=live_session`, язык и MIC/SYS source tracks, но не получает
+`media_files`, artifacts или index rows до появления реального результата.
+
+Почему:
+
+- live capture должен начинаться до существования записанного файла;
+- пустой или выдуманный media entry ломает provenance и offline refinement;
+- одновременные browser requests не должны перезаписывать встречу с тем же
+  title/date;
+- Workspace и readiness уже умеют работать с карточкой без offline media.
+
+Следствия:
+
+- editor создаёт карточку с `meetings.upload` и CSRF; viewer получает 403;
+- карточка собирается в hidden staging directory и публикуется одним rename;
+- list/detail показывают `source_kind=live_session` и язык без локальных путей;
+- реальный WAV регистрируется только после успешной MIC/SYS live-сессии;
+- offline extract/transcribe остаются blocked до появления настоящего source.

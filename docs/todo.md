@@ -119,8 +119,9 @@
 - [x] MA-LIVE-PIPELINE-COORDINATION (#222): shared cross-process reservation
   enforces server-side mutual exclusion between live capture and offline
   stage/pipeline jobs while preserving MIC+SYS capture.
-- [ ] MA-LIVE-MEETING-CREATION (#223): create a schema-valid live-only meeting
-  from `/MeetingAgent` without uploading media first.
+- [x] MA-LIVE-MEETING-CREATION (#223): create a schema-valid live-only meeting
+  from `/MeetingAgent` without uploading media first; atomic ID allocation,
+  RBAC/CSRF, list/detail/readiness and browser-to-Workspace preflight covered.
 - [ ] API-VALIDATION-CTX-SANITIZATION (#227): recursively sanitize non-JSON
   Pydantic validation context so malformed requests return bounded 422, not 500.
 - [x] MA-LIVE-LOOPBACK-IDLE-SAFETY (#213): make bounded SYS capture and Ctrl+C
