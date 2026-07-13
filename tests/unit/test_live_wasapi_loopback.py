@@ -327,6 +327,7 @@ def test_vosk_system_capture_uses_canonical_frames_and_path_free_metrics(
         "output_dtype": "int16",
         "resampler": "soxr_hq",
         "input_frames": 960,
+        "converted_frames": 320,
         "output_frames": 320,
         "resampler_clips": 0,
         "read_errors": 0,
@@ -360,6 +361,7 @@ def test_vosk_system_capture_preserves_read_error_without_flushing(
 
         def __init__(self, **_kwargs) -> None:
             self.input_frames = 0
+            self.output_frames = 0
             self.clips = 0
             self.flushed = False
             type(self).instances.append(self)
