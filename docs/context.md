@@ -4,18 +4,21 @@
 
 ## Now
 
-- MA-LIVE-DEPENDENCY-LOCK (#214) is implemented on its review branch: optional
-  live dependencies have exact Python 3.12 Windows/Linux locks, both use the
-  official CPU-only PyTorch index, and the scheduled audit covers core plus both
-  platform graphs.
-- canonical main before #214: `63ee86c` / `Bound microphone backpressure without timestamp drift (#218)`.
-- next product work is Live session API/UI (#206/#207) and offline refinement
-  (#208).
+- MA-LIVE-SESSION-API-V1 (#206) is implemented on its review branch: authenticated
+  preflight/start/stop/status/event endpoints, atomic bounded durable state,
+  graceful Vosk finalization, duplicate prevention, deterministic stale recovery
+  and path-free public diagnostics are covered by behavioral tests.
+- canonical main before #206: `85381a1` / `Add platform-specific live dependency locks and audit coverage (#219)`.
+- next product work is Live UI (#207) and offline refinement (#208).
   history purge #167 remains gated by explicit owner approval and a verified
   backup.
 
 ## Done latest
 
+- MA-LIVE-SESSION-API-V1 (#206): added RBAC/CSRF-protected lifecycle routes,
+  source preflight DTO sanitization, bounded polling, memory-only partials,
+  durable final/status events, process-owner locking, graceful stop and stale
+  restart recovery.
 - MA-LIVE-DEPENDENCY-LOCK (#214): added platform-specific exact live locks,
   kept Torch/Vosk outside core/Docker, validated clean Windows and Linux
   installs plus real Silero model loads, and expanded scheduled advisory audit
@@ -198,6 +201,12 @@ POST /meetings/{id}/jobs/{stage}
 POST /meetings/{id}/jobs/{stage}/retry
 GET  /meetings/{id}/jobs/{job_id}
 POST /meetings/{id}/jobs/{job_id}/cancel
+GET  /meetings/{id}/live/preflight
+GET  /meetings/{id}/live/sessions/active
+POST /meetings/{id}/live/sessions
+GET  /meetings/{id}/live/sessions/{session_id}
+GET  /meetings/{id}/live/sessions/{session_id}/events
+POST /meetings/{id}/live/sessions/{session_id}/stop
 GET  /jobs/active
 POST /search
 POST /chat
@@ -223,10 +232,8 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- MA-LIVE-STREAMING-VAD-V1 (#205): preserve real capture timestamps while
-  filtering microphone/loopback silence.
-- MA-LIVE-SESSION-API-V1 / MA-LIVE-UI-V1 (#206/#207): add explicit live session
-  lifecycle plus start/stop/partial/final UI after capture timing is stable.
+- MA-LIVE-UI-V1 (#207): consume the authenticated #206 polling contract in a
+  start/stop/partial/final browser workspace.
 - MA-LIVE-OFFLINE-REFINEMENT-V1 (#208): preserve the draft and produce the
   canonical offline transcript without indexing live artifacts.
 - SEC-P0-GIT-HISTORY-PURGE (#167): backup, verify and coordinate the force rewrite; do not execute implicitly.

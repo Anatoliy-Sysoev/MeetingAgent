@@ -15,6 +15,7 @@ packages:
     - asu_june_bot.health
     - asu_june_bot.ingestion
     - asu_june_bot.jobs
+    - asu_june_bot.live_sessions
     - asu_june_bot.meetings
     - asu_june_bot.observability
     - asu_june_bot.packaging
