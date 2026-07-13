@@ -644,3 +644,30 @@ processes; новый snapshot создаётся во временном фай
   metadata policy и покрыты синтетическим regression test;
 - anonymization остаётся эвристической для свободного текста и требует ручной
   проверки перед публикацией.
+
+## 2026-07-13 - Live Source Preflight Разделяет Device И Backend Readiness
+
+Решение: live preflight не открывает audio stream и отдельно сообщает
+`device_available`, `capture_supported` и итоговый `available`. MIC может быть
+готов к запуску текущим Vosk backend. Windows WASAPI output device считается
+только SYS loopback candidate; пока реальный loopback/resampling не реализован,
+SYS и MIX возвращают blocked reason и не запускают microphone fallback.
+
+Почему:
+
+- наличие output device не доказывает, что PortAudio backend умеет захватить
+  его как loopback source;
+- прежний draft мог принять наличие MIC за доступность MIX, затем записать MIC
+  и сохранить неверный source label;
+- preflight нужен для automation/UI и должен отвечать на вопрос «можно ли
+  запустить сейчас», не только «видно ли похожее устройство»;
+- `--input-wav` не использует hardware capture и остаётся безопасным
+  детерминированным smoke-path для любого source label.
+
+Следствия:
+
+- `--preflight-source` возвращает exit code `0` для runnable source и `2` для
+  blocked source;
+- inventory может показывать loopback candidates, не объявляя feature готовой;
+- real SYS/MIX capture, streaming VAD, session API/UI и offline refinement
+  реализуются отдельными задачами поверх стабильного контракта.

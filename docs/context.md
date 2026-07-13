@@ -4,17 +4,23 @@
 
 ## Now
 
-- MA-PRIVACY-RUNTIME-HARDENING (#162) is implemented on its v2 review branch:
-  transcript metadata and reports no longer retain speaker/source PII or
-  reproducible original-value hashes; meeting index rows are relative-only;
-  preflight errors are bounded/path-redacted; meeting-card error writes are
-  atomic; readiness reports `processing_status`.
-- canonical main before #162: `d336ca0` / `Make meeting vector cache concurrency-safe (#202)`.
-- next implementation review is MA-LIVE-AUDIO-CAPTURE-V1 (#164); Git history
-  purge #167 remains gated by explicit owner approval and a verified backup.
+- MA-LIVE-AUDIO-CAPTURE-V1 (#164) is implemented on its v2 review branch:
+  device inventory and MIC/SYS/MIX preflight never open a stream; readiness
+  separates device discovery from current backend support; MIC is runnable;
+  real SYS/MIX fail closed while deterministic input-WAV smoke stays available.
+- canonical main before #164: `736f1a4` / `Harden privacy and public runtime errors (#203)`.
+- next product work is real Windows loopback/resampling (#204), streaming VAD
+  (#205), Live session API/UI (#206/#207) and offline refinement (#208);
+  history purge #167 remains gated by explicit owner approval and a verified
+  backup.
+- dependency audit itself is clean with forced UTF-8, but its Windows launcher
+  is not robust to a Cyrillic profile path; regression/fix is tracked in #209.
 
 ## Done latest
 
+- MA-LIVE-AUDIO-CAPTURE-V1 (#164): added no-capture source inventory/preflight,
+  automation-friendly result codes and an honest hardware/backend readiness
+  contract that prevents MIC audio from being mislabeled as SYS or MIX.
 - MA-PRIVACY-RUNTIME-HARDENING (#162): closed the remaining public-surface
   privacy gaps without reviving the obsolete pre-CSP UI diff from PR #163.
 - MA-MEETING-VECTOR-CACHE-LOCKING (#181): moved semantic cache I/O behind a
@@ -200,8 +206,16 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- MA-LIVE-AUDIO-CAPTURE-V1 (#164): re-review the existing source discovery and
-  preflight branch against current main, then merge only the current contract.
+- MA-LIVE-LOOPBACK-CAPTURE-V1 (#204): implement Windows SYS capture and deterministic
+  stereo 44.1/48 kHz -> mono 16 kHz conversion behind the #164 contract.
+- MA-LIVE-STREAMING-VAD-V1 (#205): preserve real capture timestamps while
+  filtering microphone/loopback silence.
+- MA-LIVE-SESSION-API-V1 / MA-LIVE-UI-V1 (#206/#207): add explicit live session
+  lifecycle plus start/stop/partial/final UI after capture timing is stable.
+- MA-LIVE-OFFLINE-REFINEMENT-V1 (#208): preserve the draft and produce the
+  canonical offline transcript without indexing live artifacts.
+- TEST-DEPENDENCY-AUDIT-WINDOWS-UTF8 (#209): make audit startup deterministic
+  under non-ASCII Windows user paths.
 - SEC-P0-GIT-HISTORY-PURGE (#167): backup, verify and coordinate the force rewrite; do not execute implicitly.
 
 ## Open decisions / blockers

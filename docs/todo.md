@@ -99,8 +99,21 @@
 - [x] MA-PRIVACY-RUNTIME-HARDENING (#162): no speaker/source PII or original
   hashes in public anonymization output, relative-only meeting index rows,
   bounded path-safe preflight errors, atomic last_error and correct readiness status.
-- [ ] MA-LIVE-AUDIO-CAPTURE-V1 (#164): review and finish MIC/SYS/MIX discovery,
-  no-capture preflight and public source contract against current main.
+- [x] MA-LIVE-AUDIO-CAPTURE-V1 (#164): no-capture MIC/SYS/MIX inventory and
+  preflight, separate device/backend readiness, fail-closed SYS/MIX runtime and
+  deterministic file-smoke compatibility.
+- [ ] MA-LIVE-LOOPBACK-CAPTURE-V1 (#204): implement Windows SYS capture and 44.1/48 kHz
+  stereo -> 16 kHz mono conversion.
+- [ ] MA-LIVE-STREAMING-VAD-V1 (#205): apply Silero VAD to microphone/loopback streams
+  while preserving real-time timestamps.
+- [ ] MA-LIVE-SESSION-API-V1 (#206): add authenticated start/stop/status/event
+  lifecycle, duplicate-session protection and restart recovery.
+- [ ] MA-LIVE-UI-V1 (#207): add browser controls for
+  start/stop, partial/final transcript and status.
+- [ ] MA-LIVE-OFFLINE-REFINEMENT-V1 (#208): retain the live draft, then trigger and
+  compare canonical offline ASR without indexing the draft.
+- [ ] TEST-DEPENDENCY-AUDIT-WINDOWS-UTF8 (#209): force deterministic UTF-8
+  subprocess semantics for pip-audit under Cyrillic Windows profile paths.
 - [ ] MA-MEETINGAGENT-UI-MOCKUPS: approve target mockups for registry, upload wizard, processing monitor and meeting card before deeper UI refactor.
 
 ## Meeting Product Backlog
