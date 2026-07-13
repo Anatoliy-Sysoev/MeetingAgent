@@ -1,0 +1,8 @@
+# Resolver input for the optional Python 3.12 live runtime.
+#
+# Generate one exact lock per supported platform. Shared dependencies must stay
+# compatible with the reviewed core graph without adding live packages to the
+# core installation.
+--extra-index-url https://download.pytorch.org/whl/cpu
+-c constraints-py312.txt
+-r requirements-live.txt

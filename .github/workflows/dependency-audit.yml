@@ -10,7 +10,21 @@ permissions:
 
 jobs:
   audit:
-    runs-on: ubuntu-latest
+    name: audit (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: core
+            os: ubuntu-latest
+            requirements: constraints-py312.txt
+          - name: live-linux
+            os: ubuntu-latest
+            requirements: constraints-live-py312-linux.txt
+          - name: live-windows
+            os: windows-latest
+            requirements: constraints-live-py312-windows.txt
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -23,7 +37,11 @@ jobs:
           cache: pip
           cache-dependency-path: |
             constraints-py312.txt
+            constraints-live-py312-linux.txt
+            constraints-live-py312-windows.txt
             requirements-dev.txt
+            requirements-live.txt
+            requirements-live-lock-py312.in
 
       - name: Install audit tool from reviewed constraints
         run: |
@@ -31,4 +49,4 @@ jobs:
           python -m pip install -c constraints-py312.txt pip-audit
 
       - name: Audit pinned dependency graph
-        run: python scripts/47_dependency_audit.py
+        run: python scripts/47_dependency_audit.py --requirements "${{ matrix.requirements }}"
