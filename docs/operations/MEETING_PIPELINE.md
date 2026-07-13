@@ -335,6 +335,39 @@ Invoke-RestMethod `
 - live draft по-прежнему включается в `rag.no_index_artifacts` и не заменяет
   offline transcript.
 
+#### Live в Meeting Workspace
+
+Откройте карточку встречи:
+
+```text
+http://127.0.0.1:8000/meetings/<meeting_id>/workspace
+```
+
+Панель **Live transcription** использует API v1 и показывает две независимые
+дорожки:
+
+- `MIC` - локальный микрофон через `sounddevice`;
+- `SYS` - Windows WASAPI loopback через PyAudioWPatch.
+
+Для каждой дорожки UI выполняет preflight, показывает контролируемую причину
+блокировки, позволяет выбрать source-specific устройство и режим VAD, запускает
+сессию и делает graceful stop. Partial-гипотеза визуально отделена от final
+строк и заменяется после получения final event. В панели также видны elapsed
+time и итоговые capture warnings. MIC и SYS никогда не объединяются и всегда
+маркируются своим source label.
+
+Кнопка start требует `jobs.start`, stop - `jobs.cancel`; browser POST получает
+CSRF через `/auth/csrf`. При активной pipeline job live start заблокирован, а
+при активной live-сессии Workspace не предлагает запуск offline pipeline. Это
+защищает обычный UI-сценарий от конкурирующих тяжёлых задач; machine clients
+должны соблюдать тот же operational rule.
+
+Если для source уже существует finalized draft, повторная запись возможна
+только после явного выбора `Replace an existing ... draft`. Live-строки
+ограничены в DOM, event polling использует bounded cursor (`limit=200`), а
+partial events не сохраняются браузером. Баннер `draft and is not indexed`
+остаётся видимым до offline refinement.
+
 VAD modes:
 
 ```text

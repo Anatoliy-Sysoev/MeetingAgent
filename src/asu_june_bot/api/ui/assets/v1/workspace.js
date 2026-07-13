@@ -15,6 +15,25 @@ let _activeJob = null;
 let _pollTimer = null;
 let _actionInProgress = false;
 
+const LIVE_SOURCES = ["MIC", "SYS"];
+const LIVE_FINAL_ROWS_MAX = 250;
+const LIVE_POLL_INTERVAL_MS = 750;
+const _liveTracks = {
+  MIC: {
+    preflight: null, session: null, cursor: 0, partial: "", finals: [], busy: false,
+    devicesRevision: 0, renderedDevicesRevision: -1,
+    finalsRevision: 0, renderedFinalsRevision: -1, renderedWarningsKey: null,
+  },
+  SYS: {
+    preflight: null, session: null, cursor: 0, partial: "", finals: [], busy: false,
+    devicesRevision: 0, renderedDevicesRevision: -1,
+    finalsRevision: 0, renderedFinalsRevision: -1, renderedWarningsKey: null,
+  },
+};
+let _livePollTimer = null;
+let _liveClockTimer = null;
+let _livePollInFlight = false;
+
 // ---- auth ----
 function showAuthOverlay(title, detail) {
   document.getElementById("auth-overlay-title").textContent = title || "Login required";
@@ -253,6 +272,511 @@ function filterSegments(q) {
       !speakerRole.includes(lower)
     );
   });
+}
+
+// ---- live transcription draft ----
+
+const LIVE_REASON_TEXT = {
+  model_missing: "The local Vosk model is not installed or is incomplete.",
+  sounddevice_missing: "Microphone capture support is not installed.",
+  mic_input_device_missing: "No microphone input device was found.",
+  mic_input_device_not_found: "The selected microphone is no longer available.",
+  mic_capture_format_unsupported: "The selected microphone cannot provide 16 kHz mono audio.",
+  sys_loopback_windows_only: "System-audio capture is available on Windows only.",
+  sys_loopback_backend_missing: "The Windows loopback capture backend is not installed.",
+  sys_loopback_discovery_failed: "System-audio devices could not be inspected.",
+  sys_loopback_device_missing: "No system-audio loopback device was found.",
+  sys_loopback_device_not_found: "The selected loopback device is no longer available.",
+  sys_loopback_default_missing: "No default system-audio loopback device was found.",
+  source_preflight_failed: "Audio readiness could not be checked.",
+  live_session_active: "This source already has an active live session.",
+  live_session_capacity: "Live capture capacity is reached. Stop another live source first.",
+  live_artifact_exists: "A saved draft already exists. Select the replace option to record again.",
+  live_session_not_running: "The capture worker is no longer running. Refresh the live panel.",
+  service_stopping: "The live transcription service is stopping.",
+  meeting_not_found: "This meeting is no longer available.",
+  live_state_unavailable: "Live session state is temporarily unavailable.",
+  live_session_failed: "Live transcription failed. Check local audio and model readiness.",
+};
+
+function liveElement(source, suffix) {
+  return document.getElementById(`live-${source.toLowerCase()}-${suffix}`);
+}
+
+function liveSourceName(source) {
+  return source === "MIC" ? "microphone" : "system audio";
+}
+
+function liveReasonText(reason) {
+  return LIVE_REASON_TEXT[reason] || "This audio source is not ready.";
+}
+
+function liveIsActive(session) {
+  return Boolean(session && session.is_active === true);
+}
+
+function anyLiveActive() {
+  return LIVE_SOURCES.some((source) => liveIsActive(_liveTracks[source].session));
+}
+
+function setLiveError(source, message) {
+  const box = liveElement(source, "error");
+  if (!box) return;
+  box.hidden = !message;
+  box.textContent = message || "";
+}
+
+function setLiveGlobalError(message) {
+  const box = document.getElementById("live-global-error");
+  if (!box) return;
+  box.hidden = !message;
+  box.textContent = message || "";
+}
+
+function liveStatusLabel(status) {
+  const labels = {
+    starting: "Starting",
+    running: "Recording",
+    stopping: "Stopping",
+    completed: "Completed",
+    failed: "Failed",
+    stale: "Interrupted",
+  };
+  return labels[status] || String(status || "Unknown");
+}
+
+function liveElapsedSeconds(session) {
+  if (!session || !session.started_at) return 0;
+  const started = Date.parse(session.started_at);
+  if (!Number.isFinite(started)) return 0;
+  const finished = session.is_active ? Date.now() : Date.parse(session.finished_at || "");
+  const end = Number.isFinite(finished) ? finished : Date.now();
+  return Math.max(0, Math.floor((end - started) / 1000));
+}
+
+function fmtElapsed(seconds) {
+  const value = Math.max(0, Number(seconds) || 0);
+  const hours = Math.floor(value / 3600);
+  const minutes = Math.floor((value % 3600) / 60);
+  const secs = Math.floor(value % 60);
+  if (hours > 0) {
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  }
+  return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+
+function updateLiveElapsed() {
+  for (const source of LIVE_SOURCES) {
+    const elapsed = liveElement(source, "elapsed");
+    if (elapsed) elapsed.textContent = fmtElapsed(liveElapsedSeconds(_liveTracks[source].session));
+  }
+}
+
+function selectedLiveDevice(source) {
+  const select = liveElement(source, "device");
+  if (!select || select.value === "") return null;
+  const value = Number(select.value);
+  return Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+function renderLiveDeviceOptions(source) {
+  const state = _liveTracks[source];
+  const select = liveElement(source, "device");
+  if (!select) return;
+  if (state.renderedDevicesRevision === state.devicesRevision) {
+    select.disabled = liveIsActive(state.session) || state.busy;
+    return;
+  }
+  const previous = select.value;
+  const defaultOption = document.createElement("option");
+  defaultOption.value = "";
+  defaultOption.textContent = source === "MIC" ? "System default microphone" : "Default loopback device";
+  const options = [defaultOption];
+  const devices = state.preflight && Array.isArray(state.preflight.devices)
+    ? state.preflight.devices
+    : [];
+  for (const device of devices) {
+    if (!Number.isInteger(device.device_index) || device.device_index < 0) continue;
+    const option = document.createElement("option");
+    option.value = String(device.device_index);
+    option.textContent = device.label || `Audio device ${device.device_index}`;
+    options.push(option);
+  }
+  select.replaceChildren(...options);
+  if (previous && options.some((option) => option.value === previous)) select.value = previous;
+  state.renderedDevicesRevision = state.devicesRevision;
+  select.disabled = liveIsActive(state.session) || state.busy;
+}
+
+function renderLiveWarnings(source) {
+  const list = liveElement(source, "warnings");
+  if (!list) return;
+  const warnings = _liveTracks[source].session && Array.isArray(_liveTracks[source].session.warnings)
+    ? _liveTracks[source].session.warnings
+    : [];
+  const warningsKey = JSON.stringify(warnings);
+  if (_liveTracks[source].renderedWarningsKey === warningsKey) return;
+  const nodes = warnings.map((warning) => {
+    const item = document.createElement("li");
+    item.textContent = String(warning).replace(/_/g, " ");
+    return item;
+  });
+  list.replaceChildren(...nodes);
+  list.hidden = nodes.length === 0;
+  _liveTracks[source].renderedWarningsKey = warningsKey;
+}
+
+function renderLiveFinals(source) {
+  const list = liveElement(source, "finals");
+  if (!list) return;
+  const state = _liveTracks[source];
+  if (state.renderedFinalsRevision === state.finalsRevision) return;
+  const finals = state.finals;
+  if (finals.length === 0) {
+    list.replaceChildren(_mkEmptyMsg(`No final ${source} lines yet`));
+    state.renderedFinalsRevision = state.finalsRevision;
+    return;
+  }
+  const nodes = finals.map((event) => {
+    const row = _mkEl("div", "live-final-row");
+    const meta = _mkEl("div", "live-final-meta");
+    meta.textContent = `${source} · ${fmtSec(event.start)}–${fmtSec(event.end)}`;
+    const text = _mkEl("div", "live-final-text");
+    text.textContent = event.text || "";
+    row.append(meta, text);
+    return row;
+  });
+  list.replaceChildren(...nodes);
+  list.scrollTop = list.scrollHeight;
+  state.renderedFinalsRevision = state.finalsRevision;
+}
+
+function renderLiveTrack(source) {
+  const state = _liveTracks[source];
+  const session = state.session;
+  const active = liveIsActive(session);
+  const badge = liveElement(source, "badge");
+  const readiness = liveElement(source, "readiness");
+  const start = liveElement(source, "start");
+  const stop = liveElement(source, "stop");
+  const vad = liveElement(source, "vad");
+  const force = liveElement(source, "force");
+  const partial = liveElement(source, "partial");
+
+  if (session) {
+    badge.textContent = liveStatusLabel(session.status);
+    badge.className = `badge ${statusBadgeClass(session.status || "")}`;
+    if (active) {
+      readiness.textContent = session.status === "stopping"
+        ? `Gracefully stopping ${liveSourceName(source)} capture...`
+        : `Recording ${liveSourceName(source)}. Keep this page open to see the draft.`;
+    } else if (session.status === "completed") {
+      readiness.textContent = "Draft saved. Run offline transcription before indexing or publishing it.";
+    } else if (session.status === "stale") {
+      readiness.textContent = "Capture stopped after an API restart. The saved draft may be incomplete.";
+    } else {
+      readiness.textContent = session.error && session.error.message
+        ? session.error.message
+        : "Live capture did not complete.";
+    }
+  } else if (state.preflight && state.preflight.available) {
+    badge.textContent = "Ready";
+    badge.className = "badge ok";
+    readiness.textContent = `${source} source and local Vosk model are ready.`;
+  } else if (state.preflight) {
+    badge.textContent = "Blocked";
+    badge.className = "badge err";
+    readiness.textContent = liveReasonText(state.preflight.reason);
+  } else {
+    badge.textContent = "Unavailable";
+    badge.className = "badge warn";
+    readiness.textContent = "Live readiness is unavailable.";
+  }
+
+  const canStart = _permissions.has("jobs.start");
+  const canStop = _permissions.has("jobs.cancel");
+  start.disabled = state.busy || active || _activeJob !== null || !canStart ||
+    !state.preflight || !state.preflight.available;
+  stop.disabled = state.busy || !active || !canStop;
+  vad.disabled = state.busy || active;
+  force.disabled = state.busy || active;
+  if (!canStart) start.title = "Permission required: jobs.start";
+  else if (_activeJob !== null) start.title = "Stop the active pipeline job before live capture.";
+  else if (state.preflight && !state.preflight.available) start.title = liveReasonText(state.preflight.reason);
+  else start.title = "Start a local live draft";
+  stop.title = canStop ? "Gracefully finalize this live draft" : "Permission required: jobs.cancel";
+  partial.textContent = state.partial || (active ? "Waiting for speech..." : "No active partial");
+  renderLiveDeviceOptions(source);
+  renderLiveWarnings(source);
+  renderLiveFinals(source);
+  updateLiveElapsed();
+}
+
+async function liveResponseMessage(resp, fallback) {
+  if (resp.status === 401) return "Your login session expired. Sign in again.";
+  if (resp.status === 403) return "You do not have permission for this live action.";
+  let code = "";
+  try {
+    const body = await resp.json();
+    if (body && body.detail && typeof body.detail === "object") code = String(body.detail.code || "");
+  } catch (e) { /* controlled fallback below */ }
+  return LIVE_REASON_TEXT[code] || fallback;
+}
+
+async function refreshLivePreflight(source) {
+  const state = _liveTracks[source];
+  const device = selectedLiveDevice(source);
+  const query = new URLSearchParams({ source });
+  if (device !== null) query.set("audio_device_index", String(device));
+  let resp;
+  try {
+    resp = await apiFetch(
+      `/meetings/${encodeURIComponent(MEETING_ID)}/live/preflight?${query.toString()}`
+    );
+  } catch (e) {
+    state.preflight = null;
+    state.devicesRevision += 1;
+    setLiveError(source, "Could not reach the local live transcription API.");
+    renderLiveTrack(source);
+    return;
+  }
+  if (!resp) {
+    state.preflight = null;
+    state.devicesRevision += 1;
+    renderLiveTrack(source);
+    return;
+  }
+  if (!resp.ok) {
+    state.preflight = null;
+    state.devicesRevision += 1;
+    setLiveError(source, await liveResponseMessage(resp, "Could not check live source readiness."));
+    renderLiveTrack(source);
+    return;
+  }
+  state.preflight = await resp.json();
+  state.devicesRevision += 1;
+  setLiveError(source, "");
+  renderLiveTrack(source);
+}
+
+function resetLiveEvents(source, session) {
+  const state = _liveTracks[source];
+  if (state.session && state.session.session_id === session.session_id) {
+    state.session = session;
+    return;
+  }
+  state.session = session;
+  state.cursor = 0;
+  state.partial = "";
+  state.finals = [];
+  state.finalsRevision += 1;
+}
+
+async function loadActiveLiveSession(source) {
+  const state = _liveTracks[source];
+  const query = new URLSearchParams({ source });
+  let resp;
+  try {
+    resp = await apiFetch(
+      `/meetings/${encodeURIComponent(MEETING_ID)}/live/sessions/active?${query.toString()}`
+    );
+  } catch (e) {
+    setLiveError(source, "Could not load active live session state.");
+    return;
+  }
+  if (!resp || !resp.ok) return;
+  const body = await resp.json();
+  if (body.session) {
+    if (body.session.source !== source) {
+      setLiveError(source, "Live session source did not match this track.");
+      return;
+    }
+    resetLiveEvents(source, body.session);
+  } else if (liveIsActive(state.session)) {
+    const statusResp = await apiFetch(
+      `/meetings/${encodeURIComponent(MEETING_ID)}/live/sessions/${encodeURIComponent(state.session.session_id)}`
+    );
+    if (statusResp && statusResp.ok) state.session = await statusResp.json();
+  }
+  renderLiveTrack(source);
+}
+
+function applyLiveEvents(source, events) {
+  const state = _liveTracks[source];
+  const batchSeen = new Set();
+  for (const event of events) {
+    const eventId = Number(event.event_id);
+    if (!Number.isInteger(eventId) || eventId <= state.cursor || batchSeen.has(eventId)) continue;
+    if (event.source && event.source !== source) continue;
+    batchSeen.add(eventId);
+    if (event.type === "partial") {
+      state.partial = String(event.text || "");
+    } else if (event.type === "final") {
+      state.partial = "";
+      const text = String(event.text || "").trim();
+      if (text) {
+        state.finals.push({
+          eventId,
+          text,
+          start: Number(event.start) || 0,
+          end: Number(event.end) || 0,
+        });
+        if (state.finals.length > LIVE_FINAL_ROWS_MAX) {
+          state.finals.splice(0, state.finals.length - LIVE_FINAL_ROWS_MAX);
+        }
+        state.finalsRevision += 1;
+      }
+    }
+  }
+}
+
+async function pollLiveTrack(source) {
+  const state = _liveTracks[source];
+  if (!state.session || !state.session.session_id) return;
+  const sessionId = encodeURIComponent(state.session.session_id);
+  const prefix = `/meetings/${encodeURIComponent(MEETING_ID)}/live/sessions/${sessionId}`;
+  const [eventsResp, statusResp] = await Promise.all([
+    apiFetch(`${prefix}/events?after=${state.cursor}&limit=200`),
+    apiFetch(prefix),
+  ]);
+  if (!eventsResp || !statusResp || !eventsResp.ok || !statusResp.ok) {
+    throw new Error("live_poll_failed");
+  }
+  const payload = await eventsResp.json();
+  applyLiveEvents(source, Array.isArray(payload.events) ? payload.events : []);
+  const next = Number(payload.next_after);
+  if (Number.isInteger(next) && next >= state.cursor) state.cursor = next;
+  if (payload.truncated) setLiveError(source, "Older live events were compacted; the newest draft remains available.");
+  state.session = await statusResp.json();
+  if (state.session && !state.session.is_active) state.partial = "";
+  renderLiveTrack(source);
+}
+
+function stopLiveTimersIfIdle() {
+  const active = LIVE_SOURCES.some((source) => liveIsActive(_liveTracks[source].session));
+  if (active) return;
+  if (_livePollTimer) clearInterval(_livePollTimer);
+  if (_liveClockTimer) clearInterval(_liveClockTimer);
+  _livePollTimer = null;
+  _liveClockTimer = null;
+}
+
+function startLiveTimers() {
+  if (!_livePollTimer) _livePollTimer = setInterval(pollLiveSessions, LIVE_POLL_INTERVAL_MS);
+  if (!_liveClockTimer) _liveClockTimer = setInterval(updateLiveElapsed, 1000);
+}
+
+async function pollLiveSessions() {
+  if (_livePollInFlight) return;
+  _livePollInFlight = true;
+  try {
+    await Promise.all(
+      LIVE_SOURCES.filter((source) => liveIsActive(_liveTracks[source].session))
+        .map((source) => pollLiveTrack(source))
+    );
+    setLiveGlobalError("");
+  } catch (e) {
+    setLiveGlobalError("Live status refresh failed. The page will retry automatically.");
+  } finally {
+    _livePollInFlight = false;
+    stopLiveTimersIfIdle();
+  }
+}
+
+async function loadLive() {
+  setLiveGlobalError("");
+  await Promise.all(
+    LIVE_SOURCES.flatMap((source) => [
+      refreshLivePreflight(source),
+      loadActiveLiveSession(source),
+    ])
+  );
+  if (LIVE_SOURCES.some((source) => liveIsActive(_liveTracks[source].session))) {
+    startLiveTimers();
+    await pollLiveSessions();
+  }
+}
+
+async function startLiveSession(source) {
+  const state = _liveTracks[source];
+  if (state.busy || liveIsActive(state.session)) return;
+  if (_activeJob !== null) {
+    setLiveError(source, "Stop the active pipeline job before live capture.");
+    return;
+  }
+  setLiveError(source, "");
+  const csrf = await ensureCsrf();
+  if (!csrf) {
+    setLiveError(source, "Could not obtain a CSRF token. Sign in again.");
+    return;
+  }
+  state.busy = true;
+  renderLiveTrack(source);
+  const device = selectedLiveDevice(source);
+  const vad = liveElement(source, "vad").value;
+  const force = liveElement(source, "force").checked;
+  const body = { source, vad, force };
+  if (device !== null) body.audio_device_index = device;
+  try {
+    const resp = await apiFetch(
+      `/meetings/${encodeURIComponent(MEETING_ID)}/live/sessions`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        body: JSON.stringify(body),
+      }
+    );
+    if (!resp) return;
+    if (!resp.ok) {
+      setLiveError(source, await liveResponseMessage(resp, "Could not start live transcription."));
+      return;
+    }
+    const session = await resp.json();
+    resetLiveEvents(source, session);
+    liveElement(source, "force").checked = false;
+    startLiveTimers();
+    await pollLiveTrack(source);
+    await refreshJobs();
+  } catch (e) {
+    setLiveError(source, "Live transcription could not be started. Check the local API.");
+  } finally {
+    state.busy = false;
+    renderLiveTrack(source);
+  }
+}
+
+async function stopLiveSession(source) {
+  const state = _liveTracks[source];
+  if (state.busy || !liveIsActive(state.session)) return;
+  setLiveError(source, "");
+  const csrf = await ensureCsrf();
+  if (!csrf) {
+    setLiveError(source, "Could not obtain a CSRF token. Sign in again.");
+    return;
+  }
+  state.busy = true;
+  renderLiveTrack(source);
+  try {
+    const sessionId = encodeURIComponent(state.session.session_id);
+    const resp = await apiFetch(
+      `/meetings/${encodeURIComponent(MEETING_ID)}/live/sessions/${sessionId}/stop`,
+      { method: "POST", headers: { "X-CSRF-Token": csrf } }
+    );
+    if (!resp) return;
+    if (!resp.ok) {
+      setLiveError(source, await liveResponseMessage(resp, "Could not stop live transcription."));
+      return;
+    }
+    state.session = await resp.json();
+    await pollLiveTrack(source);
+    await Promise.all([loadMeeting(), loadArtifacts(), refreshJobs()]);
+  } catch (e) {
+    setLiveError(source, "Live transcription could not be stopped cleanly. Refresh its status.");
+  } finally {
+    state.busy = false;
+    renderLiveTrack(source);
+    stopLiveTimersIfIdle();
+  }
 }
 
 // ---- speaker mapping ----
@@ -641,6 +1165,7 @@ function renderJobs(status) {
   stagesEl.textContent = "";
   const canStart = _permissions.has("jobs.start");
   const canRetry = _permissions.has("jobs.retry");
+  const liveBusy = anyLiveActive();
   for (const st of _stages) {
     const ready = _readiness[st.stage] || null;
     const row = document.createElement("div");
@@ -673,10 +1198,12 @@ function renderJobs(status) {
       const forceBtn = document.createElement("button");
       forceBtn.textContent = "Force rerun";
       forceBtn.dataset.stage = st.stage;
-      forceBtn.disabled = !canRetry || _activeJob !== null || _actionInProgress;
+      forceBtn.disabled = !canRetry || _activeJob !== null || _actionInProgress || liveBusy;
       forceBtn.title = !canRetry
         ? "Permission required: jobs.retry"
-        : "Stage output already exists; this re-runs it from scratch";
+        : liveBusy
+          ? "Stop live capture before running pipeline stages"
+          : "Stage output already exists; this re-runs it from scratch";
       forceBtn.addEventListener("click", () => retryStage(forceBtn.dataset.stage, true));
       actions.appendChild(forceBtn);
     } else if (ready && ready.state === "ready_for_retry") {
@@ -684,8 +1211,9 @@ function renderJobs(status) {
       retryBtn.className = "primary";
       retryBtn.textContent = "Retry";
       retryBtn.dataset.stage = st.stage;
-      retryBtn.disabled = !canRetry || _activeJob !== null || _actionInProgress;
+      retryBtn.disabled = !canRetry || _activeJob !== null || _actionInProgress || liveBusy;
       if (!canRetry) retryBtn.title = "Permission required: jobs.retry";
+      else if (liveBusy) retryBtn.title = "Stop live capture before running pipeline stages";
       retryBtn.addEventListener("click", () => retryStage(retryBtn.dataset.stage, false));
       actions.appendChild(retryBtn);
     } else {
@@ -694,10 +1222,11 @@ function renderJobs(status) {
       startBtn.textContent = "Start";
       startBtn.dataset.stage = st.stage;
       const blocked = ready ? ready.can_run === false : false;
-      startBtn.disabled = !canStart || blocked || _activeJob !== null || _actionInProgress;
+      startBtn.disabled = !canStart || blocked || _activeJob !== null || _actionInProgress || liveBusy;
       if (!canStart) startBtn.title = "Permission required: jobs.start";
       else if (blocked) startBtn.title = ready.detail || "Stage is blocked";
       else if (_activeJob !== null) startBtn.title = "Another job is already running";
+      else if (liveBusy) startBtn.title = "Stop live capture before running pipeline stages";
       startBtn.addEventListener("click", () => startStage(startBtn.dataset.stage));
       actions.appendChild(startBtn);
     }
@@ -716,7 +1245,7 @@ function renderPipelineActions() {
   box.textContent = "";
   const canStart = _permissions.has("jobs.start");
   const canRetry = _permissions.has("jobs.retry");
-  const busy = _activeJob !== null || _actionInProgress;
+  const busy = _activeJob !== null || _actionInProgress || anyLiveActive();
 
   const states = Object.values(_readiness);
   const anyDone = states.some((s) => s.state === "done");
@@ -796,6 +1325,7 @@ function updateQaAvailability() {
 async function startStage(stage) {
   if (_actionInProgress) return;
   setJobsError("");
+  if (anyLiveActive()) { setJobsError("Stop live capture before running pipeline stages."); return; }
   const csrf = await ensureCsrf();
   if (!csrf) { setJobsError("Could not obtain CSRF token. Please log in again."); return; }
   _actionInProgress = true;
@@ -822,6 +1352,7 @@ async function safeJobBody(resp) {
 async function startPipeline(opts) {
   if (_actionInProgress) return;
   setJobsError("");
+  if (anyLiveActive()) { setJobsError("Stop live capture before running the offline pipeline."); return; }
   const csrf = await ensureCsrf();
   if (!csrf) { setJobsError("Could not obtain CSRF token. Please log in again."); return; }
   _actionInProgress = true;
@@ -852,6 +1383,7 @@ async function startPipeline(opts) {
 async function retryStage(stage, force) {
   if (_actionInProgress) return;
   setJobsError("");
+  if (anyLiveActive()) { setJobsError("Stop live capture before retrying pipeline stages."); return; }
   const csrf = await ensureCsrf();
   if (!csrf) { setJobsError("Could not obtain CSRF token. Please log in again."); return; }
   _actionInProgress = true;
@@ -903,6 +1435,7 @@ async function refreshJobs() {
     loadManifest(),
   ]);
   renderJobs(status);
+  for (const source of LIVE_SOURCES) renderLiveTrack(source);
   // Stop polling once no job is active; refresh result panels after a job
   // finished so new transcript/artifacts appear without a manual reload.
   if (!_activeJob && _pollTimer) {
@@ -920,7 +1453,7 @@ function startPolling() {
 }
 
 async function loadJobs() {
-  await Promise.all([loadPermissions(), loadStages()]);
+  await loadStages();
   await refreshJobs();
   if (_activeJob) startPolling();
 }
@@ -1068,6 +1601,7 @@ async function askQuestion() {
 
 // ---- init ----
 async function reloadAll() {
+  await loadPermissions();
   await Promise.all([
     loadMeeting(),
     loadMedia(),
@@ -1075,6 +1609,7 @@ async function reloadAll() {
     loadSpeakerMapping(),
     loadArtifacts(),
     loadJobs(),
+    loadLive(),
   ]);
 }
 
@@ -1094,6 +1629,18 @@ const _jobsRefreshBtn = document.getElementById("jobs-refresh-btn");
 if (_jobsRefreshBtn) {
   _jobsRefreshBtn.addEventListener("click", () => { setJobsError(""); refreshJobs(); });
 }
+
+const _liveRefreshBtn = document.getElementById("live-refresh-btn");
+if (_liveRefreshBtn) _liveRefreshBtn.addEventListener("click", loadLive);
+document.querySelectorAll("[data-live-start]").forEach((button) => {
+  button.addEventListener("click", () => startLiveSession(button.dataset.liveStart));
+});
+document.querySelectorAll("[data-live-stop]").forEach((button) => {
+  button.addEventListener("click", () => stopLiveSession(button.dataset.liveStop));
+});
+document.querySelectorAll("[data-live-device]").forEach((select) => {
+  select.addEventListener("change", () => refreshLivePreflight(select.dataset.liveDevice));
+});
 
 const _qaAskBtn = document.getElementById("qa-ask-btn");
 if (_qaAskBtn) _qaAskBtn.addEventListener("click", askQuestion);

@@ -109,10 +109,14 @@
 - [x] MA-LIVE-SESSION-API-V1 (#206): authenticated preflight/start/stop/status/
   event lifecycle, bounded durable state, duplicate protection, graceful stop
   and deterministic stale recovery.
-- [ ] MA-LIVE-UI-V1 (#207): add browser controls for
-  start/stop, partial/final transcript and status.
+- [x] MA-LIVE-UI-V1 (#207): Workspace MIC/SYS preflight, device/VAD controls,
+  graceful start/stop, bounded partial/final draft, elapsed time and warnings.
 - [ ] MA-LIVE-OFFLINE-REFINEMENT-V1 (#208): retain the live draft, then trigger and
   compare canonical offline ASR without indexing the draft.
+- [ ] MA-LIVE-PIPELINE-COORDINATION (#222): enforce server-side mutual exclusion
+  between live capture and offline stage/pipeline jobs.
+- [ ] MA-LIVE-MEETING-CREATION (#223): create a schema-valid live-only meeting
+  from `/MeetingAgent` without uploading media first.
 - [x] MA-LIVE-LOOPBACK-IDLE-SAFETY (#213): make bounded SYS capture and Ctrl+C
   interruptible when the Windows output device emits no loopback packets.
 - [x] MA-LIVE-DEPENDENCY-LOCK (#214): exact CPU-only Python 3.12 Windows/Linux
