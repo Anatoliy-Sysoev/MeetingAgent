@@ -56,6 +56,23 @@ paths:
   auth_db: "data/meetingagent/auth.db"
   # Durable pipeline state and bounded recovery history. Local runtime, never commit.
   jobs_state: "logs/jobs_state.json"
+  # Durable bounded live-session state. Partial hypotheses remain memory-only.
+  live_sessions_state: "logs/live_sessions_state.json"
+
+live:
+  # Optional local Vosk runtime. The API boots without the optional packages,
+  # but preflight stays unavailable until the model and capture backend exist.
+  model_path: "models/vosk/vosk-model-small-ru-0.22"
+  vad: "silero"
+  sample_rate: 16000
+  block_ms: 300
+  mic_queue_max_blocks: 32
+  partials_max: 1000
+  events_max: 500
+  sessions_max: 50
+  active_sessions_max: 2
+  max_state_bytes: 4194304
+  stop_timeout_seconds: 15
 
 include_extensions:
   - ".docx"

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 
@@ -18,6 +19,7 @@ from asu_june_bot.api.routes_chat import router as chat_router
 from asu_june_bot.api.routes_health import router as health_router
 from asu_june_bot.api.routes_ingest import router as ingest_router
 from asu_june_bot.api.routes_jobs import router as jobs_router
+from asu_june_bot.api.routes_live import router as live_router
 from asu_june_bot.api.routes_meetingagent_ui import router as meetingagent_ui_router
 from asu_june_bot.api.routes_meetings import router as meetings_router
 from asu_june_bot.api.routes_search import router as search_router
@@ -29,8 +31,12 @@ from asu_june_bot.core.config import load_config
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    app.state.asu_june_bot = build_app_state(config=app.state.startup_config)
-    yield
+    state = build_app_state(config=app.state.startup_config)
+    app.state.asu_june_bot = state
+    try:
+        yield
+    finally:
+        await asyncio.to_thread(state.live_session_service.shutdown)
 
 
 def create_app(config: dict | None = None) -> FastAPI:
@@ -65,6 +71,7 @@ def create_app(config: dict | None = None) -> FastAPI:
     app.include_router(ingest_router)
     app.include_router(meetings_router)
     app.include_router(jobs_router)
+    app.include_router(live_router)
     return app
 
 
