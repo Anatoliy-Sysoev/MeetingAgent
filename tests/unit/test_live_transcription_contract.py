@@ -18,6 +18,7 @@ from meeting_agent.live_transcription import (  # noqa: E402
     preflight_audio_source,
     write_live_artifacts,
 )
+from meeting_agent.live_transcription import exporters as live_exporters  # noqa: E402
 from meeting_agent.live_transcription.audio_capture import list_audio_devices  # noqa: E402
 from meeting_agent.live_transcription.vad import SpeechWindow, block_overlaps_speech  # noqa: E402
 from meeting_agent.live_transcription.vosk_backend import (  # noqa: E402
@@ -446,6 +447,25 @@ def test_live_artifacts_export_jsonl_text_subtitles_and_report(tmp_path: Path) -
     assert json.loads((tmp_path / "live_report.json").read_text(encoding="utf-8"))["partials_count"] == 1
 
 
+def test_live_atomic_writer_preserves_previous_file_on_replace_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "live_segments.MIX.jsonl"
+    target.write_text("previous\n", encoding="utf-8")
+
+    def fail_replace(_source, _target) -> None:
+        raise OSError("replace failed")
+
+    monkeypatch.setattr(live_exporters.os, "replace", fail_replace)
+
+    with pytest.raises(OSError, match="replace failed"):
+        live_exporters._atomic_write_text(target, "replacement\n")
+
+    assert target.read_text(encoding="utf-8") == "previous\n"
+    assert list(tmp_path.glob(".live_segments.MIX.jsonl.*.tmp")) == []
+
+
 def test_live_cli_dry_run_validates_meeting_contract(tmp_path: Path, capsys) -> None:
     cli = load_live_cli()
     meeting_dir = tmp_path / "2026-06-08__live-smoke"
@@ -837,8 +857,14 @@ def test_live_cli_allows_multiple_sources_without_overwrite(tmp_path: Path, monk
     assert meeting["artifacts"]["live_segments_mic"] == "transcript/live/live_segments.MIC.jsonl"
     assert meeting["artifacts"]["live_segments_sys"] == "transcript/live/live_segments.SYS.jsonl"
     assert sorted(meeting["source"]["audio_tracks"]) == ["MIC", "SYS"]
+    assert meeting["source"]["derived_tracks"] == ["MIX"]
+    assert meeting["artifacts"]["live_segments_mix"] == (
+        "transcript/live/live_segments.MIX.jsonl"
+    )
+    assert meeting["artifacts"]["live_report_mix"] in meeting["rag"]["no_index_artifacts"]
     assert (meeting_dir / "transcript" / "live" / "live_segments.MIC.jsonl").exists()
     assert (meeting_dir / "transcript" / "live" / "live_segments.SYS.jsonl").exists()
+    assert (meeting_dir / "transcript" / "live" / "live_segments.MIX.jsonl").exists()
 
 
 def test_live_cli_passes_silero_vad_config_to_backend(tmp_path: Path, monkeypatch) -> None:

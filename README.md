@@ -222,14 +222,15 @@ The workspace includes:
 - pipeline stage controls and readiness map;
 - one-click pipeline profiles through `POST /meetings/{id}/jobs/pipeline`;
 - live MIC/SYS draft controls with source preflight, partial/final rows, elapsed
-  time, capture warnings and explicit offline refinement into the canonical
-  transcript;
+  time, capture warnings, one derived chronological Conversation view and
+  explicit offline refinement into the canonical transcript;
 - meeting-scoped search and Q&A with vector retrieval fallback, timestamps, speaker labels, and source citations.
 
-The current product gap is no longer the basic offline pipeline. Remaining work
-is concentrated in simultaneous MIC+SYS mixing into one derived track and
-deeper product administration. Live-only cards, live/offline coordination and
-source-scoped offline refinement are available in the browser.
+The current product gap is no longer the basic offline pipeline. Live-only
+cards, live/offline coordination, a derived MIC+SYS transcript timeline and
+source-scoped offline refinement are available in the browser. Remaining work
+is concentrated in deeper product administration, product-package separation
+and the next UI design pass.
 
 ### Live Transcription
 
@@ -302,8 +303,11 @@ the source and with code `2` when it is blocked. The JSON result separates
 SYS uses a real PyAudioWPatch WASAPI loopback input and stateful SoXR conversion
 from the device's native stereo 44.1/48 kHz PCM to canonical mono 16 kHz PCM.
 Device indexes are source-specific; use the index shown under the selected
-source in `--list-audio-sources`. MIX remains blocked until simultaneous MIC+SYS
-capture is implemented, and no source silently falls back to the microphone.
+source in `--list-audio-sources`. Hardware `MIX` capture remains blocked and no
+source silently falls back to the microphone. Instead, final MIC/SYS segments
+are aligned by their source-session `started_at` values into an atomic derived
+`live_segments.MIX.jsonl`. The source WAVs and source transcripts remain the
+provenance records and are never blended or rewritten.
 
 Windows system-audio capture:
 
@@ -375,6 +379,7 @@ Authenticated live sessions are also available through the local API:
 ```text
 POST /meetings/live
 GET  /meetings/{meeting_id}/live/preflight
+GET  /meetings/{meeting_id}/live/timeline
 GET  /meetings/{meeting_id}/live/refinement
 POST /meetings/{meeting_id}/live/refinement
 GET  /meetings/{meeting_id}/live/sessions/active
@@ -394,9 +399,13 @@ card and open its Workspace directly.
 The same lifecycle is available in the meeting Workspace. Open
 `/meetings/<meeting_id>/workspace`, then use the **Live transcription** panel.
 MIC and SYS are separate tracks with separate device selectors, partial preview,
-final rows, elapsed time and health warnings. The UI never labels one source as
-the other and does not allow an offline pipeline job and live capture to be
-started at the same time. The API enforces the same rule for browser, bearer
+final rows, elapsed time and health warnings. The **Conversation** view combines
+only final rows into a bounded chronological draft while retaining the `MIC` or
+`SYS` badge and origin segment id. It refreshes from the authenticated,
+path-free `/live/timeline` API after either source completes. The UI never
+labels one source as the other and does not allow an offline pipeline job and
+live capture to be started at the same time. The API enforces the same rule for
+browser, bearer
 token and concurrent machine clients: one cross-process lock atomically checks
 the opposing durable state and reserves the winning operation. `MIC` and `SYS`
 may still run together within `live.active_sessions_max`. Conflicts return a
@@ -420,7 +429,9 @@ duplicate capture. The current deployment contract is therefore one API worker
 per local runtime. `live.active_sessions_max` defaults to `2`, which permits a
 MIC and SYS pair but bounds concurrent Vosk model/CPU use. WebSocket transport
 is not required by the v1 browser surface; it uses bounded cursor polling and
-keeps only the newest 250 final rows in the DOM.
+keeps only the newest 250 final rows per source and 500 combined Conversation
+rows in the DOM. Every MIC/SYS/MIX live artifact remains permanently in
+`rag.no_index_artifacts`; only canonical offline ASR output can become evidence.
 
 ## Docker
 

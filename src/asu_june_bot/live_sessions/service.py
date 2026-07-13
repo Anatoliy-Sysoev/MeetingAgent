@@ -22,8 +22,11 @@ from asu_june_bot.meeting_work import (
 )
 from meeting_agent.live_transcription import (
     AudioSourcePreflight,
+    LiveMixError,
     LiveSessionReport,
+    build_derived_mix_artifacts,
     preflight_audio_source,
+    read_derived_mix_timeline,
     write_live_artifacts,
 )
 from meeting_agent.live_transcription.audio_archive import (
@@ -311,6 +314,26 @@ class LiveSessionService:
 
     def ensure_meeting(self, meeting_id: str) -> None:
         self._meeting_dir(meeting_id)
+
+    def timeline(
+        self,
+        meeting_id: str,
+        *,
+        after: int = 0,
+        limit: int = 200,
+    ) -> dict[str, Any]:
+        meeting_dir = self._meeting_dir(meeting_id)
+        try:
+            return read_derived_mix_timeline(
+                meeting_dir / "transcript" / "live",
+                after=after,
+                limit=limit,
+            )
+        except (LiveMixError, OSError, UnicodeError, ValueError) as exc:
+            raise LiveSessionError(
+                "live_timeline_unavailable",
+                "Live conversation timeline is unavailable",
+            ) from exc
 
     def start(
         self,
@@ -800,6 +823,15 @@ class LiveSessionService:
                 session_id=session_id,
                 duration_seconds=report.duration_seconds,
             )
+            mix_warning, mix_artifact_keys = self._refresh_derived_mix(meeting_dir)
+            if mix_warning and mix_warning not in warnings:
+                warnings.append(mix_warning)
+            with self._lock:
+                record = self._records[session_id]
+                record["warnings"] = warnings[:50]
+                record["artifact_keys"] = sorted(
+                    set(record.get("artifact_keys") or []) | set(mix_artifact_keys)
+                )
             self._set_status(
                 session_id,
                 "completed",
@@ -976,6 +1008,73 @@ class LiveSessionService:
             if refinement_rel is not None:
                 (meeting_dir / refinement_rel).unlink(missing_ok=True)
             _write_json_atomic(meeting_dir / "meeting.json", card)
+
+    def _refresh_derived_mix(
+        self,
+        meeting_dir: Path,
+    ) -> tuple[str | None, list[str]]:
+        try:
+            with IngestLock(meeting_dir / ".live_session.lock", timeout_seconds=30):
+                result = build_derived_mix_artifacts(
+                    meeting_dir / "transcript" / "live",
+                    generated_at=now_iso(),
+                )
+                if result is None:
+                    return None, []
+
+                card = self._read_card(meeting_dir)
+                artifacts = card.get("artifacts")
+                if not isinstance(artifacts, dict):
+                    artifacts = {}
+                source_keys = SOURCE_ARTIFACT_KEYS["MIX"]
+                artifact_keys: list[str] = []
+                for key, path in result.written.items():
+                    artifact_key = source_keys.get(key)
+                    if artifact_key is None:
+                        continue
+                    artifacts[artifact_key] = path.resolve().relative_to(
+                        meeting_dir.resolve()
+                    ).as_posix()
+                    artifact_keys.append(artifact_key)
+                card["artifacts"] = artifacts
+
+                source_data = card.get("source")
+                if not isinstance(source_data, dict):
+                    source_data = {"kind": "live_session"}
+                derived_tracks = source_data.get("derived_tracks")
+                derived_tracks = (
+                    list(derived_tracks) if isinstance(derived_tracks, list) else []
+                )
+                if "MIX" not in derived_tracks:
+                    derived_tracks.append("MIX")
+                source_data["derived_tracks"] = derived_tracks
+                card["source"] = source_data
+
+                rag = card.get("rag")
+                if not isinstance(rag, dict):
+                    rag = {
+                        "index_policy": "structured_artifacts_and_final_transcript"
+                    }
+                no_index = rag.get("no_index_artifacts")
+                no_index = list(no_index) if isinstance(no_index, list) else []
+                for artifact_key in artifact_keys:
+                    value = artifacts.get(artifact_key)
+                    if isinstance(value, str) and value not in no_index:
+                        no_index.append(value)
+                rag["no_index_artifacts"] = no_index
+                card["rag"] = rag
+                card["updated_at"] = now_iso()
+                _write_json_atomic(meeting_dir / "meeting.json", card)
+                return None, sorted(artifact_keys)
+        except (
+            IngestLockTimeoutError,
+            LiveMixError,
+            LiveSessionError,
+            OSError,
+            UnicodeError,
+            ValueError,
+        ):
+            return "live_mix_derivation_failed", []
 
     def _mark_meeting_failed(
         self,

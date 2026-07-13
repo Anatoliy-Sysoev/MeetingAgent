@@ -4,16 +4,20 @@
 
 ## Now
 
-- MA-CI-ACTIONS-NODE24 (#220) upgrades every official GitHub Action to its
-  reviewed Node 24-compatible major and adds a repository-wide regression
-  contract for workflow action references.
-- canonical main before this task: `7081e2c` / `Sanitize nested API validation
-  context (#231)`.
-- History purge #167 remains gated by explicit owner approval and backup; live
-  MIC+SYS derived mixing and the admin product surface remain explicit gaps.
+- MA-LIVE-UNIFIED-TIMELINE-V1 (#233) derives one bounded, chronological MIX
+  transcript from final MIC/SYS segments without blending source audio or
+  weakening source provenance.
+- canonical main before this task: `d57e0f5` / `ci: upgrade official actions to
+  Node 24 (#232)`.
+- History purge #167 remains gated by explicit owner approval and backup.
+  Product follow-ups are tracked as #234-#237.
 
 ## Done latest
 
+- MA-LIVE-UNIFIED-TIMELINE-V1 (#233): final MIC/SYS segments are clock-aligned
+  into atomic no-index MIX artifacts; the authenticated bounded timeline API
+  and Workspace Conversation view retain source/origin references, tolerate one
+  missing source and refresh after either session completes.
 - MA-CI-ACTIONS-NODE24 (#220): checkout/setup-python/Pages actions now use
   reviewed Node 24-compatible majors; a repository-wide test rejects stale or
   newly introduced unreviewed official action references without changing
@@ -228,6 +232,7 @@ POST /meetings/{id}/jobs/{stage}/retry
 GET  /meetings/{id}/jobs/{job_id}
 POST /meetings/{id}/jobs/{job_id}/cancel
 GET  /meetings/{id}/live/preflight
+GET  /meetings/{id}/live/timeline
 GET  /meetings/{id}/live/refinement
 POST /meetings/{id}/live/refinement
 GET  /meetings/{id}/live/sessions/active
@@ -260,16 +265,17 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- MA-LIVE-OFFLINE-REFINEMENT-V1 (#208): preserve the draft and produce the
-  canonical offline transcript without indexing live artifacts.
-- MA-LIVE-PIPELINE-COORDINATION (#222): enforce cross-process server-side
-  mutual exclusion between live capture and offline jobs.
-- MA-LIVE-MEETING-CREATION (#223): create an ad-hoc live-only meeting from the
-  browser without requiring a media upload.
+- MA-ADMIN-CONSOLE-USERS-V1 (#234): turn the existing admin user API contract
+  into an operator-facing user/role management surface.
+- MA-PRODUCT-SPLIT-PHASE-2 (#235): move MeetingAgent-owned routes/services out
+  of the Project Knowledge Bot package while preserving public paths.
+- MA-DEPS-MAJOR-COMPATIBILITY (#236): review major dependency upgrades in
+  isolated runtime groups instead of one conflicting Dependabot batch.
+- MA-MEETINGAGENT-UI-MOCKUPS (#237): approve table-first product mockups before
+  the next large Workspace/registry UI refactor.
 
 ## Open decisions / blockers
 
-- #208 depends on merging the retained source-audio contract from #225.
 - #167 rewrites published history and invalidates old clones; it is blocked on explicit owner approval and a verified backup.
 - Admin console contract is defined; dedicated admin UI, aggregate jobs/audit/settings endpoints and destructive meeting admin actions remain future implementation work.
 - Guard pure decision API is available for deterministic tests; future guard behavior changes must use it as a measurement boundary.

@@ -122,6 +122,9 @@
 - [x] MA-LIVE-MEETING-CREATION (#223): create a schema-valid live-only meeting
   from `/MeetingAgent` without uploading media first; atomic ID allocation,
   RBAC/CSRF, list/detail/readiness and browser-to-Workspace preflight covered.
+- [x] MA-LIVE-UNIFIED-TIMELINE-V1 (#233): derive atomic no-index MIX transcript
+  artifacts from clock-aligned MIC/SYS final segments and render one bounded,
+  source-aware Conversation view through an authenticated timeline API.
 - [x] API-VALIDATION-CTX-SANITIZATION (#227): recursively sanitize non-JSON
   Pydantic validation context so malformed requests return bounded 422, not 500;
   exception-derived/custom sensitive messages and local paths are redacted.
@@ -137,14 +140,20 @@
   path-free queue/loss metrics with report warnings.
 - [x] TEST-DEPENDENCY-AUDIT-WINDOWS-UTF8 (#209): force deterministic UTF-8
   subprocess semantics for pip-audit under Cyrillic Windows profile paths.
-- [ ] MA-MEETINGAGENT-UI-MOCKUPS: approve target mockups for registry, upload wizard, processing monitor and meeting card before deeper UI refactor.
+- [ ] MA-MEETINGAGENT-UI-MOCKUPS (#237): approve target mockups for registry,
+  upload wizard, processing monitor and meeting card before deeper UI refactor.
 
 ## Meeting Product Backlog
 
+- [ ] MA-PRODUCT-SPLIT-PHASE-2 (#235): move MeetingAgent-owned API/services to
+  the core package and reduce the current compatibility bridge.
+- [ ] MA-DEPS-MAJOR-COMPATIBILITY (#236): validate NumPy/audio/ONNX/docs major
+  upgrades as separate compatibility groups with their own constraints.
 
 ## Project Knowledge Bot / Guard / Auth Backlog
 
-- [ ] Implement dedicated admin UI page and aggregate admin jobs/audit/settings endpoints (follow-up to #40; create issue before coding).
+- [ ] MA-ADMIN-CONSOLE-USERS-V1 (#234): implement the dedicated users/roles UI
+  over the existing admin API; jobs/audit/settings remain later slices.
 
 ## Documentation / OSS Backlog
 

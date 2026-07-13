@@ -331,6 +331,21 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
             )
         elif path == f"{prefix}/live/sessions/active":
             _fulfill_json(route, {"meeting_id": MEETING_ID, "session": None})
+        elif path == f"{prefix}/live/timeline":
+            _fulfill_json(
+                route,
+                {
+                    "meeting_id": MEETING_ID,
+                    "source": "MIX",
+                    "timeline_started_at": None,
+                    "segments": [],
+                    "after": 0,
+                    "next_after": 0,
+                    "total": 0,
+                    "truncated": False,
+                    "warnings": [],
+                },
+            )
         elif path == f"{prefix}/live/refinement":
             source = parse_qs(urlparse(request.url).query).get("source", ["MIC"])[0]
             _fulfill_json(
@@ -540,6 +555,36 @@ def test_workspace_live_mic_start_partial_stop_and_final(
             source = query.get("source", [""])[0]
             active = session_payload() if source == "MIC" and live_started and not live_stopped else None
             _fulfill_json(route, {"meeting_id": MEETING_ID, "session": active})
+        elif path == f"{prefix}/live/timeline":
+            segments = []
+            if live_stopped:
+                segments = [
+                    {
+                        "segment_id": "live-mix-mic-browser",
+                        "origin_segment_id": "live-browser-final",
+                        "source": "MIC",
+                        "start": 0.0,
+                        "end": 1.2,
+                        "origin_start": 0.0,
+                        "origin_end": 1.2,
+                        "text": "Финальная реплика из микрофона.",
+                        "confidence": None,
+                    }
+                ]
+            _fulfill_json(
+                route,
+                {
+                    "meeting_id": MEETING_ID,
+                    "source": "MIX",
+                    "timeline_started_at": "2026-07-13T12:00:00+00:00",
+                    "segments": segments,
+                    "after": 0,
+                    "next_after": len(segments),
+                    "total": len(segments),
+                    "truncated": False,
+                    "warnings": [],
+                },
+            )
         elif path == f"{prefix}/live/sessions" and request.method == "POST":
             live_started = True
             captured["start_body"] = json.loads(request.post_data or "{}")
@@ -555,6 +600,7 @@ def test_workspace_live_mic_start_partial_stop_and_final(
                         "event_id": 3,
                         "type": "final",
                         "source": "MIC",
+                        "segment_id": "live-browser-final",
                         "text": "Финальная реплика из микрофона.",
                         "start": 0.0,
                         "end": 1.2,
@@ -709,6 +755,10 @@ def test_workspace_live_mic_start_partial_stop_and_final(
         "Финальная реплика из микрофона."
     )
     expect(page.locator("#live-mic-finals")).to_contain_text("MIC")
+    expect(page.locator("#live-conversation-finals")).to_contain_text(
+        "Финальная реплика из микрофона."
+    )
+    expect(page.locator("#live-conversation-finals")).to_contain_text("MIC")
     expect(page.locator("#live-mic-warnings")).to_contain_text("mic audio dropped")
     expect(page.get_by_role("button", name="Run full pipeline")).to_be_enabled()
     stop_headers = captured["stop_headers"]
@@ -831,6 +881,21 @@ def test_meetingagent_live_creation_opens_workspace_and_checks_sources(
             )
         elif path == f"{prefix}/live/sessions/active":
             _fulfill_json(route, {"meeting_id": live_id, "session": None})
+        elif path == f"{prefix}/live/timeline":
+            _fulfill_json(
+                route,
+                {
+                    "meeting_id": live_id,
+                    "source": "MIX",
+                    "timeline_started_at": None,
+                    "segments": [],
+                    "after": 0,
+                    "next_after": 0,
+                    "total": 0,
+                    "truncated": False,
+                    "warnings": [],
+                },
+            )
         elif path == f"{prefix}/live/refinement":
             source = parse_qs(parsed.query).get("source", ["MIC"])[0]
             _fulfill_json(

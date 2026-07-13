@@ -174,6 +174,7 @@ def test_live_routes_require_authentication(live_api) -> None:
     response = client.get(f"/meetings/{MEETING_ID}/live/preflight")
 
     assert response.status_code == 401
+    assert client.get(f"/meetings/{MEETING_ID}/live/timeline").status_code == 401
 
 
 def test_viewer_can_read_preflight_but_cannot_start(live_api) -> None:
@@ -193,6 +194,9 @@ def test_viewer_can_read_preflight_but_cannot_start(live_api) -> None:
     assert "hostapi" not in preflight.text
     assert "Users" not in preflight.text
     assert start.status_code == 403
+    timeline = client.get(f"/meetings/{MEETING_ID}/live/timeline")
+    assert timeline.status_code == 200
+    assert timeline.json()["segments"] == []
 
 
 def test_editor_lifecycle_requires_csrf_and_exposes_bounded_events(live_api) -> None:
@@ -235,6 +239,46 @@ def test_editor_lifecycle_requires_csrf_and_exposes_bounded_events(live_api) -> 
     assert stopped.status_code == 200
     assert stopped.json()["status"] == "completed"
     assert "live_audio_mic" in stopped.json()["artifact_keys"]
+    assert "live_segments_mix" in stopped.json()["artifact_keys"]
+    timeline = client.get(
+        f"/meetings/{MEETING_ID}/live/timeline?after=0&limit=1"
+    )
+    assert timeline.status_code == 200
+    assert timeline.json()["meeting_id"] == MEETING_ID
+    assert timeline.json()["segments"][0]["source"] == "MIC"
+    assert "path" not in timeline.text.lower()
+
+
+def test_live_timeline_has_bounded_query_contract(live_api) -> None:
+    client, _service, _transcriber, _admin = live_api
+
+    assert client.get(
+        f"/meetings/{MEETING_ID}/live/timeline?after=-1",
+        headers=AUTH,
+    ).status_code == 422
+    assert client.get(
+        f"/meetings/{MEETING_ID}/live/timeline?limit=1001",
+        headers=AUTH,
+    ).status_code == 422
+
+
+def test_corrupt_live_timeline_fails_closed_without_path_disclosure(live_api) -> None:
+    client, service, _transcriber, _admin = live_api
+    output = service.meetings_root / MEETING_ID / "transcript" / "live"
+    output.mkdir(parents=True)
+    (output / "live_segments.MIX.jsonl").write_bytes(b"\xffprivate-path")
+
+    response = client.get(
+        f"/meetings/{MEETING_ID}/live/timeline",
+        headers=AUTH,
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == {
+        "code": "live_timeline_unavailable",
+        "message": "Live conversation timeline is unavailable",
+    }
+    assert "private" not in response.text.lower()
 
 
 def test_machine_token_can_start_and_stop_without_csrf(live_api) -> None:

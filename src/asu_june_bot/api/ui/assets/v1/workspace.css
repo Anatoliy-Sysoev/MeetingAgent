@@ -167,6 +167,56 @@
     }
     .live-track { min-width: 0; padding: 12px; }
     .live-track + .live-track { border-left: 1px solid var(--line); }
+    .live-conversation {
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .live-conversation-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .live-conversation-heading h3 { margin: 0; font-size: 14px; }
+    .live-conversation-heading p {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .live-conversation-list {
+      max-height: 360px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      background: var(--surface);
+    }
+    .live-conversation-row {
+      display: grid;
+      grid-template-columns: 52px minmax(0, 1fr);
+      gap: 9px;
+      padding: 8px 9px;
+      border-bottom: 1px solid var(--line);
+    }
+    .live-conversation-row:last-child { border-bottom: 0; }
+    .live-conversation-source {
+      align-self: start;
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      padding: 2px 4px;
+      color: var(--muted);
+      font-family: monospace;
+      font-size: 10px;
+      text-align: center;
+    }
+    .live-conversation-source[data-source="MIC"] { border-left: 3px solid #0f766e; }
+    .live-conversation-source[data-source="SYS"] { border-left: 3px solid #1d4ed8; }
+    .live-conversation-meta {
+      margin-bottom: 2px;
+      color: var(--muted);
+      font-family: monospace;
+      font-size: 10px;
+    }
+    .live-conversation-text { white-space: pre-wrap; overflow-wrap: anywhere; }
     .live-track-heading {
       display: flex;
       align-items: flex-start;

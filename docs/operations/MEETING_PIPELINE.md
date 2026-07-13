@@ -268,6 +268,10 @@ source/live_audio.<SOURCE>.wav        # только реальный MIC/SYS ca
 
 - `<SOURCE>` - `MIC`, `SYS` или `MIX`;
 - source-scoped filenames позволяют хранить MIC и SYS в одной карточке без перетирания;
+- после завершения MIC или SYS финальные строки атомарно пересобираются в
+  `live_segments.MIX.jsonl`; MIX является только производной текстовой
+  хронологией и сохраняет `origin_source`, `origin_segment_id` и исходные
+  таймкоды;
 - `live_segments.<SOURCE>.jsonl` - черновой finalized live transcript;
 - `live_partials.<SOURCE>.jsonl` - промежуточные hypotheses, не индексировать;
 - `live_audio.<SOURCE>.wav` - полный canonical PCM16 mono 16 kHz поток до VAD;
@@ -302,6 +306,7 @@ API v1 управляет тем же Vosk backend через аутентифи
 ```text
 POST /meetings/live
 GET  /meetings/{meeting_id}/live/preflight
+GET  /meetings/{meeting_id}/live/timeline?after=0&limit=500
 GET  /meetings/{meeting_id}/live/refinement?source=MIC
 POST /meetings/{meeting_id}/live/refinement
 GET  /meetings/{meeting_id}/live/sessions/active
@@ -345,7 +350,8 @@ Invoke-RestMethod `
 
 Контракт безопасности и восстановления:
 
-- read требует `jobs.read`, start - `jobs.start`, stop - `jobs.cancel`;
+- preflight/session read требует `jobs.read`, timeline read -
+  `transcripts.read`, start - `jobs.start`, stop - `jobs.cancel`;
 - cookie/session POST дополнительно требует `X-CSRF-Token`; bearer machine token
   не использует cookie и освобождён от CSRF;
 - одновременно разрешена одна активная сессия на пару meeting/source;
@@ -391,7 +397,7 @@ http://127.0.0.1:8000/meetings/<meeting_id>/workspace
 ```
 
 Панель **Live transcription** использует API v1 и показывает две независимые
-дорожки:
+дорожки управления:
 
 - `MIC` - локальный микрофон через `sounddevice`;
 - `SYS` - Windows WASAPI loopback через PyAudioWPatch.
@@ -400,8 +406,12 @@ http://127.0.0.1:8000/meetings/<meeting_id>/workspace
 блокировки, позволяет выбрать source-specific устройство и режим VAD, запускает
 сессию и делает graceful stop. Partial-гипотеза визуально отделена от final
 строк и заменяется после получения final event. В панели также видны elapsed
-time и итоговые capture warnings. MIC и SYS никогда не объединяются и всегда
-маркируются своим source label.
+time и итоговые capture warnings. Ниже находится производный блок
+**Conversation**: он объединяет только final-реплики по общей временной шкале,
+но каждая строка сохраняет source label `MIC`/`SYS` и origin segment id.
+Сохранённый MIX читается через bounded `GET /live/timeline`, а во время записи
+UI добавляет текущие final events и перечитывает серверный MIX после graceful
+stop. Исходные WAV/JSONL никогда не переписываются этой операцией.
 
 Кнопка start требует `jobs.start`, stop - `jobs.cancel`; browser POST получает
 CSRF через `/auth/csrf`. При активной pipeline job live start заблокирован, а
@@ -465,8 +475,9 @@ VAD modes:
 - SYS report содержит `loopback_poll_mode`, startup/poll/quantum,
   `availability_checks/errors`, `read_calls/errors`, `poll_sleeps`,
   `idle_input_frames` и `idle_seconds`.
-- MIC+SYS mixing ещё не реализован: live `MIX` без `--input-wav` fail closed и
-  не маскируется под MIC.
+- raw PCM mixing не реализован и намеренно не требуется: hardware live `MIX`
+  без `--input-wav` fail closed и не маскируется под MIC. Реализованный MIX -
+  это derived transcript timeline, а не третья аудиодорожка;
 - MIC callback использует ограниченную очередь `--mic-queue-max-blocks`
   (по умолчанию 32 блока) и никогда не ждёт Vosk/Silero. При переполнении
   удаляется самый старый ожидающий блок, сохраняется самый новый, а consumer
