@@ -617,3 +617,30 @@ processes; новый snapshot создаётся во временном фай
   запуск без `--dry-run` детерминированно compact/rebuild-ит его;
 - query embedding не кэшируется, а ошибка cache/backend возвращает `None` в
   retriever и сохраняет штатный lexical retrieval path.
+
+## 2026-07-13 - Public Anonymization Metadata Не Содержит Original-Value Hashes
+
+Решение: публичные anonymized JSONL/report сохраняют только placeholders,
+категории и counts. Исходные значения и их SHA-256 разрешены только в явно
+запрошенном `*.private.json`. Поля speaker/source работают fail-closed:
+сохраняются только allowlisted технические labels `SPEAKER_XX`,
+`SPEAKER_UNKNOWN`, `MIC`, `SYS`, `MIX`; любое другое непустое значение
+принудительно заменяется placeholder независимо от эвристик распознавания PII.
+
+Почему:
+
+- unsalted SHA-256 имени, email или короткого внутреннего термина допускает
+  dictionary attack и не является public-safe anonymization;
+- одиночные имена и произвольные source labels могут не совпасть с regex и
+  остаться в структурных полях даже при очищенном тексте;
+- стабильные технические labels нужны downstream chunking, citations и speaker
+  mapping, поэтому полное удаление этих полей сломало бы контракт.
+
+Следствия:
+
+- public report нельзя использовать для восстановления или проверки исходного
+  значения; локальная сверка требует `--write-private-map`;
+- новые speaker/source-подобные поля должны быть добавлены в fail-closed
+  metadata policy и покрыты синтетическим regression test;
+- anonymization остаётся эвристической для свободного текста и требует ручной
+  проверки перед публикацией.

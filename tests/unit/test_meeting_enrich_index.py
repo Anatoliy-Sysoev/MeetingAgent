@@ -109,6 +109,7 @@ def test_index_meeting_chunks_exports_rag_compatible_rows(tmp_path: Path) -> Non
     assert row["timestamp_end"] == "00:01:00"
     assert "Встреча: Semantic Smoke" in row["text"]
     assert row["semantic_type"] == "decision"
+    assert "source_path" not in row
     meeting = read_json(meeting_dir / "meeting.json")
     validate_meeting(meeting)
     assert "transcript/chunks.jsonl" in meeting["rag"]["indexed_artifacts"]
