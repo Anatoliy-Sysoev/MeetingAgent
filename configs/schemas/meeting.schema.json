@@ -42,6 +42,12 @@
       "format": "date",
       "description": "Дата встречи в формате YYYY-MM-DD."
     },
+    "language": {
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$",
+      "maxLength": 35,
+      "description": "Язык встречи в компактном BCP 47 формате, например ru или en-US."
+    },
     "start_time": {
       "type": "string",
       "pattern": "^\\d{2}:\\d{2}(?::\\d{2})?(?:[+-]\\d{2}:\\d{2})?$",

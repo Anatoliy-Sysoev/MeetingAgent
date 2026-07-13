@@ -116,6 +116,8 @@ const state = {
     }
 
     function meetingSourceName(item) {
+      if (item.source_kind === "live_session") return "live MIC/SYS";
+      if (Number(item.media_count) > 0) return "загруженная запись";
       const source = item.source || {};
       const files = source.media_files || [];
       if (files.length > 0) return files[0].original_filename || files[0].path || "media";
@@ -256,6 +258,49 @@ const state = {
       }
     }
 
+    async function createLiveMeeting(event) {
+      event.preventDefault();
+      state.csrf = state.csrf || await getCsrfToken();
+      if (!state.csrf) {
+        showMessage("Нужно войти в систему перед созданием live-встречи.", "error");
+        return;
+      }
+      const title = byId("liveMeetingTitle").value.trim();
+      if (!title) {
+        showMessage("Укажите название live-встречи.", "error");
+        return;
+      }
+      const date = byId("liveMeetingDate").value;
+      const body = {
+        title,
+        language: byId("liveMeetingLanguage").value || "ru"
+      };
+      if (date) body.date = date;
+      const submit = byId("liveMeetingSubmit");
+      submit.disabled = true;
+      showMessage("Создаю live-встречу...", null);
+      try {
+        const resp = await apiFetch("/meetings/live", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": state.csrf
+          },
+          body: JSON.stringify(body)
+        });
+        const data = await safeJson(resp);
+        const workspaceUrl = data && data.workspace_url;
+        if (!workspaceUrl || !workspaceUrl.startsWith("/meetings/")) {
+          throw new Error("Сервер не вернул адрес Workspace.");
+        }
+        showMessage("Live-встреча создана. Открываю Workspace...", "ok");
+        window.location.assign(workspaceUrl);
+      } catch (err) {
+        submit.disabled = false;
+        showMessage(err.message || "Live-встреча не создана.", "error");
+      }
+    }
+
     function selectedAsrEngine() {
       const select = byId("asrEngine");
       return select ? select.value : "faster-whisper";
@@ -329,9 +374,14 @@ const state = {
         btn.addEventListener("click", () => setSection(btn.dataset.section || "meetings"));
       }
       byId("showUploadBtn").addEventListener("click", () => setSection("new-meeting"));
+      byId("showLiveBtn").addEventListener("click", () => {
+        setSection("new-meeting");
+        byId("liveMeetingTitle").focus();
+      });
       byId("refreshMeetingsBtn").addEventListener("click", loadMeetings);
       byId("loginSubmit").addEventListener("click", doLogin);
       byId("uploadForm").addEventListener("submit", uploadMeeting);
+      byId("liveMeetingForm").addEventListener("submit", createLiveMeeting);
       byId("resetUploadBtn").addEventListener("click", () => {
         byId("uploadForm").reset();
         byId("uploadResult").replaceChildren();
@@ -340,12 +390,17 @@ const state = {
         empty.textContent = "Здесь появится созданная карточка встречи.";
         byId("uploadResult").append(empty);
       });
+      byId("resetLiveMeetingBtn").addEventListener("click", () => {
+        byId("liveMeetingForm").reset();
+        byId("liveMeetingDate").value = new Date().toISOString().slice(0, 10);
+      });
     }
 
     async function boot() {
       wireEvents();
       const today = new Date().toISOString().slice(0, 10);
       byId("meetingDate").value = today;
+      byId("liveMeetingDate").value = today;
       await refreshAuth();
       await loadMeetings();
     }

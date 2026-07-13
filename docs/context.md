@@ -4,17 +4,19 @@
 
 ## Now
 
-- MA-LIVE-PIPELINE-COORDINATION (#222) is implemented on its review branch:
-  a shared cross-process advisory lock atomically arbitrates live capture and
-  offline stage/pipeline reservations for the same meeting, while preserving
-  concurrent MIC+SYS capture and independent work on different meetings.
-- canonical main: `9f2e4a5` / `Refine live drafts with canonical offline ASR (#228)`.
-- Next confirmed work: live-only browser meeting creation #223 and validation
-  ctx sanitization #227.
+- MA-LIVE-MEETING-CREATION (#223) is implemented on its review branch:
+  editors can create a schema-valid live-only card from `/MeetingAgent`, open
+  Workspace directly and run MIC/SYS preflight without uploading fake media.
+- canonical main: `fee4811` / `Enforce live and offline meeting work coordination (#229)`.
+- Next confirmed work after #223: validation ctx sanitization #227.
   History purge #167 remains gated by explicit owner approval and backup.
 
 ## Done latest
 
+- MA-LIVE-MEETING-CREATION (#223): added CSRF/RBAC-protected `POST /meetings/live`,
+  collision-safe atomic card publication, language/source-kind public metadata,
+  a `/MeetingAgent` create-and-open flow and browser coverage through Workspace
+  MIC/SYS preflight without invented media, artifacts or index rows.
 - MA-LIVE-PIPELINE-COORDINATION (#222): browser and bearer callers now receive
   the same bounded server-side `live_session_active`/`offline_job_active`
   conflicts; readiness/preflight expose the block; thread/process races have
