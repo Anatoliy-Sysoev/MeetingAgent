@@ -21,6 +21,7 @@ from .vad import (
     detect_silero_speech_windows,
 )
 from .wasapi_loopback import (
+    LoopbackBlockReader,
     Pcm16MonoResampler,
     WasapiLoopbackError,
     open_wasapi_loopback_stream,
@@ -277,6 +278,8 @@ def transcribe_vosk_live(config: VoskLiveConfig) -> VoskLiveResult:
         raise VoskBackendError("--sample-rate must be positive.")
     if config.block_ms <= 0:
         raise VoskBackendError("--block-ms must be positive.")
+    if config.duration_sec is not None and config.duration_sec <= 0:
+        raise VoskBackendError("--duration-sec must be positive.")
     if config.vad not in {"none", "silero"}:
         raise VoskBackendError(f"Unsupported VAD mode: {config.vad}")
     if config.source not in {"MIC", "SYS", "MIX"}:
@@ -569,7 +572,6 @@ def _transcribe_system_loopback(
         if config.duration_sec is not None
         else None
     )
-    read_errors = 0
     interrupted = False
     consumer = _CanonicalStreamConsumer(
         config=config,
@@ -598,7 +600,6 @@ def _transcribe_system_loopback(
         block_ms=config.block_ms,
     ) as opened:
         device = opened.device
-        frames_per_block = max(1, int(device.sample_rate * config.block_ms / 1000))
         converter = Pcm16MonoResampler(
             input_rate=device.sample_rate,
             input_channels=device.channels,
@@ -617,32 +618,28 @@ def _transcribe_system_loopback(
                 "resampler": "soxr_hq",
             }
         )
+        reader = LoopbackBlockReader(
+            stream=opened.stream,
+            sample_rate=device.sample_rate,
+            channels=device.channels,
+            block_ms=config.block_ms,
+        )
         try:
             try:
-                while max_frames is None or consumer.input_frames < max_frames:
-                    try:
-                        native_block = opened.stream.read(
-                            frames_per_block,
-                            exception_on_overflow=False,
-                        )
-                    except Exception as exc:  # noqa: BLE001 - normalize native read failures
-                        read_errors += 1
-                        raise WasapiLoopbackError(
-                            "WASAPI loopback stream read failed"
-                        ) from exc
+                for native_block in reader.iter_blocks(config.duration_sec):
                     accept_canonical(converter.convert(native_block))
             except KeyboardInterrupt:
                 interrupted = True
             accept_canonical(converter.flush())
             consumer.close()
         finally:
+            runtime_metrics.update(reader.metrics())
             runtime_metrics.update(
                 {
                     "input_frames": converter.input_frames,
                     "converted_frames": converter.output_frames,
                     "output_frames": consumer.input_frames,
                     "resampler_clips": converter.clips,
-                    "read_errors": read_errors,
                     "interrupted": interrupted,
                 }
             )

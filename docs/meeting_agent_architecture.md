@@ -180,9 +180,12 @@ canonical consumer обеспечивает одинаковый timing contract
 после SYS `WASAPI -> SoXR -> mono 16 kHz`. Ctrl+C трактуется как graceful stop с
 записью накопленных артефактов.
 
+Windows SYS не вызывает native blocking read без предварительной проверки:
+`get_read_available()` ограничивает размер каждого read, а monotonic scheduler
+добавляет native-rate zero PCM для idle-интервалов. Так bounded capture и Ctrl+C
+не зависят от появления output packets, а исходная шкала времени продолжается.
 Known limitations: live endpointing может сохранить небольшой уже переданный в
-Vosk хвост тишины; аппаратный `MIX` пока fail closed. Для idle Windows loopback,
-где native read может долго не вернуть пакет, ведется отдельный defect #213.
+Vosk хвост тишины; аппаратный `MIX` пока fail closed.
 
 ## Diarization
 

@@ -309,8 +309,10 @@ Deterministic smoke from a prepared mono 16 kHz WAV:
 For live microphone and system-audio sessions, `Ctrl+C` is treated as a graceful
 stop: accumulated segments are finalized and written. Live draft completion
 leaves `processing_status=processing`, so final offline ASR can still run
-afterwards. A known Windows follow-up is tracked in issue #213: an idle WASAPI
-output device may block its native read longer than the requested duration.
+afterwards. Windows SYS capture polls `get_read_available()` and reads only
+frames that PortAudio reports as non-blocking. Idle intervals are represented as
+zero PCM on the native-rate wall clock, so bounded runs and Ctrl+C do not wait
+inside a native blocking read and later timestamps remain aligned.
 
 Prepared `--input-wav` smoke runs may use MIC, SYS, or MIX labels because they do
 not start hardware capture. Every live result remains a draft and must be

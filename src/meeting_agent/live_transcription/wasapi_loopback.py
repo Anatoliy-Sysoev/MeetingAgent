@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+import time
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
@@ -42,6 +43,148 @@ class LoopbackDiscovery:
 class OpenLoopbackStream:
     stream: Any
     device: LoopbackDevice
+
+
+class LoopbackBlockReader:
+    """Poll PortAudio without blocking and keep a native-rate wall clock."""
+
+    def __init__(
+        self,
+        *,
+        stream: Any,
+        sample_rate: int,
+        channels: int,
+        block_ms: int,
+        startup_grace_ms: int | None = None,
+        poll_interval_ms: int | None = None,
+        clock: Callable[[], float] | None = None,
+        sleeper: Callable[[float], None] | None = None,
+    ) -> None:
+        if sample_rate <= 0 or channels <= 0 or block_ms <= 0:
+            raise WasapiLoopbackError("Loopback reader settings must be positive")
+        self.stream = stream
+        self.sample_rate = sample_rate
+        self.channels = channels
+        self.frames_per_block = max(1, int(sample_rate * block_ms / 1000))
+        self.startup_grace_ms = (
+            min(100, max(20, block_ms))
+            if startup_grace_ms is None
+            else startup_grace_ms
+        )
+        self.poll_interval_ms = (
+            min(20, max(5, block_ms // 10))
+            if poll_interval_ms is None
+            else poll_interval_ms
+        )
+        if not 0 <= self.startup_grace_ms <= 1_000:
+            raise WasapiLoopbackError(
+                "Loopback startup grace must be in the range 0..1000 ms"
+            )
+        if not 1 <= self.poll_interval_ms <= 100:
+            raise WasapiLoopbackError(
+                "Loopback poll interval must be in the range 1..100 ms"
+            )
+        self._clock = clock or time.monotonic
+        self._sleep = sleeper or time.sleep
+        self.scheduled_frames = 0
+        self.idle_frames = 0
+        self.availability_checks = 0
+        self.availability_errors = 0
+        self.read_calls = 0
+        self.read_errors = 0
+        self.poll_sleeps = 0
+
+    def iter_blocks(self, duration_sec: float | None) -> Iterator[bytes]:
+        if duration_sec is not None and duration_sec <= 0:
+            raise WasapiLoopbackError("Loopback duration must be positive")
+        max_frames = (
+            max(1, int(round(self.sample_rate * duration_sec)))
+            if duration_sec is not None
+            else None
+        )
+        started = self._clock()
+        grace_seconds = self.startup_grace_ms / 1000.0
+        poll_seconds = self.poll_interval_ms / 1000.0
+        schedule_quantum_frames = max(1, int(self.sample_rate * poll_seconds))
+        frame_width = self.channels * 2
+
+        while max_frames is None or self.scheduled_frames < max_frames:
+            elapsed = max(0.0, self._clock() - started - grace_seconds)
+            if max_frames is not None and elapsed >= duration_sec:
+                target_frames = max_frames
+            else:
+                elapsed_ticks = int(elapsed / poll_seconds)
+                target_frames = elapsed_ticks * schedule_quantum_frames
+                if max_frames is not None:
+                    target_frames = min(target_frames, max_frames)
+            due_frames = target_frames - self.scheduled_frames
+            if due_frames <= 0:
+                self.poll_sleeps += 1
+                self._sleep(poll_seconds)
+                continue
+
+            available = self._read_available()
+            block_frames = min(due_frames, self.frames_per_block)
+            if available > 0:
+                block_frames = min(block_frames, available)
+                data = self._read(block_frames, frame_width)
+            else:
+                data = b"\x00" * (block_frames * frame_width)
+                self.idle_frames += block_frames
+            self.scheduled_frames += block_frames
+            yield data
+
+    def metrics(self) -> dict[str, int | float | str]:
+        return {
+            "loopback_poll_mode": "read_available",
+            "loopback_startup_grace_ms": self.startup_grace_ms,
+            "loopback_poll_interval_ms": self.poll_interval_ms,
+            "loopback_schedule_quantum_frames": max(
+                1,
+                int(self.sample_rate * self.poll_interval_ms / 1000),
+            ),
+            "availability_checks": self.availability_checks,
+            "availability_errors": self.availability_errors,
+            "read_calls": self.read_calls,
+            "read_errors": self.read_errors,
+            "poll_sleeps": self.poll_sleeps,
+            "idle_input_frames": self.idle_frames,
+            "idle_seconds": round(self.idle_frames / self.sample_rate, 3),
+        }
+
+    def _read_available(self) -> int:
+        self.availability_checks += 1
+        try:
+            value = self.stream.get_read_available()
+        except Exception as exc:  # noqa: BLE001 - normalize native backend failures
+            self.availability_errors += 1
+            raise WasapiLoopbackError(
+                "WASAPI loopback availability check failed"
+            ) from exc
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            self.availability_errors += 1
+            raise WasapiLoopbackError(
+                "WASAPI loopback returned invalid available-frame count"
+            )
+        return value
+
+    def _read(self, frames: int, frame_width: int) -> bytes:
+        self.read_calls += 1
+        try:
+            raw = self.stream.read(frames, exception_on_overflow=False)
+        except Exception as exc:  # noqa: BLE001 - normalize native backend failures
+            self.read_errors += 1
+            raise WasapiLoopbackError("WASAPI loopback stream read failed") from exc
+        if not isinstance(raw, (bytes, bytearray, memoryview)):
+            self.read_errors += 1
+            raise WasapiLoopbackError("WASAPI loopback returned non-PCM audio data")
+        data = bytes(raw)
+        if len(data) != frames * frame_width:
+            self.read_errors += 1
+            raise WasapiLoopbackError(
+                "WASAPI loopback returned an unexpected PCM frame count"
+            )
+        return data
 
 
 def _load_pyaudio(pyaudio_module: Any | None = None) -> Any | None:

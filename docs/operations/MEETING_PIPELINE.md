@@ -307,11 +307,16 @@ VAD modes:
   Захват использует native формат loopback-устройства и stateful SoXR для
   преобразования stereo 44.1/48 кГц -> mono 16 кГц; имена устройств и локальные
   пути не записываются в runtime metrics.
+- SYS polling использует `get_read_available()` и вызывает `read()` только для
+  frames, которые PortAudio обещает вернуть без ожидания. При idle output
+  scheduler добавляет native-rate silence по monotonic wall-clock; фиксированный
+  poll quantum исключает busy loop.
+- SYS report содержит `loopback_poll_mode`, startup/poll/quantum,
+  `availability_checks/errors`, `read_calls/errors`, `poll_sleeps`,
+  `idle_input_frames` и `idle_seconds`.
 - MIC+SYS mixing ещё не реализован: live `MIX` без `--input-wav` fail closed и
   не маскируется под MIC.
 - Микрофонный runtime пишет в `live_report.<SOURCE>.json` счетчики `input_status_events` и `queue_timeouts`; ненулевые значения нужно смотреть при диагностике overflow/dropout.
-- На полностью idle Windows output native loopback read может ждать пакет дольше
-  `--duration-sec`; interruptible/timeout-safe исправление ведется в #213.
 
 ### 5. Optional Speaker Diarization
 

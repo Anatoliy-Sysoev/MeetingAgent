@@ -265,6 +265,34 @@ Vosk переводятся обратно из сжатой шкалы accepted
 - native idle-read безопасность WASAPI вынесена в #213 и не смешивается с
   алгоритмом VAD.
 
+## 2026-07-13 - Non-Blocking WASAPI Loopback Clock
+
+Решение: SYS capture не вызывает blocking `stream.read()` вслепую. Runtime
+проверяет `get_read_available()`, читает не больше доступного числа native frames
+и ведет monotonic wall-clock с коротким startup grace. Если output device не
+выдает packet, соответствующий интервал заполняется нулевым PCM до SoXR/VAD.
+
+Почему:
+
+- PyAudio blocking read ожидает запрошенные frames и на полностью idle WASAPI
+  loopback может не вернуться в пределах `--duration-sec`;
+- PortAudio гарантирует, что `get_read_available()` сообщает число frames,
+  доступных без blocking wait;
+- вставка native-rate silence сохраняет elapsed time и не сдвигает последующую
+  речь, а Silero при включенном VAD отфильтровывает эту тишину;
+- polling с фиксированным quantum предотвращает busy loop на микроскопических
+  приращениях monotonic clock.
+
+Следствия:
+
+- duration-limited idle SYS завершается около заданной длительности плюс время
+  открытия устройства/startup grace;
+- Ctrl+C обрабатывается Python loop и сохраняет накопленный draft;
+- short/non-PCM reads, отрицательный available count и backend exceptions
+  завершаются fail closed;
+- report содержит poll/read/error/idle frames и seconds без device names или
+  локальных путей.
+
 ## 2026-07-07 - Auth Providers Через Локальный RBAC
 
 Решение: внешние browser identity providers должны только аутентифицировать пользователя, а права в MeetingAgent остаются локальными ролями `viewer`, `editor`, `admin`; machine/API fallback остаётся отдельным `MEETINGAGENT_API_TOKEN`.
