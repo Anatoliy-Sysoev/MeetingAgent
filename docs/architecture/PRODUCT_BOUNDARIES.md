@@ -1,15 +1,20 @@
 # Product Boundaries: MeetingAgent and Project Knowledge Bot
 
-Updated: 2026-07-02.
+Updated: 2026-07-13.
 
-This document defines the intended product split between **MeetingAgent Core** and **Project Knowledge Bot**, classifies current files by ownership, and provides a phased migration plan. No code moves are performed in this task.
+This document defines the product split between **MeetingAgent Core** and **Project Knowledge Bot**, classifies files by ownership, and records the remaining migration plan.
 
-Status: documentation prep is complete and the original prep issue is closed.
-Code-level extraction Phase 1 is implemented by #125
+Status: Phases 0, 1 and 2 are implemented. Phase 1 was delivered by #125
 (`MA-PRODUCT-SPLIT-PHASE-1`): shared config, limits, prompt-safety,
 hashing, JSONL, path filters and LLM client helpers now live under
 `meeting_agent.shared`, while old `asu_june_bot.core/*` and `asu_june_bot.llm/*`
 imports remain compatibility shims.
+Phase 2 is delivered by #235: MeetingAgent API, auth, meetings, jobs, live
+sessions and UI assets now live under `meeting_agent`; the independent core
+entrypoint is `scripts/meeting_agent_api.py`. The integrated entrypoint remains
+`scripts/asu_june_bot_api.py` and adds PKB search/chat/review routes. Legacy
+`asu_june_bot.auth/jobs/live_sessions/meetings` and moved API imports are
+identity-preserving deprecated shims.
 
 ---
 
@@ -19,28 +24,30 @@ imports remain compatibility shims.
 
 ```
 src/
-├── asu_june_bot/          # ACTIVE — all production runtime currently lives here
-│   ├── api/               # FastAPI app + all routes
-│   ├── auth/              # RBAC, sessions, throttle, audit
+├── asu_june_bot/          # OPTIONAL Project Knowledge Bot layer
+│   ├── api/               # Integrated app + PKB routes + compatibility aliases
 │   ├── chat/              # Grounded answer generation
-│   ├── core/              # Config, hashing, JSONL, limits, path filters
+│   ├── core/              # Compatibility config/helper imports
 │   ├── eval/              # Evaluation framework
 │   ├── guardrails/        # Scope classification, project guard, output policy
 │   ├── health/            # Health check service
 │   ├── ingestion/         # Project/corpus document ingestion models and utils
-│   ├── jobs/              # Async job runner (transcription, diarization, …)
-│   ├── llm/               # LLM client abstractions (Ollama OpenAI-compat)
-│   ├── meetings/          # Meeting card service
+│   ├── llm/               # Compatibility LLM imports
 │   ├── observability/     # Chat run logging
 │   ├── qh/                # Quality/health release gate
 │   ├── retrieval/         # RAG: BM25 + vector + hybrid + re-ranking
 │   ├── search/            # Search service and FTT stage routing
 │   └── telegram_bot.py    # Telegram adapter
-└── meeting_agent/         # SCAFFOLD — future MeetingAgent Core package
+└── meeting_agent/         # INDEPENDENT MeetingAgent Core
+    ├── api/               # Core FastAPI app, routes, UI assets and dependencies
+    ├── auth/              # RBAC, sessions, throttle and deployment safety
+    ├── meetings/          # Meeting cards, artifacts and meeting Q&A
+    ├── jobs/              # Durable stage/pipeline orchestration
+    ├── live_sessions/     # Live capture session lifecycle
     ├── transcription/     # ACTIVE: faster-whisper, gigaam, glossary
     ├── diarization/       # ACTIVE: sherpa backend, speaker assignment
     ├── live_transcription/# ACTIVE: real-time VAD + export
-    └── <rest>             # PLACEHOLDER: .gitkeep only (api/, config/, rag/, …)
+    └── shared/            # Config, IO, prompt safety and LLM abstractions
 ```
 
 ### Why `asu_june_bot` Is Both Products at Once
@@ -53,7 +60,10 @@ The `asu_june_bot` package started as the Project Knowledge Bot runtime, but ove
 
 3. **Shared/common utilities** — config loading (`core/config.py`), JSONL helpers (`core/jsonl.py`), hashing/IDs (`core/hashing.py`), size/schema limits (`core/limits.py`), LLM client abstraction (`llm/`), auth/security layer (`auth/`). These are infrastructure consumed by both products and belong in neither product alone.
 
-The `meeting_agent/` package exists as a structural scaffold intended to receive MeetingAgent Core code, but most of its directories are empty placeholders today. The transcription, diarization, and live transcription modules are active there already.
+`meeting_agent/` is now the canonical, independently startable core package.
+`asu_june_bot/` is the optional project-memory layer plus a temporary integrated
+application bridge. There are no imports from `meeting_agent` into PKB search,
+chat, retrieval, health or Telegram modules.
 
 ---
 
@@ -66,7 +76,6 @@ Owns all meeting lifecycle and administration endpoints:
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/health` | Minimal public liveness (`status`, `service`, `version`) |
-| GET | `/admin/diagnostics/health` | Admin-only corpus/index/Ollama diagnostics |
 | POST | `/auth/local/login` | Session auth |
 | GET | `/auth/me` | Identity |
 | POST | `/auth/logout` | Session revocation |
@@ -82,7 +91,8 @@ Owns all meeting lifecycle and administration endpoints:
 | GET | `/meetings/{id}/jobs/{job_id}` | Job status |
 | POST | `/meetings/{id}/jobs/{job_id}/cancel` | Cancel job |
 | GET | `/jobs/active` | Active job |
-| — | Meeting Workspace UI | Future |
+| GET | `/MeetingAgent` | Meeting registry/upload/live creation UI |
+| GET | `/meetings/{id}/workspace` | Meeting Workspace UI |
 
 ### Project Knowledge Bot API
 
@@ -92,8 +102,7 @@ Owns all search, chat, and corpus endpoints:
 |---|---|---|
 | POST | `/search` | RAG retrieval + source refs |
 | POST | `/chat` | Grounded answer with citations |
-| GET | `/sources` | Available corpora (future) |
-| — | Bot UI | Future |
+| GET | `/ui` | Project Knowledge Bot browser UI |
 | — | Telegram adapter | Currently `telegram_bot.py` |
 | — | Corpus health/search diagnostics | Currently `scripts/asu_june_bot_health_v2.py` |
 
@@ -127,22 +136,13 @@ Utilities consumed by both products. No dedicated process or public API — dist
 
 | Path | Owner | Notes |
 |---|---|---|
-| `api/app.py` | BR | Creates single FastAPI app for both products; split in Phase 2/3 |
-| `api/auth.py` | SH | Auth dependencies used by both products' routes |
-| `api/bootstrap_policy.py` | SH | Bootstrap safety policy — security primitive |
-| `api/dependencies.py` | BR | Wires AppState including both MA and PKB services |
-| `api/errors.py` | SH | Shared HTTP error helpers |
-| `api/middleware.py` | SH | Logging/request middleware (shared concern) |
-| `api/routes_admin.py` | MA | User management — belongs to MeetingAgent platform |
-| `api/routes_auth.py` | MA | Session auth — belongs to MeetingAgent platform |
+| `api/app.py` | BR | Integrated app: core routes plus optional PKB routes |
+| `api/dependencies.py` | BR | Extends `CoreAppState` with PKB services |
 | `api/routes_chat.py` | PKB | Chat endpoint |
-| `api/routes_health.py` | BR | Single-process compatibility endpoint; currently delegates to PKB-specific health service |
-| `api/routes_ingest.py` | MA | Meeting ingest |
-| `api/routes_jobs.py` | MA | Job pipeline |
-| `api/routes_meetings.py` | MA | Meeting reads |
+| `api/routes_health.py` | PKB | Admin-only corpus/index/Ollama diagnostics |
 | `api/routes_search.py` | PKB | Search endpoint |
 | `api/routes_ui.py` | PKB | Bot UI route |
-| `auth/` (entire directory) | SH | Auth domain model, RBAC, sessions, throttle — shared security primitive, not bot-only |
+| `auth/`, `jobs/`, `live_sessions/`, `meetings/` | BR | Deprecated package aliases to canonical `meeting_agent.*` modules |
 | `chat/` (entire directory) | PKB | Grounded answer generation, prompt builder, validators |
 | `core/config.py` | SH | Compatibility shim to `meeting_agent.shared.config` |
 | `core/corpus.py` | PKB | Corpus switching — bot concern |
@@ -155,11 +155,9 @@ Utilities consumed by both products. No dedicated process or public API — dist
 | `health/service.py` | PKB | PKB-specific health: checks corpus indices, Ollama, chunks/cache |
 | `ingestion/models.py` | PKB | Project/corpus document ingestion models |
 | `ingestion/utils.py` | PKB | Project/corpus document ingestion utilities |
-| `jobs/runner.py` | MA | Async subprocess job runner |
 | `llm/client.py` | SH | Compatibility shim to `meeting_agent.shared.llm.client` |
 | `llm/ollama_common.py` | SH | Compatibility shim to `meeting_agent.shared.llm.ollama_common` |
 | `llm/ollama_openai.py` | SH | Compatibility shim to `meeting_agent.shared.llm.ollama_openai` |
-| `meetings/service.py` | MA | Meeting card read/write service |
 | `observability/chat_runs.py` | PKB | Bot chat run logging |
 | `qh/release_gate.py` | PKB | Quality/health gate for bot corpus |
 | `retrieval/` (entire directory) | PKB | RAG retrieval stack |
@@ -170,15 +168,18 @@ Utilities consumed by both products. No dedicated process or public API — dist
 
 | Path | Owner | Notes |
 |---|---|---|
+| `api/` | MA | Independent core app, routes, dependencies and packaged UI |
+| `auth/` | MA | Local auth, RBAC, sessions and deployment safety |
+| `meetings/` | MA | Meeting cards, manifests, artifacts and scoped Q&A |
+| `jobs/` | MA | Durable stage/pipeline jobs and readiness |
+| `live_sessions/` | MA | Live capture lifecycle and durable state |
 | `transcription/` | MA | Active: faster-whisper, gigaam, glossary, hotwords |
 | `diarization/` | MA | Active: sherpa backend, speaker assignment |
 | `live_transcription/` | MA | Active: real-time VAD, exporters |
-| `api/` | MA | Placeholder — future MeetingAgent HTTP layer |
 | `shared/` | SH | Active shared utilities: config, limits, prompt safety, hashing, JSONL, path filters, LLM adapters |
 | `config/` | SH | Placeholder — future config domain if split further |
 | `core/` | SH | Placeholder — future domain-neutral core if split further |
 | `ingest/` | MA | Placeholder — future ingest domain |
-| `meetings/` | MA | Placeholder — future meeting domain |
 | `rag/` | ? | Placeholder — decide scope (meeting search vs. bot RAG) |
 | `storage/` | MA | Placeholder — future storage abstraction |
 | `integrations/` | ? | Placeholder — undecided; may host PKB adapter contract |
@@ -343,6 +344,8 @@ Response:
 
 ### Phase 2 — Move MeetingAgent Routes and Services Out of Bot Package
 
+**Status: complete in #235.**
+
 **Goal:** Relocate MeetingAgent-owned API routes and services (`routes_meetings.py`, `routes_ingest.py`, `routes_jobs.py`, `routes_admin.py`, `routes_auth.py`, `meetings/service.py`, `jobs/runner.py`) into `meeting_agent/` sub-packages.
 
 Do not move current `asu_june_bot/ingestion/` in Phase 2; it is PKB corpus/document ingestion and will move with PKB in Phase 4. Future MeetingAgent meeting-ingest domain lives in `meeting_agent/ingest/`.
@@ -354,7 +357,11 @@ Do not move current `asu_june_bot/ingestion/` in Phase 2; it is PKB corpus/docum
 - Keep PKB-owned routes in `asu_june_bot/api/`
 - Update `api/app.py` (or split it) to include routes from both packages
 
-**Non-goals:** Do not change any HTTP route paths. Do not move `asu_june_bot/auth/` yet (already targeted in Phase 1). No API behavior changes. No tests removed.
+**Delivered:** public route paths are unchanged; core and integrated apps have
+separate state builders; auth/security, meeting routes/services, jobs, live
+sessions and UI assets are canonical under `meeting_agent`; deprecated legacy
+imports resolve to the same module objects; core-only import/start and the full
+integrated suite are regression-tested.
 
 **Risks:**
 - `api/app.py` / `api/dependencies.py` currently wire both MA and PKB services into a single `AppState`; this coupling must be untangled carefully.

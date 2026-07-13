@@ -19,17 +19,17 @@ appears in more than one category.
 | `meeting_agent.live_transcription` | MeetingAgent Core | Current optional draft live helpers |
 | `meeting_agent.evaluation` | MeetingAgent Core | Current meeting artifact evaluation |
 | `meeting_agent.shared` | Shared | Current config, limits, path safety, JSONL, hashing, prompt safety, LLM clients |
-| `asu_june_bot.api/auth/jobs/meetings` | Integrated runtime | Current MeetingAgent API/UI and local security |
+| `meeting_agent.api/auth/jobs/live_sessions/meetings` | MeetingAgent Core | Independent API/UI, local security and meeting lifecycle |
 | `asu_june_bot.chat/retrieval/search/guardrails` | Project Knowledge Bot | Current project-memory assistant |
-| `asu_june_bot.core`, `asu_june_bot.llm` | Compatibility | Import shims over `meeting_agent.shared` |
+| `asu_june_bot.core/llm/auth/jobs/live_sessions/meetings` | Compatibility | Deprecated identity-preserving imports over `meeting_agent.*` |
 
-The integrated HTTP application remains in `asu_june_bot.api` until the
-documented product-split phases move MeetingAgent-owned routes. This placement
-does not make meeting processing bot-owned.
+`meeting_agent.api` is independently startable. `asu_june_bot.api` is the
+integrated compatibility application that adds PKB routes to the core.
 
 ## Supported Public Entrypoints
 
-- API/UI: `scripts/asu_june_bot_api.py`;
+- MeetingAgent Core API/UI: `scripts/meeting_agent_api.py`;
+- integrated Core + Project Knowledge Bot API/UI: `scripts/asu_june_bot_api.py`;
 - project chat/search: `scripts/asu_june_bot_chat.py` and
   `scripts/asu_june_bot_search_v2.py`;
 - Telegram adapter: `scripts/asu_june_bot_telegram.py`;

@@ -73,10 +73,12 @@ Detailed documentation:
 
 ### Package Status
 
-`src/meeting_agent/` contains the implemented product-owned transcription,
-diarization, live-transcription, evaluation, and shared infrastructure layers.
-The integrated API/UI runtime currently lives in `src/asu_june_bot/`; its
-`core/` and `llm/` packages are compatibility shims over `meeting_agent.shared`.
+`src/meeting_agent/` is the independently startable core: API/UI, auth,
+meetings, durable jobs, live sessions, transcription, diarization, evaluation,
+and shared infrastructure. `src/asu_june_bot/` is the optional Project
+Knowledge Bot layer. Its integrated app adds `/search`, `/chat`, review and bot
+UI routes to the core; legacy moved imports remain deprecated compatibility
+aliases during the migration window.
 
 Empty placeholder apps, templates, and package scaffolds have been removed.
 Legacy `scripts/01_*` ... `scripts/18_*` remain only for compatibility and emit
@@ -131,11 +133,23 @@ On Windows, use a single ASCII Ollama model store before running Docker/API work
 
 See [Ollama local runtime](docs/operations/OLLAMA_LOCAL_RUNTIME.md).
 
-### 3. Run The Project Knowledge Bot API
+### 3. Run MeetingAgent Core Or The Integrated Runtime
+
+MeetingAgent Core only:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\meeting_agent_api.py --host 127.0.0.1 --port 8000
+```
+
+Integrated MeetingAgent + Project Knowledge Bot:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_api.py --host 127.0.0.1 --port 8000
 ```
+
+Choose one API entrypoint per local state directory. Do not run Core and the
+integrated API concurrently against the same `data/`, `logs/`, or `meetings/`
+paths.
 
 Health check:
 
@@ -436,12 +450,16 @@ rows in the DOM. Every MIC/SYS/MIX live artifact remains permanently in
 
 ## Docker
 
-The Docker setup packages the local API, optional Telegram adapter, and an optional diarization/meeting-processing profile. GigaAM is intentionally not included in the main image.
+The Docker setup packages the integrated local API, an optional independent
+MeetingAgent Core profile, the optional Telegram adapter, and an optional
+diarization/meeting-processing profile. GigaAM is intentionally not included in
+the main image.
 
 ```powershell
 Copy-Item .env.example .env
 docker compose build api
 docker compose up api
+docker compose --profile core up --build core
 ```
 
 Optional diarization image:

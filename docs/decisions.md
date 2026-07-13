@@ -1043,3 +1043,28 @@ origin source, origin segment id и исходные start/end. Hardware/raw PCM
 - Workspace показывает до 500 combined final rows с MIC/SYS badges;
 - все MIX artifacts всегда остаются в `rag.no_index_artifacts`; evidence может
   появиться только из canonical offline ASR.
+
+## 2026-07-13 - MeetingAgent Core Запускается Независимо, Bot Остаётся Надстройкой
+
+Решение: канонические meeting API, auth, jobs, live sessions, meeting services
+и UI assets живут в `meeting_agent`. `scripts/meeting_agent_api.py` запускает
+только core. `scripts/asu_june_bot_api.py` расширяет тот же core state/routes
+Project Knowledge Bot сервисами и сохраняет прежние HTTP paths.
+
+Почему:
+
+- meeting lifecycle не должен импортировать corpus retrieval/chat/Telegram;
+- отдельный core упрощает упаковку, локальное развёртывание и будущий repo split;
+- одномоментное удаление старых Python imports сломало бы внешние scripts/tests;
+- два независимых набора реализаций создали бы несовместимые классы и state.
+
+Следствия:
+
+- старые `asu_june_bot.auth/jobs/live_sessions/meetings` и перенесённые API
+  imports являются явными deprecated identity-preserving aliases;
+- integrated state наследует `CoreAppState`, а не повторяет core wiring;
+- core import/start regression запрещает загрузку PKB search/chat/retrieval/
+  health/Telegram модулей;
+- `/health`, `/MeetingAgent`, `/meetings/*`, `/auth/*` и `/admin/*` сохраняют
+  контракты; `/search`, `/chat`, `/ui` доступны только в integrated runtime;
+- удаление compatibility bridge отложено до Phase 5.

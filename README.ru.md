@@ -60,9 +60,13 @@ diarization, live transcription, evaluation и shared infrastructure.
 migration warning. Полный machine-checked inventory находится в
 `configs/runtime_inventory.yaml`; см. [границы runtime](docs/ru/runtime_ownership.md).
 
-### Planned Package
+### Python-Пакеты
 
-`src/meeting_agent/` — планируемый общий Python-пакет MeetingAgent. Реализованные общие слои сейчас включают transcription, diarization и live-transcription helpers. Production-ready reference API/UI runtime находится в `src/asu_june_bot/`.
+`src/meeting_agent/` — независимо запускаемое ядро: API/UI, auth, meetings,
+durable jobs, live sessions, transcription, diarization и shared helpers.
+`src/asu_june_bot/` — optional-надстройка Project Knowledge Bot. Интегрированный
+runtime добавляет search/chat/review/bot UI к core; старые пути перенесённых
+модулей временно сохранены как deprecated compatibility aliases.
 
 ## Быстрый Старт
 
@@ -84,11 +88,21 @@ ollama pull bge-m3
 ollama pull qwen3.5:4b
 ```
 
-## Запуск Project Knowledge Bot API
+## Запуск MeetingAgent Core
+
+```powershell
+.\.venv\Scripts\python.exe scripts\meeting_agent_api.py --host 127.0.0.1 --port 8000
+```
+
+## Запуск Интегрированного MeetingAgent + Project Knowledge Bot API
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\asu_june_bot_api.py --host 127.0.0.1 --port 8000
 ```
+
+Для одного набора local state запускайте только один API entrypoint. Не
+запускайте Core и integrated API одновременно с общими `data/`, `logs/` и
+`meetings/`.
 
 Проверка:
 

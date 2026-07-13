@@ -19,17 +19,17 @@
 | `meeting_agent.live_transcription` | MeetingAgent Core | Optional draft live helpers |
 | `meeting_agent.evaluation` | MeetingAgent Core | Evaluation meeting artifacts |
 | `meeting_agent.shared` | Shared | Config, limits, path safety, JSONL, hashing, prompt safety, LLM clients |
-| `asu_june_bot.api/auth/jobs/meetings` | Integrated runtime | MeetingAgent API/UI и local security |
+| `meeting_agent.api/auth/jobs/live_sessions/meetings` | MeetingAgent Core | Независимые API/UI, local security и meeting lifecycle |
 | `asu_june_bot.chat/retrieval/search/guardrails` | Project Knowledge Bot | Project-memory assistant |
-| `asu_june_bot.core`, `asu_june_bot.llm` | Compatibility | Import shims поверх `meeting_agent.shared` |
+| `asu_june_bot.core/llm/auth/jobs/live_sessions/meetings` | Compatibility | Deprecated identity-preserving imports поверх `meeting_agent.*` |
 
-Интегрированное HTTP-приложение остаётся в `asu_june_bot.api`, пока
-задокументированные product-split phases не перенесут MeetingAgent-owned routes.
-Текущее размещение не делает meeting processing частью бота.
+`meeting_agent.api` запускается независимо. `asu_june_bot.api` остаётся
+интегрированным compatibility-приложением и добавляет PKB routes к core.
 
 ## Поддерживаемые Public Entrypoints
 
-- API/UI: `scripts/asu_june_bot_api.py`;
+- MeetingAgent Core API/UI: `scripts/meeting_agent_api.py`;
+- интегрированный Core + Project Knowledge Bot API/UI: `scripts/asu_june_bot_api.py`;
 - project chat/search: `scripts/asu_june_bot_chat.py` и
   `scripts/asu_june_bot_search_v2.py`;
 - Telegram adapter: `scripts/asu_june_bot_telegram.py`;

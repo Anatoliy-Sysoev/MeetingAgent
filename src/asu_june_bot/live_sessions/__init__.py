@@ -1,21 +1,10 @@
-from .service import (
-    LiveSessionConflict,
-    LiveSessionError,
-    LiveSessionNotFound,
-    LiveSessionNotRunning,
-    LiveSessionPreflightFailed,
-    LiveSessionService,
-)
-from .store import LiveSessionStore, LiveSessionStoreConflict, LiveSessionStoreError
+"""Deprecated compatibility package; use :mod:`meeting_agent.live_sessions`."""
 
-__all__ = [
-    "LiveSessionConflict",
-    "LiveSessionError",
-    "LiveSessionNotFound",
-    "LiveSessionNotRunning",
-    "LiveSessionPreflightFailed",
-    "LiveSessionService",
-    "LiveSessionStore",
-    "LiveSessionStoreConflict",
-    "LiveSessionStoreError",
-]
+from asu_june_bot._compat import install_deprecated_package_aliases
+
+install_deprecated_package_aliases(
+    legacy_package=__name__,
+    target_package="meeting_agent.live_sessions",
+    submodules=("service", "store"),
+    namespace=globals(),
+)

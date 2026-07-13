@@ -4,16 +4,21 @@
 
 ## Now
 
-- MA-ADMIN-CONSOLE-USERS-V1 (#234) adds a session-only browser surface for
-  bounded user pages, role/display-name changes, explicit enable/disable and
-  redacted deployment/bootstrap safety state.
-- canonical main before this task: `332b2dc` / `Add unified live conversation
-  timeline (#238)`.
+- MA-PRODUCT-SPLIT-PHASE-2 (#235) moves MeetingAgent-owned API, auth, meetings,
+  jobs, live sessions and packaged UI into the independently startable
+  `meeting_agent` package. `scripts/meeting_agent_api.py` starts core-only;
+  `scripts/asu_june_bot_api.py` remains the integrated PKB compatibility app.
+- canonical main before this task: `1fd6d97` / `Add admin user console (#239)`.
 - History purge #167 remains gated by explicit owner approval and backup.
-  Product follow-ups are tracked as #235-#237.
+  Product follow-ups are tracked as #236-#237.
 
 ## Done latest
 
+- MA-PRODUCT-SPLIT-PHASE-2 (#235): core routes/state start without PKB search,
+  chat, retrieval, health or Telegram imports; integrated routes and HTTP
+  contracts remain stable; moved legacy imports are explicit deprecated aliases;
+  runtime inventory, package data, Docker core profile and ownership docs are
+  synchronized and covered by core-only/integrated regression tests.
 - MA-ADMIN-CONSOLE-USERS-V1 (#234): protected `/admin` requires a local browser
   user with `users.manage`; all writes use session CSRF, user pagination reports
   the real total, status changes require explicit confirmation, last-admin

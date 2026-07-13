@@ -21,10 +21,13 @@ MeetingAgent/
   meetings/                     meeting cards; реальные карточки ignored
   scripts/                      current и compatibility entrypoints/tools
   src/
-    asu_june_bot/               интегрированный API/UI и Project Knowledge Bot
-      api/ auth/ chat/ jobs/ meetings/ retrieval/ search/ ...
-      core/ llm/                compatibility shims
+    asu_june_bot/               optional Project Knowledge Bot + integrated app
+      api/ chat/ retrieval/ search/ guardrails/ ...
+      core/ llm/ auth/ jobs/ meetings/ compatibility shims
     meeting_agent/
+      api/                      independent core API/UI
+      auth/ jobs/ meetings/     local security и meeting lifecycle
+      live_sessions/            durable live capture lifecycle
       transcription/            canonical offline ASR contract/backends
       diarization/              optional sherpa-onnx diarization
       live_transcription/       optional draft live helpers
@@ -39,9 +42,9 @@ MeetingAgent/
 
 - Поддерживаемые public entrypoints и migration paths описаны в
   `docs/ru/runtime_ownership.md`.
-- `src/asu_june_bot/api` пока собирает MeetingAgent и Project Knowledge Bot в
-  одном FastAPI process; целевые product-split phases описаны отдельно в
-  `PRODUCT_BOUNDARIES.md`.
+- `scripts/meeting_agent_api.py` запускает core отдельно;
+  `src/asu_june_bot/api` остаётся integrated bridge и добавляет PKB routes.
+  Следующие product-split phases описаны в `PRODUCT_BOUNDARIES.md`.
 - `data/`, `logs/`, `meetings/`, `vector_db/` и `watched_folder/` не являются
   source tree для приватных runtime outputs.
 - Пустые `apps/*`, `templates/*` и placeholder packages удалены. Новая папка
