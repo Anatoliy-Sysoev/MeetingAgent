@@ -18,7 +18,11 @@ from asu_june_bot.jobs.runner import (  # noqa: E402
     _index_preflight,
     _analyze_preflight,
     _path_variants,
+    _public_error_detail,
     _redact_paths,
+    _write_json_atomic,
+    _write_last_error,
+    _clear_last_error,
 )
 
 
@@ -124,3 +128,57 @@ def test_path_variants_includes_posix_and_backslash(tmp_path):
     posix = native.replace("\\", "/")
     assert posix in variants
     assert native in variants
+
+
+def test_public_error_detail_redacts_unknown_absolute_paths(tmp_path: Path) -> None:
+    detail = "failed at C:\\Users\\Secret Person\\Documents\\meeting.json"
+
+    result = _public_error_detail(detail, meeting_dir=tmp_path)
+
+    assert "C:\\Users\\Secret" not in result
+    assert "Documents" not in result
+    assert result.endswith("<path>")
+
+
+def test_public_error_detail_is_bounded() -> None:
+    result = _public_error_detail("x" * 1000)
+
+    assert len(result) == 500
+    assert result.endswith("...")
+
+
+def test_atomic_json_replace_failure_preserves_original(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "meeting.json"
+    original = '{"meeting_id":"original"}\n'
+    path.write_text(original, encoding="utf-8", newline="")
+
+    def fail_replace(_source: Path, _target: Path) -> None:
+        raise OSError("replace failed")
+
+    monkeypatch.setattr("asu_june_bot.jobs.runner.os.replace", fail_replace)
+
+    with pytest.raises(OSError, match="replace failed"):
+        _write_json_atomic(path, {"meeting_id": "replacement"})
+
+    assert path.read_text(encoding="utf-8") == original
+    assert not list(tmp_path.glob(".meeting.json.*.tmp"))
+
+
+def test_last_error_writes_and_clears_without_partial_files(tmp_path: Path) -> None:
+    meeting_dir = tmp_path / "mtg"
+    meeting_dir.mkdir()
+    card_path = meeting_dir / "meeting.json"
+    card_path.write_text('{"meeting_id":"mtg"}\n', encoding="utf-8", newline="")
+
+    _write_last_error(meeting_dir, stage="chunk", job_id="job-1", exit_code=1)
+    written = json.loads(card_path.read_text(encoding="utf-8"))
+    assert written["last_error"]["stage"] == "chunk"
+    assert written["last_error"]["job_id"] == "job-1"
+    assert not list(meeting_dir.glob(".meeting.json.*.tmp"))
+
+    _clear_last_error(meeting_dir, stage="chunk")
+    cleared = json.loads(card_path.read_text(encoding="utf-8"))
+    assert "last_error" not in cleared
+    assert not list(meeting_dir.glob(".meeting.json.*.tmp"))

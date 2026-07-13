@@ -3,6 +3,8 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 
 import pytest
@@ -12,7 +14,7 @@ SRC_ROOT = ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from meeting_agent.transcription.anonymize import (
+from meeting_agent.transcription.anonymize import (  # noqa: E402
     AnonymizationOptions,
     TranscriptAnonymizer,
     load_terms_file,
@@ -63,7 +65,7 @@ def test_anonymizer_replaces_common_sensitive_values() -> None:
     assert "[ID_001]" in result.text
 
 
-def test_public_report_uses_hashes_not_original_values(tmp_path: Path) -> None:
+def test_public_report_has_no_original_values_or_hashes(tmp_path: Path) -> None:
     script = _load_script()
     input_path = tmp_path / "segments.jsonl"
     _write_jsonl(
@@ -97,8 +99,54 @@ def test_public_report_uses_hashes_not_original_values(tmp_path: Path) -> None:
     assert "Алексей Петров" not in report_text
     assert "Ромашка" not in report_text
     assert "C:\\Users\\Person" not in report_text
-    assert "original_sha256" in report["replacements"][0]
+    assert "original_sha256" not in report["replacements"][0]
     assert not (out_dir / "anonymization_mapping.private.json").exists()
+
+
+def test_jsonl_speakers_and_source_are_anonymized_unless_technical(tmp_path: Path) -> None:
+    script = _load_script()
+    input_path = tmp_path / "segments.jsonl"
+    _write_jsonl(
+        input_path,
+        [
+            {
+                "segment_id": "seg-000001",
+                "speaker": "Alice",
+                "speaker_label": "Presenter One",
+                "speaker_names": ["SPEAKER_01", "Bob"],
+                "speakers": ["SPEAKER_01", "Иван Петров"],
+                "source": "camera-feed-one",
+                "sources": ["MIX", "camera-feed-two"],
+                "text": "Иван Петров прислал ivan@example.com",
+            },
+            {
+                "segment_id": "seg-000002",
+                "speaker": "SPEAKER_UNKNOWN",
+                "speakers": ["SPEAKER_02"],
+                "source": "MIX",
+                "text": "Техническая строка",
+            },
+        ],
+    )
+    out_dir = tmp_path / "out"
+
+    code = script.run(script.parse_args(["--input", str(input_path), "--out-dir", str(out_dir)]))
+
+    assert code == 0
+    rows = read_jsonl_rows(out_dir / "anonymized_segments.jsonl")
+    rendered = json.dumps(rows, ensure_ascii=False)
+    assert "Alice" not in rendered
+    assert "Presenter One" not in rendered
+    assert "Bob" not in rendered
+    assert "Иван Петров" not in rendered
+    assert "ivan@example.com" not in rendered
+    assert "camera-feed" not in rendered
+    assert rows[0]["speakers"][0] == "SPEAKER_01"
+    assert rows[0]["speaker_names"][0] == "SPEAKER_01"
+    assert rows[0]["sources"][0] == "MIX"
+    assert rows[1]["speaker"] == "SPEAKER_UNKNOWN"
+    assert rows[1]["speakers"] == ["SPEAKER_02"]
+    assert rows[1]["source"] == "MIX"
 
 
 def test_private_mapping_is_explicit_opt_in(tmp_path: Path) -> None:
@@ -116,6 +164,7 @@ def test_private_mapping_is_explicit_opt_in(tmp_path: Path) -> None:
     assert code == 0
     private_map = json.loads((out_dir / "anonymization_mapping.private.json").read_text(encoding="utf-8"))
     assert private_map["replacements"][0]["original"] == "Мария Петрова"
+    assert len(private_map["replacements"][0]["original_sha256"]) == 64
 
 
 def test_markdown_input_supported(tmp_path: Path) -> None:
@@ -183,3 +232,19 @@ def test_terms_file_validation(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="Unsupported"):
         load_terms_file(path)
+
+
+def test_cli_stdout_does_not_print_absolute_paths(tmp_path: Path) -> None:
+    script = _load_script()
+    input_path = tmp_path / "segments.jsonl"
+    _write_jsonl(input_path, [{"segment_id": "seg-1", "start": 0, "end": 1, "text": "text"}])
+    out_dir = tmp_path / "out"
+    stdout = StringIO()
+
+    with redirect_stdout(stdout):
+        code = script.run(script.parse_args(["--input", str(input_path), "--out-dir", str(out_dir)]))
+
+    assert code == 0
+    rendered = stdout.getvalue()
+    assert str(tmp_path) not in rendered
+    assert str(input_path) not in rendered
