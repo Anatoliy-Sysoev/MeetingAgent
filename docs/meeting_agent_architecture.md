@@ -176,6 +176,15 @@ source/live_audio.<SOURCE>.wav  # real MIC/SYS capture only
 `rag.no_index_artifacts`. Это обязательный source input для последующего
 offline refinement; текстовый live draft сам по себе входом ASR не является.
 
+Offline refinement запускается явно и отдельно для `MIC` или `SYS`. Он
+переиспользует canonical `scripts/22_transcribe_meeting.py` и штатный durable
+JobRunner, а не вводит второй ASR-оркестратор. Состояния `draft`, `refining`,
+`final`, `failed` доступны через API и Workspace. Canonical transcript
+перезаписывается только offline ASR; source-scoped live artifacts сохраняются и
+остаются no-index. Отчёт `transcript/live/refinement.<SOURCE>.json` содержит
+только безопасные engine/model/timing/count metadata и дельты, без текста,
+абсолютных путей и автоматической оценки качества.
+
 T-one рассматривается как будущий экспериментальный backend для сравнительного прогона. Основной риск T-one - телефонная специализация модели; на широкополосных встречах качество нужно подтверждать отдельно.
 
 Silero VAD является общим optional preprocessing-слоем для Vosk/T-one/future

@@ -223,6 +223,28 @@
       min-height: 32px;
     }
     .live-controls button { min-width: 82px; }
+    .live-refinement {
+      margin-top: 10px;
+      border-top: 1px solid var(--line);
+      padding-top: 10px;
+    }
+    .live-refinement-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .live-refinement > button { width: 100%; }
+    .live-refinement-summary {
+      min-height: 32px;
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+    }
     .live-elapsed {
       margin-left: auto;
       color: var(--muted);

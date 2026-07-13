@@ -38,7 +38,8 @@ CARD = {
 }
 
 EXPECTED_KEYS = [
-    "segments", "transcript_txt", "transcription_report", "diarization",
+    "segments", "transcript_txt", "transcription_report",
+    "live_refinement_mic", "live_refinement_sys", "diarization",
     "speaker_transcript", "chunks", "enriched_chunks", "memo", "protocol",
     "decisions", "tasks", "risks", "open_questions", "index_status",
 ]
@@ -211,6 +212,8 @@ def test_api_unreadable_card_returns_default_manifest(tmp_path: Path) -> None:
 def test_transcription_report_in_catalog(tmp_path: Path) -> None:
     d = _make_meeting(tmp_path)
     _touch(d, "transcript/transcription_report.json", "{}")
+    _touch(d, "transcript/live/refinement.MIC.json", "{}")
+    _touch(d, "transcript/live/refinement.SYS.json", "{}")
     entries = _by_key(build_artifact_manifest(MEETING_ID, d, CARD))
     report = entries["transcription_report"]
     assert report["stage"] == "transcribe"
@@ -225,6 +228,8 @@ def test_api_every_view_url_is_servable(tmp_path: Path) -> None:
     _touch(d, "transcript/segments.jsonl", '{"a":1}\n')
     _touch(d, "transcript/transcript.txt", "text")
     _touch(d, "transcript/transcription_report.json", "{}")
+    _touch(d, "transcript/live/refinement.MIC.json", "{}")
+    _touch(d, "transcript/live/refinement.SYS.json", "{}")
     _touch(d, "transcript/diarization.jsonl", '{"s":1}\n')
     _touch(d, "transcript/speaker_transcript.jsonl", '{"s":1}\n')
     _touch(d, "transcript/chunks.jsonl", '{"c":1}\n')

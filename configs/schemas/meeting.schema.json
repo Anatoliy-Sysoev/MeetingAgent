@@ -81,6 +81,84 @@
         }
       }
     },
+    "live_refinements": {
+      "type": "object",
+      "description": "Состояние явного offline-ASR уточнения сохраненных MIC/SYS live-черновиков.",
+      "propertyNames": {
+        "enum": [
+          "MIC",
+          "SYS"
+        ]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "state",
+          "offline_engine",
+          "started_at"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "MIC",
+              "SYS"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "refining",
+              "final",
+              "failed"
+            ]
+          },
+          "offline_engine": {
+            "type": "string",
+            "enum": [
+              "faster-whisper",
+              "gigaam"
+            ]
+          },
+          "offline_model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 160
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error_code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,80}$"
+          },
+          "report_artifact_key": {
+            "type": "string",
+            "enum": [
+              "live_refinement_mic",
+              "live_refinement_sys"
+            ]
+          },
+          "baseline_segments_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "resume_segments_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    },
     "source": {
       "type": "object",
       "additionalProperties": false,
@@ -230,6 +308,12 @@
           "$ref": "#/$defs/relative_path"
         },
         "live_audio_sys": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_refinement_mic": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_refinement_sys": {
           "$ref": "#/$defs/relative_path"
         },
         "live_segments_mix": {

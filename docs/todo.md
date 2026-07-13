@@ -113,12 +113,15 @@
   graceful start/stop, bounded partial/final draft, elapsed time and warnings.
 - [x] MA-LIVE-AUDIO-ARCHIVE-V1 (#225): retain bounded source-scoped MIC/SYS WAV
   with atomic publication, media registration and no-index provenance.
-- [ ] MA-LIVE-OFFLINE-REFINEMENT-V1 (#208): retain the live draft, then trigger and
-  compare canonical offline ASR without indexing the draft.
+- [x] MA-LIVE-OFFLINE-REFINEMENT-V1 (#208): retain the live draft, run canonical
+  offline ASR through the durable runner and expose safe source-scoped status/
+  comparison without indexing the draft.
 - [ ] MA-LIVE-PIPELINE-COORDINATION (#222): enforce server-side mutual exclusion
   between live capture and offline stage/pipeline jobs.
 - [ ] MA-LIVE-MEETING-CREATION (#223): create a schema-valid live-only meeting
   from `/MeetingAgent` without uploading media first.
+- [ ] API-VALIDATION-CTX-SANITIZATION (#227): recursively sanitize non-JSON
+  Pydantic validation context so malformed requests return bounded 422, not 500.
 - [x] MA-LIVE-LOOPBACK-IDLE-SAFETY (#213): make bounded SYS capture and Ctrl+C
   interruptible when the Windows output device emits no loopback packets.
 - [x] MA-LIVE-DEPENDENCY-LOCK (#214): exact CPU-only Python 3.12 Windows/Linux

@@ -20,12 +20,12 @@ const LIVE_FINAL_ROWS_MAX = 250;
 const LIVE_POLL_INTERVAL_MS = 750;
 const _liveTracks = {
   MIC: {
-    preflight: null, session: null, cursor: 0, partial: "", finals: [], busy: false,
+    preflight: null, session: null, refinement: null, cursor: 0, partial: "", finals: [], busy: false,
     devicesRevision: 0, renderedDevicesRevision: -1,
     finalsRevision: 0, renderedFinalsRevision: -1, renderedWarningsKey: null,
   },
   SYS: {
-    preflight: null, session: null, cursor: 0, partial: "", finals: [], busy: false,
+    preflight: null, session: null, refinement: null, cursor: 0, partial: "", finals: [], busy: false,
     devicesRevision: 0, renderedDevicesRevision: -1,
     finalsRevision: 0, renderedFinalsRevision: -1, renderedWarningsKey: null,
   },
@@ -297,6 +297,18 @@ const LIVE_REASON_TEXT = {
   meeting_not_found: "This meeting is no longer available.",
   live_state_unavailable: "Live session state is temporarily unavailable.",
   live_session_failed: "Live transcription failed. Check local audio and model readiness.",
+  live_audio_missing: "The saved live audio is missing.",
+  live_segments_missing: "The saved live transcript draft is missing.",
+  live_report_missing: "The saved live report is missing.",
+  live_audio_not_registered: "The saved live audio is not registered in this meeting.",
+  live_draft_index_policy_invalid: "The live draft index policy is unsafe; record the source again.",
+  refinement_active: "Offline refinement is already running.",
+  refinement_already_final: "A canonical transcript already exists. Confirm replacement to run again.",
+  refinement_resume_required: "The previous refinement failed. Resume it or explicitly replace it.",
+  refinement_preflight_failed: "Offline ASR preflight failed. Check the selected local engine.",
+  refinement_interrupted: "Offline refinement was interrupted and can be resumed.",
+  refinement_report_invalid: "The saved refinement report is invalid. Resume the refinement.",
+  refinement_report_missing: "The refinement report is missing. Resume the refinement.",
 };
 
 function liveElement(source, suffix) {
@@ -451,6 +463,73 @@ function renderLiveFinals(source) {
   state.renderedFinalsRevision = state.finalsRevision;
 }
 
+function refinementStatusLabel(state) {
+  const labels = {
+    unavailable: "No draft",
+    draft: "Draft",
+    refining: "Refining",
+    final: "Final",
+    failed: "Failed",
+  };
+  return labels[state] || "Unavailable";
+}
+
+function renderLiveRefinement(source) {
+  const track = _liveTracks[source];
+  const refinement = track.refinement || { state: "unavailable" };
+  const state = refinement.state || "unavailable";
+  const badge = liveElement(source, "refine-badge");
+  const engine = liveElement(source, "refine-engine");
+  const force = liveElement(source, "refine-force");
+  const forceWrap = document.getElementById(`live-${source.toLowerCase()}-refine-force-wrap`);
+  const button = liveElement(source, "refine");
+  const summary = liveElement(source, "refine-summary");
+  if (!badge || !engine || !force || !forceWrap || !button || !summary) return;
+
+  badge.textContent = refinementStatusLabel(state);
+  badge.className = `badge ${state === "final" ? "ok" : state === "failed" ? "err" : state === "refining" ? "warn" : ""}`;
+  forceWrap.hidden = state !== "final";
+  if (state !== "final") force.checked = false;
+  if (refinement.offline && ["faster-whisper", "gigaam"].includes(refinement.offline.engine)) {
+    engine.value = refinement.offline.engine;
+  }
+
+  if (state === "final") {
+    const comparison = refinement.comparison || {};
+    const delta = Number(comparison.chars_count_delta);
+    summary.textContent = Number.isFinite(delta)
+      ? `Canonical transcript is ready. Character delta versus live draft: ${delta >= 0 ? "+" : ""}${delta}.`
+      : "Canonical offline transcript is ready; the live draft remains preserved.";
+    button.textContent = "Run refinement again";
+  } else if (state === "failed") {
+    summary.textContent = liveReasonText(refinement.reason || "refinement_interrupted");
+    button.textContent = "Resume refinement";
+  } else if (state === "refining") {
+    summary.textContent = "Canonical offline ASR is running. The live draft remains available.";
+    button.textContent = "Refining offline...";
+  } else if (state === "draft") {
+    summary.textContent = "Draft saved and excluded from indexing. Create the canonical transcript now.";
+    button.textContent = "Refine offline";
+  } else {
+    summary.textContent = "Record and stop a complete live draft first.";
+    button.textContent = "Refine offline";
+  }
+
+  const canStart = _permissions.has("jobs.start");
+  const finalConfirmed = state !== "final" || force.checked;
+  const canRefine = refinement.can_refine === true ||
+    (state === "final" && refinement.can_force === true && force.checked);
+  button.disabled = track.busy || liveIsActive(track.session) || _activeJob !== null ||
+    !canStart || !canRefine || !finalConfirmed;
+  engine.disabled = track.busy || state === "refining" || liveIsActive(track.session);
+  force.disabled = track.busy || state === "refining" || liveIsActive(track.session);
+  if (!canStart) button.title = "Permission required: jobs.start";
+  else if (liveIsActive(track.session)) button.title = "Stop live capture before refinement";
+  else if (_activeJob !== null) button.title = "Another offline job is already running";
+  else if (state === "final" && !force.checked) button.title = "Confirm replacement first";
+  else button.title = "Run canonical offline ASR over the saved live audio";
+}
+
 function renderLiveTrack(source) {
   const state = _liveTracks[source];
   const session = state.session;
@@ -509,6 +588,7 @@ function renderLiveTrack(source) {
   renderLiveDeviceOptions(source);
   renderLiveWarnings(source);
   renderLiveFinals(source);
+  renderLiveRefinement(source);
   updateLiveElapsed();
 }
 
@@ -601,6 +681,33 @@ async function loadActiveLiveSession(source) {
   renderLiveTrack(source);
 }
 
+async function loadLiveRefinement(source) {
+  const state = _liveTracks[source];
+  const query = new URLSearchParams({ source });
+  let resp;
+  try {
+    resp = await apiFetch(
+      `/meetings/${encodeURIComponent(MEETING_ID)}/live/refinement?${query.toString()}`
+    );
+  } catch (e) {
+    state.refinement = { state: "unavailable", can_refine: false, reason: "live_state_unavailable" };
+    renderLiveTrack(source);
+    return;
+  }
+  if (!resp) return;
+  if (!resp.ok) {
+    state.refinement = { state: "unavailable", can_refine: false, reason: "live_state_unavailable" };
+    renderLiveTrack(source);
+    return;
+  }
+  state.refinement = await resp.json();
+  renderLiveTrack(source);
+}
+
+async function loadLiveRefinements() {
+  await Promise.all(LIVE_SOURCES.map((source) => loadLiveRefinement(source)));
+}
+
 function applyLiveEvents(source, events) {
   const state = _liveTracks[source];
   const batchSeen = new Set();
@@ -689,6 +796,7 @@ async function loadLive() {
     LIVE_SOURCES.flatMap((source) => [
       refreshLivePreflight(source),
       loadActiveLiveSession(source),
+      loadLiveRefinement(source),
     ])
   );
   if (LIVE_SOURCES.some((source) => liveIsActive(_liveTracks[source].session))) {
@@ -769,13 +877,59 @@ async function stopLiveSession(source) {
     }
     state.session = await resp.json();
     await pollLiveTrack(source);
-    await Promise.all([loadMeeting(), loadArtifacts(), refreshJobs()]);
+    await Promise.all([loadMeeting(), loadArtifacts(), loadLiveRefinement(source), refreshJobs()]);
   } catch (e) {
     setLiveError(source, "Live transcription could not be stopped cleanly. Refresh its status.");
   } finally {
     state.busy = false;
     renderLiveTrack(source);
     stopLiveTimersIfIdle();
+  }
+}
+
+async function startLiveRefinement(source) {
+  const state = _liveTracks[source];
+  const refinement = state.refinement || { state: "unavailable" };
+  if (state.busy || liveIsActive(state.session) || _activeJob !== null) return;
+  setLiveError(source, "");
+  const csrf = await ensureCsrf();
+  if (!csrf) {
+    setLiveError(source, "Could not obtain a CSRF token. Sign in again.");
+    return;
+  }
+  state.busy = true;
+  renderLiveTrack(source);
+  const body = {
+    source,
+    asr_engine: liveElement(source, "refine-engine").value,
+    force: refinement.state === "final" && liveElement(source, "refine-force").checked,
+    resume: refinement.state === "failed",
+  };
+  try {
+    const resp = await apiFetch(
+      `/meetings/${encodeURIComponent(MEETING_ID)}/live/refinement`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        body: JSON.stringify(body),
+      }
+    );
+    if (!resp) return;
+    if (!resp.ok) {
+      setLiveError(source, await liveResponseMessage(resp, "Could not start offline refinement."));
+      return;
+    }
+    const started = await resp.json();
+    state.refinement = { ...refinement, state: "refining", can_refine: false, job: started.job };
+    if (started.job && started.job.job_id) _trackedJobId = started.job.job_id;
+    liveElement(source, "refine-force").checked = false;
+    await refreshJobs();
+    startPolling();
+  } catch (e) {
+    setLiveError(source, "Offline refinement could not be started. Check the local API.");
+  } finally {
+    state.busy = false;
+    renderLiveTrack(source);
   }
 }
 
@@ -1433,6 +1587,7 @@ async function refreshJobs() {
     loadActiveJob(),
     loadReadiness(),
     loadManifest(),
+    loadLiveRefinements(),
   ]);
   renderJobs(status);
   for (const source of LIVE_SOURCES) renderLiveTrack(source);
@@ -1443,7 +1598,7 @@ async function refreshJobs() {
     _pollTimer = null;
   }
   if (hadActive && _activeJob === null) {
-    await Promise.all([loadTranscript(), loadArtifacts()]);
+    await Promise.all([loadTranscript(), loadArtifacts(), loadLiveRefinements()]);
   }
 }
 
@@ -1640,6 +1795,12 @@ document.querySelectorAll("[data-live-stop]").forEach((button) => {
 });
 document.querySelectorAll("[data-live-device]").forEach((select) => {
   select.addEventListener("change", () => refreshLivePreflight(select.dataset.liveDevice));
+});
+document.querySelectorAll("[data-live-refine]").forEach((button) => {
+  button.addEventListener("click", () => startLiveRefinement(button.dataset.liveRefine));
+});
+document.querySelectorAll("[data-live-refine-force]").forEach((checkbox) => {
+  checkbox.addEventListener("change", () => renderLiveTrack(checkbox.dataset.liveRefineForce));
 });
 
 const _qaAskBtn = document.getElementById("qa-ask-btn");

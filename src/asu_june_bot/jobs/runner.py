@@ -250,7 +250,32 @@ def stage_base_args(stage: str, options: dict[str, Any] | None = None) -> list[s
     args = ASR_ENGINE_ARGS.get(engine)
     if args is None:
         raise ValueError(f"Unsupported ASR engine: {engine!r}")
-    return list(args)
+    result = list(args)
+    refinement_source = str((options or {}).get("live_refinement_source") or "")
+    if refinement_source:
+        if refinement_source not in {"MIC", "SYS"}:
+            raise ValueError("Live refinement source must be MIC or SYS")
+        media_path = str((options or {}).get("media_path") or "").replace("\\", "/")
+        expected_media = f"source/live_audio.{refinement_source}.wav"
+        if media_path != expected_media:
+            raise ValueError("Live refinement media must match its source-scoped archive")
+        force = bool((options or {}).get("force"))
+        resume = bool((options or {}).get("resume"))
+        if force and resume:
+            raise ValueError("Live refinement force and resume are mutually exclusive")
+        result.extend(
+            [
+                "--media-path",
+                expected_media,
+                "--live-refinement-source",
+                refinement_source,
+            ]
+        )
+        if force:
+            result.append("--force")
+        elif resume:
+            result.append("--resume")
+    return result
 
 
 # UI-facing metadata for each runnable stage. Keys MUST be a subset of
@@ -457,6 +482,7 @@ class JobState:
     finished_at: str | None = None
     exit_code: int | None = None
     stderr_lines: list[str] = field(default_factory=list)
+    operation: dict[str, str] | None = None
     _process: Any = field(default=None, repr=False, compare=False)
     _meeting_dir: Path | None = field(default=None, repr=False, compare=False)
 
@@ -478,6 +504,8 @@ class JobState:
         }
         if meeting_status is not None:
             d["meeting_status"] = meeting_status
+        if self.operation is not None:
+            d["operation"] = dict(self.operation)
         return d
 
 
@@ -571,6 +599,24 @@ _DURABLE_STAGE_STATUSES = {
 _TERMINAL_JOB_STATUSES = {"completed", "failed", "cancelled"}
 
 
+def _safe_job_operation(value: Any) -> dict[str, str] | None:
+    if not isinstance(value, dict):
+        return None
+    if value.get("kind") != "live_refinement" or value.get("source") not in {"MIC", "SYS"}:
+        return None
+    return {"kind": "live_refinement", "source": str(value["source"])}
+
+
+def _operation_from_stage_options(
+    stage: str,
+    options: dict[str, Any] | None,
+) -> dict[str, str] | None:
+    if stage != "transcribe":
+        return None
+    source = (options or {}).get("live_refinement_source")
+    return _safe_job_operation({"kind": "live_refinement", "source": source})
+
+
 def _job_record(job: JobState) -> dict[str, Any]:
     public = job.as_dict()
     return {
@@ -586,6 +632,7 @@ def _job_record(job: JobState) -> dict[str, Any]:
         "process_identity": job.process_identity,
         "recovery_status": job.recovery_status,
         "stderr_lines": public["stderr_tail"],
+        "operation": dict(job.operation) if job.operation is not None else None,
     }
 
 
@@ -624,6 +671,7 @@ def _job_from_record(record: dict[str, Any], meetings_root: Path) -> JobState:
     stderr_lines = (
         [str(line)[:2000] for line in stderr[-_STDERR_TAIL:]] if isinstance(stderr, list) else []
     )
+    operation = _safe_job_operation(record.get("operation"))
     return JobState(
         job_id=job_id,
         meeting_id=meeting_id,
@@ -636,6 +684,7 @@ def _job_from_record(record: dict[str, Any], meetings_root: Path) -> JobState:
         finished_at=str(record.get("finished_at") or "") or None,
         exit_code=record.get("exit_code") if isinstance(record.get("exit_code"), int) else None,
         stderr_lines=stderr_lines,
+        operation=operation,
         _meeting_dir=_safe_record_meeting_dir(meetings_root, meeting_id),
     )
 
@@ -1045,6 +1094,7 @@ class JobRunner:
                 stage=stage,
                 status="starting",
                 started_at=_now_iso(),
+                operation=_operation_from_stage_options(stage, stage_options),
                 _meeting_dir=meeting_dir.resolve(),
             )
             if self.store is not None:

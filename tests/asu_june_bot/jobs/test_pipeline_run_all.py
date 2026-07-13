@@ -172,6 +172,54 @@ def test_transcribe_stage_base_args_select_asr_engine() -> None:
     assert stage_base_args("transcribe", {"asr_engine": "gigaam"}) == ["--engine", "gigaam"]
 
 
+def test_transcribe_stage_base_args_build_safe_live_refinement() -> None:
+    options = {
+        "asr_engine": "faster-whisper",
+        "live_refinement_source": "MIC",
+        "media_path": "source/live_audio.MIC.wav",
+        "resume": True,
+    }
+    assert stage_base_args("transcribe", options) == [
+        "--engine",
+        "faster-whisper",
+        "--model",
+        "large-v3-turbo",
+        "--media-path",
+        "source/live_audio.MIC.wav",
+        "--live-refinement-source",
+        "MIC",
+        "--resume",
+    ]
+    assert runner_mod._operation_from_stage_options("transcribe", options) == {
+        "kind": "live_refinement",
+        "source": "MIC",
+    }
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {
+            "live_refinement_source": "MIX",
+            "media_path": "source/live_audio.MIX.wav",
+        },
+        {
+            "live_refinement_source": "MIC",
+            "media_path": "../private.wav",
+        },
+        {
+            "live_refinement_source": "SYS",
+            "media_path": "source/live_audio.SYS.wav",
+            "force": True,
+            "resume": True,
+        },
+    ],
+)
+def test_transcribe_stage_base_args_reject_unsafe_refinement_options(options) -> None:
+    with pytest.raises(ValueError):
+        stage_base_args("transcribe", options)
+
+
 def test_pipeline_runs_stages_in_order(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     d = _make_meeting(tmp_path)
     launched = _patch_subprocess(monkeypatch, d)

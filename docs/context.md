@@ -4,15 +4,21 @@
 
 ## Now
 
-- MA-LIVE-AUDIO-ARCHIVE-V1 (#225) is implemented on its review branch: real MIC/SYS capture retains
-  source-scoped canonical WAV input for offline refinement, with bounded
-  streaming writes, atomic publication and no-index/media provenance.
-- canonical main: `0c6c082` / `Add live transcription controls to Workspace (#224)`.
-- MA-LIVE-OFFLINE-REFINEMENT-V1 (#208) depends on #225 for live-only cards;
-  history purge #167 remains gated by explicit owner approval and backup.
+- MA-LIVE-OFFLINE-REFINEMENT-V1 (#208) is implemented on its review branch:
+  explicit MIC/SYS draft refinement reuses canonical offline ASR and the durable
+  JobRunner, preserves live provenance and exposes safe Draft/Refining/Final/
+  Failed states in API and Workspace.
+- canonical main: `01cce5e` / `Retain live audio for offline refinement (#226)`.
+- Next confirmed work: server-side live/pipeline mutual exclusion #222,
+  live-only browser meeting creation #223 and validation ctx sanitization #227.
+  History purge #167 remains gated by explicit owner approval and backup.
 
 ## Done latest
 
+- MA-LIVE-OFFLINE-REFINEMENT-V1 (#208): canonical faster-whisper/GigaAM jobs can
+  refine retained MIC/SYS audio without deleting or indexing the live draft;
+  retry/resume is hash-guarded and the Workspace renders durable refinement
+  status plus a path-free comparison summary.
 - MA-LIVE-AUDIO-ARCHIVE-V1 (#225): added bounded pre-VAD PCM16 WAV streaming,
   atomic finalization, MIC/SYS media registration, no-index provenance and an
   explicit safe `--media-path` selector for canonical offline ASR.
@@ -206,6 +212,8 @@ POST /meetings/{id}/jobs/{stage}/retry
 GET  /meetings/{id}/jobs/{job_id}
 POST /meetings/{id}/jobs/{job_id}/cancel
 GET  /meetings/{id}/live/preflight
+GET  /meetings/{id}/live/refinement
+POST /meetings/{id}/live/refinement
 GET  /meetings/{id}/live/sessions/active
 POST /meetings/{id}/live/sessions
 GET  /meetings/{id}/live/sessions/{session_id}

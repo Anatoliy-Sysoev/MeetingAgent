@@ -886,3 +886,30 @@ temp + `fsync` + `os.replace`, регистрируется в `source.media_fil
 - `scripts/22_transcribe_meeting.py --media-path` принимает только относительный
   файл, уже зарегистрированный в `source.media_files`;
 - live WAV не удаляется при offline ASR и остаётся provenance для #208.
+
+## 2026-07-13 - Live Refinement Переиспользует Canonical ASR И Durable JobRunner
+
+Решение: завершённый MIC/SYS live draft уточняется только явным запуском
+canonical `scripts/22_transcribe_meeting.py` через существующий durable
+JobRunner. Для каждой source сохраняется состояние `draft/refining/final/failed`
+и отдельный no-index отчёт `transcript/live/refinement.<SOURCE>.json`.
+
+Почему:
+
+- второй ASR-оркестратор создал бы отдельные правила retry/cancel/recovery;
+- live text является черновиком, а входом offline ASR должен быть сохранённый
+  source-scoped WAV;
+- сравнение качества по одному числу недостоверно без размеченного эталона;
+- UI должен отличать незапущенный draft, активную job, финальный transcript и
+  управляемую ошибку после restart/crash.
+
+Следствия:
+
+- live artifacts сохраняются без изменений и остаются в `rag.no_index_artifacts`;
+- canonical exports и `transcription_report.json` создаёт штатный offline ASR;
+- comparison report содержит только engine/model/timing/count metadata и дельты,
+  без transcript text, backend diagnostics и абсолютных путей;
+- `resume` переиспользует partial canonical segments только при совпадении
+  SHA-256; stale GigaAM workdir для другого input не принимается;
+- повторный final-run требует explicit `force`, а повторная live-запись
+  инвалидирует прежний source-specific refinement report/state.

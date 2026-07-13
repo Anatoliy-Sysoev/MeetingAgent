@@ -861,7 +861,19 @@ class LiveSessionService:
                     artifacts[artifact_key] = path.resolve().relative_to(
                         meeting_dir.resolve()
                     ).as_posix()
+            refinement_rel = None
+            if source in {"MIC", "SYS"}:
+                artifacts.pop(f"live_refinement_{source.lower()}", None)
+                refinement_rel = f"transcript/live/refinement.{source}.json"
             card["artifacts"] = artifacts
+            refinements = card.get("live_refinements")
+            if source in {"MIC", "SYS"} and isinstance(refinements, dict):
+                refinements = dict(refinements)
+                refinements.pop(source, None)
+                if refinements:
+                    card["live_refinements"] = refinements
+                else:
+                    card.pop("live_refinements", None)
             source_data = card.get("source")
             if not isinstance(source_data, dict):
                 source_data = {"kind": "live_session"}
@@ -902,12 +914,15 @@ class LiveSessionService:
                 rag = {"index_policy": "structured_artifacts_and_final_transcript"}
             no_index = rag.get("no_index_artifacts")
             no_index = list(no_index) if isinstance(no_index, list) else []
+            if refinement_rel is not None:
+                no_index = [value for value in no_index if value != refinement_rel]
             for key in (
                 "live_segments",
                 "live_partials",
                 "live_transcript",
                 "live_srt",
                 "live_vtt",
+                "live_report",
                 "live_audio",
             ):
                 value = artifacts.get(source_keys[key])
@@ -928,6 +943,8 @@ class LiveSessionService:
             card["updated_at"] = now_iso()
             if clear_error:
                 card.pop("last_error", None)
+            if refinement_rel is not None:
+                (meeting_dir / refinement_rel).unlink(missing_ok=True)
             _write_json_atomic(meeting_dir / "meeting.json", card)
 
     def _mark_meeting_failed(
