@@ -4,20 +4,22 @@
 
 ## Now
 
-- MA-LIVE-STREAMING-VAD-V1 (#205) is implemented on its review branch:
-  MIC and SYS use the same incremental Silero gate and accepted-frame timeline,
-  so filtered silence does not compress Vosk timestamps. WAV keeps its existing
-  precomputed-window behavior. Runtime reports expose bounded VAD metrics and
-  warnings.
-- canonical main before #205: `f760b6a` / `Add Windows WASAPI system loopback capture (#212)`.
+- MA-LIVE-LOOPBACK-IDLE-SAFETY (#213) is implemented on its review branch:
+  SYS polls non-blocking available frames, advances idle intervals with native
+  silence on a quantized monotonic schedule, and remains duration/Ctrl+C bounded
+  without a busy loop.
+- canonical main before #213: `c68444f` / `Add streaming Silero VAD with wall-clock timestamps (#216)`.
 - next product work is Live session API/UI (#206/#207), offline refinement
-  (#208), idle-loopback interruptibility (#213), and a reviewed live dependency
-  lock/audit (#214); bounded MIC callback backpressure is tracked in #215.
+  (#208), a reviewed live dependency lock/audit (#214), and bounded MIC callback
+  backpressure (#215).
   history purge #167 remains gated by explicit owner approval and a verified
   backup.
 
 ## Done latest
 
+- MA-LIVE-LOOPBACK-IDLE-SAFETY (#213): replaced unconditional native SYS reads
+  with availability-gated polling, fixed-quantum wall-clock scheduling, idle PCM
+  insertion, bounded path-free diagnostics and active/idle hardware smoke.
 - MA-LIVE-STREAMING-VAD-V1 (#205): added 512-frame stateful Silero filtering for
   MIC/SYS, source-frame timestamp remapping, monotonic segment normalization,
   bounded configuration and report-level filtered-duration/warning metrics.

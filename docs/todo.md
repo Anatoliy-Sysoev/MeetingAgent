@@ -112,7 +112,7 @@
   start/stop, partial/final transcript and status.
 - [ ] MA-LIVE-OFFLINE-REFINEMENT-V1 (#208): retain the live draft, then trigger and
   compare canonical offline ASR without indexing the draft.
-- [ ] MA-LIVE-LOOPBACK-IDLE-SAFETY (#213): make bounded SYS capture and Ctrl+C
+- [x] MA-LIVE-LOOPBACK-IDLE-SAFETY (#213): make bounded SYS capture and Ctrl+C
   interruptible when the Windows output device emits no loopback packets.
 - [ ] MA-LIVE-DEPENDENCY-LOCK (#214): own an exact Python 3.12 live dependency
   resolution and include it in scheduled vulnerability audits.
