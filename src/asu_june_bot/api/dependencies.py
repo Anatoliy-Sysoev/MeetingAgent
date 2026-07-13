@@ -22,8 +22,10 @@ from asu_june_bot.chat import ChatService
 from asu_june_bot.core.config import load_config, resolve_work_path
 from asu_june_bot.health import HealthService
 from asu_june_bot.jobs.runner import JobRunner
-from asu_june_bot.live_sessions import LiveSessionService
+from asu_june_bot.jobs.store import JobStore
+from asu_june_bot.live_sessions import LiveSessionService, LiveSessionStore
 from asu_june_bot.llm.ollama_openai import OllamaOpenAIClient
+from asu_june_bot.meeting_work import MeetingWorkCoordinator
 from asu_june_bot.meetings.qa import MeetingQAService
 from asu_june_bot.meetings.service import (
     MeetingsService,
@@ -152,6 +154,48 @@ def build_app_state(config: dict[str, Any] | None = None) -> AppState:
         config,
         live_cfg["model_path"],
     )
+    meeting_work_lock_path = resolve_work_path(
+        config,
+        (config.get("paths") or {}).get("meeting_work_lock")
+        or "logs/meeting_work.lock",
+    )
+    job_store = JobStore(jobs_state_path)
+    live_store = LiveSessionStore(
+        live_state_path,
+        sessions_max=live_cfg["sessions_max"],
+        active_sessions_max=live_cfg["active_sessions_max"],
+        events_max=live_cfg["events_max"],
+        max_state_bytes=live_cfg["max_state_bytes"],
+    )
+    meeting_work_coordinator = MeetingWorkCoordinator(
+        meeting_work_lock_path,
+        job_store=job_store,
+        live_store=live_store,
+    )
+    job_runner = JobRunner(
+        store=job_store,
+        coordinator=meeting_work_coordinator,
+        meetings_root=meetings_root,
+    )
+    live_session_service = LiveSessionService(
+        meetings_root=meetings_service.root,
+        state_path=live_state_path,
+        model_path=live_model_path,
+        vad=live_cfg["vad"],
+        sample_rate=live_cfg["sample_rate"],
+        block_ms=live_cfg["block_ms"],
+        mic_queue_max_blocks=live_cfg["mic_queue_max_blocks"],
+        partials_max=live_cfg["partials_max"],
+        events_max=live_cfg["events_max"],
+        sessions_max=live_cfg["sessions_max"],
+        active_sessions_max=live_cfg["active_sessions_max"],
+        max_state_bytes=live_cfg["max_state_bytes"],
+        stop_timeout_seconds=live_cfg["stop_timeout_seconds"],
+        audio_archive_max_bytes=live_cfg["audio_archive_max_bytes"],
+        audio_archive_min_free_bytes=live_cfg["audio_archive_min_free_bytes"],
+        store=live_store,
+        coordinator=meeting_work_coordinator,
+    )
     _runs_path = Path("data/asu_june_bot/chat_runs.jsonl")
     _labels_path = Path("data/asu_june_bot/chat_run_labels.jsonl")
     return AppState(
@@ -169,27 +213,8 @@ def build_app_state(config: dict[str, Any] | None = None) -> AppState:
             meetings_service=meetings_service,
             llm_client=OllamaOpenAIClient(base_url=chat_base_url, model=chat_model),
         ),
-        job_runner=JobRunner(
-            state_path=jobs_state_path,
-            meetings_root=meetings_root,
-        ),
-        live_session_service=LiveSessionService(
-            meetings_root=meetings_service.root,
-            state_path=live_state_path,
-            model_path=live_model_path,
-            vad=live_cfg["vad"],
-            sample_rate=live_cfg["sample_rate"],
-            block_ms=live_cfg["block_ms"],
-            mic_queue_max_blocks=live_cfg["mic_queue_max_blocks"],
-            partials_max=live_cfg["partials_max"],
-            events_max=live_cfg["events_max"],
-            sessions_max=live_cfg["sessions_max"],
-            active_sessions_max=live_cfg["active_sessions_max"],
-            max_state_bytes=live_cfg["max_state_bytes"],
-            stop_timeout_seconds=live_cfg["stop_timeout_seconds"],
-            audio_archive_max_bytes=live_cfg["audio_archive_max_bytes"],
-            audio_archive_min_free_bytes=live_cfg["audio_archive_min_free_bytes"],
-        ),
+        job_runner=job_runner,
+        live_session_service=live_session_service,
         auth_repository=auth_repository,
         local_auth_service=LocalAuthService(
             auth_repository,

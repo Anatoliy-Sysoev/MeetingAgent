@@ -4,17 +4,21 @@
 
 ## Now
 
-- MA-LIVE-OFFLINE-REFINEMENT-V1 (#208) is implemented on its review branch:
-  explicit MIC/SYS draft refinement reuses canonical offline ASR and the durable
-  JobRunner, preserves live provenance and exposes safe Draft/Refining/Final/
-  Failed states in API and Workspace.
-- canonical main: `01cce5e` / `Retain live audio for offline refinement (#226)`.
-- Next confirmed work: server-side live/pipeline mutual exclusion #222,
-  live-only browser meeting creation #223 and validation ctx sanitization #227.
+- MA-LIVE-PIPELINE-COORDINATION (#222) is implemented on its review branch:
+  a shared cross-process advisory lock atomically arbitrates live capture and
+  offline stage/pipeline reservations for the same meeting, while preserving
+  concurrent MIC+SYS capture and independent work on different meetings.
+- canonical main: `9f2e4a5` / `Refine live drafts with canonical offline ASR (#228)`.
+- Next confirmed work: live-only browser meeting creation #223 and validation
+  ctx sanitization #227.
   History purge #167 remains gated by explicit owner approval and backup.
 
 ## Done latest
 
+- MA-LIVE-PIPELINE-COORDINATION (#222): browser and bearer callers now receive
+  the same bounded server-side `live_session_active`/`offline_job_active`
+  conflicts; readiness/preflight expose the block; thread/process races have
+  exactly one winner and existing stale/terminal recovery releases ownership.
 - MA-LIVE-OFFLINE-REFINEMENT-V1 (#208): canonical faster-whisper/GigaAM jobs can
   refine retained MIC/SYS audio without deleting or indexing the live draft;
   retry/resume is hash-guarded and the Workspace renders durable refinement

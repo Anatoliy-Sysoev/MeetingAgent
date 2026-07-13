@@ -290,6 +290,7 @@ const LIVE_REASON_TEXT = {
   sys_loopback_default_missing: "No default system-audio loopback device was found.",
   source_preflight_failed: "Audio readiness could not be checked.",
   live_session_active: "This source already has an active live session.",
+  offline_job_active: "Stop offline meeting processing before starting live capture.",
   live_session_capacity: "Live capture capacity is reached. Stop another live source first.",
   live_artifact_exists: "A saved draft already exists. Select the replace option to record again.",
   live_session_not_running: "The capture worker is no longer running. Refresh the live panel.",
@@ -1124,7 +1125,9 @@ async function safeDetail(resp) {
   try {
     const d = await resp.json();
     if (typeof d.detail === "string") return d.detail;
-    if (d.detail && typeof d.detail === "object") return null;
+    if (d.detail && typeof d.detail === "object" && typeof d.detail.message === "string") {
+      return d.detail.message.slice(0, 240);
+    }
   } catch (e) { /* not JSON */ }
   return null;
 }

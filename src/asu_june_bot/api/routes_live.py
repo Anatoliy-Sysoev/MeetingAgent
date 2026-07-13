@@ -22,6 +22,7 @@ from asu_june_bot.live_sessions.store import LiveSessionStoreError
 from asu_june_bot.jobs.runner import (
     JobAlreadyRunning,
     JobRunner,
+    JobStateUnavailable,
     PreflightFailed,
 )
 from asu_june_bot.meetings.service import MeetingCardError, MeetingsService
@@ -130,6 +131,9 @@ async def live_preflight(
             source,
             audio_device_index=audio_device_index,
         )
+        if await asyncio.to_thread(service.offline_work_active, meeting_id):
+            payload["available"] = False
+            payload["reason"] = "offline_job_active"
     except (LiveSessionError, LiveSessionStoreError) as exc:
         raise _http_error(exc) from exc
     return JSONResponse(content=payload)
@@ -232,7 +236,13 @@ async def start_live_refinement(
             },
         )
     except JobAlreadyRunning as exc:
-        raise _refinement_error(409, "job_already_running", str(exc)) from exc
+        raise _refinement_error(
+            409,
+            str(getattr(exc, "code", "job_already_running")),
+            str(getattr(exc, "public_message", str(exc))),
+        ) from exc
+    except JobStateUnavailable as exc:
+        raise _refinement_error(503, exc.code, exc.public_message) from exc
     except PreflightFailed as exc:
         raise _refinement_error(
             422,

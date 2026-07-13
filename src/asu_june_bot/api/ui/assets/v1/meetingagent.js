@@ -41,6 +41,9 @@ const state = {
         return "Такая запись уже загружена.";
       }
       if (data && typeof data.detail === "string") return data.detail;
+      if (data && data.detail && typeof data.detail.message === "string") {
+        return data.detail.message.slice(0, 240);
+      }
       if (data && data.detail && data.detail.error) return data.detail.error;
       return `Ошибка HTTP ${resp.status}`;
     }

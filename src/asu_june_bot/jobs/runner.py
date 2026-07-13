@@ -20,6 +20,11 @@ from asu_june_bot.jobs.processes import (
     terminate_process_tree,
 )
 from asu_june_bot.jobs.store import JobStore, JobStoreConflict, JobStoreError
+from asu_june_bot.meeting_work import (
+    MeetingWorkConflict,
+    MeetingWorkCoordinator,
+    MeetingWorkStateError,
+)
 
 _ROOT = Path(__file__).resolve().parents[3]
 
@@ -448,7 +453,22 @@ class JobError(RuntimeError):
 
 
 class JobAlreadyRunning(JobError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "job_already_running",
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.public_message = message
+
+
+class JobStateUnavailable(JobError):
+    def __init__(self, message: str = "Meeting work state is temporarily unavailable") -> None:
+        super().__init__(message)
+        self.code = "meeting_work_state_unavailable"
+        self.public_message = message
 
 
 class JobNotFound(JobError):
@@ -816,10 +836,23 @@ class JobRunner:
         *,
         state_path: Path | str | None = None,
         meetings_root: Path | str = "meetings",
+        store: JobStore | None = None,
+        coordinator: MeetingWorkCoordinator | None = None,
     ) -> None:
+        if state_path is not None and store is not None:
+            raise ValueError("Pass state_path or store, not both")
         self._lock: asyncio.Lock = asyncio.Lock()
         self.meetings_root = Path(meetings_root)
-        self.store = JobStore(state_path) if state_path is not None else None
+        self.store = store or (JobStore(state_path) if state_path is not None else None)
+        if coordinator is not None and self.store is None:
+            raise ValueError("Meeting work coordination requires a durable job store")
+        if (
+            coordinator is not None
+            and self.store is not None
+            and Path(coordinator.job_store.path).resolve() != self.store.path.resolve()
+        ):
+            raise ValueError("Meeting work coordinator uses a different job store")
+        self.coordinator = coordinator
         self.active_job: JobState | None = None
         self.history: list[JobState] = []
         self.active_pipeline: PipelineJobState | None = None
@@ -1099,14 +1132,32 @@ class JobRunner:
             )
             if self.store is not None:
                 try:
-                    self.store.reserve_job(
-                        _job_record(job),
-                        pipeline_id=self.active_pipeline.job_id
+                    pipeline_id = (
+                        self.active_pipeline.job_id
                         if _from_pipeline and self.active_pipeline is not None
-                        else None,
+                        else None
                     )
+                    if self.coordinator is not None:
+                        self.coordinator.reserve_job(
+                            _job_record(job),
+                            pipeline_id=pipeline_id,
+                        )
+                    else:
+                        self.store.reserve_job(
+                            _job_record(job),
+                            pipeline_id=pipeline_id,
+                        )
+                except MeetingWorkConflict as exc:
+                    raise JobAlreadyRunning(
+                        exc.public_message,
+                        code=exc.code,
+                    ) from exc
+                except MeetingWorkStateError as exc:
+                    raise JobStateUnavailable(exc.public_message) from exc
                 except JobStoreConflict as exc:
                     raise JobAlreadyRunning("A durable job reservation is already active.") from exc
+                except JobStoreError as exc:
+                    raise JobStateUnavailable() from exc
             self.active_job = job
 
         try:
@@ -1292,12 +1343,32 @@ class JobRunner:
             )
             if self.store is not None:
                 try:
-                    self.store.reserve_pipeline(_pipeline_record(pstate))
+                    if self.coordinator is not None:
+                        self.coordinator.reserve_pipeline(_pipeline_record(pstate))
+                    else:
+                        self.store.reserve_pipeline(_pipeline_record(pstate))
+                except MeetingWorkConflict as exc:
+                    raise JobAlreadyRunning(
+                        exc.public_message,
+                        code=exc.code,
+                    ) from exc
+                except MeetingWorkStateError as exc:
+                    raise JobStateUnavailable(exc.public_message) from exc
                 except JobStoreConflict as exc:
                     raise JobAlreadyRunning("A durable job reservation is already active.") from exc
+                except JobStoreError as exc:
+                    raise JobStateUnavailable() from exc
             self.active_pipeline = pstate
         pstate._task = asyncio.create_task(self._run_pipeline(pstate, meeting_dir))
         return pstate
+
+    def live_session_active(self, meeting_id: str) -> bool:
+        if self.coordinator is None:
+            return False
+        try:
+            return self.coordinator.live_active(meeting_id)
+        except MeetingWorkStateError as exc:
+            raise JobStateUnavailable(exc.public_message) from exc
 
     async def _cancel_pipeline(self, pipeline: PipelineJobState) -> PipelineJobState:
         if pipeline.status in ("completed", "failed", "cancelled"):

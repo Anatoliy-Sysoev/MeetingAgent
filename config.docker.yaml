@@ -31,3 +31,5 @@ meetings:
 
 paths:
   jobs_state: logs/jobs_state.json
+  live_sessions_state: logs/live_sessions_state.json
+  meeting_work_lock: logs/meeting_work.lock

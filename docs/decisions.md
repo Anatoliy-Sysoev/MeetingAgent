@@ -913,3 +913,30 @@ JobRunner. Для каждой source сохраняется состояние 
   SHA-256; stale GigaAM workdir для другого input не принимается;
 - повторный final-run требует explicit `force`, а повторная live-запись
   инвалидирует прежний source-specific refinement report/state.
+
+## 2026-07-13 - Live И Offline Work Используют Общий Межпроцессный Арбитр
+
+Решение: live capture и offline stage/pipeline для одной встречи резервируются
+через общий advisory lock. Под lock читается durable-state противоположного
+контура и сразу выполняется reservation в собственном существующем store.
+Отдельный persistent owner-registry не создаётся.
+
+Почему:
+
+- UI-блокировки не защищают bearer clients и параллельные HTTP requests;
+- независимые check-then-start проверки оставляют race между двумя API;
+- третий owner-state потребовал бы отдельного recovery и мог бы зависнуть после
+  crash;
+- существующие JobStore и LiveSessionStore уже атомарны и умеют очищать
+  terminal/stale state.
+
+Следствия:
+
+- для одной meeting card ровно один из конкурирующих live/offline запусков
+  получает reservation; другой получает bounded machine-readable `409`;
+- коды конфликтов: `live_session_active` и `offline_job_active`;
+- MIC+SYS разрешены одновременно в пределах `live.active_sessions_max`;
+- работа разных meetings не блокируется этим арбитром;
+- readiness и preflight отражают server-side blocked reason;
+- advisory lock снимается ОС при завершении процесса, а owner-state остаётся
+  только в существующих recoverable stores.
