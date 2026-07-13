@@ -4,19 +4,22 @@
 
 ## Now
 
-- MA-LIVE-LOOPBACK-IDLE-SAFETY (#213) is implemented on its review branch:
-  SYS polls non-blocking available frames, advances idle intervals with native
-  silence on a quantized monotonic schedule, and remains duration/Ctrl+C bounded
-  without a busy loop.
-- canonical main before #213: `c68444f` / `Add streaming Silero VAD with wall-clock timestamps (#216)`.
-- next product work is Live session API/UI (#206/#207), offline refinement
-  (#208), a reviewed live dependency lock/audit (#214), and bounded MIC callback
-  backpressure (#215).
+- MA-LIVE-MIC-BACKPRESSURE (#215) is implemented on its review branch: MIC uses
+  a configurable bounded callback queue, never waits for recognition, drops the
+  oldest queued block on overflow and fills the missing absolute frame interval
+  with silence so later transcript timestamps remain wall-clock aligned.
+- canonical main before #215: `679a42e` / `Make idle WASAPI loopback capture interruptible (#217)`.
+- next product work is a reviewed live dependency lock/audit (#214), Live
+  session API/UI (#206/#207), and offline refinement (#208).
   history purge #167 remains gated by explicit owner approval and a verified
   backup.
 
 ## Done latest
 
+- MA-LIVE-MIC-BACKPRESSURE (#215): bounded the MIC callback queue, added
+  deterministic oldest-first overflow handling, absolute-frame gap recovery,
+  path-free loss/queue metrics, report warnings and duration/Ctrl+C regression
+  coverage.
 - MA-LIVE-LOOPBACK-IDLE-SAFETY (#213): replaced unconditional native SYS reads
   with availability-gated polling, fixed-quantum wall-clock scheduling, idle PCM
   insertion, bounded path-free diagnostics and active/idle hardware smoke.

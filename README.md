@@ -292,6 +292,13 @@ to original capture frames, so filtered silence does not compress transcript
 timestamps. The live report includes accepted/filtered frame counts, filtered
 seconds, speech-window count, dropped-short-speech count, and VAD warnings.
 
+MIC capture uses a bounded callback queue (`--mic-queue-max-blocks`, default
+`32`). The PortAudio callback never waits for recognition. On overflow the
+oldest queued block is dropped and the newest is retained; the consumer inserts
+equivalent silence so later transcript timestamps stay aligned with capture
+wall-clock time. `live_report.MIC.json` records queue capacity/peak, dropped
+blocks/frames/seconds, filled gaps, and the `mic_audio_dropped` warning.
+
 Deterministic smoke from a prepared mono 16 kHz WAV:
 
 ```powershell

@@ -116,8 +116,9 @@
   interruptible when the Windows output device emits no loopback packets.
 - [ ] MA-LIVE-DEPENDENCY-LOCK (#214): own an exact Python 3.12 live dependency
   resolution and include it in scheduled vulnerability audits.
-- [ ] MA-LIVE-MIC-BACKPRESSURE (#215): bound the PortAudio callback queue while
-  preserving wall-clock time across dropped frames and reporting losses.
+- [x] MA-LIVE-MIC-BACKPRESSURE (#215): bounded non-blocking MIC callback queue,
+  deterministic oldest-block eviction, absolute-frame silence recovery and
+  path-free queue/loss metrics with report warnings.
 - [x] TEST-DEPENDENCY-AUDIT-WINDOWS-UTF8 (#209): force deterministic UTF-8
   subprocess semantics for pip-audit under Cyrillic Windows profile paths.
 - [ ] MA-MEETINGAGENT-UI-MOCKUPS: approve target mockups for registry, upload wizard, processing monitor and meeting card before deeper UI refactor.

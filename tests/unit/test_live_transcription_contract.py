@@ -21,6 +21,7 @@ from meeting_agent.live_transcription import (  # noqa: E402
 from meeting_agent.live_transcription.audio_capture import list_audio_devices  # noqa: E402
 from meeting_agent.live_transcription.vad import SpeechWindow, block_overlaps_speech  # noqa: E402
 from meeting_agent.live_transcription.vosk_backend import (  # noqa: E402
+    VoskBackendError,
     VoskLiveConfig,
     transcribe_vosk_live,
 )
@@ -56,6 +57,20 @@ def minimal_meeting() -> dict:
         "created_at": "2026-06-08T10:00:00+03:00",
         "updated_at": "2026-06-08T10:00:00+03:00",
     }
+
+
+@pytest.mark.parametrize("capacity", [0, 1_025])
+def test_vosk_backend_rejects_unbounded_mic_queue_capacity(
+    tmp_path: Path,
+    capacity: int,
+) -> None:
+    with pytest.raises(VoskBackendError, match="mic-queue-max-blocks"):
+        transcribe_vosk_live(
+            VoskLiveConfig(
+                model_path=tmp_path,
+                mic_queue_max_blocks=capacity,
+            )
+        )
 
 
 class FakeSoundDevice:
@@ -811,6 +826,7 @@ def test_live_cli_passes_silero_vad_config_to_backend(tmp_path: Path, monkeypatc
         seen["vad"] = config.vad
         seen["threshold"] = config.silero_vad.threshold
         seen["min_speech_ms"] = config.silero_vad.min_speech_ms
+        seen["mic_queue_max_blocks"] = config.mic_queue_max_blocks
         seen["input_wav"] = config.input_wav
         return type(
             "FakeResult",
@@ -821,6 +837,8 @@ def test_live_cli_passes_silero_vad_config_to_backend(tmp_path: Path, monkeypatc
                 "metrics": {
                     "duration": 0.0,
                     "vad_warnings": ["vad_no_speech_detected"],
+                    "mic_queue_dropped_frames": 512,
+                    "input_status_events": 1,
                 },
             },
         )()
@@ -841,6 +859,8 @@ def test_live_cli_passes_silero_vad_config_to_backend(tmp_path: Path, monkeypatc
             "0.62",
             "--vad-min-speech-ms",
             "300",
+            "--mic-queue-max-blocks",
+            "7",
             "--force",
         ]
     )
@@ -850,6 +870,7 @@ def test_live_cli_passes_silero_vad_config_to_backend(tmp_path: Path, monkeypatc
         "vad": "silero",
         "threshold": 0.62,
         "min_speech_ms": 300,
+        "mic_queue_max_blocks": 7,
         "input_wav": wav_path,
     }
     report = json.loads(
@@ -863,6 +884,8 @@ def test_live_cli_passes_silero_vad_config_to_backend(tmp_path: Path, monkeypatc
     assert report["warnings"] == [
         "no_final_segments",
         "vad_no_speech_detected",
+        "mic_audio_dropped",
+        "mic_input_status_events",
     ]
 
 

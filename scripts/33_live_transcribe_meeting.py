@@ -242,6 +242,7 @@ def run(args: argparse.Namespace) -> int:
                     duration_sec=args.duration_sec,
                     input_wav=input_wav,
                     audio_device_index=args.audio_device_index,
+                    mic_queue_max_blocks=args.mic_queue_max_blocks,
                     save_partials=not args.no_partials,
                     vad=args.vad,
                     silero_vad=SileroVadConfig(
@@ -260,6 +261,10 @@ def run(args: argparse.Namespace) -> int:
         for warning in result.metrics.get("vad_warnings") or []:
             if isinstance(warning, str) and warning and warning not in warnings:
                 warnings.append(warning)
+        if int(result.metrics.get("mic_queue_dropped_frames") or 0) > 0:
+            warnings.append("mic_audio_dropped")
+        if int(result.metrics.get("input_status_events") or 0) > 0:
+            warnings.append("mic_input_status_events")
         report = LiveSessionReport(
             engine=args.engine,
             model=model_path.name,
@@ -316,6 +321,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=None,
         help="Optional source-specific device index from --list-audio-sources.",
     )
+    parser.add_argument(
+        "--mic-queue-max-blocks",
+        type=int,
+        default=32,
+        help="Bounded MIC callback queue capacity in audio blocks (1..1024).",
+    )
     parser.add_argument("--input-wav", help="Optional mono 16 kHz PCM WAV for deterministic smoke runs.")
     parser.add_argument("--duration-sec", type=float, default=None, help="Limit live capture or WAV simulation duration.")
     parser.add_argument("--sample-rate", type=int, default=16_000)
@@ -342,6 +353,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if args.audio_device_index is not None and args.audio_device_index < 0:
         parser.error("--audio-device-index must be non-negative.")
+    if not 1 <= args.mic_queue_max_blocks <= 1_024:
+        parser.error("--mic-queue-max-blocks must be in the range 1..1024.")
     if not args.list_audio_sources and not args.preflight_source:
         if not args.meeting_dir:
             parser.error(
