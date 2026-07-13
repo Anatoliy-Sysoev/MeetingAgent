@@ -290,6 +290,7 @@ def test_start_stop_finalizes_artifacts_and_meeting_card(tmp_path: Path) -> None
         assert card["artifacts"]["live_segments_mic"].startswith("transcript/live/")
         assert card["artifacts"]["live_segments_mic"] in card["rag"]["no_index_artifacts"]
         assert (meeting_dir / card["artifacts"]["live_report_mic"]).is_file()
+        assert card["artifacts"]["live_report_mic"] in card["rag"]["no_index_artifacts"]
         assert card["artifacts"]["live_audio_mic"] == "source/live_audio.MIC.wav"
         assert card["artifacts"]["live_audio_mic"] in card["rag"]["no_index_artifacts"]
         assert card["source"]["media_files"] == [
@@ -372,6 +373,26 @@ def test_force_recapture_replaces_media_entry_without_duplicates(tmp_path: Path)
         assert first.started.wait(timeout=1)
         service.stop(MEETING_ID, started["session_id"])
 
+        card_path = meeting_dir / "meeting.json"
+        card = json.loads(card_path.read_text(encoding="utf-8"))
+        refinement_rel = "transcript/live/refinement.MIC.json"
+        refinement_path = meeting_dir / refinement_rel
+        refinement_path.write_text("{}", encoding="utf-8")
+        card["artifacts"]["live_refinement_mic"] = refinement_rel
+        card["rag"]["no_index_artifacts"].append(refinement_rel)
+        card["live_refinements"] = {
+            "MIC": {
+                "source": "MIC",
+                "state": "final",
+                "offline_engine": "faster-whisper",
+                "offline_model": "large-v3-turbo",
+                "started_at": "2026-07-13T10:00:00+00:00",
+                "finished_at": "2026-07-13T10:01:00+00:00",
+                "report_artifact_key": "live_refinement_mic",
+            }
+        }
+        card_path.write_text(json.dumps(card), encoding="utf-8")
+
         second = _BlockingTranscriber()
         service.transcriber = second
         restarted = service.start(MEETING_ID, source="MIC", force=True)
@@ -384,6 +405,10 @@ def test_force_recapture_replaces_media_entry_without_duplicates(tmp_path: Path)
         assert card["rag"]["no_index_artifacts"].count(
             "source/live_audio.MIC.wav"
         ) == 1
+        assert "live_refinements" not in card
+        assert "live_refinement_mic" not in card["artifacts"]
+        assert refinement_rel not in card["rag"]["no_index_artifacts"]
+        assert not refinement_path.exists()
     finally:
         service.shutdown()
 

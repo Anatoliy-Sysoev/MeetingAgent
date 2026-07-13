@@ -57,6 +57,11 @@ def test_live_controls_are_native_and_source_scoped(html: str) -> None:
         assert f'id="live-{source}-stop"' in html
         assert f'id="live-{source}-partial"' in html
         assert f'id="live-{source}-finals"' in html
+        assert f'id="live-{source}-refine-engine"' in html
+        assert f'id="live-{source}-refine-force"' in html
+        assert f'id="live-{source}-refine"' in html
+        assert f'id="live-{source}-refine-badge"' in html
+        assert f'id="live-{source}-refine-summary"' in html
 
 
 def test_live_controls_have_accessible_status_and_labels(html: str) -> None:
@@ -76,6 +81,32 @@ def test_live_api_contract_is_fully_wired(html: str) -> None:
     assert "/live/sessions`" in html
     assert "${prefix}/events?after=${state.cursor}&limit=200" in html
     assert "${sessionId}/stop`" in html
+    assert "/live/refinement?${query.toString()}" in html
+    assert "/live/refinement`" in html
+
+
+def test_live_refinement_uses_csrf_and_tracks_durable_job(html: str) -> None:
+    block = _function_block(html, "startLiveRefinement")
+    assert "ensureCsrf()" in block
+    assert 'method: "POST"' in block
+    assert '"X-CSRF-Token": csrf' in block
+    assert "asr_engine" in block
+    assert "resume: refinement.state === \"failed\"" in block
+    assert "force: refinement.state === \"final\"" in block
+    assert "started.job.job_id" in block
+    assert "_trackedJobId = started.job.job_id" in block
+    assert block.index("if (!csrf)") < block.index('method: "POST"')
+
+
+def test_live_refinement_distinguishes_product_states(html: str) -> None:
+    assert "function renderLiveRefinement" in html
+    for state in ("unavailable", "draft", "refining", "final", "failed"):
+        assert f'{state}:' in html
+    assert "Canonical transcript is ready" in html
+    assert "Resume refinement" in html
+    assert "Refining offline..." in html
+    assert "Draft saved and excluded from indexing" in html
+    assert "Confirm replacement first" in html
 
 
 def test_live_start_and_stop_require_csrf_before_post(html: str) -> None:

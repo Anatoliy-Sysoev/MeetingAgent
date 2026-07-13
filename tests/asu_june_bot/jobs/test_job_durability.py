@@ -238,6 +238,35 @@ def test_missing_process_recovers_as_failed_and_ready_for_retry(tmp_path: Path) 
     assert last_error["job_id"] == "job-1"
 
 
+def test_live_refinement_operation_survives_durable_recovery(tmp_path: Path) -> None:
+    path = tmp_path / "jobs.json"
+    meeting_dir = _meeting(tmp_path)
+    job = JobState(
+        job_id="refine-1",
+        meeting_id=MEETING_ID,
+        stage="transcribe",
+        status="running",
+        started_at="2026-07-11T10:00:00+00:00",
+        pid=2_000_000_000,
+        process_identity="test:identity",
+        operation={"kind": "live_refinement", "source": "SYS"},
+        _meeting_dir=meeting_dir,
+    )
+    store = JobStore(path)
+    store.reserve_job(_job_record(job))
+
+    runner = JobRunner(state_path=path, meetings_root=tmp_path)
+
+    assert runner.history[-1].operation == {
+        "kind": "live_refinement",
+        "source": "SYS",
+    }
+    assert runner.history[-1].as_dict()["operation"] == {
+        "kind": "live_refinement",
+        "source": "SYS",
+    }
+
+
 def test_live_process_recovers_as_orphan_and_blocks_new_job(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

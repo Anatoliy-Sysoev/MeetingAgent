@@ -102,6 +102,135 @@ def test_choose_media_rejects_unsafe_or_unregistered_selection(
         transcribe22.choose_media(meeting_dir, meeting, selected)
 
 
+def _add_live_draft(meeting_dir: Path, source: str = "MIC") -> None:
+    suffix = source.lower()
+    audio_rel = f"source/live_audio.{source}.wav"
+    segments_rel = f"transcript/live/live_segments.{source}.jsonl"
+    report_rel = f"transcript/live/live_report.{source}.json"
+    write_tiny_wav(meeting_dir / audio_rel)
+    (meeting_dir / segments_rel).parent.mkdir(parents=True, exist_ok=True)
+    (meeting_dir / segments_rel).write_text(
+        json.dumps({"start": 0, "end": 0.5, "text": "live draft"}) + "\n",
+        encoding="utf-8",
+    )
+    (meeting_dir / report_rel).write_text(
+        json.dumps(
+            {
+                "engine": "vosk",
+                "model": "vosk-model-small-ru",
+                "duration_seconds": 0.1,
+                "elapsed_seconds": 0.2,
+                "segments_count": 1,
+                "chars_count": 10,
+                "started_at": "2026-07-13T12:00:00+03:00",
+                "finished_at": "2026-07-13T12:00:01+03:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+    meeting_path = meeting_dir / "meeting.json"
+    meeting = read_json(meeting_path)
+    meeting["processing_status"] = "processing"
+    meeting["source"]["kind"] = "live_session"
+    meeting["source"]["media_files"].append(
+        {"path": audio_rel, "media_type": "audio", "duration_seconds": 0.1}
+    )
+    meeting["source"]["audio_tracks"] = [source]
+    meeting["artifacts"].update(
+        {
+            f"live_audio_{suffix}": audio_rel,
+            f"live_segments_{suffix}": segments_rel,
+            f"live_report_{suffix}": report_rel,
+        }
+    )
+    meeting["rag"]["no_index_artifacts"] = [audio_rel, segments_rel, report_rel]
+    meeting_path.write_text(
+        json.dumps(meeting, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def test_live_refinement_writes_canonical_outputs_without_replacing_draft(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    meeting_dir = make_meeting(tmp_path)
+    _add_live_draft(meeting_dir)
+    draft_path = meeting_dir / "transcript/live/live_segments.MIC.jsonl"
+    draft_before = draft_path.read_bytes()
+
+    def fake_transcribe(media_path: Path, _args):
+        assert media_path == (meeting_dir / "source/live_audio.MIC.wav").resolve()
+        return (
+            [{"start": 0, "end": 1, "text": "canonical", "source": "MIX"}],
+            {"duration": 1.0, "asr_engine": "faster-whisper"},
+        )
+
+    monkeypatch.setattr(transcribe22, "transcribe_faster_whisper", fake_transcribe)
+    args = argparse.Namespace(
+        meeting_dir=str(meeting_dir),
+        engine="faster-whisper",
+        segments_path=None,
+        media_path=r"source\live_audio.MIC.wav",
+        live_refinement_source="MIC",
+        model="large-v3-turbo",
+        language="ru",
+        compute_type="int8",
+        device="cpu",
+        beam_size=5,
+        vad_filter=True,
+        check_model=False,
+        force=False,
+        resume=False,
+        dry_run=False,
+        output_formats="txt,md,srt,vtt,json,jsonl",
+        chunk_seconds=24,
+        gigaam_root=str(Path.home() / "GigaAM"),
+        gigaam_cache_root=r"C:\ProgramData\gigaam_cache",
+        hotwords=False,
+        hotwords_config=None,
+    )
+
+    assert transcribe22.run(args) == 0
+
+    meeting = read_json(meeting_dir / "meeting.json")
+    validate_meeting(meeting)
+    assert meeting["processing_status"] == "transcribed"
+    assert meeting["live_refinements"]["MIC"]["state"] == "final"
+    assert meeting["artifacts"]["live_refinement_mic"] == "transcript/live/refinement.MIC.json"
+    assert draft_path.read_bytes() == draft_before
+    assert "transcript/live/live_segments.MIC.jsonl" in meeting["rag"]["no_index_artifacts"]
+    assert "transcript/live/refinement.MIC.json" in meeting["rag"]["no_index_artifacts"]
+    comparison = read_json(meeting_dir / "transcript/live/refinement.MIC.json")
+    assert comparison["state"] == "final"
+    assert comparison["offline"]["engine"] == "faster-whisper"
+
+
+def test_live_refinement_dry_run_validates_without_mutating(tmp_path: Path) -> None:
+    meeting_dir = make_meeting(tmp_path)
+    _add_live_draft(meeting_dir, "SYS")
+    before = (meeting_dir / "meeting.json").read_bytes()
+    args = transcribe22.parse_args(
+        [
+            "--meeting-dir",
+            str(meeting_dir),
+            "--engine",
+            "faster-whisper",
+            "--model",
+            "large-v3-turbo",
+            "--media-path",
+            "source/live_audio.SYS.wav",
+            "--live-refinement-source",
+            "SYS",
+            "--dry-run",
+        ]
+    )
+
+    assert transcribe22.run(args) == 0
+    assert (meeting_dir / "meeting.json").read_bytes() == before
+    assert not (meeting_dir / "transcript/live/refinement.SYS.json").exists()
+
+
 def make_args(meeting_dir: Path, segments_path: Path | None, *, force: bool = False, resume: bool = False, dry_run: bool = False):
     return argparse.Namespace(
         meeting_dir=str(meeting_dir),
@@ -399,3 +528,31 @@ def test_gigaam_backend_writes_card_outputs_from_backend_rows(tmp_path: Path, mo
     assert report["engine"] == "gigaam"
     assert report["backend_metrics"]["raw_segments"].endswith("raw_segments.jsonl")
     assert report["backend_metrics"]["cache_root"] == r"C:\ProgramData\gigaam_cache"
+
+
+def test_live_refinement_resume_does_not_reuse_unverified_gigaam_workdir(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    media_path = tmp_path / "live.wav"
+    write_tiny_wav(media_path)
+    captured = {}
+
+    def fake_backend(**kwargs):
+        captured["resume"] = kwargs["config"].resume
+        return SimpleNamespace(segments=[], metrics={})
+
+    monkeypatch.setattr(transcribe22, "run_gigaam_backend", fake_backend)
+    args = SimpleNamespace(
+        model="v3_e2e_rnnt",
+        language="ru",
+        chunk_seconds=24,
+        gigaam_root=str(Path.home() / "GigaAM"),
+        gigaam_cache_root=r"C:\ProgramData\gigaam_cache",
+        resume=True,
+        disable_backend_resume=True,
+    )
+
+    transcribe22._run_gigaam(media_path, tmp_path, args)
+
+    assert captured["resume"] is False

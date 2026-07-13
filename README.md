@@ -222,12 +222,14 @@ The workspace includes:
 - pipeline stage controls and readiness map;
 - one-click pipeline profiles through `POST /meetings/{id}/jobs/pipeline`;
 - live MIC/SYS draft controls with source preflight, partial/final rows, elapsed
-  time and capture warnings;
+  time, capture warnings and explicit offline refinement into the canonical
+  transcript;
 - meeting-scoped search and Q&A with vector retrieval fallback, timestamps, speaker labels, and source citations.
 
 The current product gap is no longer the basic offline pipeline. Remaining work
-is concentrated in automatic offline refinement after a live draft, simultaneous
-MIC+SYS mixing into one derived track, and deeper product administration.
+is concentrated in server-enforced live/pipeline coordination, creating
+live-only meetings in the browser, simultaneous MIC+SYS mixing into one derived
+track, and deeper product administration.
 
 ### Live Transcription
 
@@ -240,6 +242,14 @@ It is registered in `source.media_files` and `rag.no_index_artifacts`, so it can
 feed offline ASR without becoming RAG evidence. The default 2 GB payload cap
 and 256 MiB free-space reserve are configurable as
 `live.audio_archive_max_bytes` and `live.audio_archive_min_free_bytes`.
+
+After a live session stops, the Workspace can explicitly refine either retained
+MIC or SYS track with faster-whisper `large-v3-turbo` or GigaAM. The live draft
+remains unchanged and no-indexed; canonical transcript exports are written by
+the normal offline ASR entrypoint. A source-scoped safe comparison report under
+`transcript/live/refinement.<SOURCE>.json` records engines, models, timings and
+count deltas without source text or local paths. Failed runs can be resumed;
+replacing an existing final transcript requires explicit confirmation.
 
 Install optional live dependencies:
 
@@ -353,7 +363,8 @@ To select one retained source explicitly for a manual canonical pass:
   --meeting-dir "<meeting-dir>" `
   --engine faster-whisper `
   --model large-v3-turbo `
-  --media-path "source/live_audio.MIC.wav"
+  --media-path "source/live_audio.MIC.wav" `
+  --live-refinement-source MIC
 ```
 
 `--media-path` accepts only an existing relative path already registered under
@@ -363,6 +374,8 @@ Authenticated live sessions are also available through the local API:
 
 ```text
 GET  /meetings/{meeting_id}/live/preflight
+GET  /meetings/{meeting_id}/live/refinement
+POST /meetings/{meeting_id}/live/refinement
 GET  /meetings/{meeting_id}/live/sessions/active
 POST /meetings/{meeting_id}/live/sessions
 GET  /meetings/{meeting_id}/live/sessions/{session_id}

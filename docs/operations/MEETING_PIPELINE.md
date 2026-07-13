@@ -288,7 +288,8 @@ source/live_audio.<SOURCE>.wav        # только реальный MIC/SYS ca
   --meeting-dir "<meeting-dir>" `
   --engine faster-whisper `
   --model large-v3-turbo `
-  --media-path "source/live_audio.SYS.wav"
+  --media-path "source/live_audio.SYS.wav" `
+  --live-refinement-source SYS
 ```
 
 Путь обязан быть относительным, существующим и уже зарегистрированным в
@@ -300,6 +301,8 @@ API v1 управляет тем же Vosk backend через аутентифи
 
 ```text
 GET  /meetings/{meeting_id}/live/preflight
+GET  /meetings/{meeting_id}/live/refinement?source=MIC
+POST /meetings/{meeting_id}/live/refinement
 GET  /meetings/{meeting_id}/live/sessions/active
 POST /meetings/{meeting_id}/live/sessions
 GET  /meetings/{meeting_id}/live/sessions/{session_id}
@@ -354,6 +357,15 @@ Invoke-RestMethod `
 - live draft по-прежнему включается в `rag.no_index_artifacts` и не заменяет
   offline transcript.
 
+`POST /meetings/{meeting_id}/live/refinement` принимает `source=MIC|SYS`,
+`asr_engine=faster-whisper|gigaam`, а также взаимоисключающие `resume`/`force`.
+Запуск требует завершённого source-scoped live draft и сохранённого WAV,
+использует обычную transcribe job и возвращает её durable `job_id`. `GET` для
+того же route различает `unavailable`, `draft`, `refining`, `final`, `failed` и
+не отдаёт source text, локальные пути или backend diagnostics. `resume`
+переиспользует canonical partial segments только при совпадении SHA-256;
+непроверенный GigaAM workdir не используется.
+
 #### Live в Meeting Workspace
 
 Откройте карточку встречи:
@@ -385,7 +397,10 @@ CSRF через `/auth/csrf`. При активной pipeline job live start з
 только после явного выбора `Replace an existing ... draft`. Live-строки
 ограничены в DOM, event polling использует bounded cursor (`limit=200`), а
 partial events не сохраняются браузером. Баннер `draft and is not indexed`
-остаётся видимым до offline refinement.
+остаётся видимым до offline refinement. После graceful stop для каждой MIC/SYS
+дорожки появляется отдельный блок **Offline refinement** с выбором canonical ASR
+engine, состояниями Draft/Refining/Final/Failed, resume после ошибки и явным
+подтверждением повторной записи финального transcript.
 
 VAD modes:
 
