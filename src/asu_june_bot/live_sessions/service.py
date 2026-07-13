@@ -21,6 +21,10 @@ from meeting_agent.live_transcription import (
     preflight_audio_source,
     write_live_artifacts,
 )
+from meeting_agent.live_transcription.audio_archive import (
+    DEFAULT_ARCHIVE_MAX_BYTES,
+    DEFAULT_ARCHIVE_MIN_FREE_BYTES,
+)
 from meeting_agent.live_transcription.schema import SOURCE_ARTIFACT_KEYS
 from meeting_agent.live_transcription.vad import SileroVadConfig
 from meeting_agent.live_transcription.vosk_backend import (
@@ -175,6 +179,8 @@ class LiveSessionService:
         active_sessions_max: int = 2,
         max_state_bytes: int = 4 * 1024 * 1024,
         stop_timeout_seconds: float = 15.0,
+        audio_archive_max_bytes: int = DEFAULT_ARCHIVE_MAX_BYTES,
+        audio_archive_min_free_bytes: int = DEFAULT_ARCHIVE_MIN_FREE_BYTES,
         transcriber: Callable[[VoskLiveConfig], VoskLiveResult] = transcribe_vosk_live,
         source_preflight: Callable[..., AudioSourcePreflight] = preflight_audio_source,
     ) -> None:
@@ -192,6 +198,12 @@ class LiveSessionService:
             raise ValueError("live.events_max must be in the range 10..5000")
         if not 1.0 <= stop_timeout_seconds <= 60.0:
             raise ValueError("live.stop_timeout_seconds must be in the range 1..60")
+        if not 1 <= audio_archive_max_bytes <= 4_000_000_000:
+            raise ValueError("live.audio_archive_max_bytes must be in the range 1..4000000000")
+        if not 0 <= audio_archive_min_free_bytes <= 1_000_000_000_000:
+            raise ValueError(
+                "live.audio_archive_min_free_bytes must be in the range 0..1000000000000"
+            )
         self.meetings_root = Path(meetings_root)
         self.model_path = Path(model_path)
         self.vad = vad
@@ -201,6 +213,8 @@ class LiveSessionService:
         self.partials_max = partials_max
         self.events_max = events_max
         self.stop_timeout_seconds = stop_timeout_seconds
+        self.audio_archive_max_bytes = audio_archive_max_bytes
+        self.audio_archive_min_free_bytes = audio_archive_min_free_bytes
         self.transcriber = transcriber
         self.source_preflight = source_preflight
         self.store = LiveSessionStore(
@@ -307,6 +321,15 @@ class LiveSessionService:
             raise LiveSessionPreflightFailed(
                 "invalid_duration", "Live duration must be between 1 and 43200 seconds"
             )
+        if (
+            duration_sec is not None
+            and int(duration_sec * self.sample_rate * 2)
+            > self.audio_archive_max_bytes
+        ):
+            raise LiveSessionPreflightFailed(
+                "audio_archive_limit",
+                "Live duration exceeds the recording size limit",
+            )
         meeting_dir = self._meeting_dir(meeting_id)
         self._read_card(meeting_dir)
         preflight = self.preflight(
@@ -324,10 +347,11 @@ class LiveSessionService:
             / "live"
             / f"live_segments.{normalized}.jsonl"
         )
-        if output.exists() and not force:
+        audio_output = meeting_dir / "source" / f"live_audio.{normalized}.wav"
+        if (output.exists() or audio_output.exists()) and not force:
             raise LiveSessionConflict(
                 "live_artifact_exists",
-                "A finalized live transcript already exists for this source",
+                "A finalized live recording already exists for this source",
             )
 
         timestamp = now_iso()
@@ -400,6 +424,9 @@ class LiveSessionService:
             event_callback=lambda event_type, payload: self._backend_event(
                 session_id, event_type, payload
             ),
+            audio_archive_path=audio_output,
+            audio_archive_max_bytes=self.audio_archive_max_bytes,
+            audio_archive_min_free_bytes=self.audio_archive_min_free_bytes,
         )
         thread = threading.Thread(
             target=self._run_worker,
@@ -688,6 +715,18 @@ class LiveSessionService:
                 expected=frozenset({"starting"}),
             )
             result = self.transcriber(config)
+            expected_audio = config.audio_archive_path
+            audio_archive = result.audio_archive_path
+            if (
+                expected_audio is None
+                or audio_archive is None
+                or audio_archive.resolve() != expected_audio.resolve()
+                or not audio_archive.is_file()
+            ):
+                raise LiveSessionError(
+                    "live_audio_missing",
+                    "Live audio archive was not finalized",
+                )
             warnings = self._result_warnings(result)
             with self._lock:
                 record = self._records[session_id]
@@ -715,6 +754,7 @@ class LiveSessionService:
                 report,
                 source=config.source,
             )
+            written["live_audio"] = audio_archive
             with self._lock:
                 record = self._records[session_id]
                 record["warnings"] = warnings[:50]
@@ -728,6 +768,7 @@ class LiveSessionService:
                 source=config.source,
                 written=written,
                 session_id=session_id,
+                duration_seconds=report.duration_seconds,
             )
             self._set_status(
                 session_id,
@@ -806,6 +847,7 @@ class LiveSessionService:
         source: str,
         written: dict[str, Path],
         session_id: str,
+        duration_seconds: float,
     ) -> None:
         with IngestLock(meeting_dir / ".live_session.lock", timeout_seconds=30):
             card = self._read_card(meeting_dir)
@@ -829,6 +871,31 @@ class LiveSessionService:
             if source not in tracks:
                 tracks.append(source)
             source_data[track_key] = tracks
+            audio_path = written.get("live_audio")
+            if audio_path is not None:
+                audio_rel = audio_path.resolve().relative_to(
+                    meeting_dir.resolve()
+                ).as_posix()
+                raw_media = source_data.get("media_files")
+                media_files = [
+                    dict(item)
+                    for item in raw_media
+                    if isinstance(item, dict)
+                ] if isinstance(raw_media, list) else []
+                media_entry = {
+                    "path": audio_rel,
+                    "media_type": "audio",
+                    "duration_seconds": round(max(0.0, duration_seconds), 3),
+                }
+                replaced = False
+                for index, item in enumerate(media_files):
+                    if item.get("path") == audio_rel:
+                        media_files[index] = media_entry
+                        replaced = True
+                        break
+                if not replaced:
+                    media_files.append(media_entry)
+                source_data["media_files"] = media_files
             card["source"] = source_data
             rag = card.get("rag")
             if not isinstance(rag, dict):
@@ -841,6 +908,7 @@ class LiveSessionService:
                 "live_transcript",
                 "live_srt",
                 "live_vtt",
+                "live_audio",
             ):
                 value = artifacts.get(source_keys[key])
                 if isinstance(value, str) and value not in no_index:

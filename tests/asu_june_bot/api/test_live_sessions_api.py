@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import threading
+import wave
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -82,10 +83,18 @@ class _HoldTranscriber:
         )
         config.event_callback("final", segment.to_dict())
         config.stop_event.wait(timeout=5)
+        assert config.audio_archive_path is not None
+        config.audio_archive_path.parent.mkdir(parents=True, exist_ok=True)
+        with wave.open(str(config.audio_archive_path), "wb") as archive:
+            archive.setnchannels(1)
+            archive.setsampwidth(2)
+            archive.setframerate(config.sample_rate)
+            archive.writeframes(b"\x00\x00" * (config.sample_rate // 2))
         return VoskLiveResult(
             segments=[segment],
             partials=[],
             metrics={"duration": 0.5, "elapsed_seconds": 0.1},
+            audio_archive_path=config.audio_archive_path,
         )
 
 
@@ -225,6 +234,7 @@ def test_editor_lifecycle_requires_csrf_and_exposes_bounded_events(live_api) -> 
     )
     assert stopped.status_code == 200
     assert stopped.json()["status"] == "completed"
+    assert "live_audio_mic" in stopped.json()["artifact_keys"]
 
 
 def test_machine_token_can_start_and_stop_without_csrf(live_api) -> None:
