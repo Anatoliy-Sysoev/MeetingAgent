@@ -91,6 +91,28 @@
                       data-live-stop="MIC" disabled>Stop MIC</button>
               <span id="live-mic-elapsed" class="live-elapsed">00:00</span>
             </div>
+            <div class="live-refinement" aria-labelledby="live-mic-refine-title">
+              <div class="live-refinement-heading">
+                <span id="live-mic-refine-title">Offline refinement</span>
+                <span id="live-mic-refine-badge" class="badge">No draft</span>
+              </div>
+              <div class="live-field">
+                <label for="live-mic-refine-engine">Canonical ASR engine</label>
+                <select id="live-mic-refine-engine" data-live-refine-engine="MIC">
+                  <option value="faster-whisper" selected>Faster Whisper (large-v3-turbo)</option>
+                  <option value="gigaam">GigaAM</option>
+                </select>
+              </div>
+              <label id="live-mic-refine-force-wrap" class="live-force-label" hidden>
+                <input id="live-mic-refine-force" type="checkbox" data-live-refine-force="MIC" />
+                Replace the existing canonical transcript
+              </label>
+              <button id="live-mic-refine" type="button" data-live-refine="MIC" disabled>
+                Refine offline
+              </button>
+              <p id="live-mic-refine-summary" class="live-refinement-summary"
+                 aria-live="polite">Record and stop a draft first.</p>
+            </div>
             <div id="live-mic-error" class="err-msg" role="alert" hidden></div>
             <ul id="live-mic-warnings" class="live-warnings"
                 aria-label="Microphone capture warnings"></ul>
@@ -136,6 +158,28 @@
               <button id="live-sys-stop" class="cancel-btn" type="button"
                       data-live-stop="SYS" disabled>Stop SYS</button>
               <span id="live-sys-elapsed" class="live-elapsed">00:00</span>
+            </div>
+            <div class="live-refinement" aria-labelledby="live-sys-refine-title">
+              <div class="live-refinement-heading">
+                <span id="live-sys-refine-title">Offline refinement</span>
+                <span id="live-sys-refine-badge" class="badge">No draft</span>
+              </div>
+              <div class="live-field">
+                <label for="live-sys-refine-engine">Canonical ASR engine</label>
+                <select id="live-sys-refine-engine" data-live-refine-engine="SYS">
+                  <option value="faster-whisper" selected>Faster Whisper (large-v3-turbo)</option>
+                  <option value="gigaam">GigaAM</option>
+                </select>
+              </div>
+              <label id="live-sys-refine-force-wrap" class="live-force-label" hidden>
+                <input id="live-sys-refine-force" type="checkbox" data-live-refine-force="SYS" />
+                Replace the existing canonical transcript
+              </label>
+              <button id="live-sys-refine" type="button" data-live-refine="SYS" disabled>
+                Refine offline
+              </button>
+              <p id="live-sys-refine-summary" class="live-refinement-summary"
+                 aria-live="polite">Record and stop a draft first.</p>
             </div>
             <div id="live-sys-error" class="err-msg" role="alert" hidden></div>
             <ul id="live-sys-warnings" class="live-warnings"

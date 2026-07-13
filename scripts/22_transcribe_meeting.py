@@ -48,9 +48,17 @@ from meeting_agent.transcription import (  # noqa: E402
     HotwordsConfigError,
     TranscriptDocument,
     build_transcription_report,
+    begin_live_refinement,
+    can_resume_live_refinement,
+    complete_live_refinement,
+    expected_live_audio_relative_path,
+    fail_live_refinement,
     extract_initial_prompt as extract_glossary_initial_prompt,
     load_hotwords_config,
     normalize_segments,
+    offline_model_for_engine,
+    prepare_live_refinement,
+    refinement_artifact_keys,
     transcribe_faster_whisper as run_faster_whisper_backend,
     transcribe_gigaam as run_gigaam_backend,
     write_transcript_exports,
@@ -224,7 +232,15 @@ def validate_artifact_paths_exist(meeting: dict[str, Any], meeting_dir: Path, ar
         )
 
 
-def mark_failed(meeting_path: Path, meeting: dict[str, Any] | None, exc: BaseException, stage: str, mutate: bool) -> None:
+def mark_failed(
+    meeting_path: Path,
+    meeting: dict[str, Any] | None,
+    exc: BaseException,
+    stage: str,
+    mutate: bool,
+    *,
+    refinement_source: str | None = None,
+) -> None:
     if not mutate or meeting is None:
         return
     meeting["processing_status"] = STATUS_FAILED
@@ -235,6 +251,17 @@ def mark_failed(meeting_path: Path, meeting: dict[str, Any] | None, exc: BaseExc
         "type": type(exc).__name__,
         "timestamp": now_iso(),
     }
+    if refinement_source:
+        try:
+            fail_live_refinement(
+                meeting,
+                meeting_path.parent,
+                source=refinement_source,
+                error_code=f"refinement_{stage}" if stage else "refinement_failed",
+                finished_at=now_iso(),
+            )
+        except ValueError:
+            pass
     write_json_atomic(meeting_path, meeting)
 
 
@@ -295,7 +322,10 @@ def _run_gigaam(media_path: Path, meeting_dir: Path, args: argparse.Namespace):
             cache_root=Path(args.gigaam_cache_root),
             python_exe=sys.executable,
             source="MIX",
-            resume=args.resume,
+            resume=bool(
+                args.resume
+                and not getattr(args, "disable_backend_resume", False)
+            ),
         ),
     )
 
@@ -349,12 +379,19 @@ def run(args: argparse.Namespace) -> int:
     mutate_on_error = False
     started_at = now_iso()
     start_time = time.time()
+    refinement_source = getattr(args, "live_refinement_source", None)
+    reuse_refinement_segments = False
 
     try:
         if args.engine not in SUPPORTED_ENGINES:
             raise TranscribeMeetingError(f"Unsupported engine: {args.engine}", stage="preflight")
         if args.engine == "from-segments" and not args.segments_path and not args.resume:
             raise TranscribeMeetingError("--engine from-segments requires --segments-path.", stage="preflight")
+        if refinement_source and args.engine == "from-segments":
+            raise TranscribeMeetingError(
+                "Live refinement requires faster-whisper or gigaam.",
+                stage="preflight",
+            )
         if not meeting_path.exists():
             raise TranscribeMeetingError(f"meeting.json not found: {meeting_path}", stage="preflight")
 
@@ -365,6 +402,37 @@ def run(args: argparse.Namespace) -> int:
         except AlreadyTranscribed as exc:
             print(str(exc))
             return 0
+
+        if refinement_source:
+            prepared_refinement = prepare_live_refinement(
+                meeting_dir,
+                meeting,
+                refinement_source,
+            )
+            expected_media = expected_live_audio_relative_path(refinement_source)
+            requested_media = str(getattr(args, "media_path", None) or "").replace("\\", "/")
+            if requested_media != expected_media:
+                raise TranscribeMeetingError(
+                    "Live refinement requires its source-scoped registered audio.",
+                    stage="preflight",
+                )
+            if prepared_refinement["media_path"] != expected_media:
+                raise TranscribeMeetingError(
+                    "Live refinement media contract is invalid.",
+                    stage="preflight",
+                )
+            reuse_refinement_segments = bool(
+                args.resume
+                and can_resume_live_refinement(
+                    meeting,
+                    meeting_dir,
+                    source=refinement_source,
+                    engine=args.engine,
+                )
+            )
+            args.disable_backend_resume = bool(
+                args.resume and not reuse_refinement_segments
+            )
 
         media_path = (
             choose_media(meeting_dir, meeting, args.media_path)
@@ -395,13 +463,24 @@ def run(args: argparse.Namespace) -> int:
             return 0
 
         mutate_on_error = True
+        if refinement_source:
+            begin_live_refinement(
+                meeting,
+                meeting_dir,
+                source=refinement_source,
+                engine=args.engine,
+                model=offline_model_for_engine(args.engine),
+                started_at=started_at,
+            )
         meeting["processing_status"] = STATUS_TRANSCRIBING
         meeting["updated_at"] = now_iso()
         meeting.pop("last_error", None)
         write_json_atomic(meeting_path, meeting)
 
         resume_segments_path = existing_segments_path(meeting_dir, meeting)
-        if args.resume and resume_segments_path.exists():
+        if args.resume and resume_segments_path.exists() and (
+            not refinement_source or reuse_refinement_segments
+        ):
             raw_segments = read_jsonl(resume_segments_path)
             model = f"gigaam/{args.model}" if args.engine == "gigaam" else (args.model or None)
             backend_metrics: dict[str, Any] = {
@@ -463,7 +542,19 @@ def run(args: argparse.Namespace) -> int:
         report_path.write_text(json.dumps(report.to_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
         update_meeting_artifacts(meeting, meeting_dir, written, report_path)
-        validate_artifact_paths_exist(meeting, meeting_dir, required_artifact_keys_for_formats(output_formats))
+        required_keys = required_artifact_keys_for_formats(output_formats)
+        if refinement_source:
+            complete_live_refinement(
+                meeting,
+                meeting_dir,
+                source=refinement_source,
+                offline_report=report.to_dict(),
+                finished_at=now_iso(),
+            )
+            required_keys.add(
+                refinement_artifact_keys(refinement_source)["refinement_report"]
+            )
+        validate_artifact_paths_exist(meeting, meeting_dir, required_keys)
         validate_schema(meeting, schema_path)
         write_json_atomic(meeting_path, meeting)
 
@@ -473,11 +564,25 @@ def run(args: argparse.Namespace) -> int:
         print(f"report: {report_path}")
         return 0
     except TranscribeMeetingError as exc:
-        mark_failed(meeting_path, meeting, exc, exc.stage, mutate_on_error)
+        mark_failed(
+            meeting_path,
+            meeting,
+            exc,
+            exc.stage,
+            mutate_on_error,
+            refinement_source=refinement_source,
+        )
         print(f"ERROR[{exc.stage}]: {exc}", file=sys.stderr)
         return 1
     except Exception as exc:
-        mark_failed(meeting_path, meeting, exc, "runtime", mutate_on_error)
+        mark_failed(
+            meeting_path,
+            meeting,
+            exc,
+            "runtime",
+            mutate_on_error,
+            refinement_source=refinement_source,
+        )
         print(f"ERROR[runtime]: {exc}", file=sys.stderr)
         return 1
 
@@ -490,6 +595,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--media-path",
         help="Optional registered source.media_files path to transcribe.",
+    )
+    parser.add_argument(
+        "--live-refinement-source",
+        choices=["MIC", "SYS"],
+        help="Refine a saved source-scoped live draft into the canonical transcript.",
     )
     parser.add_argument("--model", default=None, help="ASR model name. Defaults depend on engine.")
     parser.add_argument("--language", default="ru")

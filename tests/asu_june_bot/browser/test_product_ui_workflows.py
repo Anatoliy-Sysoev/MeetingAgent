@@ -331,6 +331,20 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
             )
         elif path == f"{prefix}/live/sessions/active":
             _fulfill_json(route, {"meeting_id": MEETING_ID, "session": None})
+        elif path == f"{prefix}/live/refinement":
+            source = parse_qs(urlparse(request.url).query).get("source", ["MIC"])[0]
+            _fulfill_json(
+                route,
+                {
+                    "meeting_id": MEETING_ID,
+                    "source": source,
+                    "state": "unavailable",
+                    "can_refine": False,
+                    "can_resume": False,
+                    "can_force": False,
+                    "reason": "live_draft_missing",
+                },
+            )
         elif path == "/jobs/active":
             _fulfill_json(route, {})
         elif path == f"{prefix}/jobs/pipeline" and request.method == "POST":
@@ -431,7 +445,10 @@ def test_workspace_live_mic_start_partial_stop_and_final(
     captured: dict[str, object] = {}
     live_started = False
     live_stopped = False
+    refinement_started = False
+    refinement_job_polls = 0
     session_id = "live-browser-session"
+    refinement_job_id = "live-refinement-job"
 
     def session_payload() -> dict[str, object]:
         status = "completed" if live_stopped else "running"
@@ -455,7 +472,7 @@ def test_workspace_live_mic_start_partial_stop_and_final(
         }
 
     def handle_api(route: Route) -> None:
-        nonlocal live_started, live_stopped
+        nonlocal live_started, live_stopped, refinement_started, refinement_job_polls
         request = route.request
         parsed = urlparse(request.url)
         path = parsed.path
@@ -581,6 +598,82 @@ def test_workspace_live_mic_start_partial_stop_and_final(
             live_stopped = True
             captured["stop_headers"] = request.headers
             _fulfill_json(route, session_payload())
+        elif path == f"{prefix}/live/refinement" and request.method == "GET":
+            source = query.get("source", ["MIC"])[0]
+            if source != "MIC" or not live_stopped:
+                payload = {
+                    "meeting_id": MEETING_ID,
+                    "source": source,
+                    "state": "unavailable",
+                    "can_refine": False,
+                    "can_resume": False,
+                    "can_force": False,
+                    "reason": "live_draft_missing",
+                }
+            elif not refinement_started:
+                payload = {
+                    "meeting_id": MEETING_ID,
+                    "source": source,
+                    "state": "draft",
+                    "can_refine": True,
+                    "can_resume": False,
+                    "can_force": False,
+                    "live": {"engine": "vosk", "segments_count": 1, "chars_count": 35},
+                }
+            elif refinement_job_polls < 2:
+                payload = {
+                    "meeting_id": MEETING_ID,
+                    "source": source,
+                    "state": "refining",
+                    "can_refine": False,
+                    "can_resume": False,
+                    "can_force": False,
+                    "live": {"engine": "vosk", "segments_count": 1, "chars_count": 35},
+                }
+            else:
+                payload = {
+                    "meeting_id": MEETING_ID,
+                    "source": source,
+                    "state": "final",
+                    "can_refine": False,
+                    "can_resume": False,
+                    "can_force": True,
+                    "live": {"engine": "vosk", "segments_count": 1, "chars_count": 35},
+                    "offline": {"engine": "faster-whisper", "model": "large-v3-turbo"},
+                    "comparison": {"chars_count_delta": 12},
+                }
+            _fulfill_json(route, payload)
+        elif path == f"{prefix}/live/refinement" and request.method == "POST":
+            refinement_started = True
+            captured["refinement_body"] = json.loads(request.post_data or "{}")
+            captured["refinement_headers"] = request.headers
+            _fulfill_json(
+                route,
+                {
+                    "meeting_id": MEETING_ID,
+                    "source": "MIC",
+                    "state": "refining",
+                    "job": {
+                        "job_id": refinement_job_id,
+                        "meeting_id": MEETING_ID,
+                        "stage": "transcribe",
+                        "status": "running",
+                    },
+                },
+                status=202,
+            )
+        elif path == f"{prefix}/jobs/{refinement_job_id}":
+            refinement_job_polls += 1
+            status = "running" if refinement_job_polls < 2 else "completed"
+            _fulfill_json(
+                route,
+                {
+                    "job_id": refinement_job_id,
+                    "meeting_id": MEETING_ID,
+                    "stage": "transcribe",
+                    "status": status,
+                },
+            )
         else:
             route.continue_()
 
@@ -621,4 +714,22 @@ def test_workspace_live_mic_start_partial_stop_and_final(
     stop_headers = captured["stop_headers"]
     assert isinstance(stop_headers, dict)
     assert stop_headers.get("x-csrf-token") == "live-browser-csrf"
+
+    expect(page.locator("#live-mic-refine-badge")).to_have_text("Draft")
+    expect(page.locator("#live-mic-refine")).to_be_enabled()
+    page.locator("#live-mic-refine").click()
+    expect(page.locator("#live-mic-refine-badge")).to_have_text("Refining")
+    expect(page.locator("#live-mic-refine-badge")).to_have_text("Final", timeout=8_000)
+    expect(page.locator("#live-mic-refine-summary")).to_contain_text(
+        "Character delta versus live draft: +12"
+    )
+    assert captured["refinement_body"] == {
+        "source": "MIC",
+        "asr_engine": "faster-whisper",
+        "force": False,
+        "resume": False,
+    }
+    refinement_headers = captured["refinement_headers"]
+    assert isinstance(refinement_headers, dict)
+    assert refinement_headers.get("x-csrf-token") == "live-browser-csrf"
     assert errors == []
