@@ -233,6 +233,14 @@ MIC+SYS mixing into one derived track, and deeper product administration.
 
 Live transcription is an optional draft workflow. The first supported backend is local Vosk; it writes source-scoped draft live artifacts into `transcript/live/` and does not replace the canonical offline transcript from `scripts/22_transcribe_meeting.py`.
 
+Real MIC and SYS capture also retains the full pre-VAD canonical stream as
+`source/live_audio.<SOURCE>.wav` (PCM16 mono 16 kHz). The WAV is written through
+a bounded temporary file and published atomically after graceful finalization.
+It is registered in `source.media_files` and `rag.no_index_artifacts`, so it can
+feed offline ASR without becoming RAG evidence. The default 2 GB payload cap
+and 256 MiB free-space reserve are configurable as
+`live.audio_archive_max_bytes` and `live.audio_archive_min_free_bytes`.
+
 Install optional live dependencies:
 
 ```powershell
@@ -337,6 +345,19 @@ inside a native blocking read and later timestamps remain aligned.
 Prepared `--input-wav` smoke runs may use MIC, SYS, or MIX labels because they do
 not start hardware capture. Every live result remains a draft and must be
 refined by canonical offline ASR before final meeting artifacts are generated.
+
+To select one retained source explicitly for a manual canonical pass:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py `
+  --meeting-dir "<meeting-dir>" `
+  --engine faster-whisper `
+  --model large-v3-turbo `
+  --media-path "source/live_audio.MIC.wav"
+```
+
+`--media-path` accepts only an existing relative path already registered under
+`source.media_files`; absolute, traversal and unregistered paths fail closed.
 
 Authenticated live sessions are also available through the local API:
 

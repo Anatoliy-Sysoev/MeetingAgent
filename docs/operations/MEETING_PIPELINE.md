@@ -261,6 +261,7 @@ transcript/live/live_transcript.<SOURCE>.txt
 transcript/live/live_subtitles.<SOURCE>.srt
 transcript/live/live_subtitles.<SOURCE>.vtt
 transcript/live/live_report.<SOURCE>.json
+source/live_audio.<SOURCE>.wav        # только реальный MIC/SYS capture
 ```
 
 Правила:
@@ -269,11 +270,29 @@ transcript/live/live_report.<SOURCE>.json
 - source-scoped filenames позволяют хранить MIC и SYS в одной карточке без перетирания;
 - `live_segments.<SOURCE>.jsonl` - черновой finalized live transcript;
 - `live_partials.<SOURCE>.jsonl` - промежуточные hypotheses, не индексировать;
+- `live_audio.<SOURCE>.wav` - полный canonical PCM16 mono 16 kHz поток до VAD;
 - live draft artifacts автоматически добавляются в `rag.no_index_artifacts`;
 - canonical offline transcript остается в `transcript/segments.jsonl`;
 - для финального протокола после live-сессии нужно сделать offline ASR/import через `scripts/22_transcribe_meeting.py`.
 - Ctrl+C во время live-записи считается штатным завершением: backend финализирует накопленные segments/partials и пишет артефакты.
 - После live draft статус остается `processing`, а не `transcribed`; это не блокирует финальный offline ASR.
+- WAV пишется потоково через temp-файл и публикуется атомарно только после
+  graceful finalization. По умолчанию действуют лимит 2 GB и резерв свободного
+  места 256 MiB (`live.audio_archive_max_bytes`,
+  `live.audio_archive_min_free_bytes`).
+
+Явный выбор сохранённой дорожки для canonical offline ASR:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py `
+  --meeting-dir "<meeting-dir>" `
+  --engine faster-whisper `
+  --model large-v3-turbo `
+  --media-path "source/live_audio.SYS.wav"
+```
+
+Путь обязан быть относительным, существующим и уже зарегистрированным в
+`source.media_files`; произвольный локальный путь команда не принимает.
 
 #### Live Session API
 

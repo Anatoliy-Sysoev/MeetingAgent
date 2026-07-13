@@ -5,11 +5,17 @@ import queue
 import threading
 import time
 import wave
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
+from .audio_archive import (
+    DEFAULT_ARCHIVE_MAX_BYTES,
+    DEFAULT_ARCHIVE_MIN_FREE_BYTES,
+    AtomicPcm16WaveArchive,
+    LiveAudioArchiveError,
+)
 from .schema import LiveSegment
 from .vad import (
     AcceptedAudioTimeline,
@@ -45,6 +51,14 @@ class VoskLiveConfig:
     silero_vad: SileroVadConfig = SileroVadConfig()
     stop_event: threading.Event | None = None
     event_callback: Callable[[str, dict[str, Any]], None] | None = None
+    audio_archive_path: Path | None = None
+    audio_archive_max_bytes: int = DEFAULT_ARCHIVE_MAX_BYTES
+    audio_archive_min_free_bytes: int = DEFAULT_ARCHIVE_MIN_FREE_BYTES
+    audio_sink: Callable[[bytes], None] | None = field(
+        default=None,
+        repr=False,
+        compare=False,
+    )
 
 
 @dataclass(frozen=True)
@@ -52,6 +66,7 @@ class VoskLiveResult:
     segments: list[LiveSegment]
     partials: list[dict[str, Any]]
     metrics: dict[str, Any]
+    audio_archive_path: Path | None = None
 
 
 class VoskBackendError(RuntimeError):
@@ -238,6 +253,8 @@ class _CanonicalStreamConsumer:
             return
         if len(block) % 2:
             raise VadBackendError("Canonical audio contains an incomplete PCM frame")
+        if self.config.audio_sink is not None:
+            self.config.audio_sink(block)
         start_frame = self.input_frames
         self.input_frames += len(block) // 2
         if self._vad_filter is None:
@@ -323,6 +340,17 @@ def transcribe_vosk_live(config: VoskLiveConfig) -> VoskLiveResult:
         and config.sample_rate != 16_000
     ):
         raise VoskBackendError("Live SYS capture requires canonical 16000 Hz output")
+    if config.audio_archive_path is not None and config.input_wav is not None:
+        raise VoskBackendError("Live audio archive is only available for hardware capture")
+    if config.audio_sink is not None:
+        raise VoskBackendError("Live audio sink is reserved for the backend")
+    if (
+        config.audio_archive_path is not None
+        and config.duration_sec is not None
+        and int(config.duration_sec * config.sample_rate * 2)
+        > config.audio_archive_max_bytes
+    ):
+        raise VoskBackendError("Live duration exceeds the audio archive size limit")
 
     KaldiRecognizer, Model = _load_vosk()
     model = Model(str(config.model_path))
@@ -340,32 +368,27 @@ def transcribe_vosk_live(config: VoskLiveConfig) -> VoskLiveResult:
         if config.vad == "silero"
         else None
     )
+    archive: AtomicPcm16WaveArchive | None = None
+    runtime_config = config
+    if config.audio_archive_path is not None:
+        archive = AtomicPcm16WaveArchive(
+            config.audio_archive_path,
+            sample_rate=config.sample_rate,
+            max_bytes=config.audio_archive_max_bytes,
+            min_free_bytes=config.audio_archive_min_free_bytes,
+            expected_duration_sec=config.duration_sec,
+        )
+        try:
+            archive.open()
+        except LiveAudioArchiveError as exc:
+            raise VoskBackendError(str(exc)) from exc
+        runtime_config = replace(config, audio_sink=archive.write)
 
     try:
-        if config.input_wav is not None:
-            audio_seconds = _transcribe_wav(
-                config,
-                recognizer,
-                model_label,
-                segments,
-                partials,
-                runtime_metrics,
-                timeline,
-            )
-        elif config.source == "MIC":
-            audio_seconds = _transcribe_microphone(
-                config,
-                recognizer,
-                model_label,
-                segments,
-                partials,
-                runtime_metrics,
-                timeline,
-            )
-        else:
-            try:
-                audio_seconds = _transcribe_system_loopback(
-                    config,
+        try:
+            if runtime_config.input_wav is not None:
+                audio_seconds = _transcribe_wav(
+                    runtime_config,
                     recognizer,
                     model_label,
                     segments,
@@ -373,46 +396,84 @@ def transcribe_vosk_live(config: VoskLiveConfig) -> VoskLiveResult:
                     runtime_metrics,
                     timeline,
                 )
-            except WasapiLoopbackError as exc:
-                raise VoskBackendError(str(exc)) from exc
-    except VadBackendError as exc:
+            elif runtime_config.source == "MIC":
+                audio_seconds = _transcribe_microphone(
+                    runtime_config,
+                    recognizer,
+                    model_label,
+                    segments,
+                    partials,
+                    runtime_metrics,
+                    timeline,
+                )
+            else:
+                try:
+                    audio_seconds = _transcribe_system_loopback(
+                        runtime_config,
+                        recognizer,
+                        model_label,
+                        segments,
+                        partials,
+                        runtime_metrics,
+                        timeline,
+                    )
+                except WasapiLoopbackError as exc:
+                    raise VoskBackendError(str(exc)) from exc
+        except VadBackendError as exc:
+            raise VoskBackendError(str(exc)) from exc
+        except KeyboardInterrupt:
+            interrupted = True
+
+        final_result = json.loads(recognizer.FinalResult())
+        if timeline is not None:
+            final_result = timeline.remap_result(final_result)
+        fallback_start = max(0.0, audio_seconds - (runtime_config.block_ms / 1000.0))
+        fallback_end = max(audio_seconds, 0.01)
+        if timeline is not None and timeline.last_source_span is not None:
+            fallback_start, fallback_end = timeline.last_source_span
+        final_segment = _segment_from_result(
+            final_result,
+            index=len(segments),
+            source=runtime_config.source,
+            model=model_label,
+            fallback_start=fallback_start,
+            fallback_end=fallback_end,
+            use_word_timestamps=True,
+        )
+        if final_segment is not None:
+            _append_monotonic_segment(segments, final_segment)
+            _emit_event(runtime_config, "final", segments[-1].to_dict())
+
+        archive_path: Path | None = None
+        if archive is not None:
+            archive_result = archive.commit()
+            archive_path = archive_result.path
+            runtime_metrics.update(
+                {
+                    "audio_archive_frames": archive_result.frames,
+                    "audio_archive_bytes": archive_result.bytes_written,
+                    "audio_archive_duration_seconds": archive_result.duration_seconds,
+                }
+            )
+        return VoskLiveResult(
+            segments=segments,
+            partials=partials,
+            metrics={
+                "duration": round(audio_seconds, 3),
+                "elapsed_seconds": round(time.time() - started, 3),
+                "input_mode": "wav" if runtime_config.input_wav else "capture",
+                "vad": runtime_config.vad,
+                "interrupted": interrupted,
+                "stop_requested": _stop_requested(runtime_config),
+                **runtime_metrics,
+            },
+            audio_archive_path=archive_path,
+        )
+    except LiveAudioArchiveError as exc:
         raise VoskBackendError(str(exc)) from exc
-    except KeyboardInterrupt:
-        interrupted = True
-
-    final_result = json.loads(recognizer.FinalResult())
-    if timeline is not None:
-        final_result = timeline.remap_result(final_result)
-    fallback_start = max(0.0, audio_seconds - (config.block_ms / 1000.0))
-    fallback_end = max(audio_seconds, 0.01)
-    if timeline is not None and timeline.last_source_span is not None:
-        fallback_start, fallback_end = timeline.last_source_span
-    final_segment = _segment_from_result(
-        final_result,
-        index=len(segments),
-        source=config.source,
-        model=model_label,
-        fallback_start=fallback_start,
-        fallback_end=fallback_end,
-        use_word_timestamps=True,
-    )
-    if final_segment is not None:
-        _append_monotonic_segment(segments, final_segment)
-        _emit_event(config, "final", segments[-1].to_dict())
-
-    return VoskLiveResult(
-        segments=segments,
-        partials=partials,
-        metrics={
-            "duration": round(audio_seconds, 3),
-            "elapsed_seconds": round(time.time() - started, 3),
-            "input_mode": "wav" if config.input_wav else "capture",
-            "vad": config.vad,
-            "interrupted": interrupted,
-            "stop_requested": _stop_requested(config),
-            **runtime_metrics,
-        },
-    )
+    finally:
+        if archive is not None:
+            archive.abort()
 
 
 def _transcribe_wav(

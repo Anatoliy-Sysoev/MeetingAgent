@@ -636,10 +636,22 @@ def test_live_cli_runnable_mic_preflight_starts_backend(tmp_path: Path, monkeypa
     def fake_transcribe(config):
         seen["backend_source"] = config.source
         seen["backend_device_index"] = config.audio_device_index
+        assert config.audio_archive_path is not None
+        config.audio_archive_path.parent.mkdir(parents=True, exist_ok=True)
+        with wave.open(str(config.audio_archive_path), "wb") as archive:
+            archive.setnchannels(1)
+            archive.setsampwidth(2)
+            archive.setframerate(config.sample_rate)
+            archive.writeframes(b"\x00\x00" * 160)
         return type(
             "FakeResult",
             (),
-            {"segments": [], "partials": [], "metrics": {"duration": 0.0}},
+            {
+                "segments": [],
+                "partials": [],
+                "metrics": {"duration": 0.01},
+                "audio_archive_path": config.audio_archive_path,
+            },
         )()
 
     monkeypatch.setattr(cli, "transcribe_vosk_live", fake_transcribe)
@@ -665,6 +677,16 @@ def test_live_cli_runnable_mic_preflight_starts_backend(tmp_path: Path, monkeypa
         "backend_source": "MIC",
         "backend_device_index": 0,
     }
+    meeting = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
+    assert meeting["artifacts"]["live_audio_mic"] == "source/live_audio.MIC.wav"
+    assert meeting["source"]["media_files"] == [
+        {
+            "path": "source/live_audio.MIC.wav",
+            "media_type": "audio",
+            "duration_seconds": 0.01,
+        }
+    ]
+    assert "source/live_audio.MIC.wav" in meeting["rag"]["no_index_artifacts"]
 
 
 def test_live_cli_refuses_overwrite_without_force(tmp_path: Path, capsys) -> None:

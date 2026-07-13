@@ -4,17 +4,18 @@
 
 ## Now
 
-- MA-LIVE-UI-V1 (#207) is implemented on its review branch: Workspace now has
-  distinct MIC/SYS preflight, device/VAD controls, graceful start/stop, bounded
-  partial/final rendering, elapsed time and capture warnings with browser-level
-  workflow coverage.
-- canonical main before #207: `36ebbc7` / `Add authenticated live session API (#221)`.
-- next product work is automatic offline refinement after a live draft (#208).
-  history purge #167 remains gated by explicit owner approval and a verified
-  backup.
+- MA-LIVE-AUDIO-ARCHIVE-V1 (#225) is implemented on its review branch: real MIC/SYS capture retains
+  source-scoped canonical WAV input for offline refinement, with bounded
+  streaming writes, atomic publication and no-index/media provenance.
+- canonical main: `0c6c082` / `Add live transcription controls to Workspace (#224)`.
+- MA-LIVE-OFFLINE-REFINEMENT-V1 (#208) depends on #225 for live-only cards;
+  history purge #167 remains gated by explicit owner approval and backup.
 
 ## Done latest
 
+- MA-LIVE-AUDIO-ARCHIVE-V1 (#225): added bounded pre-VAD PCM16 WAV streaming,
+  atomic finalization, MIC/SYS media registration, no-index provenance and an
+  explicit safe `--media-path` selector for canonical offline ASR.
 - MA-LIVE-UI-V1 (#207): added an authenticated CSP-safe Workspace surface for
   MIC/SYS drafts, explicit blocked reasons and replace semantics, cursor-based
   polling, keyboard-native controls and UI-level live/offline mutual exclusion.
@@ -244,6 +245,7 @@ GET  /admin/review/chat-runs/export
 
 ## Open decisions / blockers
 
+- #208 depends on merging the retained source-audio contract from #225.
 - #167 rewrites published history and invalidates old clones; it is blocked on explicit owner approval and a verified backup.
 - Admin console contract is defined; dedicated admin UI, aggregate jobs/audit/settings endpoints and destructive meeting admin actions remain future implementation work.
 - Guard pure decision API is available for deterministic tests; future guard behavior changes must use it as a measurement boundary.

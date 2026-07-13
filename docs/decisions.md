@@ -857,3 +857,32 @@ process-level owner lock на всё время жизни API.
   но число одновременно загруженных Vosk models ограничено;
 - multi-worker API и WebSocket не поддерживаются этим контрактом; UI v1
   использует polling, а offline refinement остаётся отдельным этапом.
+
+## 2026-07-13 - Live Offline Refinement Требует Source-Scoped WAV
+
+Решение: реальный MIC/SYS capture одновременно с Vosk сохраняет полный
+canonical PCM16 mono 16 kHz поток в `source/live_audio.<SOURCE>.wav`. Запись
+идёт до Silero VAD, поэтому длительность WAV и wall-clock шкала live draft
+совпадают, включая тишину и восстановленные gaps. Файл публикуется только через
+temp + `fsync` + `os.replace`, регистрируется в `source.media_files` и остаётся
+в `rag.no_index_artifacts`.
+
+Почему:
+
+- live segments являются текстовым черновиком и не могут быть входом для
+  faster-whisper/GigaAM;
+- live-only карточка без сохранённого аудио не допускает честный offline
+  refinement;
+- сохранение только speech frames после VAD сжимает исходное время и ломает
+  сопоставление live/offline таймкодов;
+- потоковая запись ограничивает память, а size/free-space guards не дают
+  бесконтрольно заполнить локальный диск.
+
+Следствия:
+
+- MIC и SYS имеют отдельные WAV; автоматический MIX не создаётся;
+- успешный backend обязан вернуть финализированный WAV, иначе live session
+  завершается controlled failure и карточка не регистрирует media;
+- `scripts/22_transcribe_meeting.py --media-path` принимает только относительный
+  файл, уже зарегистрированный в `source.media_files`;
+- live WAV не удаляется при offline ASR и остаётся provenance для #208.

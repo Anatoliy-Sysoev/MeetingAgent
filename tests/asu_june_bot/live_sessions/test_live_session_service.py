@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+import wave
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ from asu_june_bot.live_sessions import (
     LiveSessionService,
 )
 from asu_june_bot.live_sessions.store import LiveSessionStore, LiveSessionStoreError
+from asu_june_bot.meetings.service import MeetingsService
 from meeting_agent.live_transcription.audio_capture import AudioDevice, AudioSourcePreflight
 from meeting_agent.live_transcription.schema import LiveSegment
 from meeting_agent.live_transcription.vosk_backend import VoskLiveResult
@@ -100,10 +102,18 @@ class _BlockingTranscriber:
         config.event_callback("final", segment.to_dict())
         assert config.stop_event is not None
         config.stop_event.wait(timeout=5)
+        assert config.audio_archive_path is not None
+        config.audio_archive_path.parent.mkdir(parents=True, exist_ok=True)
+        with wave.open(str(config.audio_archive_path), "wb") as archive:
+            archive.setnchannels(1)
+            archive.setsampwidth(2)
+            archive.setframerate(config.sample_rate)
+            archive.writeframes(b"\x00\x00" * config.sample_rate)
         return VoskLiveResult(
             segments=[segment],
             partials=[{"text": "draft", "source": config.source}],
             metrics={"duration": 1.0, "elapsed_seconds": 0.1, "stop_requested": True},
+            audio_archive_path=config.audio_archive_path,
         )
 
 
@@ -280,6 +290,100 @@ def test_start_stop_finalizes_artifacts_and_meeting_card(tmp_path: Path) -> None
         assert card["artifacts"]["live_segments_mic"].startswith("transcript/live/")
         assert card["artifacts"]["live_segments_mic"] in card["rag"]["no_index_artifacts"]
         assert (meeting_dir / card["artifacts"]["live_report_mic"]).is_file()
+        assert card["artifacts"]["live_audio_mic"] == "source/live_audio.MIC.wav"
+        assert card["artifacts"]["live_audio_mic"] in card["rag"]["no_index_artifacts"]
+        assert card["source"]["media_files"] == [
+            {
+                "path": "source/live_audio.MIC.wav",
+                "media_type": "audio",
+                "duration_seconds": 1.0,
+            }
+        ]
+        with wave.open(str(meeting_dir / card["artifacts"]["live_audio_mic"]), "rb") as audio:
+            assert audio.getnchannels() == 1
+            assert audio.getsampwidth() == 2
+            assert audio.getframerate() == 16_000
+            assert audio.getnframes() == 16_000
+        media = MeetingsService(
+            meetings_root=tmp_path / "meetings"
+        ).list_media(MEETING_ID)
+        assert media == [
+            {
+                "media_id": "0",
+                "filename": "live_audio.MIC.wav",
+                "media_type": "audio/wav",
+                "size_bytes": 32_044,
+                "sha256": None,
+                "duration_sec": 1.0,
+                "view_url": f"/meetings/{MEETING_ID}/media/0",
+            }
+        ]
+        assert "Users" not in json.dumps(media)
+    finally:
+        service.shutdown()
+
+
+def test_missing_audio_archive_fails_without_registering_media(tmp_path: Path) -> None:
+    meeting_dir = _meeting(tmp_path / "meetings")
+
+    def transcriber(_config) -> VoskLiveResult:
+        return VoskLiveResult(segments=[], partials=[], metrics={"duration": 0.0})
+
+    service = _service(tmp_path, transcriber=transcriber)
+    try:
+        started = service.start(MEETING_ID, source="MIC")
+        failed = _wait_status(service, started["session_id"], "failed")
+        assert failed["error"] == {
+            "code": "live_session_failed",
+            "message": "Live transcription failed",
+        }
+        card = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
+        assert card["processing_status"] == "failed"
+        assert "media_files" not in card["source"]
+        assert "live_audio_mic" not in card["artifacts"]
+    finally:
+        service.shutdown()
+
+
+def test_sys_capture_registers_separate_audio_archive(tmp_path: Path) -> None:
+    meeting_dir = _meeting(tmp_path / "meetings")
+    transcriber = _BlockingTranscriber()
+    service = _service(tmp_path, transcriber=transcriber)
+    try:
+        started = service.start(MEETING_ID, source="SYS")
+        assert transcriber.started.wait(timeout=1)
+        service.stop(MEETING_ID, started["session_id"])
+
+        card = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
+        assert card["source"]["audio_tracks"] == ["SYS"]
+        assert card["artifacts"]["live_audio_sys"] == "source/live_audio.SYS.wav"
+        assert card["source"]["media_files"][0]["path"] == "source/live_audio.SYS.wav"
+        assert (meeting_dir / "source" / "live_audio.SYS.wav").is_file()
+    finally:
+        service.shutdown()
+
+
+def test_force_recapture_replaces_media_entry_without_duplicates(tmp_path: Path) -> None:
+    meeting_dir = _meeting(tmp_path / "meetings")
+    first = _BlockingTranscriber()
+    service = _service(tmp_path, transcriber=first)
+    try:
+        started = service.start(MEETING_ID, source="MIC")
+        assert first.started.wait(timeout=1)
+        service.stop(MEETING_ID, started["session_id"])
+
+        second = _BlockingTranscriber()
+        service.transcriber = second
+        restarted = service.start(MEETING_ID, source="MIC", force=True)
+        assert second.started.wait(timeout=1)
+        service.stop(MEETING_ID, restarted["session_id"])
+
+        card = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
+        paths = [item["path"] for item in card["source"]["media_files"]]
+        assert paths == ["source/live_audio.MIC.wav"]
+        assert card["rag"]["no_index_artifacts"].count(
+            "source/live_audio.MIC.wav"
+        ) == 1
     finally:
         service.shutdown()
 

@@ -8,6 +8,7 @@ import wave
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from jsonschema import Draft202012Validator
 
 
@@ -61,6 +62,44 @@ def make_meeting(tmp_path: Path) -> Path:
     )
     assert code == 0
     return meetings_root / "2026-06-01__transcribe-contract"
+
+
+def test_choose_media_can_select_registered_live_audio(tmp_path: Path) -> None:
+    meeting_dir = make_meeting(tmp_path)
+    live_audio = meeting_dir / "source" / "live_audio.SYS.wav"
+    write_tiny_wav(live_audio)
+    meeting_path = meeting_dir / "meeting.json"
+    meeting = read_json(meeting_path)
+    meeting["source"]["media_files"].append(
+        {
+            "path": "source/live_audio.SYS.wav",
+            "media_type": "audio",
+            "duration_seconds": 0.1,
+        }
+    )
+
+    selected = transcribe22.choose_media(
+        meeting_dir,
+        meeting,
+        "source/live_audio.SYS.wav",
+    )
+
+    assert selected == live_audio.resolve()
+
+
+@pytest.mark.parametrize(
+    "selected",
+    ["source/not-registered.wav", "../outside.wav", r"C:\private\audio.wav"],
+)
+def test_choose_media_rejects_unsafe_or_unregistered_selection(
+    tmp_path: Path,
+    selected: str,
+) -> None:
+    meeting_dir = make_meeting(tmp_path)
+    meeting = read_json(meeting_dir / "meeting.json")
+
+    with pytest.raises(transcribe22.TranscribeMeetingError):
+        transcribe22.choose_media(meeting_dir, meeting, selected)
 
 
 def make_args(meeting_dir: Path, segments_path: Path | None, *, force: bool = False, resume: bool = False, dry_run: bool = False):
@@ -258,6 +297,7 @@ def test_faster_whisper_backend_uses_normalized_audio_and_writes_metrics(tmp_pat
         meeting_dir=str(meeting_dir),
         engine="faster-whisper",
         segments_path=None,
+        media_path=None,
         model="small",
         language="ru",
         compute_type="int8",
@@ -328,6 +368,7 @@ def test_gigaam_backend_writes_card_outputs_from_backend_rows(tmp_path: Path, mo
         meeting_dir=str(meeting_dir),
         engine="gigaam",
         segments_path=None,
+        media_path=None,
         model="v3_e2e_rnnt",
         language="ru",
         compute_type="int8",

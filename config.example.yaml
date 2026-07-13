@@ -73,6 +73,9 @@ live:
   active_sessions_max: 2
   max_state_bytes: 4194304
   stop_timeout_seconds: 15
+  # Source-scoped PCM16 WAV archive used by canonical offline refinement.
+  audio_archive_max_bytes: 2000000000
+  audio_archive_min_free_bytes: 268435456
 
 include_extensions:
   - ".docx"

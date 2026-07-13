@@ -40,6 +40,10 @@ from meeting_agent.live_transcription import (  # noqa: E402
     write_live_artifacts,
 )
 from meeting_agent.live_transcription.schema import SOURCE_ARTIFACT_KEYS  # noqa: E402
+from meeting_agent.live_transcription.audio_archive import (  # noqa: E402
+    DEFAULT_ARCHIVE_MAX_BYTES,
+    DEFAULT_ARCHIVE_MIN_FREE_BYTES,
+)
 from meeting_agent.live_transcription.vad import SileroVadConfig  # noqa: E402
 from meeting_agent.live_transcription.vosk_backend import VoskBackendError, VoskLiveConfig, transcribe_vosk_live  # noqa: E402
 
@@ -79,11 +83,18 @@ def relative_path(meeting_dir: Path, path: Path) -> str:
     return path.resolve().relative_to(meeting_dir.resolve()).as_posix()
 
 
-def ensure_can_write(meeting_dir: Path, source: str, force: bool) -> None:
+def ensure_can_write(
+    meeting_dir: Path,
+    source: str,
+    force: bool,
+    *,
+    capture_audio: bool,
+) -> None:
     live_segments = meeting_dir / "transcript" / "live" / f"live_segments.{source}.jsonl"
-    if live_segments.exists() and not force:
+    live_audio = meeting_dir / "source" / f"live_audio.{source}.wav"
+    if (live_segments.exists() or (capture_audio and live_audio.exists())) and not force:
         raise LiveTranscribeError(
-            f"Live transcript for source {source} already exists. Use --force to overwrite that source.",
+            f"Live recording for source {source} already exists. Use --force to overwrite that source.",
             stage="preflight",
         )
 
@@ -103,22 +114,67 @@ def update_source_tracks(meeting: dict[str, Any], source: str) -> None:
     meeting["source"] = source_data
 
 
-def update_meeting_artifacts(meeting: dict[str, Any], meeting_dir: Path, written: dict[str, Path], source: str) -> None:
+def update_meeting_artifacts(
+    meeting: dict[str, Any],
+    meeting_dir: Path,
+    written: dict[str, Path],
+    source: str,
+    *,
+    duration_seconds: float,
+) -> None:
     artifacts = dict(meeting.get("artifacts", {}))
     source_keys = SOURCE_ARTIFACT_KEYS[source]
-    for key in ("live_segments", "live_partials", "live_transcript", "live_srt", "live_vtt", "live_report"):
-        if key in written:
+    for key in (
+        "live_segments",
+        "live_partials",
+        "live_transcript",
+        "live_srt",
+        "live_vtt",
+        "live_report",
+        "live_audio",
+    ):
+        if key in written and key in source_keys:
             artifacts[source_keys[key]] = relative_path(meeting_dir, written[key])
     meeting["artifacts"] = artifacts
     rag = dict(meeting.get("rag", {}))
     no_index = list(rag.get("no_index_artifacts") or [])
-    for key in ("live_segments", "live_partials", "live_transcript", "live_srt", "live_vtt"):
+    for key in (
+        "live_segments",
+        "live_partials",
+        "live_transcript",
+        "live_srt",
+        "live_vtt",
+        "live_audio",
+    ):
+        if key not in source_keys:
+            continue
         value = artifacts.get(source_keys[key])
         if isinstance(value, str) and value not in no_index:
             no_index.append(value)
     rag["no_index_artifacts"] = no_index
     meeting["rag"] = rag
     update_source_tracks(meeting, source)
+    audio_path = written.get("live_audio")
+    if audio_path is not None:
+        source_data = dict(meeting.get("source") or {})
+        raw_media = source_data.get("media_files")
+        media_files = [
+            dict(item) for item in raw_media if isinstance(item, dict)
+        ] if isinstance(raw_media, list) else []
+        audio_rel = relative_path(meeting_dir, audio_path)
+        media_entry = {
+            "path": audio_rel,
+            "media_type": "audio",
+            "duration_seconds": round(max(0.0, duration_seconds), 3),
+        }
+        for index, item in enumerate(media_files):
+            if item.get("path") == audio_rel:
+                media_files[index] = media_entry
+                break
+        else:
+            media_files.append(media_entry)
+        source_data["media_files"] = media_files
+        meeting["source"] = source_data
     meeting["processing_status"] = STATUS_PROCESSING
     meeting["updated_at"] = now_iso()
     meeting.pop("last_error", None)
@@ -174,9 +230,19 @@ def run(args: argparse.Namespace) -> int:
 
         meeting = read_json(meeting_path)
         validate_schema(meeting)
-        ensure_can_write(meeting_dir, args.source, args.force)
         model_path = resolve_path(args.model_path)
         input_wav = resolve_path(args.input_wav) if args.input_wav else None
+        ensure_can_write(
+            meeting_dir,
+            args.source,
+            args.force,
+            capture_audio=input_wav is None and args.source in {"MIC", "SYS"},
+        )
+        audio_archive_path = (
+            meeting_dir / "source" / f"live_audio.{args.source}.wav"
+            if input_wav is None and args.source in {"MIC", "SYS"}
+            else None
+        )
 
         if input_wav is None and not args.dry_run:
             audio_preflight = preflight_audio_source(
@@ -227,6 +293,9 @@ def run(args: argparse.Namespace) -> int:
                         min_silence_ms=args.vad_min_silence_ms,
                         speech_pad_ms=args.vad_speech_pad_ms,
                     ),
+                    audio_archive_path=audio_archive_path,
+                    audio_archive_max_bytes=args.audio_archive_max_bytes,
+                    audio_archive_min_free_bytes=args.audio_archive_min_free_bytes,
                 )
             )
         except VoskBackendError as exc:
@@ -259,8 +328,24 @@ def run(args: argparse.Namespace) -> int:
         )
         output_dir = meeting_dir / "transcript" / "live"
         written = write_live_artifacts(output_dir, result.segments, result.partials, report, source=args.source)
+        if audio_archive_path is not None:
+            if (
+                result.audio_archive_path is None
+                or result.audio_archive_path.resolve() != audio_archive_path.resolve()
+                or not result.audio_archive_path.is_file()
+            ):
+                raise LiveTranscribeError(
+                    "Live audio archive was not finalized.", stage="audio_archive"
+                )
+            written["live_audio"] = result.audio_archive_path
 
-        update_meeting_artifacts(meeting, meeting_dir, written, args.source)
+        update_meeting_artifacts(
+            meeting,
+            meeting_dir,
+            written,
+            args.source,
+            duration_seconds=report.duration_seconds,
+        )
         validate_schema(meeting)
         write_json_atomic(meeting_path, meeting)
 
@@ -309,6 +394,18 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=1_000,
         help="Bounded number of partial hypotheses retained in memory (1..10000).",
     )
+    parser.add_argument(
+        "--audio-archive-max-bytes",
+        type=int,
+        default=DEFAULT_ARCHIVE_MAX_BYTES,
+        help="Maximum source-scoped live WAV payload size.",
+    )
+    parser.add_argument(
+        "--audio-archive-min-free-bytes",
+        type=int,
+        default=DEFAULT_ARCHIVE_MIN_FREE_BYTES,
+        help="Free-space reserve maintained while writing the live WAV.",
+    )
     parser.add_argument("--input-wav", help="Optional mono 16 kHz PCM WAV for deterministic smoke runs.")
     parser.add_argument("--duration-sec", type=float, default=None, help="Limit live capture or WAV simulation duration.")
     parser.add_argument("--sample-rate", type=int, default=16_000)
@@ -339,6 +436,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         parser.error("--mic-queue-max-blocks must be in the range 1..1024.")
     if not 1 <= args.partials_max <= 10_000:
         parser.error("--partials-max must be in the range 1..10000.")
+    if not 1 <= args.audio_archive_max_bytes <= 4_000_000_000:
+        parser.error("--audio-archive-max-bytes must be in the range 1..4000000000.")
+    if not 0 <= args.audio_archive_min_free_bytes <= 1_000_000_000_000:
+        parser.error(
+            "--audio-archive-min-free-bytes must be in the range 0..1000000000000."
+        )
     if not args.list_audio_sources and not args.preflight_source:
         if not args.meeting_dir:
             parser.error(

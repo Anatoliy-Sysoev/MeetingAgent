@@ -111,6 +111,8 @@
   and deterministic stale recovery.
 - [x] MA-LIVE-UI-V1 (#207): Workspace MIC/SYS preflight, device/VAD controls,
   graceful start/stop, bounded partial/final draft, elapsed time and warnings.
+- [x] MA-LIVE-AUDIO-ARCHIVE-V1 (#225): retain bounded source-scoped MIC/SYS WAV
+  with atomic publication, media registration and no-index provenance.
 - [ ] MA-LIVE-OFFLINE-REFINEMENT-V1 (#208): retain the live draft, then trigger and
   compare canonical offline ASR without indexing the draft.
 - [ ] MA-LIVE-PIPELINE-COORDINATION (#222): enforce server-side mutual exclusion

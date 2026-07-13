@@ -163,11 +163,18 @@ transcript/live/live_segments.<SOURCE>.jsonl
 transcript/live/live_partials.<SOURCE>.jsonl
 transcript/live/live_transcript.<SOURCE>.txt
 transcript/live/live_report.<SOURCE>.json
+source/live_audio.<SOURCE>.wav  # real MIC/SYS capture only
 ```
 
 `<SOURCE>` равен `MIC`, `SYS` или `MIX`, поэтому несколько дорожек могут сосуществовать в одной карточке встречи.
 
 Ограничение: live transcript не считается финальным источником истины для протокола. После встречи нужно запускать offline ASR через `scripts/22_transcribe_meeting.py` или импортировать готовые canonical segments. Поэтому live draft completion не ставит `processing_status=transcribed`; статус остается `processing`.
+
+Для реального MIC/SYS полный canonical поток до VAD сохраняется как PCM16 mono
+16 kHz WAV. Запись потоковая, ограничена по размеру и свободному месту,
+публикуется атомарно, регистрируется в `source.media_files` и остаётся в
+`rag.no_index_artifacts`. Это обязательный source input для последующего
+offline refinement; текстовый live draft сам по себе входом ASR не является.
 
 T-one рассматривается как будущий экспериментальный backend для сравнительного прогона. Основной риск T-one - телефонная специализация модели; на широкополосных встречах качество нужно подтверждать отдельно.
 
