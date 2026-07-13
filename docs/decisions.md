@@ -232,7 +232,38 @@
 
 - зависимости остаются в `requirements-live.txt`, а не в основном `requirements.txt`;
 - первый реализованный режим Silero VAD работает для `--input-wav`, где можно заранее получить speech windows;
-- microphone/system-loopback streaming VAD остается следующим шагом, потому что нужно сохранить корректные live таймкоды и endpointing.
+- это ограничение снято решением от 2026-07-13 ниже: MIC/SYS используют incremental VAD и отдельную карту исходного времени.
+
+## 2026-07-13 - Streaming Silero VAD С Картой Исходного Времени
+
+Решение: для live MIC/SYS применять один incremental Silero `VADIterator` к
+canonical mono 16 kHz PCM, но передавать в Vosk только принятые speech frames.
+Каждый принятый блок сохраняет диапазон исходных capture frames; word timestamps
+Vosk переводятся обратно из сжатой шкалы accepted audio в wall-clock шкалу
+исходной дорожки.
+
+Почему:
+
+- простой discard silence сжимает время Vosk и делает таймкоды непригодными для
+  перехода к оригиналу;
+- общий consumer гарантирует одинаковую семантику для MIC и SYS после
+  WASAPI/SoXR canonicalization;
+- 512-frame stateful inference соответствует streaming-контракту Silero и не
+  требует загружать всю встречу в память;
+- offline `--input-wav` остается детерминированным precomputed-window режимом,
+  поэтому существующие smoke-сценарии не меняются.
+
+Следствия:
+
+- partial/final outputs используют исходную временную шкалу и finalized segments
+  принудительно остаются монотонными и непересекающимися;
+- параметры VAD ограничены сверху, чтобы ошибочная локальная конфигурация не
+  создавала неограниченный pre-speech buffer;
+- `live_report.<SOURCE>.json` содержит принятые/отфильтрованные frames, длительность
+  фильтрации, speech windows, short-speech drops и warnings;
+- Silero остается optional dependency из `requirements-live.txt`;
+- native idle-read безопасность WASAPI вынесена в #213 и не смешивается с
+  алгоритмом VAD.
 
 ## 2026-07-07 - Auth Providers Через Локальный RBAC
 

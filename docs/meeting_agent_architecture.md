@@ -144,7 +144,7 @@ GigaAM не заменяет основной ASR-контракт до срав
 
 ```text
 Vosk
-optional Silero VAD для file-smoke/preprocessing
+optional Silero VAD для WAV, MIC и Windows SYS
 ```
 
 Назначение:
@@ -171,9 +171,18 @@ transcript/live/live_report.<SOURCE>.json
 
 T-one рассматривается как будущий экспериментальный backend для сравнительного прогона. Основной риск T-one - телефонная специализация модели; на широкополосных встречах качество нужно подтверждать отдельно.
 
-Silero VAD является общим preprocessing-кандидатом для Vosk/T-one/future backends. В текущей реализации он включается флагом `--vad silero` для `--input-wav`; streaming VAD для микрофона и loopback остается отдельным этапом. Ctrl+C для live backend трактуется как graceful stop с записью накопленных артефактов.
+Silero VAD является общим optional preprocessing-слоем для Vosk/T-one/future
+backends. `--input-wav` заранее вычисляет speech windows. MIC и Windows SYS
+используют stateful streaming filter по 512 frames; accepted blocks записываются
+в `AcceptedAudioTimeline`, и word timestamps Vosk переводятся обратно в исходное
+время capture. Поэтому отфильтрованная тишина не сжимает таймкоды. Общий
+canonical consumer обеспечивает одинаковый timing contract после MIC capture и
+после SYS `WASAPI -> SoXR -> mono 16 kHz`. Ctrl+C трактуется как graceful stop с
+записью накопленных артефактов.
 
-Known limitation: `--vad silero` сохраняет реальное время файла, но finalized segment может получить хвостовой fallback span текущего блока, а не полный word-level span реплики. Правильное будущее решение - remap word timestamps из поданного VAD-аудио в реальное время или привязка сегмента к speech window.
+Known limitations: live endpointing может сохранить небольшой уже переданный в
+Vosk хвост тишины; аппаратный `MIX` пока fail closed. Для idle Windows loopback,
+где native read может долго не вернуть пакет, ведется отдельный defect #213.
 
 ## Diarization
 

@@ -272,7 +272,7 @@ VAD modes:
 
 ```text
 --vad none      baseline без VAD
---vad silero    optional Silero VAD для --input-wav smoke/preprocessing
+--vad silero    optional Silero VAD для --input-wav, MIC или SYS
 ```
 
 Параметры Silero:
@@ -284,10 +284,25 @@ VAD modes:
 --vad-speech-pad-ms 100
 ```
 
+Режимы исполнения и диагностика:
+
+- `--input-wav --vad silero` сохраняет прежний детерминированный путь: speech
+  windows вычисляются до распознавания, а accepted blocks привязываются к
+  исходным frame offsets;
+- MIC/SYS `--vad silero` использует stateful окна по 512 frames. Vosk видит
+  сжатый speech-only поток, но word timestamps remap-ятся через таблицу accepted
+  blocks обратно в wall-clock исходной дорожки;
+- finalized segments нормализуются как монотонные и непересекающиеся;
+- `live_report.<SOURCE>.json` содержит `vad_streaming`, `vad_input_frames`,
+  `vad_accepted_frames`, `vad_filtered_frames`, `vad_filtered_seconds`,
+  `vad_speech_windows_count`, `vad_short_speech_dropped`, `vad_warnings`;
+- upper bounds: `min_speech_ms <= 30000`, `min_silence_ms <= 10000`,
+  `speech_pad_ms <= 5000`; неверная конфигурация завершается fail closed;
+- уже переданный в Vosk endpointing tail может включать небольшой участок
+  тишины; это не сжимает и не сдвигает исходное время.
+
 Ограничения текущего шага:
 
-- `--vad silero` пока поддержан только вместе с `--input-wav`. Streaming VAD для микрофона и system-loopback нужно реализовывать отдельно, чтобы не сломать таймкоды.
-- В `--vad silero` компрессии таймкодов нет: пропущенные non-speech blocks учитываются в реальном времени файла. Но finalized segment может получать хвостовой fallback span блока, на котором Vosk завершил фразу. Для smoke сравнивать нужно попадание segment в speech window, а не равенство span с `--vad none`.
 - System-loopback capture реализован только на Windows через PyAudioWPatch.
   Захват использует native формат loopback-устройства и stateful SoXR для
   преобразования stereo 44.1/48 кГц -> mono 16 кГц; имена устройств и локальные
@@ -295,6 +310,8 @@ VAD modes:
 - MIC+SYS mixing ещё не реализован: live `MIX` без `--input-wav` fail closed и
   не маскируется под MIC.
 - Микрофонный runtime пишет в `live_report.<SOURCE>.json` счетчики `input_status_events` и `queue_timeouts`; ненулевые значения нужно смотреть при диагностике overflow/dropout.
+- На полностью idle Windows output native loopback read может ждать пакет дольше
+  `--duration-sec`; interruptible/timeout-safe исправление ведется в #213.
 
 ### 5. Optional Speaker Diarization
 

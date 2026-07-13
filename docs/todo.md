@@ -104,7 +104,7 @@
   deterministic file-smoke compatibility.
 - [x] MA-LIVE-LOOPBACK-CAPTURE-V1 (#204): real Windows SYS capture through
   PyAudioWPatch plus stateful SoXR stereo 44.1/48 kHz -> mono 16 kHz conversion.
-- [ ] MA-LIVE-STREAMING-VAD-V1 (#205): apply Silero VAD to microphone/loopback streams
+- [x] MA-LIVE-STREAMING-VAD-V1 (#205): apply Silero VAD to microphone/loopback streams
   while preserving real-time timestamps.
 - [ ] MA-LIVE-SESSION-API-V1 (#206): add authenticated start/stop/status/event
   lifecycle, duplicate-session protection and restart recovery.
@@ -112,6 +112,12 @@
   start/stop, partial/final transcript and status.
 - [ ] MA-LIVE-OFFLINE-REFINEMENT-V1 (#208): retain the live draft, then trigger and
   compare canonical offline ASR without indexing the draft.
+- [ ] MA-LIVE-LOOPBACK-IDLE-SAFETY (#213): make bounded SYS capture and Ctrl+C
+  interruptible when the Windows output device emits no loopback packets.
+- [ ] MA-LIVE-DEPENDENCY-LOCK (#214): own an exact Python 3.12 live dependency
+  resolution and include it in scheduled vulnerability audits.
+- [ ] MA-LIVE-MIC-BACKPRESSURE (#215): bound the PortAudio callback queue while
+  preserving wall-clock time across dropped frames and reporting losses.
 - [x] TEST-DEPENDENCY-AUDIT-WINDOWS-UTF8 (#209): force deterministic UTF-8
   subprocess semantics for pip-audit under Cyrillic Windows profile paths.
 - [ ] MA-MEETINGAGENT-UI-MOCKUPS: approve target mockups for registry, upload wizard, processing monitor and meeting card before deeper UI refactor.

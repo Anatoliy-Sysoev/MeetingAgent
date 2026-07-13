@@ -4,18 +4,23 @@
 
 ## Now
 
-- MA-LIVE-LOOPBACK-CAPTURE-V1 (#204) is implemented on its review branch:
-  Windows SYS preflight discovers real PyAudioWPatch loopback inputs without
-  opening a stream; runtime capture uses native PCM and stateful SoXR conversion
-  to canonical mono 16 kHz before Vosk. MIX remains fail-closed.
-- canonical main before #204: `5b3958d` / `Make dependency audit UTF-8 deterministic (#211)`.
-- next product work is streaming VAD (#205), Live session API/UI (#206/#207)
-  and offline refinement (#208);
+- MA-LIVE-STREAMING-VAD-V1 (#205) is implemented on its review branch:
+  MIC and SYS use the same incremental Silero gate and accepted-frame timeline,
+  so filtered silence does not compress Vosk timestamps. WAV keeps its existing
+  precomputed-window behavior. Runtime reports expose bounded VAD metrics and
+  warnings.
+- canonical main before #205: `f760b6a` / `Add Windows WASAPI system loopback capture (#212)`.
+- next product work is Live session API/UI (#206/#207), offline refinement
+  (#208), idle-loopback interruptibility (#213), and a reviewed live dependency
+  lock/audit (#214); bounded MIC callback backpressure is tracked in #215.
   history purge #167 remains gated by explicit owner approval and a verified
   backup.
 
 ## Done latest
 
+- MA-LIVE-STREAMING-VAD-V1 (#205): added 512-frame stateful Silero filtering for
+  MIC/SYS, source-frame timestamp remapping, monotonic segment normalization,
+  bounded configuration and report-level filtered-duration/warning metrics.
 - MA-LIVE-LOOPBACK-CAPTURE-V1 (#204): added real Windows system-audio capture,
   source-specific device selection, native stereo downmix/resampling, bounded
   path-free runtime metrics and deterministic hardware/mocked coverage.

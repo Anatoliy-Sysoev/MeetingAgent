@@ -256,6 +256,10 @@ def run(args: argparse.Namespace) -> int:
             raise LiveTranscribeError(str(exc), stage="vosk") from exc
 
         finished_at = now_iso()
+        warnings = [] if result.segments else ["no_final_segments"]
+        for warning in result.metrics.get("vad_warnings") or []:
+            if isinstance(warning, str) and warning and warning not in warnings:
+                warnings.append(warning)
         report = LiveSessionReport(
             engine=args.engine,
             model=model_path.name,
@@ -269,7 +273,7 @@ def run(args: argparse.Namespace) -> int:
             started_at=started_at,
             finished_at=finished_at,
             elapsed_seconds=round(time.time() - started, 3),
-            warnings=[] if result.segments else ["no_final_segments"],
+            warnings=warnings,
             backend_metrics=result.metrics,
         )
         output_dir = meeting_dir / "transcript" / "live"

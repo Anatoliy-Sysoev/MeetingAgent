@@ -282,8 +282,15 @@ Windows system-audio capture:
   --engine vosk `
   --model-path models\vosk\vosk-model-small-ru-0.22 `
   --source SYS `
-  --audio-device-index <sys-loopback-index>
+  --audio-device-index <sys-loopback-index> `
+  --vad silero
 ```
+
+`--vad silero` is optional for both MIC and SYS capture. Streaming Silero uses
+512-frame windows and keeps a mapping from Vosk's accepted-audio timeline back
+to original capture frames, so filtered silence does not compress transcript
+timestamps. The live report includes accepted/filtered frame counts, filtered
+seconds, speech-window count, dropped-short-speech count, and VAD warnings.
 
 Deterministic smoke from a prepared mono 16 kHz WAV:
 
@@ -299,7 +306,11 @@ Deterministic smoke from a prepared mono 16 kHz WAV:
   --force
 ```
 
-For live microphone sessions, `Ctrl+C` is treated as a graceful stop: accumulated segments are finalized and written. Live draft completion leaves `processing_status=processing`, so final offline ASR can still run afterwards.
+For live microphone and system-audio sessions, `Ctrl+C` is treated as a graceful
+stop: accumulated segments are finalized and written. Live draft completion
+leaves `processing_status=processing`, so final offline ASR can still run
+afterwards. A known Windows follow-up is tracked in issue #213: an idle WASAPI
+output device may block its native read longer than the requested duration.
 
 Prepared `--input-wav` smoke runs may use MIC, SYS, or MIX labels because they do
 not start hardware capture. Every live result remains a draft and must be
