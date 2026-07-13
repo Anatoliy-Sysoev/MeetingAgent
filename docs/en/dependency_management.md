@@ -25,6 +25,21 @@ constraints without adding Torch/Vosk to the base installation.
 | Diarization | `requirements-diarization.txt` | Optional image/environment |
 | GigaAM | `requirements-gigaam.txt` | Optional isolated Python environment |
 
+## Major Compatibility Matrix
+
+Major and native-runtime upgrades are reviewed independently. A green result
+in one row does not approve another row.
+
+| Surface | Reviewed direct range / exact lock | Status and evidence | Rollback / tracking |
+|---|---|---|---|
+| Core, retrieval and diarization NumPy | `numpy>=1.26,<3`; Python 3.12 lock `2.5.1` | Approved: clean Windows install, `pip check`, advisory audit, persisted 1.26 `.npy` load, retrieval suite, ONNX Runtime sessions for both diarization models and sherpa diarizer construction | Roll back the range to `<2` and lock to `1.26.4`; #241 |
+| Live MIC through sounddevice | `sounddevice>=0.4.6,<0.5`; platform locks retain `0.4.7` | Pending dedicated Windows callback and device smoke | Retain `0.4.7`; #242 |
+| Isolated GigaAM ONNX/TorchAudio | `onnx==1.19.*`, `onnxruntime==1.25.*`, `torchaudio>=2.6` | Pending an exact isolated Python 3.12 lock and real short-audio model smoke | Keep the existing isolated runtime; #243 |
+| Documentation theme | `mkdocs-material==9.5.50` | Pending strict build and link validation against 9.7.x | Retain `9.5.50`; #244 |
+
+The umbrella review is tracked by #236. Do not combine these rows into one
+automated dependency PR.
+
 Install the live runtime on Windows:
 
 ```powershell

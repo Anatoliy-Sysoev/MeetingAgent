@@ -4,16 +4,20 @@
 
 ## Now
 
-- MA-PRODUCT-SPLIT-PHASE-2 (#235) moves MeetingAgent-owned API, auth, meetings,
-  jobs, live sessions and packaged UI into the independently startable
-  `meeting_agent` package. `scripts/meeting_agent_api.py` starts core-only;
-  `scripts/asu_june_bot_api.py` remains the integrated PKB compatibility app.
-- canonical main before this task: `1fd6d97` / `Add admin user console (#239)`.
+- MA-DEPS-NUMPY2-COMPAT (#241) independently validates NumPy 2.5.1 for core
+  retrieval/index persistence and the sherpa/ONNX diarization runtime, without
+  widening live, GigaAM or documentation dependency ranges.
+- canonical main before this task: `f5fa207` / `Split MeetingAgent core runtime
+  from Project Knowledge Bot (#240)`.
 - History purge #167 remains gated by explicit owner approval and backup.
-  Product follow-ups are tracked as #236-#237.
+  Dependency follow-ups are tracked as #236 and #241-#244; UI mockups are #237.
 
 ## Done latest
 
+- MA-DEPS-NUMPY2-COMPAT (#241): widened only the core/diarization NumPy range to
+  `<3`, locked Python 3.12 to 2.5.1, added persisted-index cross-major coverage
+  and validated a clean install, `pip check`, advisory audit, retrieval tests
+  and both real diarization ONNX models. Rollback remains NumPy 1.26.4.
 - MA-PRODUCT-SPLIT-PHASE-2 (#235): core routes/state start without PKB search,
   chat, retrieval, health or Telegram imports; integrated routes and HTTP
   contracts remain stable; moved legacy imports are explicit deprecated aliases;

@@ -25,6 +25,21 @@ Optional live runtime имеет отдельные точные lock-файлы
 | Diarization | `requirements-diarization.txt` | Optional image/окружение |
 | GigaAM | `requirements-gigaam.txt` | Изолированное Python-окружение |
 
+## Матрица Совместимости Major-Обновлений
+
+Major- и native-runtime-обновления проверяются независимо. Зелёный результат
+одной строки не означает автоматического одобрения другой.
+
+| Контур | Проверенный direct range / exact lock | Статус и доказательства | Откат / tracking |
+|---|---|---|---|
+| Core, retrieval и diarization NumPy | `numpy>=1.26,<3`; Python 3.12 lock `2.5.1` | Одобрено: чистая Windows-установка, `pip check`, advisory audit, загрузка сохранённого в 1.26 `.npy`, retrieval suite, ONNX Runtime sessions обеих diarization-моделей и создание sherpa diarizer | Вернуть range `<2` и lock `1.26.4`; #241 |
+| Live MIC через sounddevice | `sounddevice>=0.4.6,<0.5`; platform locks сохраняют `0.4.7` | Ожидается отдельный Windows callback/device smoke | Сохранить `0.4.7`; #242 |
+| Изолированный GigaAM ONNX/TorchAudio | `onnx==1.19.*`, `onnxruntime==1.25.*`, `torchaudio>=2.6` | Ожидается exact isolated Python 3.12 lock и реальный smoke короткого аудио | Сохранить существующий изолированный runtime; #243 |
+| Тема документации | `mkdocs-material==9.5.50` | Ожидается strict build и link validation на 9.7.x | Сохранить `9.5.50`; #244 |
+
+Общий review отслеживается в #236. Эти строки нельзя снова объединять в один
+автоматический dependency PR.
+
 Live runtime на Windows:
 
 ```powershell

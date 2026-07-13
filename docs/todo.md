@@ -153,6 +153,14 @@
 
 - [ ] MA-DEPS-MAJOR-COMPATIBILITY (#236): validate NumPy/audio/ONNX/docs major
   upgrades as separate compatibility groups with their own constraints.
+- [x] MA-DEPS-NUMPY2-COMPAT (#241): validate NumPy 2.5.1 with exact Python 3.12
+  constraints, cross-major persisted-index coverage and real ONNX/sherpa smoke.
+- [ ] MA-DEPS-SOUNDDEVICE05-COMPAT (#242): review sounddevice 0.5.x with exact
+  platform locks and non-persisting Windows device/callback smoke.
+- [ ] MA-DEPS-GIGAAM-RUNTIME-COMPAT (#243): define and validate an exact isolated
+  Python 3.12 ONNX/TorchAudio graph with a real short-audio GigaAM smoke.
+- [ ] MA-DEPS-DOCS-MATERIAL97 (#244): update the docs theme independently and
+  verify a clean install, strict build, links and advisory status.
 
 ## Project Knowledge Bot / Guard / Auth Backlog
 
