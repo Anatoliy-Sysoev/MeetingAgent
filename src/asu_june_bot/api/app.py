@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from asu_june_bot import __version__
 from asu_june_bot.api.dependencies import build_app_state
@@ -22,6 +23,7 @@ from asu_june_bot.api.routes_meetings import router as meetings_router
 from asu_june_bot.api.routes_search import router as search_router
 from asu_june_bot.api.routes_ui import router as ui_router
 from asu_june_bot.api.routes_workspace import router as workspace_router
+from asu_june_bot.api.ui_assets import UI_ASSETS_V1_DIR
 from asu_june_bot.core.config import load_config
 
 
@@ -46,6 +48,11 @@ def create_app(config: dict | None = None) -> FastAPI:
     )
     app.middleware("http")(request_context_middleware)
     register_error_handlers(app)
+    app.mount(
+        "/assets/v1",
+        StaticFiles(directory=UI_ASSETS_V1_DIR, check_dir=True),
+        name="ui-assets-v1",
+    )
     app.include_router(ui_router)
     app.include_router(meetingagent_ui_router)
     app.include_router(workspace_router)

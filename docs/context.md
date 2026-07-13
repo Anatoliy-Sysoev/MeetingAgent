@@ -4,15 +4,21 @@
 
 ## Now
 
-- MA-REPO-DEAD-CODE-CLEANUP (#179) is implemented and verified: every package
-  and script is classified in a tested runtime inventory, supported CLI paths
-  have smoke tests, compatibility entrypoints emit migration warnings, empty
-  scaffolds are removed and ASR defaults are aligned.
-- canonical main state before #179: `2962197` / `Characterize and decompose retrieval ranking (#197)`.
-- next audit focus after #179: frontend CSP modularization (#180).
+- MA-UI-CSP-MODULARIZATION (#180) is implemented on its review branch: the
+  three product UIs use packaged versioned HTML/CSS/JS assets, strict CSP and
+  browser-level Chromium smoke tests for upload, pipeline, transcript, speaker
+  mapping, artifacts and meeting Q&A.
+- canonical main state before #180: `b6f6205` / `Clarify runtime ownership and remove dead scaffolds (#198)`.
+- next audit focus after #180: concurrency-safe meeting vector cache (#181).
 
 ## Done latest
 
+- MA-UI-CSP-MODULARIZATION (#180): removed monolithic inline HTML/CSS/JS from
+  API route modules; added allowlisted package-data templates and immutable
+  `/assets/v1/*` delivery; product pages enforce a self-only CSP without
+  `unsafe-inline`/`unsafe-eval`; Chromium tests execute the upload/pipeline and
+  Workspace workflows. Browser execution also caught and fixed a mapping-save
+  confirmation that was immediately cleared during refresh.
 - MA-REPO-DEAD-CODE-CLEANUP (#179): empty apps/templates/packages were removed;
   `configs/runtime_inventory.yaml` owns every package/script; current CLI help
   and package imports are smoke-tested; retained v1 entrypoints point to their
@@ -115,6 +121,10 @@
   a missing child becomes `failed` and the stage becomes `ready_for_retry`.
 - Diarization is optional-runtime gated: if sherpa-onnx dependencies are not installed in the active API environment, readiness returns `blocked` / `diarization_runtime_missing` and the Workspace should not start the stage. Use the isolated diarization environment or install `requirements-diarization.txt` before enabling it.
 - Workspace UI: media player, clickable transcript, artifact viewer, job controls, readiness map, one-click pipeline profiles, meeting-scoped Search/Q&A.
+- UI delivery (#180): `/`, `/ui`, `/MeetingAgent` and meeting Workspace load
+  packaged `/assets/v1` CSS/JS under a restrictive CSP; dynamic values are
+  rendered through DOM/text APIs, credentials/CSRF remain memory/cookie based,
+  and Playwright exercises the primary browser workflows in CI.
 - Workspace flow (#121): state panel (status + active job + public-safe last error), readiness-gated stage buttons (blocked → disabled with reason; done → explicit Force rerun; failed → Retry), pipeline actions (Run full / Resume when partially done / Retry failed stage), manifest-driven result chips (Transcript/Speaker transcript/Summary/Protocol/Tasks), Q&A disabled until chunks/index exist, panels auto-refresh after a job finishes; CSRF on every POST.
 - Job failure recovery: `meeting.json.last_error` schema accepts normalized runner fields `code` and `job_id`, so CLI stages and retry flows can validate and recover cards after failed API jobs.
 - Speaker mapping (#122): `meeting.json.speaker_mapping` stores real names/roles for diarized labels; `GET /meetings/{id}/speakers` discovers labels from diarization/transcript artifacts; `PUT /meetings/{id}/speakers/mapping` requires `meetings.edit` + CSRF; Workspace transcript shows mapped names while preserving `speaker_label`.
@@ -178,7 +188,8 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- MA-MEETING-API-METADATA-REDACTION (#173): path-safe meeting DTOs and errors.
+- MA-MEETING-VECTOR-CACHE-LOCKING (#181): serialize and atomically compact the
+  shared meeting embeddings cache under concurrent API workers/processes.
 - SEC-P0-GIT-HISTORY-PURGE (#167): backup, verify and coordinate the force rewrite; do not execute implicitly.
 
 ## Open decisions / blockers

@@ -15,6 +15,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from asu_june_bot.api.app import create_app  # noqa: E402
+from asu_june_bot.api.ui_assets import load_ui_asset  # noqa: E402
 from asu_june_bot.auth.passwords import hash_password  # noqa: E402
 from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
 from asu_june_bot.auth.service import LocalAuthService  # noqa: E402
@@ -447,7 +448,7 @@ def test_workspace_qa_placeholder_replaced(tmp_path: Path) -> None:
 
 def test_workspace_qa_no_unsafe_inline_handlers(tmp_path: Path) -> None:
     client, _repo, _llm = make_client(tmp_path)
-    body = client.get(f"/meetings/{MEETING_ID}/workspace").text
+    body = client.get(f"/meetings/{MEETING_ID}/workspace").text + load_ui_asset("workspace.js")
     # No inline JS handlers wired to Q&A actions
     assert 'onclick="askQuestion' not in body
     assert 'onclick="meetingSearch' not in body
@@ -458,7 +459,7 @@ def test_workspace_qa_no_unsafe_inline_handlers(tmp_path: Path) -> None:
 
 def test_workspace_qa_citations_use_data_attrs_and_listeners(tmp_path: Path) -> None:
     client, _repo, _llm = make_client(tmp_path)
-    body = client.get(f"/meetings/{MEETING_ID}/workspace").text
+    body = client.get(f"/meetings/{MEETING_ID}/workspace").text + load_ui_asset("workspace.js")
     assert "dataset.startSec" in body
     assert "qa-citation" in body
     assert "qa-result" in body
@@ -466,7 +467,7 @@ def test_workspace_qa_citations_use_data_attrs_and_listeners(tmp_path: Path) -> 
 
 def test_workspace_qa_no_browser_storage_for_answers(tmp_path: Path) -> None:
     client, _repo, _llm = make_client(tmp_path)
-    body = client.get(f"/meetings/{MEETING_ID}/workspace").text
+    body = client.get(f"/meetings/{MEETING_ID}/workspace").text + load_ui_asset("workspace.js")
     assert "localStorage" not in body
     assert "sessionStorage" not in body
 

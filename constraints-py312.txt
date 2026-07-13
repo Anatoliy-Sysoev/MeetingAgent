@@ -83,6 +83,8 @@ fsspec==2026.6.0
     # via huggingface-hub
 ghp-import==2.1.0
     # via mkdocs
+greenlet==3.5.3
+    # via playwright
 h11==0.16.0
     # via
     #   httpcore
@@ -196,6 +198,8 @@ platformdirs==4.10.0
     # via
     #   mkdocs-get-deps
     #   pip-audit
+playwright==1.61.0
+    # via -r requirements-browser.txt
 pluggy==1.6.0
     # via pytest
 protobuf==7.35.1
@@ -210,6 +214,8 @@ pydantic==2.13.4
     #   fastapi
 pydantic-core==2.46.4
     # via pydantic
+pyee==13.0.1
+    # via playwright
 pygments==2.20.0
     # via
     #   mkdocs-material
@@ -302,6 +308,7 @@ typing-extensions==4.16.0
     #   huggingface-hub
     #   pydantic
     #   pydantic-core
+    #   pyee
     #   python-docx
     #   python-pptx
     #   referencing

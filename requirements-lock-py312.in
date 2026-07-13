@@ -1,4 +1,5 @@
 # Resolver input for the reviewed Python 3.12 dependency graph.
 # Optional diarization stays outside the base install, but remains pinned and audited.
 -r requirements-dev.txt
+-r requirements-browser.txt
 -r requirements-diarization.txt

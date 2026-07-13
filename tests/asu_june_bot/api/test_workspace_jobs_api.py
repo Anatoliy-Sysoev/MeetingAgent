@@ -17,6 +17,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from asu_june_bot.api.app import create_app  # noqa: E402
+from asu_june_bot.api.ui_assets import load_ui_asset  # noqa: E402
 from asu_june_bot.auth.repository import AuthRepository  # noqa: E402
 from asu_june_bot.auth.service import AdminService, LocalAuthService  # noqa: E402
 from asu_june_bot.auth.throttle import LoginThrottle  # noqa: E402
@@ -331,7 +332,7 @@ def test_workspace_html_includes_pipeline_controls(tmp_path: Path) -> None:
 def test_workspace_js_references_csrf_header_and_endpoints(tmp_path: Path) -> None:
     make_meeting(tmp_path)
     client, _, _ = make_client(tmp_path)
-    body = client.get(f"/meetings/{MEETING_ID}/workspace").text
+    body = client.get(f"/meetings/{MEETING_ID}/workspace").text + load_ui_asset("workspace.js")
     assert "X-CSRF-Token" in body
     assert "/auth/csrf" in body
     assert "/jobs/stages" in body
@@ -344,7 +345,7 @@ def test_workspace_js_no_unsafe_inline_job_interpolation(tmp_path: Path) -> None
     not inline onclick string interpolation."""
     make_meeting(tmp_path)
     client, _, _ = make_client(tmp_path)
-    body = client.get(f"/meetings/{MEETING_ID}/workspace").text
+    body = client.get(f"/meetings/{MEETING_ID}/workspace").text + load_ui_asset("workspace.js")
     assert "onclick=\"startStage(" not in body
     assert "onclick=\"cancelActiveJob(" not in body
     assert "dataset.stage" in body
@@ -356,7 +357,7 @@ def test_workspace_html_has_no_inline_event_handlers(tmp_path: Path) -> None:
     import re as _re
     make_meeting(tmp_path)
     client, _, _ = make_client(tmp_path)
-    body = client.get(f"/meetings/{MEETING_ID}/workspace").text
+    body = client.get(f"/meetings/{MEETING_ID}/workspace").text + load_ui_asset("workspace.js")
     matches = _re.findall(r'\son[a-z]+\s*=\s*"', body)
     assert matches == [], f"found inline handlers: {matches}"
 
@@ -365,7 +366,7 @@ def test_workspace_transcript_uses_dataset_not_inline_onclick(tmp_path: Path) ->
     """Transcript segments must seek via dataset.startSec + addEventListener."""
     make_meeting(tmp_path)
     client, _, _ = make_client(tmp_path)
-    body = client.get(f"/meetings/{MEETING_ID}/workspace").text
+    body = client.get(f"/meetings/{MEETING_ID}/workspace").text + load_ui_asset("workspace.js")
     assert 'onclick="seekTo(' not in body
     # Segments are built via DOM API — startSec is set through dataset property in JS.
     assert "dataset.startSec" in body
@@ -376,7 +377,7 @@ def test_workspace_static_controls_wired_via_listeners(tmp_path: Path) -> None:
     """Refresh, filter and close-artifact controls are wired in JS, not inline."""
     make_meeting(tmp_path)
     client, _, _ = make_client(tmp_path)
-    body = client.get(f"/meetings/{MEETING_ID}/workspace").text
+    body = client.get(f"/meetings/{MEETING_ID}/workspace").text + load_ui_asset("workspace.js")
     # Elements carry ids that the init block binds listeners to.
     assert 'id="hdr-refresh-btn"' in body
     assert 'id="seg-filter"' in body
@@ -393,7 +394,7 @@ def test_workspace_js_does_not_persist_csrf_token(tmp_path: Path) -> None:
     """CSRF token must stay in JS memory — no localStorage/sessionStorage."""
     make_meeting(tmp_path)
     client, _, _ = make_client(tmp_path)
-    body = client.get(f"/meetings/{MEETING_ID}/workspace").text
+    body = client.get(f"/meetings/{MEETING_ID}/workspace").text + load_ui_asset("workspace.js")
     assert "localStorage" not in body
     assert "sessionStorage" not in body
 
@@ -401,7 +402,7 @@ def test_workspace_js_does_not_persist_csrf_token(tmp_path: Path) -> None:
 def test_workspace_html_has_error_container(tmp_path: Path) -> None:
     make_meeting(tmp_path)
     client, _, _ = make_client(tmp_path)
-    body = client.get(f"/meetings/{MEETING_ID}/workspace").text
+    body = client.get(f"/meetings/{MEETING_ID}/workspace").text + load_ui_asset("workspace.js")
     assert "jobs-error" in body
     assert "auth-overlay" in body
 
@@ -411,7 +412,7 @@ def test_workspace_transcript_and_artifacts_use_dom_api_not_innerhtml(tmp_path: 
     runtime-data template literals — they must use createElement/textContent/replaceChildren."""
     make_meeting(tmp_path)
     client, _, _ = make_client(tmp_path)
-    body = client.get(f"/meetings/{MEETING_ID}/workspace").text
+    body = client.get(f"/meetings/{MEETING_ID}/workspace").text + load_ui_asset("workspace.js")
     # DOM API idioms must be present.
     assert "replaceChildren" in body
     assert "createElement" in body

@@ -6,12 +6,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from asu_june_bot.api.app import create_app
-from asu_june_bot.api.routes_meetingagent_ui import MEETINGAGENT_HTML
+from asu_june_bot.api.ui_assets import load_ui_asset, load_ui_template
 
 
 @pytest.fixture(scope="module")
 def html() -> str:
-    return MEETINGAGENT_HTML
+    return load_ui_template("meetingagent.html") + load_ui_asset("meetingagent.js")
 
 
 def test_meetingagent_route_returns_main_ui() -> None:
