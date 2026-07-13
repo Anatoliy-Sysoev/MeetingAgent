@@ -14,6 +14,27 @@ from meeting_agent.api.app import create_app as create_core_app
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def _route_paths(app) -> set[str]:
+    paths: set[str] = set()
+    pending = list(app.routes)
+    seen: set[int] = set()
+    while pending:
+        route = pending.pop()
+        if id(route) in seen:
+            continue
+        seen.add(id(route))
+
+        path = getattr(route, "path", None)
+        if isinstance(path, str):
+            paths.add(path)
+
+        pending.extend(getattr(route, "routes", ()) or ())
+        original_router = getattr(route, "original_router", None)
+        if original_router is not None:
+            pending.extend(getattr(original_router, "routes", ()) or ())
+    return paths
+
+
 def _core_config(tmp_path: Path) -> dict:
     return {
         "work_root_path": tmp_path,
@@ -60,7 +81,7 @@ def test_core_app_starts_without_bot_routes(tmp_path: Path, monkeypatch) -> None
     monkeypatch.setenv("MEETINGAGENT_API_TOKEN", "core-test-token-32-characters-long")
     app = create_core_app(_core_config(tmp_path))
 
-    paths = {route.path for route in app.routes}
+    paths = _route_paths(app)
     assert "/health" in paths
     assert "/MeetingAgent" in paths
     assert "/meetings" in paths
@@ -78,7 +99,7 @@ def test_core_app_starts_without_bot_routes(tmp_path: Path, monkeypatch) -> None
 def test_integrated_app_adds_bot_routes() -> None:
     from asu_june_bot.api.app import create_app as create_integrated_app
 
-    paths = {route.path for route in create_integrated_app({}).routes}
+    paths = _route_paths(create_integrated_app({}))
     assert {"/MeetingAgent", "/meetings", "/health", "/search", "/chat", "/ui"} <= paths
 
 
