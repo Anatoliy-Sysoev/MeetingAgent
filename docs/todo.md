@@ -159,8 +159,8 @@
   platform locks and non-persisting Windows device/callback smoke.
 - [x] MA-DEPS-GIGAAM-RUNTIME-COMPAT (#243): exact isolated Windows/Python 3.12
   CPU lock, zero-advisory audit and real local GigaAM short-speech model smoke.
-- [ ] MA-DEPS-DOCS-MATERIAL97 (#244): update the docs theme independently and
-  verify a clean install, strict build, links and advisory status.
+- [x] MA-DEPS-DOCS-MATERIAL97 (#244): Material 9.7.6 exact lock, clean docs
+  install, strict target/anchor validation and zero-advisory audit.
 
 ## Project Knowledge Bot / Guard / Auth Backlog
 

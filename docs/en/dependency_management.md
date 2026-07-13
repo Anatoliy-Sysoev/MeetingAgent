@@ -35,7 +35,7 @@ in one row does not approve another row.
 | Core, retrieval and diarization NumPy | `numpy>=1.26,<3`; Python 3.12 lock `2.5.1` | Approved: clean Windows install, `pip check`, advisory audit, persisted 1.26 `.npy` load, retrieval suite, ONNX Runtime sessions for both diarization models and sherpa diarizer construction | Roll back the range to `<2` and lock to `1.26.4`; #241 |
 | Live MIC through sounddevice | `sounddevice>=0.5.5,<0.6`; platform locks `0.5.5` | Approved: clean Windows/Linux installs, `pip check`, advisory audit, 101 live tests and a non-persisting 16 kHz Windows MIC callback smoke | Restore range `<0.5` and locks `0.4.7`; #242 |
 | Isolated GigaAM ONNX/TorchAudio | Python 3.12 lock: `onnx 1.22.0`, `onnxruntime 1.23.2`, `torch 2.13.0+cpu`, `torchaudio 2.11.0+cpu` | Approved: clean Windows install, `pip check`, zero-advisory audit, upstream source import/model load, ONNX utility import and deterministic short-speech inference | Rebuild the isolated venv from this lock; reviewed GigaAM commit `6e4b027c...`; #243 |
-| Documentation theme | `mkdocs-material==9.5.50` | Pending strict build and link validation against 9.7.x | Retain `9.5.50`; #244 |
+| Documentation theme | `mkdocs-material==9.7.6`; MkDocs `1.6.1` | Approved: clean Python 3.12 docs install, `pip check`, zero-advisory lock audit, strict build and built-in target/anchor validation | Roll back Material to `9.5.50`; evaluate Zensical before maintenance support ends; #244 |
 
 The umbrella review is tracked by #236. Do not combine these rows into one
 automated dependency PR.
@@ -122,6 +122,15 @@ load smoke.
 
 Review the complete lock diff and run the canonical test suite before merging.
 Do not hand-edit one transitive pin without checking the complete resolver.
+
+Material for MkDocs 9.7 is in maintenance mode: it receives critical bug and
+security fixes but no new features. MeetingAgent uses only the stable Material
+theme and search plugin, not the deprecated projects/typeset plugins. The
+current site remains on 9.7.6 while a later, separately scoped decision can
+evaluate Zensical. The release gate uses `mkdocs build --strict` with MkDocs 1.6
+validation for missing document targets, unrecognized relative links and
+anchors. See the official [9.7 announcement](https://squidfunk.github.io/mkdocs-material/blog/2025/11/11/insiders-now-free-for-everyone/)
+and [MkDocs validation settings](https://www.mkdocs.org/user-guide/configuration/#validation).
 
 ## Advisory Policy
 

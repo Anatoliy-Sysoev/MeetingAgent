@@ -4,15 +4,19 @@
 
 ## Now
 
-- MA-DEPS-GIGAAM-RUNTIME-COMPAT (#243) defines a separate exact Windows/Python
-  3.12 CPU lock and validates the real local GigaAM model without changing core.
-- canonical main before this task: `f56dbb1` / `build: validate sounddevice 0.5
-  runtime (#246)`.
+- MA-DEPS-DOCS-MATERIAL97 (#244) independently validates Material for MkDocs
+  9.7.6, strict internal-link checks and the exact Python 3.12 docs graph.
+- canonical main before this task: `3454cb1` / `build: validate isolated GigaAM
+  runtime (#247)`.
 - History purge #167 remains gated by explicit owner approval and backup.
   Dependency follow-ups are tracked as #236 and #241-#244; UI mockups are #237.
 
 ## Done latest
 
+- MA-DEPS-DOCS-MATERIAL97 (#244): pins Material 9.7.6, adds MkDocs 1.6 strict
+  target/anchor validation and makes Pages use `mkdocs build --strict`; clean
+  docs install, `pip check`, zero-advisory audit and strict build pass. Material
+  is maintenance-only; 9.5.50 is the rollback and Zensical remains a later ADR.
 - MA-DEPS-GIGAAM-RUNTIME-COMPAT (#243): pins the isolated CPU graph to NumPy
   2.5.1, ONNX 1.22.0, ONNX Runtime 1.23.2, Torch 2.13.0 and TorchAudio 2.11.0;
   clean install, `pip check`, zero-advisory audit, upstream source/model load,
@@ -288,8 +292,6 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- MA-DEPS-DOCS-MATERIAL97 (#244): review the documentation theme independently
-  with a clean install, strict build, links and advisory status.
 - MA-DEPS-MAJOR-COMPATIBILITY (#236): review major dependency upgrades in
   isolated runtime groups instead of one conflicting Dependabot batch.
 - MA-MEETINGAGENT-UI-MOCKUPS (#237): approve table-first product mockups before
