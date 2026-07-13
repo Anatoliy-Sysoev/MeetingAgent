@@ -383,10 +383,13 @@ def test_build_app_state_passes_limit_into_service(monkeypatch) -> None:
     )
     monkeypatch.setattr(deps, "MeetingsService", spy)
     state = deps.build_app_state()
-    assert captured.get("max_text_artifact_bytes") == 2048
-    assert captured.get("max_upload_bytes") == 8192
-    assert state.meetings_service.max_text_artifact_bytes == 2048
-    assert state.meetings_service.max_upload_bytes == 8192
+    try:
+        assert captured.get("max_text_artifact_bytes") == 2048
+        assert captured.get("max_upload_bytes") == 8192
+        assert state.meetings_service.max_text_artifact_bytes == 2048
+        assert state.meetings_service.max_upload_bytes == 8192
+    finally:
+        state.live_session_service.shutdown()
 
 
 def test_build_app_state_wires_durable_job_store(
@@ -406,9 +409,15 @@ def test_build_app_state_wires_durable_job_store(
         }
     )
 
-    assert state.job_runner.store is not None
-    assert state.job_runner.store.path == (tmp_path / "runtime" / "jobs.json").resolve()
-    assert state.job_runner.meetings_root == tmp_path / "meetings"
+    try:
+        assert state.job_runner.store is not None
+        assert state.job_runner.store.path == (tmp_path / "runtime" / "jobs.json").resolve()
+        assert state.job_runner.meetings_root == tmp_path / "meetings"
+        assert state.live_session_service.store.path == (
+            tmp_path / "logs" / "live_sessions_state.json"
+        ).resolve()
+    finally:
+        state.live_session_service.shutdown()
 
 
 # ------------------------------------------------------------------

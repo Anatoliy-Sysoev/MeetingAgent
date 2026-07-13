@@ -15,32 +15,6 @@ STATUS_TRANSCRIBING = "transcribing"
 STATUS_PROCESSING = "processing"
 STATUS_FAILED = "failed"
 SUPPORTED_ENGINES = {"vosk"}
-SOURCE_ARTIFACT_KEYS = {
-    "MIC": {
-        "live_segments": "live_segments_mic",
-        "live_partials": "live_partials_mic",
-        "live_transcript": "live_transcript_mic",
-        "live_srt": "live_srt_mic",
-        "live_vtt": "live_vtt_mic",
-        "live_report": "live_report_mic",
-    },
-    "SYS": {
-        "live_segments": "live_segments_sys",
-        "live_partials": "live_partials_sys",
-        "live_transcript": "live_transcript_sys",
-        "live_srt": "live_srt_sys",
-        "live_vtt": "live_vtt_sys",
-        "live_report": "live_report_sys",
-    },
-    "MIX": {
-        "live_segments": "live_segments_mix",
-        "live_partials": "live_partials_mix",
-        "live_transcript": "live_transcript_mix",
-        "live_srt": "live_srt_mix",
-        "live_vtt": "live_vtt_mix",
-        "live_report": "live_report_mix",
-    },
-}
 
 
 class LiveTranscribeError(RuntimeError):
@@ -65,6 +39,7 @@ from meeting_agent.live_transcription import (  # noqa: E402
     preflight_audio_source,
     write_live_artifacts,
 )
+from meeting_agent.live_transcription.schema import SOURCE_ARTIFACT_KEYS  # noqa: E402
 from meeting_agent.live_transcription.vad import SileroVadConfig  # noqa: E402
 from meeting_agent.live_transcription.vosk_backend import VoskBackendError, VoskLiveConfig, transcribe_vosk_live  # noqa: E402
 
@@ -243,6 +218,7 @@ def run(args: argparse.Namespace) -> int:
                     input_wav=input_wav,
                     audio_device_index=args.audio_device_index,
                     mic_queue_max_blocks=args.mic_queue_max_blocks,
+                    partials_max=args.partials_max,
                     save_partials=not args.no_partials,
                     vad=args.vad,
                     silero_vad=SileroVadConfig(
@@ -327,6 +303,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=32,
         help="Bounded MIC callback queue capacity in audio blocks (1..1024).",
     )
+    parser.add_argument(
+        "--partials-max",
+        type=int,
+        default=1_000,
+        help="Bounded number of partial hypotheses retained in memory (1..10000).",
+    )
     parser.add_argument("--input-wav", help="Optional mono 16 kHz PCM WAV for deterministic smoke runs.")
     parser.add_argument("--duration-sec", type=float, default=None, help="Limit live capture or WAV simulation duration.")
     parser.add_argument("--sample-rate", type=int, default=16_000)
@@ -355,6 +337,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         parser.error("--audio-device-index must be non-negative.")
     if not 1 <= args.mic_queue_max_blocks <= 1_024:
         parser.error("--mic-queue-max-blocks must be in the range 1..1024.")
+    if not 1 <= args.partials_max <= 10_000:
+        parser.error("--partials-max must be in the range 1..10000.")
     if not args.list_audio_sources and not args.preflight_source:
         if not args.meeting_dir:
             parser.error(

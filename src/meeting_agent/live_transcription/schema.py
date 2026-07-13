@@ -4,6 +4,34 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+SOURCE_ARTIFACT_KEYS = {
+    "MIC": {
+        "live_segments": "live_segments_mic",
+        "live_partials": "live_partials_mic",
+        "live_transcript": "live_transcript_mic",
+        "live_srt": "live_srt_mic",
+        "live_vtt": "live_vtt_mic",
+        "live_report": "live_report_mic",
+    },
+    "SYS": {
+        "live_segments": "live_segments_sys",
+        "live_partials": "live_partials_sys",
+        "live_transcript": "live_transcript_sys",
+        "live_srt": "live_srt_sys",
+        "live_vtt": "live_vtt_sys",
+        "live_report": "live_report_sys",
+    },
+    "MIX": {
+        "live_segments": "live_segments_mix",
+        "live_partials": "live_partials_mix",
+        "live_transcript": "live_transcript_mix",
+        "live_srt": "live_srt_mix",
+        "live_vtt": "live_vtt_mix",
+        "live_report": "live_report_mix",
+    },
+}
+
+
 @dataclass(frozen=True)
 class LiveSegment:
     segment_id: str

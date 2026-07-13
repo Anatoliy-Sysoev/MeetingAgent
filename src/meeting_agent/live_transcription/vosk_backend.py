@@ -8,7 +8,7 @@ import wave
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .schema import LiveSegment
 from .vad import (
@@ -39,9 +39,12 @@ class VoskLiveConfig:
     input_wav: Path | None = None
     audio_device_index: int | None = None
     mic_queue_max_blocks: int = 32
+    partials_max: int = 1_000
     save_partials: bool = True
     vad: str = "none"
     silero_vad: SileroVadConfig = SileroVadConfig()
+    stop_event: threading.Event | None = None
+    event_callback: Callable[[str, dict[str, Any]], None] | None = None
 
 
 @dataclass(frozen=True)
@@ -53,6 +56,20 @@ class VoskLiveResult:
 
 class VoskBackendError(RuntimeError):
     pass
+
+
+def _emit_event(config: VoskLiveConfig, event_type: str, payload: dict[str, Any]) -> None:
+    callback = config.event_callback
+    if callback is None:
+        return
+    try:
+        callback(event_type, payload)
+    except Exception as exc:  # noqa: BLE001 - event sink failure must stop capture safely
+        raise VoskBackendError("Live event sink failed") from exc
+
+
+def _stop_requested(config: VoskLiveConfig) -> bool:
+    return config.stop_event is not None and config.stop_event.is_set()
 
 
 def _now_iso() -> str:
@@ -126,6 +143,7 @@ def _accept_block(
     model_label: str,
     segments: list[LiveSegment],
     partials: list[dict[str, Any]],
+    runtime_metrics: dict[str, Any],
     use_word_timestamps: bool = True,
     timestamp_mapper: AcceptedAudioTimeline | None = None,
 ) -> None:
@@ -144,22 +162,28 @@ def _accept_block(
         )
         if segment is not None:
             _append_monotonic_segment(segments, segment)
+            _emit_event(config, "final", segments[-1].to_dict())
     elif config.save_partials:
         partial = json.loads(recognizer.PartialResult())
         text = str(partial.get("partial") or "").strip()
         if text:
-            partials.append(
-                {
-                    "timestamp": _now_iso(),
-                    "start": round(cursor_start, 3),
-                    "end": round(cursor_end, 3),
-                    "text": text,
-                    "source": config.source,
-                    "engine": "vosk",
-                    "model": model_label,
-                    "is_final": False,
-                }
-            )
+            partial = {
+                "timestamp": _now_iso(),
+                "start": round(cursor_start, 3),
+                "end": round(cursor_end, 3),
+                "text": text,
+                "source": config.source,
+                "engine": "vosk",
+                "model": model_label,
+                "is_final": False,
+            }
+            if len(partials) >= config.partials_max:
+                del partials[0]
+                runtime_metrics["partials_dropped"] = int(
+                    runtime_metrics.get("partials_dropped") or 0
+                ) + 1
+            partials.append(partial)
+            _emit_event(config, "partial", dict(partial))
 
 
 def _append_monotonic_segment(
@@ -268,6 +292,7 @@ class _CanonicalStreamConsumer:
                 model_label=self.model_label,
                 segments=self.segments,
                 partials=self.partials,
+                runtime_metrics=self.runtime_metrics,
                 use_word_timestamps=True,
                 timestamp_mapper=self.timeline,
             )
@@ -284,6 +309,8 @@ def transcribe_vosk_live(config: VoskLiveConfig) -> VoskLiveResult:
         raise VoskBackendError("--duration-sec must be positive.")
     if not 1 <= config.mic_queue_max_blocks <= 1_024:
         raise VoskBackendError("--mic-queue-max-blocks must be in the range 1..1024.")
+    if not 1 <= config.partials_max <= 10_000:
+        raise VoskBackendError("partials_max must be in the range 1..10000.")
     if config.vad not in {"none", "silero"}:
         raise VoskBackendError(f"Unsupported VAD mode: {config.vad}")
     if config.source not in {"MIC", "SYS", "MIX"}:
@@ -371,6 +398,7 @@ def transcribe_vosk_live(config: VoskLiveConfig) -> VoskLiveResult:
     )
     if final_segment is not None:
         _append_monotonic_segment(segments, final_segment)
+        _emit_event(config, "final", segments[-1].to_dict())
 
     return VoskLiveResult(
         segments=segments,
@@ -381,6 +409,7 @@ def transcribe_vosk_live(config: VoskLiveConfig) -> VoskLiveResult:
             "input_mode": "wav" if config.input_wav else "capture",
             "vad": config.vad,
             "interrupted": interrupted,
+            "stop_requested": _stop_requested(config),
             **runtime_metrics,
         },
     )
@@ -426,7 +455,7 @@ def _transcribe_wav(
 
         frames_read = 0
         accepted_frames = 0
-        while True:
+        while not _stop_requested(config):
             remaining = frames_per_block
             if frames_limit is not None:
                 remaining = min(remaining, max(0, frames_limit - frames_read))
@@ -459,6 +488,7 @@ def _transcribe_wav(
                 model_label=model_label,
                 segments=segments,
                 partials=partials,
+                runtime_metrics=runtime_metrics,
                 use_word_timestamps=True,
                 timestamp_mapper=timeline,
             )
@@ -618,7 +648,7 @@ def _transcribe_microphone(
                         "output_channels": 1,
                     }
                 )
-                while not capture_complete.is_set():
+                while not capture_complete.is_set() and not _stop_requested(config):
                     try:
                         item = audio_queue.get(timeout=0.5)
                     except queue.Empty:
@@ -792,6 +822,8 @@ def _transcribe_system_loopback(
         try:
             try:
                 for native_block in reader.iter_blocks(config.duration_sec):
+                    if _stop_requested(config):
+                        break
                     accept_canonical(converter.convert(native_block))
             except KeyboardInterrupt:
                 interrupted = True

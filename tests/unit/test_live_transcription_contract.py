@@ -557,6 +557,15 @@ def test_live_cli_discovery_modes_are_mutually_exclusive() -> None:
     assert exc.value.code == 2
 
 
+def test_live_cli_rejects_unbounded_partials() -> None:
+    cli = load_live_cli()
+
+    with pytest.raises(SystemExit) as exc:
+        cli.parse_args(["--list-audio-sources", "--partials-max", "0"])
+
+    assert exc.value.code == 2
+
+
 def test_live_cli_blocks_unavailable_source_without_mutating_meeting(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
@@ -827,6 +836,7 @@ def test_live_cli_passes_silero_vad_config_to_backend(tmp_path: Path, monkeypatc
         seen["threshold"] = config.silero_vad.threshold
         seen["min_speech_ms"] = config.silero_vad.min_speech_ms
         seen["mic_queue_max_blocks"] = config.mic_queue_max_blocks
+        seen["partials_max"] = config.partials_max
         seen["input_wav"] = config.input_wav
         return type(
             "FakeResult",
@@ -861,6 +871,8 @@ def test_live_cli_passes_silero_vad_config_to_backend(tmp_path: Path, monkeypatc
             "300",
             "--mic-queue-max-blocks",
             "7",
+            "--partials-max",
+            "9",
             "--force",
         ]
     )
@@ -871,6 +883,7 @@ def test_live_cli_passes_silero_vad_config_to_backend(tmp_path: Path, monkeypatc
         "threshold": 0.62,
         "min_speech_ms": 300,
         "mic_queue_max_blocks": 7,
+        "partials_max": 9,
         "input_wav": wav_path,
     }
     report = json.loads(
