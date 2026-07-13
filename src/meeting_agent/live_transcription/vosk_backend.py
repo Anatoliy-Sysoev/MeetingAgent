@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import queue
+import threading
 import time
 import wave
 from dataclasses import dataclass, replace
@@ -37,6 +38,7 @@ class VoskLiveConfig:
     duration_sec: float | None = None
     input_wav: Path | None = None
     audio_device_index: int | None = None
+    mic_queue_max_blocks: int = 32
     save_partials: bool = True
     vad: str = "none"
     silero_vad: SileroVadConfig = SileroVadConfig()
@@ -280,6 +282,8 @@ def transcribe_vosk_live(config: VoskLiveConfig) -> VoskLiveResult:
         raise VoskBackendError("--block-ms must be positive.")
     if config.duration_sec is not None and config.duration_sec <= 0:
         raise VoskBackendError("--duration-sec must be positive.")
+    if not 1 <= config.mic_queue_max_blocks <= 1_024:
+        raise VoskBackendError("--mic-queue-max-blocks must be in the range 1..1024.")
     if config.vad not in {"none", "silero"}:
         raise VoskBackendError(f"Unsupported VAD mode: {config.vad}")
     if config.source not in {"MIC", "SYS", "MIX"}:
@@ -497,7 +501,9 @@ def _transcribe_microphone(
             "python -m pip install -r requirements-live.txt"
         ) from exc
 
-    audio_queue: queue.Queue[bytes] = queue.Queue()
+    audio_queue: queue.Queue[TimedAudioBlock] = queue.Queue(
+        maxsize=config.mic_queue_max_blocks
+    )
     frames_per_block = max(1, int(config.sample_rate * config.block_ms / 1000))
     max_frames = int(config.sample_rate * config.duration_sec) if config.duration_sec is not None else None
     consumer = _CanonicalStreamConsumer(
@@ -510,52 +516,211 @@ def _transcribe_microphone(
         runtime_metrics=runtime_metrics,
     )
     interrupted = False
+    callback_frames = 0
+    ignored_after_limit_frames = 0
+    capture_complete = threading.Event()
     runtime_metrics["input_status_events"] = 0
     runtime_metrics["queue_timeouts"] = 0
+    runtime_metrics["mic_queue_capacity_blocks"] = config.mic_queue_max_blocks
+    runtime_metrics["mic_queue_capacity_frames"] = (
+        config.mic_queue_max_blocks * frames_per_block
+    )
+    runtime_metrics["mic_queue_peak_blocks"] = 0
+    runtime_metrics["mic_queue_overflow_events"] = 0
+    runtime_metrics["mic_queue_dropped_blocks"] = 0
+    runtime_metrics["mic_queue_dropped_frames"] = 0
+    runtime_metrics["mic_queue_gap_filled_frames"] = 0
+    runtime_metrics["mic_queue_stale_frames"] = 0
+    runtime_metrics["mic_callback_invalid_blocks"] = 0
+    runtime_metrics["mic_callback_invalid_frames"] = 0
 
     def callback(indata, frames, _time_info, status) -> None:
+        nonlocal callback_frames, ignored_after_limit_frames
         if status:
             runtime_metrics["input_status_events"] += 1
-        audio_queue.put(bytes(indata))
+        data = bytes(indata)
+        actual_frames = len(data) // 2 if len(data) % 2 == 0 else 0
+        reported_frames = (
+            frames
+            if isinstance(frames, int) and not isinstance(frames, bool) and frames > 0
+            else actual_frames
+        )
+        span_frames = max(reported_frames, actual_frames)
+        if capture_complete.is_set():
+            ignored_after_limit_frames += span_frames
+            return
+        remaining_frames = (
+            max_frames - callback_frames if max_frames is not None else span_frames
+        )
+        accepted_span_frames = min(span_frames, max(0, remaining_frames))
+        ignored_after_limit_frames += max(0, span_frames - accepted_span_frames)
+        start_frame = callback_frames
+        callback_frames += accepted_span_frames
+        if max_frames is not None and callback_frames >= max_frames:
+            capture_complete.set()
+        if (
+            reported_frames <= 0
+            or actual_frames != reported_frames
+            or len(data) % 2
+        ):
+            runtime_metrics["mic_callback_invalid_blocks"] += 1
+            runtime_metrics["mic_callback_invalid_frames"] += accepted_span_frames
+            return
+        accepted_frames = min(reported_frames, accepted_span_frames)
+        if accepted_frames <= 0:
+            return
+        item = TimedAudioBlock(
+            data=data[: accepted_frames * 2],
+            start_frame=start_frame,
+            end_frame=start_frame + accepted_frames,
+        )
+        try:
+            audio_queue.put_nowait(item)
+        except queue.Full:
+            runtime_metrics["mic_queue_overflow_events"] += 1
+            try:
+                dropped = audio_queue.get_nowait()
+            except queue.Empty:
+                dropped = None
+            if dropped is not None:
+                runtime_metrics["mic_queue_dropped_blocks"] += 1
+                runtime_metrics["mic_queue_dropped_frames"] += (
+                    dropped.end_frame - dropped.start_frame
+                )
+            try:
+                audio_queue.put_nowait(item)
+            except queue.Full:
+                runtime_metrics["mic_queue_dropped_blocks"] += 1
+                runtime_metrics["mic_queue_dropped_frames"] += accepted_frames
+                return
+        runtime_metrics["mic_queue_peak_blocks"] = max(
+            runtime_metrics["mic_queue_peak_blocks"],
+            audio_queue.qsize(),
+        )
 
     try:
-        with sd.RawInputStream(
-            samplerate=config.sample_rate,
-            blocksize=frames_per_block,
-            dtype="int16",
-            channels=1,
-            device=config.audio_device_index,
-            callback=callback,
-        ):
-            runtime_metrics.update(
-                {
-                    "capture_backend": "sounddevice",
-                    "input_device_index": config.audio_device_index,
-                    "input_sample_rate": config.sample_rate,
-                    "input_channels": 1,
-                    "output_sample_rate": config.sample_rate,
-                    "output_channels": 1,
-                }
-            )
-            try:
-                while max_frames is None or consumer.input_frames < max_frames:
+        try:
+            with sd.RawInputStream(
+                samplerate=config.sample_rate,
+                blocksize=frames_per_block,
+                dtype="int16",
+                channels=1,
+                device=config.audio_device_index,
+                callback=callback,
+            ):
+                runtime_metrics.update(
+                    {
+                        "capture_backend": "sounddevice",
+                        "input_device_index": config.audio_device_index,
+                        "input_sample_rate": config.sample_rate,
+                        "input_channels": 1,
+                        "output_sample_rate": config.sample_rate,
+                        "output_channels": 1,
+                    }
+                )
+                while not capture_complete.is_set():
                     try:
-                        block = audio_queue.get(timeout=0.5)
+                        item = audio_queue.get(timeout=0.5)
                     except queue.Empty:
                         runtime_metrics["queue_timeouts"] += 1
                         continue
-                    if not block:
-                        continue
-                    if max_frames is not None:
-                        remaining = max_frames - consumer.input_frames
-                        block = block[: remaining * 2]
-                    consumer.consume(block)
-            except KeyboardInterrupt:
-                interrupted = True
-            consumer.close()
+                    _consume_timed_microphone_block(
+                        consumer,
+                        item,
+                        max_frames=max_frames,
+                        silence_chunk_frames=frames_per_block,
+                        runtime_metrics=runtime_metrics,
+                    )
+        except KeyboardInterrupt:
+            interrupted = True
+
+        while True:
+            try:
+                item = audio_queue.get_nowait()
+            except queue.Empty:
+                break
+            _consume_timed_microphone_block(
+                consumer,
+                item,
+                max_frames=max_frames,
+                silence_chunk_frames=frames_per_block,
+                runtime_metrics=runtime_metrics,
+            )
+        target_frames = callback_frames
+        if max_frames is not None:
+            target_frames = min(target_frames, max_frames)
+        _fill_microphone_gap(
+            consumer,
+            target_frames,
+            silence_chunk_frames=frames_per_block,
+            runtime_metrics=runtime_metrics,
+        )
+        consumer.close()
     finally:
         runtime_metrics["interrupted"] = interrupted
+        runtime_metrics["mic_callback_frames"] = callback_frames
+        runtime_metrics["mic_ignored_after_limit_frames"] = ignored_after_limit_frames
+        runtime_metrics["mic_queue_capacity_seconds"] = round(
+            runtime_metrics["mic_queue_capacity_frames"] / config.sample_rate,
+            3,
+        )
+        runtime_metrics["mic_queue_dropped_seconds"] = round(
+            runtime_metrics["mic_queue_dropped_frames"] / config.sample_rate,
+            3,
+        )
+        runtime_metrics["mic_queue_gap_filled_seconds"] = round(
+            runtime_metrics["mic_queue_gap_filled_frames"] / config.sample_rate,
+            3,
+        )
     return consumer.input_frames / config.sample_rate
+
+
+def _consume_timed_microphone_block(
+    consumer: _CanonicalStreamConsumer,
+    item: TimedAudioBlock,
+    *,
+    max_frames: int | None,
+    silence_chunk_frames: int,
+    runtime_metrics: dict[str, Any],
+) -> None:
+    target_start = item.start_frame
+    target_end = item.end_frame
+    if max_frames is not None:
+        target_start = min(target_start, max_frames)
+        target_end = min(target_end, max_frames)
+    _fill_microphone_gap(
+        consumer,
+        target_start,
+        silence_chunk_frames=silence_chunk_frames,
+        runtime_metrics=runtime_metrics,
+    )
+    overlap_frames = max(
+        0,
+        min(target_end, consumer.input_frames) - target_start,
+    )
+    runtime_metrics["mic_queue_stale_frames"] += overlap_frames
+    if target_end <= consumer.input_frames:
+        return
+    start_frame = max(target_start, consumer.input_frames)
+    offset = (start_frame - item.start_frame) * 2
+    end_offset = (target_end - item.start_frame) * 2
+    consumer.consume(item.data[offset:end_offset])
+
+
+def _fill_microphone_gap(
+    consumer: _CanonicalStreamConsumer,
+    target_frame: int,
+    *,
+    silence_chunk_frames: int,
+    runtime_metrics: dict[str, Any],
+) -> None:
+    while consumer.input_frames < target_frame:
+        frames = min(
+            silence_chunk_frames,
+            target_frame - consumer.input_frames,
+        )
+        consumer.consume(b"\x00\x00" * frames)
+        runtime_metrics["mic_queue_gap_filled_frames"] += frames
 
 
 def _transcribe_system_loopback(

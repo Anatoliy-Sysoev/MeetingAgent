@@ -316,7 +316,17 @@ VAD modes:
   `idle_input_frames` и `idle_seconds`.
 - MIC+SYS mixing ещё не реализован: live `MIX` без `--input-wav` fail closed и
   не маскируется под MIC.
-- Микрофонный runtime пишет в `live_report.<SOURCE>.json` счетчики `input_status_events` и `queue_timeouts`; ненулевые значения нужно смотреть при диагностике overflow/dropout.
+- MIC callback использует ограниченную очередь `--mic-queue-max-blocks`
+  (по умолчанию 32 блока) и никогда не ждёт Vosk/Silero. При переполнении
+  удаляется самый старый ожидающий блок, сохраняется самый новый, а consumer
+  добавляет эквивалентную тишину по абсолютным frame offsets. Поэтому очередь
+  ограничена, а последующие таймкоды не сжимаются.
+- Микрофонный runtime пишет в `live_report.MIC.json` `mic_queue_capacity_*`,
+  `mic_queue_peak_blocks`, `mic_queue_overflow_events`,
+  `mic_queue_dropped_blocks/frames/seconds`, `mic_queue_gap_filled_*`,
+  `mic_queue_stale_frames`, `input_status_events` и `queue_timeouts`. Потеря
+  аудио также поднимает warning `mic_audio_dropped`; PortAudio status events —
+  `mic_input_status_events`.
 
 ### 5. Optional Speaker Diarization
 

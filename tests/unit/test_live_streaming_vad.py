@@ -257,6 +257,58 @@ class _OneResultRecognizer:
         return '{"partial":""}'
 
 
+class _DropSilenceFilter:
+    window_frames = 512
+
+    def __init__(self) -> None:
+        self.input_frames = 0
+        self.accepted_frames = 0
+        self.short_speech_dropped = 0
+        self.speech_windows: list[SpeechWindow] = []
+        self.warnings: list[str] = []
+
+    @property
+    def filtered_frames(self) -> int:
+        return self.input_frames - self.accepted_frames
+
+    def process(self, block: bytes) -> list[TimedAudioBlock]:
+        start = self.input_frames
+        frames = len(block) // 2
+        self.input_frames += frames
+        if not any(block):
+            return []
+        self.accepted_frames += frames
+        window = SpeechWindow(start / 16_000, self.input_frames / 16_000)
+        self.speech_windows.append(window)
+        return [TimedAudioBlock(block, start, self.input_frames)]
+
+    def close(self) -> list[TimedAudioBlock]:
+        return []
+
+
+class _CumulativeRecognizer:
+    def __init__(self) -> None:
+        self.accepted_frames = 0
+        self._result = '{"text":""}'
+
+    def AcceptWaveform(self, block: bytes) -> bool:
+        frames = len(block) // 2
+        start = self.accepted_frames / 16_000
+        self.accepted_frames += frames
+        end = self.accepted_frames / 16_000
+        self._result = (
+            '{"text":"речь","result":['
+            f'{{"word":"речь","start":{start},"end":{end},"conf":0.9}}]}}'
+        )
+        return True
+
+    def Result(self) -> str:
+        return self._result
+
+    def PartialResult(self) -> str:
+        return '{"partial":""}'
+
+
 def test_microphone_and_system_streams_share_original_timeline_contract(
     tmp_path: Path,
     monkeypatch,
@@ -445,3 +497,116 @@ def test_input_wav_silero_behavior_remains_offline_and_wall_clock_aligned(
     assert metrics["vad_streaming"] is False
     assert metrics["vad_input_frames"] == 1024
     assert metrics["vad_accepted_frames"] == 512
+
+
+def test_microphone_backpressure_is_bounded_and_preserves_wall_clock(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    blocks = [_window(index) for index in range(1, 21)]
+
+    class BurstStream:
+        def __init__(self, callback) -> None:
+            self.callback = callback
+
+        def __enter__(self):
+            for block in blocks:
+                self.callback(block, 512, None, None)
+            return self
+
+        def __exit__(self, *_args) -> None:
+            return None
+
+    fake_sounddevice = SimpleNamespace(
+        RawInputStream=lambda **kwargs: BurstStream(kwargs["callback"])
+    )
+    monkeypatch.setitem(sys.modules, "sounddevice", fake_sounddevice)
+    monkeypatch.setattr(
+        vosk_backend,
+        "create_streaming_silero_filter",
+        lambda **_kwargs: _DropSilenceFilter(),
+    )
+    recognizer = _CumulativeRecognizer()
+    metrics: dict = {}
+    segments = []
+
+    duration = vosk_backend._transcribe_microphone(
+        VoskLiveConfig(
+            model_path=tmp_path,
+            source="MIC",
+            duration_sec=0.32,
+            block_ms=32,
+            mic_queue_max_blocks=2,
+            vad="silero",
+        ),
+        recognizer,
+        "synthetic-vosk",
+        segments,
+        [],
+        metrics,
+        AcceptedAudioTimeline(16_000),
+    )
+
+    assert duration == pytest.approx(0.32)
+    assert [(item.start, item.end) for item in segments] == [
+        (0.256, 0.288),
+        (0.288, 0.32),
+    ]
+    assert metrics["mic_queue_capacity_blocks"] == 2
+    assert metrics["mic_queue_peak_blocks"] == 2
+    assert metrics["mic_queue_overflow_events"] == 8
+    assert metrics["mic_queue_dropped_blocks"] == 8
+    assert metrics["mic_queue_dropped_frames"] == 4096
+    assert metrics["mic_queue_gap_filled_frames"] == 4096
+    assert metrics["mic_queue_stale_frames"] == 0
+    assert metrics["mic_callback_frames"] == 5120
+    assert metrics["mic_ignored_after_limit_frames"] == 5120
+    assert metrics["mic_queue_capacity_seconds"] == pytest.approx(0.064)
+    assert metrics["mic_queue_dropped_seconds"] == pytest.approx(0.256)
+    assert metrics["mic_queue_gap_filled_seconds"] == pytest.approx(0.256)
+
+
+def test_microphone_backpressure_finalizes_after_keyboard_interrupt(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    block = _window(1)
+
+    class InterruptingStream:
+        def __init__(self, callback) -> None:
+            self.callback = callback
+
+        def __enter__(self):
+            self.callback(block, 512, None, None)
+            raise KeyboardInterrupt
+
+        def __exit__(self, *_args) -> None:
+            return None
+
+    fake_sounddevice = SimpleNamespace(
+        RawInputStream=lambda **kwargs: InterruptingStream(kwargs["callback"])
+    )
+    monkeypatch.setitem(sys.modules, "sounddevice", fake_sounddevice)
+    recognizer = _CumulativeRecognizer()
+    metrics: dict = {}
+    segments = []
+
+    duration = vosk_backend._transcribe_microphone(
+        VoskLiveConfig(
+            model_path=tmp_path,
+            source="MIC",
+            block_ms=32,
+            mic_queue_max_blocks=1,
+        ),
+        recognizer,
+        "synthetic-vosk",
+        segments,
+        [],
+        metrics,
+    )
+
+    assert duration == pytest.approx(0.032)
+    assert [(item.start, item.end) for item in segments] == [(0.0, 0.032)]
+    assert metrics["interrupted"] is True
+    assert metrics["mic_callback_frames"] == 512
+    assert metrics["mic_queue_dropped_frames"] == 0
