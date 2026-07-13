@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
-from typing import Annotated
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 ROOT = Path(__file__).resolve().parents[3]
 SRC = ROOT / "src"
@@ -131,6 +131,98 @@ def test_sanitize_redacts_nested_sensitive_field() -> None:
     assert result[0]["msg"] == "Field value redacted for security"
 
 
+def test_sanitize_ctx_recursively_drops_exceptions_paths_and_sensitive_values() -> None:
+    nested: dict[str, object] = {
+        "limits": [1, 2, {"note": "safe", "token": "TOP-SECRET"}],
+        "error": ValueError("TOP-SECRET at C:/Users/private/.env"),
+        "source_path": "C:/Users/private/.env",
+        "not_finite": float("nan"),
+        "opaque": object(),
+    }
+    nested["cycle"] = nested
+    errors = [
+        {
+            "loc": ("body",),
+            "type": "value_error",
+            "msg": "Value error, TOP-SECRET at C:/Users/private/.env",
+            "ctx": {"nested": nested, "other": "keep"},
+        }
+    ]
+
+    result = _sanitize_validation_errors(errors)
+    serialized = json.dumps(result, allow_nan=False)
+
+    assert result[0]["msg"] == "Value does not satisfy validation rules"
+    assert result[0]["ctx"]["other"] == "keep"
+    assert result[0]["ctx"]["nested"]["limits"] == [1, 2, {"note": "safe"}]
+    assert "TOP-SECRET" not in serialized
+    assert "Users/private" not in serialized
+    assert "source_path" not in serialized
+    assert "not_finite" not in serialized
+    assert "opaque" not in serialized
+    assert "cycle" not in serialized
+
+
+def test_sanitize_ctx_bounds_nested_collections() -> None:
+    errors = [
+        {
+            "loc": ("body", "items"),
+            "type": "too_many",
+            "msg": "Too many values",
+            "ctx": {"items": list(range(100))},
+        }
+    ]
+
+    result = _sanitize_validation_errors(errors)
+
+    assert result[0]["ctx"]["items"] == list(range(32))
+
+
+def test_safe_builtin_validation_context_and_message_remain_compatible() -> None:
+    errors = [
+        {
+            "loc": ("body", "count"),
+            "type": "greater_than",
+            "msg": "Input should be greater than 3",
+            "ctx": {"gt": 3},
+        }
+    ]
+
+    result = _sanitize_validation_errors(errors)
+
+    assert result == [
+        {
+            "loc": ("body", "count"),
+            "type": "greater_than",
+            "msg": "Input should be greater than 3",
+            "ctx": {"gt": 3},
+        }
+    ]
+
+
+def test_sensitive_custom_ctx_cannot_leak_through_formatted_message() -> None:
+    errors = [
+        {
+            "loc": ("body", "profile"),
+            "type": "custom_policy_error",
+            "msg": "Policy rejected TOP-SECRET-CUSTOM-VALUE",
+            "ctx": {
+                "metadata": {
+                    "api_key": "TOP-SECRET-CUSTOM-VALUE",
+                    "policy": "public-policy",
+                }
+            },
+        }
+    ]
+
+    result = _sanitize_validation_errors(errors)
+    serialized = json.dumps(result)
+
+    assert result[0]["msg"] == "Value does not satisfy validation rules"
+    assert result[0]["ctx"] == {"metadata": {"policy": "public-policy"}}
+    assert "TOP-SECRET-CUSTOM-VALUE" not in serialized
+
+
 # ---------------------------------------------------------------------------
 # Integration: validation error handler via TestClient
 # ---------------------------------------------------------------------------
@@ -138,6 +230,14 @@ def test_sanitize_redacts_nested_sensitive_field() -> None:
 class _LoginBody(BaseModel):
     username: str
     password: str
+
+
+class _ModelValidatorSecretBody(BaseModel):
+    secret: str
+
+    @model_validator(mode="after")
+    def reject_secret(self) -> "_ModelValidatorSecretBody":
+        raise ValueError(f"rejected {self.secret} at C:/Users/private/.env")
 
 
 def test_validation_error_does_not_expose_password_input() -> None:
@@ -198,3 +298,28 @@ def test_validation_error_omits_pydantic_input_field() -> None:
     assert resp.status_code == 422
     for err in resp.json()["details"]:
         assert "input" not in err
+
+
+def test_model_validator_value_error_returns_secret_free_422() -> None:
+    app = FastAPI()
+    app.middleware("http")(request_context_middleware)
+    register_error_handlers(app)
+
+    @app.post("/model-validator")
+    def model_validator_route(body: _ModelValidatorSecretBody) -> dict:
+        return {}
+
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.post(
+        "/model-validator",
+        json={"secret": "TOP-SECRET-MODEL-VALUE"},
+    )
+
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["error_code"] == "validation_error"
+    assert payload["details"][0]["msg"] == "Value does not satisfy validation rules"
+    assert "input" not in payload["details"][0]
+    assert "error" not in payload["details"][0].get("ctx", {})
+    assert "TOP-SECRET-MODEL-VALUE" not in response.text
+    assert "Users/private" not in response.text

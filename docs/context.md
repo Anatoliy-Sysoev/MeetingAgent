@@ -4,15 +4,22 @@
 
 ## Now
 
-- MA-LIVE-MEETING-CREATION (#223) is implemented on its review branch:
-  editors can create a schema-valid live-only card from `/MeetingAgent`, open
-  Workspace directly and run MIC/SYS preflight without uploading fake media.
-- canonical main: `fee4811` / `Enforce live and offline meeting work coordination (#229)`.
-- Next confirmed work after #223: validation ctx sanitization #227.
+- API-VALIDATION-CTX-SANITIZATION (#227) is implemented on its review branch:
+  nested Pydantic context is converted to a bounded JSON-safe allowlist shape;
+  exceptions, secrets and local locations cannot turn a controlled 422 into a
+  serialization 500 or leak through a custom validator message.
+- canonical main: `53ee593` / `Create live-only meetings from the browser (#230)`.
+- Next work after #227 should be selected from the remaining audited issues;
+  live MIC+SYS derived mixing and the admin product surface remain explicit gaps.
   History purge #167 remains gated by explicit owner approval and backup.
 
 ## Done latest
 
+- API-VALIDATION-CTX-SANITIZATION (#227): recursive bounded validation-context
+  sanitization drops exceptions, non-finite/non-JSON objects, sensitive keys
+  and local locations; exception/input-derived messages become stable generic
+  text while normal built-in validation messages and safe numeric context stay
+  compatible.
 - MA-LIVE-MEETING-CREATION (#223): added CSRF/RBAC-protected `POST /meetings/live`,
   collision-safe atomic card publication, language/source-kind public metadata,
   a `/MeetingAgent` create-and-open flow and browser coverage through Workspace
