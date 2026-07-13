@@ -347,8 +347,28 @@ def test_microphone_and_system_streams_share_original_timeline_contract(
         def flush(self) -> bytes:
             return b""
 
+    class FixedReader:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
+        def iter_blocks(self, duration_sec):
+            assert duration_sec == 0.064
+            yield first
+            yield second
+
+        def metrics(self) -> dict:
+            return {
+                "availability_checks": 2,
+                "availability_errors": 0,
+                "read_calls": 2,
+                "read_errors": 0,
+                "idle_input_frames": 0,
+                "idle_seconds": 0.0,
+            }
+
     monkeypatch.setattr(vosk_backend, "open_wasapi_loopback_stream", fake_open)
     monkeypatch.setattr(vosk_backend, "Pcm16MonoResampler", IdentityConverter)
+    monkeypatch.setattr(vosk_backend, "LoopbackBlockReader", FixedReader)
 
     sys_segments = []
     sys_metrics: dict = {}
