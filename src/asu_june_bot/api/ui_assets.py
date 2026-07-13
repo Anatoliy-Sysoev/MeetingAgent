@@ -15,6 +15,7 @@ MAX_UI_ASSET_BYTES = 1024 * 1024
 _TEMPLATES = MappingProxyType(
     {
         "bot.html": UI_TEMPLATES_DIR / "bot.html",
+        "admin.html": UI_TEMPLATES_DIR / "admin.html",
         "meetingagent.html": UI_TEMPLATES_DIR / "meetingagent.html",
         "workspace.html": UI_TEMPLATES_DIR / "workspace.html",
     }
@@ -25,6 +26,8 @@ _ASSETS = MappingProxyType(
         for name in (
             "bot.css",
             "bot.js",
+            "admin.css",
+            "admin.js",
             "meetingagent.css",
             "meetingagent.js",
             "workspace.css",

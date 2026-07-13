@@ -21,7 +21,6 @@ from asu_june_bot.auth.repository import (
     DuplicateEmailError,
     FirstAdminExistsError,
     LastActiveAdminError,
-    UserNotFoundError as RepoUserNotFoundError,
 )
 
 DEFAULT_SESSION_TTL_SECONDS = 24 * 3600
@@ -290,6 +289,9 @@ class AdminService:
     def list_users(self, offset: int = 0, limit: int = 100) -> list[dict]:
         users = self.repository.list_users(offset=offset, limit=limit)
         return [self._user_payload(u) for u in users]
+
+    def count_users(self) -> int:
+        return self.repository.count_users()
 
     def get_user(self, user_id: str) -> dict | None:
         user = self.repository.get_user(user_id)

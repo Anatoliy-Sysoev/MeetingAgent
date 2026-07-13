@@ -9,8 +9,10 @@ Issue: #40.
 The MeetingAgent admin console is the operator surface for users, roles,
 access, runtime health, jobs, audit, and controlled destructive operations.
 
-This document is the product/API contract. It does not by itself implement a
-new production UI page.
+The first production slice is implemented at `/admin`: users/roles lifecycle
+and redacted deployment/bootstrap safety status. Jobs, audit, runtime settings
+and destructive meeting administration remain later independently reviewed
+slices.
 
 ## Access Model
 
@@ -69,6 +71,15 @@ POST  /admin/users/{user_id}/disable
 POST  /admin/users/{user_id}/enable
 ```
 
+Current UI coverage:
+
+- bounded 25-row pages with the real total count;
+- create local users with built-in roles;
+- edit display name and roles;
+- explicit confirmation before enable/disable;
+- browser-session CSRF on every mutation;
+- last-active-admin conflicts rendered as controlled errors.
+
 ### 2. Access Settings
 
 Purpose: show auth mode and provider readiness without leaking secrets.
@@ -87,6 +98,13 @@ Current API coverage:
 ```text
 GET /admin/security/status
 ```
+
+Current UI coverage:
+
+- deployment mode and safe finding counts;
+- redacted bootstrap policy flags (remote allowed, secret configured, first
+  admin created) without returning the secret;
+- trusted proxy configured/count summary without local paths.
 
 Planned API:
 

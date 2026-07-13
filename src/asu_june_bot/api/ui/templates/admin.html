@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MeetingAgent Admin</title>
+  <link rel="stylesheet" href="/assets/v1/admin.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-block">
+      <a class="brand" href="/MeetingAgent">MeetingAgent</a>
+      <span class="section-name">Администрирование</span>
+    </div>
+    <nav class="product-nav" aria-label="Разделы продукта">
+      <a href="/MeetingAgent">Встречи</a>
+      <a href="/ui">Джун бот</a>
+      <a class="active" href="/admin" aria-current="page">Доступ</a>
+    </nav>
+    <div class="session-block">
+      <span id="session-user">Проверка сессии...</span>
+      <button id="logout-btn" type="button">Выйти</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="page-message" class="message" role="status" hidden></div>
+
+    <section class="page-section" aria-labelledby="security-title">
+      <div class="section-heading">
+        <div>
+          <h1 id="security-title">Состояние безопасности</h1>
+          <p>Текущая конфигурация локального развертывания.</p>
+        </div>
+        <button id="refresh-btn" type="button" title="Обновить данные">Обновить</button>
+      </div>
+      <div id="security-summary" class="summary-grid" aria-live="polite">
+        <div class="summary-cell"><span>Режим</span><strong id="security-mode">...</strong></div>
+        <div class="summary-cell"><span>Ошибки</span><strong id="security-errors">...</strong></div>
+        <div class="summary-cell"><span>Предупреждения</span><strong id="security-warnings">...</strong></div>
+        <div class="summary-cell"><span>Bootstrap</span><strong id="security-bootstrap">...</strong></div>
+        <div class="summary-cell"><span>Trusted proxy</span><strong id="security-proxy">...</strong></div>
+      </div>
+      <div class="table-wrap findings-wrap">
+        <table>
+          <thead><tr><th>Уровень</th><th>Проверка</th><th>Состояние</th></tr></thead>
+          <tbody id="security-findings"></tbody>
+        </table>
+      </div>
+      <div id="security-empty" class="empty" hidden>Замечаний конфигурации нет.</div>
+    </section>
+
+    <section class="page-section" aria-labelledby="users-title">
+      <div class="section-heading">
+        <div>
+          <h2 id="users-title">Пользователи и роли</h2>
+          <p id="users-total">Загрузка...</p>
+        </div>
+        <button id="create-user-btn" class="primary" type="button">Создать пользователя</button>
+      </div>
+      <div class="table-wrap">
+        <table class="users-table">
+          <thead>
+            <tr>
+              <th>Пользователь</th>
+              <th>Роли</th>
+              <th>Статус</th>
+              <th>Последний вход</th>
+              <th>Обновлён</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody id="users-body"></tbody>
+        </table>
+      </div>
+      <div id="users-empty" class="empty" hidden>Пользователи не найдены.</div>
+      <div class="pagination">
+        <button id="users-prev" type="button">Назад</button>
+        <span id="users-page">Страница 1</span>
+        <button id="users-next" type="button">Вперёд</button>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="create-user-dialog">
+    <form id="create-user-form">
+      <div class="dialog-heading">
+        <h2>Новый пользователь</h2>
+        <button class="icon-btn" data-close-dialog="create-user-dialog" type="button" aria-label="Закрыть">&#215;</button>
+      </div>
+      <label>Email
+        <input id="create-email" type="email" autocomplete="off" maxlength="320" required />
+      </label>
+      <label>Отображаемое имя
+        <input id="create-display-name" type="text" autocomplete="off" maxlength="200" />
+      </label>
+      <label>Временный пароль
+        <input id="create-password" type="password" autocomplete="new-password" minlength="8" maxlength="1024" required />
+      </label>
+      <fieldset>
+        <legend>Роли</legend>
+        <label class="check-label"><input name="create-role" type="checkbox" value="viewer" checked /> Viewer</label>
+        <label class="check-label"><input name="create-role" type="checkbox" value="editor" /> Editor</label>
+        <label class="check-label"><input name="create-role" type="checkbox" value="admin" /> Admin</label>
+      </fieldset>
+      <div id="create-user-error" class="form-error" role="alert"></div>
+      <div class="dialog-actions">
+        <button data-close-dialog="create-user-dialog" type="button">Отмена</button>
+        <button class="primary" type="submit">Создать</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="edit-user-dialog">
+    <form id="edit-user-form">
+      <div class="dialog-heading">
+        <div><h2>Параметры пользователя</h2><p id="edit-user-email"></p></div>
+        <button class="icon-btn" data-close-dialog="edit-user-dialog" type="button" aria-label="Закрыть">&#215;</button>
+      </div>
+      <input id="edit-user-id" type="hidden" />
+      <label>Отображаемое имя
+        <input id="edit-display-name" type="text" autocomplete="off" maxlength="200" />
+      </label>
+      <fieldset>
+        <legend>Роли</legend>
+        <label class="check-label"><input name="edit-role" type="checkbox" value="viewer" /> Viewer</label>
+        <label class="check-label"><input name="edit-role" type="checkbox" value="editor" /> Editor</label>
+        <label class="check-label"><input name="edit-role" type="checkbox" value="admin" /> Admin</label>
+      </fieldset>
+      <div id="edit-user-error" class="form-error" role="alert"></div>
+      <div class="dialog-actions">
+        <button data-close-dialog="edit-user-dialog" type="button">Отмена</button>
+        <button class="primary" type="submit">Сохранить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="status-dialog">
+    <div class="dialog-heading">
+      <h2 id="status-dialog-title">Изменить статус</h2>
+      <button class="icon-btn" data-close-dialog="status-dialog" type="button" aria-label="Закрыть">&#215;</button>
+    </div>
+    <p id="status-dialog-detail"></p>
+    <div id="status-dialog-error" class="form-error" role="alert"></div>
+    <div class="dialog-actions">
+      <button data-close-dialog="status-dialog" type="button">Отмена</button>
+      <button id="status-confirm-btn" class="danger" type="button">Подтвердить</button>
+    </div>
+  </dialog>
+
+  <script src="/assets/v1/admin.js" defer></script>
+</body>
+</html>

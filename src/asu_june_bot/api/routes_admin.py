@@ -48,12 +48,12 @@ class CreateUserRequest(BaseModel):
     email: str = Field(..., min_length=1, max_length=320)
     password: str = Field(..., min_length=8, max_length=1024)
     display_name: str | None = Field(None, max_length=200)
-    roles: list[str] = Field(default_factory=list)
+    roles: list[str] = Field(default_factory=list, max_length=3)
 
 
 class UpdateUserRequest(BaseModel):
-    display_name: str | None = None
-    roles: list[str] | None = None
+    display_name: str | None = Field(default=None, max_length=200)
+    roles: list[str] | None = Field(default=None, max_length=3)
 
 
 # ------------------------------------------------------------------
@@ -129,7 +129,12 @@ def list_users(
 ) -> dict:
     admin_service: AdminService = _get_admin_service(request)
     users = admin_service.list_users(offset=offset, limit=limit)
-    return {"users": users, "total": len(users), "offset": offset, "limit": limit}
+    return {
+        "users": users,
+        "total": admin_service.count_users(),
+        "offset": offset,
+        "limit": limit,
+    }
 
 
 @router.get("/users/{user_id}")
@@ -227,6 +232,8 @@ def security_status(
     trusted_cidrs: list[str] = getattr(
         request.app.state.asu_june_bot, "trusted_proxy_cidrs", []
     ) or []
+    bootstrap_policy: BootstrapPolicy = request.app.state.asu_june_bot.bootstrap_policy
+    admin_service: AdminService = _get_admin_service(request)
     return {
         "deployment_mode": mode,
         "findings": [
@@ -243,6 +250,11 @@ def security_status(
         "trusted_proxy_policy": {
             "configured": len(trusted_cidrs) > 0,
             "count": len(trusted_cidrs),
+        },
+        "bootstrap_policy": {
+            "remote_allowed": bootstrap_policy.allow_remote,
+            "secret_configured": bootstrap_policy.is_secret_configured(),
+            "first_admin_created": admin_service.count_users() > 0,
         },
     }
 
