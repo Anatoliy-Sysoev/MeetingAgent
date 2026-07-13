@@ -1111,3 +1111,30 @@ Project Knowledge Bot сервисами и сохраняет прежние HT
 - `/health`, `/MeetingAgent`, `/meetings/*`, `/auth/*` и `/admin/*` сохраняют
   контракты; `/search`, `/chat`, `/ui` доступны только в integrated runtime;
 - удаление compatibility bridge отложено до Phase 5.
+
+## 2026-07-13 - GigaAM Имеет Изолированный Inference-Only Lock
+
+Решение: GigaAM работает в отдельном Windows/Python 3.12 CPU environment по
+`constraints-gigaam-py312-windows.txt` и source revision
+`6e4b027c6fb554e09e8b9059b757a175295ab879`. Exact graph фиксирует NumPy 2.5.1,
+ONNX 1.22.0, ONNX Runtime 1.23.2, Torch 2.13.0+cpu и TorchAudio 2.11.0+cpu.
+
+Почему:
+
+- upstream metadata требует ONNX 1.19.*, но эта линия содержит известные 2026
+  advisory; inference-only путь проверен на исправленном ONNX 1.22.0;
+- core, diarization и live имеют другие dependency profiles, поэтому смешивание
+  сред создаёт трудно диагностируемый Torch/ONNX drift;
+- clean install и `pip check` подтверждают exact resolver graph;
+- реальный `v3_e2e_rnnt` загружается из ASCII-cache и одинаково распознаёт
+  детерминированный short-speech фрагмент на новом runtime;
+- `gigaam.onnx_utils` импортируется, но экспорт моделей в ONNX не является
+  поддерживаемым MeetingAgent product path.
+
+Следствия:
+
+- GigaAM lock имеет отдельный scheduled audit job и не попадает в core lock;
+- модель, cache, private WAV и transcript outputs никогда не коммитятся;
+- при отключённых Windows long paths используется короткий venv path;
+- изменение source revision или ONNX/Torch pins требует повторного clean
+  install, advisory audit, model-load и short-speech smoke.

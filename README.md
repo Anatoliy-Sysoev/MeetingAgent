@@ -456,7 +456,8 @@ rows in the DOM. Every MIC/SYS/MIX live artifact remains permanently in
 The Docker setup packages the integrated local API, an optional independent
 MeetingAgent Core profile, the optional Telegram adapter, and an optional
 diarization/meeting-processing profile. GigaAM is intentionally not included in
-the main image.
+the main image; use its reviewed isolated Python 3.12 environment from the
+[GigaAM runbook](docs/operations/GIGAAM_TRANSCRIPTION.md).
 
 ```powershell
 Copy-Item .env.example .env
