@@ -125,6 +125,8 @@
 - [x] API-VALIDATION-CTX-SANITIZATION (#227): recursively sanitize non-JSON
   Pydantic validation context so malformed requests return bounded 422, not 500;
   exception-derived/custom sensitive messages and local paths are redacted.
+- [x] MA-CI-ACTIONS-NODE24 (#220): upgrade all official workflow actions to
+  reviewed Node 24-compatible majors and prevent stale refs with a contract test.
 - [x] MA-LIVE-LOOPBACK-IDLE-SAFETY (#213): make bounded SYS capture and Ctrl+C
   interruptible when the Windows output device emits no loopback packets.
 - [x] MA-LIVE-DEPENDENCY-LOCK (#214): exact CPU-only Python 3.12 Windows/Linux

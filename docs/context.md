@@ -4,17 +4,20 @@
 
 ## Now
 
-- API-VALIDATION-CTX-SANITIZATION (#227) is implemented on its review branch:
-  nested Pydantic context is converted to a bounded JSON-safe allowlist shape;
-  exceptions, secrets and local locations cannot turn a controlled 422 into a
-  serialization 500 or leak through a custom validator message.
-- canonical main: `53ee593` / `Create live-only meetings from the browser (#230)`.
-- Next work after #227 should be selected from the remaining audited issues;
-  live MIC+SYS derived mixing and the admin product surface remain explicit gaps.
-  History purge #167 remains gated by explicit owner approval and backup.
+- MA-CI-ACTIONS-NODE24 (#220) upgrades every official GitHub Action to its
+  reviewed Node 24-compatible major and adds a repository-wide regression
+  contract for workflow action references.
+- canonical main before this task: `7081e2c` / `Sanitize nested API validation
+  context (#231)`.
+- History purge #167 remains gated by explicit owner approval and backup; live
+  MIC+SYS derived mixing and the admin product surface remain explicit gaps.
 
 ## Done latest
 
+- MA-CI-ACTIONS-NODE24 (#220): checkout/setup-python/Pages actions now use
+  reviewed Node 24-compatible majors; a repository-wide test rejects stale or
+  newly introduced unreviewed official action references without changing
+  workflow permissions, cache inputs or topology.
 - API-VALIDATION-CTX-SANITIZATION (#227): recursive bounded validation-context
   sanitization drops exceptions, non-finite/non-JSON objects, sensitive keys
   and local locations; exception/input-derived messages become stable generic
