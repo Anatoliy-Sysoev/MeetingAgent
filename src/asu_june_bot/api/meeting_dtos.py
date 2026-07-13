@@ -28,6 +28,8 @@ class MeetingSummary(PublicModel):
     meeting_id: str
     title: str
     date: str | None = None
+    language: str | None = None
+    source_kind: str | None = None
     processing_status: str
     created_at: str | None = None
     updated_at: str | None = None

@@ -53,6 +53,7 @@
             <div class="panel-body">
               <div class="actions">
                 <button class="primary" id="showUploadBtn" type="button">Загрузить запись</button>
+                <button id="showLiveBtn" type="button">Создать live-встречу</button>
                 <button id="refreshMeetingsBtn" type="button">Обновить реестр</button>
                 <a href="/ui"><button type="button">Открыть Джун бота</button></a>
               </div>
@@ -131,6 +132,37 @@
           <div class="panel">
             <div class="panel-header">
               <div>
+                <div class="panel-title">Live-встреча без файла</div>
+                <div class="panel-note">Создайте карточку и сразу откройте Workspace для записи MIC/SYS.</div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <form class="form-grid" id="liveMeetingForm">
+                <label>Название встречи
+                  <input id="liveMeetingTitle" type="text" maxlength="500" placeholder="Например: Еженедельный статус" required />
+                </label>
+                <label>Дата встречи
+                  <input id="liveMeetingDate" type="date" />
+                </label>
+                <label>Язык встречи
+                  <select id="liveMeetingLanguage">
+                    <option value="ru">Русский</option>
+                    <option value="en">English</option>
+                  </select>
+                </label>
+                <div class="panel-note">
+                  Медиафайл не создаётся заранее. После перехода в Workspace выберите MIC или SYS и запустите live-черновик.
+                </div>
+                <div class="actions">
+                  <button class="primary" id="liveMeetingSubmit" type="submit">Создать и открыть Workspace</button>
+                  <button id="resetLiveMeetingBtn" type="button">Очистить</button>
+                </div>
+              </form>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <div>
                 <div class="panel-title">Результат загрузки</div>
                 <div class="panel-note">После загрузки можно открыть workspace или запустить обработку.</div>
               </div>
@@ -163,6 +195,7 @@
             <div class="panel-body">
               <ol>
                 <li>Откройте вкладку <b>Новая запись</b> и выберите видео или аудио.</li>
+                <li>Для встречи без готового файла создайте live-карточку и запустите MIC/SYS в Workspace.</li>
                 <li>Выберите сценарий: только транскрипт или полный pipeline.</li>
                 <li>После старта откройте карточку встречи и следите за стадиями.</li>
                 <li>Готовые артефакты появятся в Workspace: транскрипт, спикеры, протокол, задачи, риски.</li>

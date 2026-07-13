@@ -733,3 +733,141 @@ def test_workspace_live_mic_start_partial_stop_and_final(
     assert isinstance(refinement_headers, dict)
     assert refinement_headers.get("x-csrf-token") == "live-browser-csrf"
     assert errors == []
+
+
+def test_meetingagent_live_creation_opens_workspace_and_checks_sources(
+    page: Page,
+    ui_base_url: str,
+) -> None:
+    live_id = "2026-07-14__browser-live"
+    prefix = f"/meetings/{live_id}"
+    captured: dict[str, object] = {"preflight_sources": set()}
+
+    def handle_api(route: Route) -> None:
+        request = route.request
+        parsed = urlparse(request.url)
+        path = parsed.path
+        if path == "/auth/me":
+            _fulfill_json(
+                route,
+                {
+                    "email": "editor@local",
+                    "roles": ["editor"],
+                    "permissions": [
+                        "meetings.upload",
+                        "meetings.read",
+                        "jobs.read",
+                        "jobs.start",
+                        "jobs.cancel",
+                        "transcripts.read",
+                        "artifacts.read",
+                    ],
+                },
+            )
+        elif path == "/auth/csrf":
+            _fulfill_json(route, {"csrf_token": "live-browser-csrf"})
+        elif path == "/meetings" and request.method == "GET":
+            _fulfill_json(route, {"items": []})
+        elif path == "/meetings/live" and request.method == "POST":
+            captured["create_body"] = json.loads(request.post_data or "{}")
+            captured["create_headers"] = request.headers
+            _fulfill_json(
+                route,
+                {
+                    "meeting_id": live_id,
+                    "title": "Browser live",
+                    "date": "2026-07-14",
+                    "language": "ru",
+                    "source_kind": "live_session",
+                    "workspace_url": f"{prefix}/workspace",
+                },
+                status=201,
+            )
+        elif path == prefix:
+            _fulfill_json(
+                route,
+                {
+                    "meeting_id": live_id,
+                    "title": "Browser live",
+                    "date": "2026-07-14",
+                    "language": "ru",
+                    "processing_status": "new",
+                    "source": {
+                        "kind": "live_session",
+                        "audio_tracks": ["MIC", "SYS"],
+                        "derived_tracks": ["MIX"],
+                    },
+                },
+            )
+        elif path == f"{prefix}/media":
+            _fulfill_json(route, {"media": []})
+        elif path == f"{prefix}/transcript/segments":
+            _fulfill_json(route, {"segments": []})
+        elif path == f"{prefix}/speakers":
+            _fulfill_json(route, {"speakers": []})
+        elif path == f"{prefix}/artifacts":
+            _fulfill_json(route, {"artifacts": []})
+        elif path == f"{prefix}/jobs/stages":
+            _fulfill_json(route, {"stages": []})
+        elif path == f"{prefix}/pipeline/readiness":
+            _fulfill_json(route, {"meeting_id": live_id, "status": "new", "stages": []})
+        elif path == f"{prefix}/artifacts/manifest":
+            _fulfill_json(route, {"artifacts": []})
+        elif path == f"{prefix}/live/preflight":
+            source = parse_qs(parsed.query).get("source", [""])[0]
+            preflights = captured["preflight_sources"]
+            assert isinstance(preflights, set)
+            preflights.add(source)
+            _fulfill_json(
+                route,
+                {
+                    "source": source,
+                    "available": False,
+                    "reason": "model_missing",
+                    "model_ready": False,
+                    "devices": [],
+                    "devices_truncated": False,
+                },
+            )
+        elif path == f"{prefix}/live/sessions/active":
+            _fulfill_json(route, {"meeting_id": live_id, "session": None})
+        elif path == f"{prefix}/live/refinement":
+            source = parse_qs(parsed.query).get("source", ["MIC"])[0]
+            _fulfill_json(
+                route,
+                {
+                    "meeting_id": live_id,
+                    "source": source,
+                    "state": "unavailable",
+                    "can_refine": False,
+                    "can_resume": False,
+                    "can_force": False,
+                    "reason": "live_draft_missing",
+                },
+            )
+        elif path == "/jobs/active":
+            _fulfill_json(route, {})
+        else:
+            route.continue_()
+
+    page.route("**/*", handle_api)
+    errors = _capture_browser_errors(page)
+    page.goto(f"{ui_base_url}/MeetingAgent", wait_until="networkidle")
+    page.locator("#showLiveBtn").click()
+    page.locator("#liveMeetingTitle").fill("Browser live")
+    page.locator("#liveMeetingDate").fill("2026-07-14")
+    page.locator("#liveMeetingSubmit").click()
+
+    expect(page).to_have_url(f"{ui_base_url}{prefix}/workspace")
+    expect(page.locator("#hdr-title")).to_have_text("Browser live")
+    expect(page.locator("#live-panel-title")).to_have_text("Live transcription")
+    assert captured["create_body"] == {
+        "title": "Browser live",
+        "language": "ru",
+        "date": "2026-07-14",
+    }
+    create_headers = captured["create_headers"]
+    assert isinstance(create_headers, dict)
+    assert create_headers.get("x-csrf-token") == "live-browser-csrf"
+    assert captured["preflight_sources"] == {"MIC", "SYS"}
+    assert errors == []

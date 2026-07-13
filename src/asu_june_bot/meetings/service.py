@@ -51,6 +51,7 @@ DEFAULT_MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024  # 2 GiB
 MAX_MEETING_TITLE_CHARS = 500
 MAX_ORIGINAL_FILENAME_CHARS = 255
 _SPEAKER_LABEL_RE = re.compile(r"^SPEAKER_(?:UNKNOWN|\d{1,4})$")
+_LANGUAGE_TAG_RE = re.compile(r"^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$")
 _MEETING_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,159}$")
 _ARTIFACT_KEY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$")
 _PUBLIC_TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$")
@@ -162,6 +163,16 @@ def _slugify(value: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", transliterated)
     slug = re.sub(r"-{2,}", "-", slug).strip("-")[:40]
     return slug
+
+
+def _normalize_language_tag(value: str) -> str:
+    parts = str(value or "").strip().split("-")
+    if not parts or not parts[0]:
+        raise ValueError("Meeting language is empty")
+    normalized = "-".join([parts[0].lower(), *parts[1:]])
+    if len(normalized) > 35 or not _LANGUAGE_TAG_RE.fullmatch(normalized):
+        raise ValueError("Meeting language is invalid")
+    return normalized
 
 
 def _media_type_for(suffix: str) -> str:
@@ -485,12 +496,15 @@ def _summary(
     media: list[dict[str, Any]],
 ) -> dict[str, Any]:
     artifacts = _artifact_map(data)
+    source = _source_map(data)
     artifact_keys = _public_artifact_keys(data)
     encoded_meeting = quote(meeting_id, safe="")
     result: dict[str, Any] = {
         "meeting_id": meeting_id,
         "title": _bounded_text(data.get("title"), 500) or meeting_id,
         "date": _public_date(data.get("date")),
+        "language": _bounded_text(data.get("language"), 35),
+        "source_kind": _public_token(source.get("kind"), max_chars=80),
         "processing_status": _public_token(
             data.get("processing_status"), fallback="unknown", max_chars=80
         ),
@@ -669,7 +683,7 @@ class MeetingsService:
                 "errors": [],
             }
         dirs = sorted(
-            (d for d in self.root.iterdir() if d.is_dir()),
+            (d for d in self.root.iterdir() if d.is_dir() and not d.name.startswith(".")),
             key=lambda d: d.name,
         )
         for meeting_dir in dirs:
@@ -1111,6 +1125,84 @@ class MeetingsService:
                 schema_path=schema_path,
             )
             return MeetingIngestResult(meeting_id=meeting_id, card=card)
+
+    def create_live_meeting(
+        self,
+        *,
+        title: str,
+        meeting_date: str,
+        language: str = "ru",
+        schema_path: Path | None = None,
+    ) -> dict[str, Any]:
+        """Atomically allocate and create a live-only meeting card.
+
+        The card is assembled in a hidden staging directory and published with
+        one directory rename while the shared ingest lock is held.  Concurrent
+        requests therefore receive distinct identifiers and can never replace
+        an existing meeting directory.
+        """
+        normalized_title = " ".join(str(title or "").split())
+        if not normalized_title or len(normalized_title) > MAX_MEETING_TITLE_CHARS:
+            raise ValueError("Meeting title is empty or too long")
+        try:
+            normalized_date = datetime.date.fromisoformat(meeting_date).isoformat()
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Meeting date is invalid") from exc
+        normalized_language = _normalize_language_tag(language)
+        slug = _slugify(normalized_title) or "live-meeting"
+        schema_path = schema_path or _SCHEMA_PATH
+
+        self.root.mkdir(parents=True, exist_ok=True)
+        with IngestLock(self.root / ".ingest.lock"):
+            meeting_id = self.unique_meeting_id(normalized_date, slug)
+            meeting_dir = self._meeting_dir(meeting_id)
+            staging_dir = Path(
+                tempfile.mkdtemp(prefix=".live-card-", dir=self.root)
+            )
+            try:
+                timestamp = datetime.datetime.now(
+                    tz=datetime.timezone.utc
+                ).isoformat(timespec="seconds")
+                card: dict[str, Any] = {
+                    "schema_version": 1,
+                    "meeting_id": meeting_id,
+                    "title": normalized_title,
+                    "date": normalized_date,
+                    "language": normalized_language,
+                    "source": {
+                        "kind": "live_session",
+                        "audio_tracks": ["MIC", "SYS"],
+                        "derived_tracks": ["MIX"],
+                    },
+                    "processing_status": "new",
+                    "participants": [],
+                    "artifacts": {},
+                    "classification": {},
+                    "links": {},
+                    "retention": {"policy": "default"},
+                    "rag": {
+                        "index_policy": "structured_artifacts_and_final_transcript",
+                        "indexed_artifacts": [],
+                        "no_index_artifacts": [],
+                    },
+                    "created_at": timestamp,
+                    "updated_at": timestamp,
+                }
+                schema = json.loads(schema_path.read_text(encoding="utf-8"))
+                jsonschema.Draft202012Validator(schema).validate(card)
+                card_path = staging_dir / "meeting.json"
+                tmp_path = staging_dir / "meeting.json.tmp"
+                tmp_path.write_text(
+                    json.dumps(card, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                tmp_path.replace(card_path)
+                staging_dir.replace(meeting_dir)
+                return card
+            except Exception:
+                if staging_dir.exists():
+                    shutil.rmtree(staging_dir, ignore_errors=True)
+                raise
 
     def create_meeting(
         self,
