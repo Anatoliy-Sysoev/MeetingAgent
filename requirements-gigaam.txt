@@ -1,10 +1,16 @@
 # Optional runtime dependencies for local GigaAM backend.
-# Install in a Python version with prebuilt onnx wheels available.
-# On Windows/Python 3.14, onnx==1.19.* may attempt a source build and fail on path length.
+# Reviewed against salute-developers/GigaAM commit 6e4b027c6fb554e09e8b9059b757a175295ab879.
+# Install with constraints-gigaam-py312-windows.txt in an isolated Python 3.12 venv.
 hydra-core==1.3.*
 omegaconf==2.3.*
-onnx==1.19.*
-onnxruntime==1.25.*
-soundfile
-sentencepiece
-torchaudio>=2.6
+# Upstream commit pins 1.19.*, but that line has known 2026 advisories. The
+# MeetingAgent inference-only path is verified with 1.22.*; ONNX export is not
+# part of the supported product path.
+onnx==1.22.*
+onnxruntime==1.23.*
+numpy>=2,<3
+soundfile>=0.13,<1
+sentencepiece>=0.2,<1
+torch>=2.6,<3
+torchaudio>=2.6,<3
+tqdm>=4.66,<5
