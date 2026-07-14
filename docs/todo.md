@@ -1,6 +1,6 @@
 # Todo
 
-Обновлено: 2026-07-13.
+Обновлено: 2026-07-14.
 
 ## Done
 
@@ -146,8 +146,9 @@
   path-free queue/loss metrics with report warnings.
 - [x] TEST-DEPENDENCY-AUDIT-WINDOWS-UTF8 (#209): force deterministic UTF-8
   subprocess semantics for pip-audit under Cyrillic Windows profile paths.
-- [ ] MA-MEETINGAGENT-UI-MOCKUPS (#237): approve target mockups for registry,
-  upload wizard, processing monitor and meeting card before deeper UI refactor.
+- [~] MA-MEETINGAGENT-UI-MOCKUPS (#237): responsive registry, upload/live,
+  processing and Workspace mockups plus API state/role/accessibility contract
+  are ready for owner review; production UI remains unchanged until approval.
 
 ## Meeting Product Backlog
 

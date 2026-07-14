@@ -245,7 +245,9 @@ The current product gap is no longer the basic offline pipeline. Live-only
 cards, live/offline coordination, a derived MIC+SYS transcript timeline and
 source-scoped offline refinement are available in the browser. Remaining work
 is concentrated in deeper product administration, product-package separation
-and the next UI design pass.
+and the next UI design pass. The proposed registry, creation, processing and
+Workspace interaction model is available in the
+[UI interaction model](docs/en/ui_interaction_model.md) for owner review.
 
 ### Live Transcription
 

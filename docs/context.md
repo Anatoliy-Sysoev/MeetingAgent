@@ -1,15 +1,16 @@
 # Текущий Контекст
 
-Обновлено: 2026-07-13.
+Обновлено: 2026-07-14.
 
 ## Now
 
-- MA-DEPS-MAJOR-COMPATIBILITY (#236) closes the umbrella review by removing the
-  unsafe catch-all Python Dependabot group and recording all compatibility rows.
-- canonical main before this task: `4d13324` / `build: validate Material docs
-  maintenance update (#248)`.
+- MA-MEETINGAGENT-UI-MOCKUPS (#237) has a public-safe responsive prototype,
+  desktop/narrow review images and a complete API/UI state matrix; production
+  templates remain unchanged until owner approval.
+- canonical main before this task: `d5e94c9` / `build: isolate Python
+  dependency updates (#249)`.
 - History purge #167 remains gated by explicit owner approval and backup.
-  Dependency follow-ups are tracked as #236 and #241-#244; UI mockups are #237.
+  UI interaction model approval is tracked as #237.
 
 ## Done latest
 
@@ -296,12 +297,16 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- MA-MEETINGAGENT-UI-MOCKUPS (#237): approve table-first product mockups before
-  the next large Workspace/registry UI refactor.
+- MA-MEETINGAGENT-UI-MOCKUPS (#237): owner reviews the table-first registry,
+  creation, processing and Workspace mockups and either approves or requests
+  concrete changes.
+- After approval, split production work into registry, creation wizard,
+  processing monitor and Workspace implementation issues.
 
 ## Open decisions / blockers
 
 - #167 rewrites published history and invalidates old clones; it is blocked on explicit owner approval and a verified backup.
+- #237 intentionally does not change production UI before owner approval.
 - Admin users/roles and redacted security status are available at `/admin`;
   aggregate jobs/audit/settings endpoints and destructive meeting admin actions
   remain future implementation work.
