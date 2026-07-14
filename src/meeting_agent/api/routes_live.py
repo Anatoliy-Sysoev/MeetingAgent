@@ -44,6 +44,13 @@ class LiveSessionStartRequest(BaseModel):
     force: bool = False
 
 
+class LiveCaptureStartRequest(BaseModel):
+    mic_audio_device_index: int | None = Field(None, ge=0, le=65_535)
+    sys_audio_device_index: int | None = Field(None, ge=0, le=65_535)
+    vad: Literal["none", "silero"] | None = None
+    force: bool = False
+
+
 class LiveRefinementRequest(BaseModel):
     source: Literal["MIC", "SYS"] = "MIC"
     asr_engine: Literal["faster-whisper", "gigaam"] = "faster-whisper"
@@ -299,6 +306,89 @@ async def active_live_session(
     except (LiveSessionError, LiveSessionStoreError) as exc:
         raise _http_error(exc) from exc
     return JSONResponse(content={"meeting_id": meeting_id, "session": session})
+
+
+@router.post("/meetings/{meeting_id}/live/capture", status_code=202)
+async def start_live_capture(
+    meeting_id: str,
+    body: LiveCaptureStartRequest,
+    _principal: Annotated[
+        Principal,
+        Depends(require_action_permission("jobs.start")),
+    ],
+    service: LiveSessionService = Depends(_get_service),
+) -> JSONResponse:
+    """Start MIC and SYS as one user-level capture operation.
+
+    Source sessions remain separate internally so raw audio and provenance are
+    preserved. If the second source cannot start, the first is stopped before
+    the original controlled error is returned.
+    """
+
+    started: dict[str, dict[str, Any]] = {}
+    try:
+        for source, device_index in (
+            ("MIC", body.mic_audio_device_index),
+            ("SYS", body.sys_audio_device_index),
+        ):
+            started[source] = await asyncio.to_thread(
+                service.start,
+                meeting_id,
+                source=source,
+                audio_device_index=device_index,
+                duration_sec=None,
+                vad=body.vad,
+                force=body.force,
+            )
+    except (LiveSessionError, LiveSessionStoreError) as exc:
+        for session in started.values():
+            try:
+                await asyncio.to_thread(
+                    service.stop,
+                    meeting_id,
+                    str(session["session_id"]),
+                )
+            except (LiveSessionError, LiveSessionStoreError, KeyError, TypeError):
+                # The UI reloads active source state after a failed group start,
+                # so a rare rollback failure remains visible and stoppable.
+                pass
+        raise _http_error(exc) from exc
+    return JSONResponse(
+        status_code=202,
+        content={"meeting_id": meeting_id, "sessions": started},
+    )
+
+
+@router.post("/meetings/{meeting_id}/live/capture/stop")
+async def stop_live_capture(
+    meeting_id: str,
+    _principal: Annotated[
+        Principal,
+        Depends(require_action_permission("jobs.cancel")),
+    ],
+    service: LiveSessionService = Depends(_get_service),
+) -> JSONResponse:
+    """Gracefully stop every active MIC/SYS source for a meeting."""
+
+    stopped: dict[str, dict[str, Any]] = {}
+    failures: list[LiveSessionError | LiveSessionStoreError] = []
+    for source in ("MIC", "SYS"):
+        try:
+            session = await asyncio.to_thread(service.active, meeting_id, source=source)
+            if session is None:
+                continue
+            stopped[source] = await asyncio.to_thread(
+                service.stop,
+                meeting_id,
+                str(session["session_id"]),
+            )
+        except (LiveSessionError, LiveSessionStoreError) as exc:
+            failures.append(exc)
+    if failures:
+        raise _http_error(failures[0])
+    return JSONResponse(
+        content={"meeting_id": meeting_id, "sessions": stopped},
+    )
 
 
 @router.post("/meetings/{meeting_id}/live/sessions", status_code=202)
