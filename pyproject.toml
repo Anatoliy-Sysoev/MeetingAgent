@@ -64,7 +64,9 @@ testpaths = ["tests"]
 "meeting_agent.api" = [
   "ui/templates/*.html",
   "ui/assets/v1/*.css",
-  "ui/assets/v1/*.js"
+  "ui/assets/v1/*.js",
+  "ui/assets/v2/*.css",
+  "ui/assets/v2/*.js"
 ]
 
 [tool.ruff]

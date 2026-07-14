@@ -38,14 +38,14 @@ def test_live_panel_has_distinct_mic_and_sys_tracks(html: str) -> None:
     assert 'id="live-panel"' in html
     assert 'data-live-source="MIC"' in html
     assert 'data-live-source="SYS"' in html
-    assert 'id="live-mic-title">Microphone' in html
-    assert 'id="live-sys-title">System audio' in html
+    assert 'id="live-mic-title">Микрофон' in html
+    assert 'id="live-sys-title">Системный звук' in html
     assert 'data-live-source="MIX"' not in html
 
 
 def test_live_draft_is_explicitly_not_indexed(html: str) -> None:
-    assert "Live text is a draft and is not indexed" in html
-    assert "offline transcription" in html
+    assert "Live-текст — черновик и не индексируется" in html
+    assert "offline refinement" in html
 
 
 def test_live_controls_are_native_and_source_scoped(html: str) -> None:
@@ -87,9 +87,9 @@ def test_live_api_contract_is_fully_wired(html: str) -> None:
 
 
 def test_live_conversation_is_bounded_source_aware_and_dom_safe(html: str) -> None:
-    assert 'id="live-conversation-title">Conversation' in html
+    assert 'id="live-conversation-title">Единый диалог' in html
     assert 'id="live-conversation-finals"' in html
-    assert 'aria-label="Unified live conversation transcript"' in html
+    assert "Финальные MIC и SYS реплики" in html
     assert "LIVE_CONVERSATION_ROWS_MAX = 500" in html
     assert "function liveConversationRows" in html
     assert "function renderLiveConversation" in html
@@ -129,11 +129,11 @@ def test_live_refinement_distinguishes_product_states(html: str) -> None:
     assert "function renderLiveRefinement" in html
     for state in ("unavailable", "draft", "refining", "final", "failed"):
         assert f'{state}:' in html
-    assert "Canonical transcript is ready" in html
-    assert "Resume refinement" in html
-    assert "Refining offline..." in html
-    assert "Draft saved and excluded from indexing" in html
-    assert "Confirm replacement first" in html
+    assert "Канонический транскрипт готов" in html
+    assert "Продолжить уточнение" in html
+    assert "Идёт уточнение..." in html
+    assert "Черновик сохранён и исключён из индекса" in html
+    assert "Сначала подтвердите замену" in html
 
 
 def test_live_start_and_stop_require_csrf_before_post(html: str) -> None:
@@ -200,8 +200,8 @@ def test_live_elapsed_and_capture_warnings_are_rendered(html: str) -> None:
     assert "liveElapsedSeconds" in html
     assert "function renderLiveWarnings" in html
     assert "session.warnings" in html
-    assert 'aria-label="Microphone capture warnings"' in html
-    assert 'aria-label="System audio capture warnings"' in html
+    assert 'aria-label="Предупреждения записи микрофона"' in html
+    assert 'aria-label="Предупреждения записи системного звука"' in html
 
 
 def test_live_blocked_reasons_are_controlled(html: str) -> None:

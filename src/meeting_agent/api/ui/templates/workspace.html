@@ -1,308 +1,128 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Meeting Workspace</title>
-  <link rel="stylesheet" href="/assets/v1/workspace.css" />
+  <title>Карточка встречи · MeetingAgent</title>
+  <link rel="stylesheet" href="/assets/v2/workspace.css" />
 </head>
 <body data-meeting-id="__MEETING_ID__">
-
-<div id="auth-overlay">
-  <div class="auth-box">
-    <h2 id="auth-overlay-title">Login required</h2>
-    <p id="auth-overlay-detail">You must be logged in to view this meeting.</p>
-    <a href="/" class="primary button-link">Open login</a>
-  </div>
-</div>
-
-<div class="header">
-  <a class="back" href="/" title="Back to meetings list">&#8592;</a>
-  <div class="title" id="hdr-title">Loading&hellip;</div>
-  <div class="meta" id="hdr-date"></div>
-  <span class="badge" id="hdr-status"></span>
-  <span class="badge" id="hdr-auth">Checking auth...</span>
-  <a id="hdr-admin-link" class="header-link" href="/admin" hidden>Admin</a>
-  <button id="hdr-refresh-btn" title="Refresh">&#8635; Refresh</button>
-</div>
-
-<div class="workspace">
-
-  <!-- Left: transcript -->
-  <div class="panel transcript-col">
-    <div class="panel-header">
-      Transcript
-      <span id="seg-count" class="seg-count"></span>
-    </div>
-    <div class="transcript-search">
-      <input id="seg-filter" type="text" placeholder="Filter transcript&hellip;" />
-    </div>
-    <div class="transcript-list" id="transcript-list">
-      <div class="empty">Loading transcript&hellip;</div>
-    </div>
+  <a class="skip-link" href="#workspace-main">Перейти к содержимому</a>
+  <div id="auth-overlay" role="dialog" aria-modal="true" aria-labelledby="auth-overlay-title">
+    <div class="auth-box"><h2 id="auth-overlay-title">Требуется вход</h2><p id="auth-overlay-detail">Войдите, чтобы открыть эту встречу.</p><a href="/MeetingAgent" class="primary button-link">Открыть вход</a></div>
   </div>
 
-  <!-- Right column -->
-  <div class="right-col">
+  <div class="app-shell">
+    <aside class="rail" id="workspace-nav" aria-label="Основная навигация">
+      <a class="brand" href="/MeetingAgent"><span class="brand-mark" aria-hidden="true">MA</span><span><strong>MeetingAgent</strong><small>Локальные встречи</small></span></a>
+      <nav class="primary-nav" aria-label="Разделы MeetingAgent">
+        <a href="/MeetingAgent">Встречи</a>
+        <a href="/MeetingAgent/new">Новая встреча</a>
+        <a href="/MeetingAgent/processing">Обработка</a>
+        <a class="active" href="#workspace-main" aria-current="page">Карточка встречи</a>
+      </nav>
+      <div class="rail-section"><span class="rail-label">Другой продукт</span><a class="product-link" href="/ui">Project Knowledge Bot</a></div>
+      <div class="rail-footer"><a id="hdr-admin-link" href="/admin" hidden>Администрирование</a><span class="rail-label">Состояние входа</span><strong id="hdr-auth">Проверка...</strong></div>
+    </aside>
 
-    <!-- Live transcription -->
-    <div class="panel live-panel" id="live-panel" aria-labelledby="live-panel-title">
-      <div class="panel-header">
-        <span id="live-panel-title">Live transcription</span>
-        <button id="live-refresh-btn" class="compact-btn" type="button"
-                aria-label="Refresh live source readiness">&#8635; Refresh</button>
-      </div>
-      <div class="panel-body">
-        <div class="live-draft-banner" role="note">
-          Live text is a draft and is not indexed. Run offline transcription after the
-          meeting to create the canonical transcript.
-        </div>
-        <div id="live-global-error" class="err-msg" role="alert" hidden></div>
+    <div class="app-main">
+      <header class="topbar">
+        <button class="mobile-menu" id="workspace-menu" type="button" aria-label="Открыть навигацию">Меню</button>
+        <div><div class="breadcrumbs">MeetingAgent / Встречи / Карточка</div><h1>Карточка встречи</h1></div>
+        <div class="topbar-actions"><span class="badge" id="hdr-status"></span><button id="hdr-refresh-btn" type="button">Обновить</button><a class="primary button-link" href="/MeetingAgent/new">Новая встреча</a></div>
+      </header>
 
-        <div class="live-tracks">
-          <section class="live-track" data-live-source="MIC" aria-labelledby="live-mic-title">
-            <div class="live-track-heading">
-              <div>
-                <h3 id="live-mic-title">Microphone</h3>
-                <span class="live-source-label">MIC</span>
-              </div>
-              <span id="live-mic-badge" class="badge">Checking</span>
-            </div>
-            <p id="live-mic-readiness" class="live-readiness" role="status"
-               aria-live="polite">Checking source readiness...</p>
-            <div class="live-field">
-              <label for="live-mic-device">Audio device</label>
-              <select id="live-mic-device" data-live-device="MIC"></select>
-            </div>
-            <div class="live-field">
-              <label for="live-mic-vad">Voice activity detection</label>
-              <select id="live-mic-vad" data-live-vad="MIC">
-                <option value="silero" selected>Silero VAD</option>
-                <option value="none">Disabled</option>
-              </select>
-            </div>
-            <label class="live-force-label">
-              <input id="live-mic-force" type="checkbox" data-live-force="MIC" />
-              Replace an existing MIC draft
-            </label>
-            <div class="live-controls">
-              <button id="live-mic-start" class="primary" type="button"
-                      data-live-start="MIC">Start MIC</button>
-              <button id="live-mic-stop" class="cancel-btn" type="button"
-                      data-live-stop="MIC" disabled>Stop MIC</button>
-              <span id="live-mic-elapsed" class="live-elapsed">00:00</span>
-            </div>
-            <div class="live-refinement" aria-labelledby="live-mic-refine-title">
-              <div class="live-refinement-heading">
-                <span id="live-mic-refine-title">Offline refinement</span>
-                <span id="live-mic-refine-badge" class="badge">No draft</span>
-              </div>
-              <div class="live-field">
-                <label for="live-mic-refine-engine">Canonical ASR engine</label>
-                <select id="live-mic-refine-engine" data-live-refine-engine="MIC">
-                  <option value="faster-whisper" selected>Faster Whisper (large-v3-turbo)</option>
-                  <option value="gigaam">GigaAM</option>
-                </select>
-              </div>
-              <label id="live-mic-refine-force-wrap" class="live-force-label" hidden>
-                <input id="live-mic-refine-force" type="checkbox" data-live-refine-force="MIC" />
-                Replace the existing canonical transcript
-              </label>
-              <button id="live-mic-refine" type="button" data-live-refine="MIC" disabled>
-                Refine offline
-              </button>
-              <p id="live-mic-refine-summary" class="live-refinement-summary"
-                 aria-live="polite">Record and stop a draft first.</p>
-            </div>
-            <div id="live-mic-error" class="err-msg" role="alert" hidden></div>
-            <ul id="live-mic-warnings" class="live-warnings"
-                aria-label="Microphone capture warnings"></ul>
-            <div class="live-partial-wrap">
-              <span class="live-caption">Current partial</span>
-              <p id="live-mic-partial" class="live-partial" aria-live="polite">Waiting for speech...</p>
-            </div>
-            <div id="live-mic-finals" class="live-final-list" role="log"
-                 aria-live="polite" aria-relevant="additions text"
-                 aria-label="Final microphone transcript">
-              <p class="empty">No final MIC lines yet</p>
-            </div>
-          </section>
+      <main class="page" id="workspace-main" tabindex="-1">
+        <section class="meeting-strip">
+          <div><span class="eyebrow" id="hdr-date"></span><h2 id="hdr-title">Загрузка...</h2></div>
+          <div class="meeting-strip-actions"><button type="button" data-open-tab="pipeline">Обработка</button><button class="primary" type="button" data-open-tab="artifacts">Результаты</button></div>
+        </section>
 
-          <section class="live-track" data-live-source="SYS" aria-labelledby="live-sys-title">
-            <div class="live-track-heading">
-              <div>
-                <h3 id="live-sys-title">System audio</h3>
-                <span class="live-source-label">SYS</span>
-              </div>
-              <span id="live-sys-badge" class="badge">Checking</span>
-            </div>
-            <p id="live-sys-readiness" class="live-readiness" role="status"
-               aria-live="polite">Checking source readiness...</p>
-            <div class="live-field">
-              <label for="live-sys-device">Loopback device</label>
-              <select id="live-sys-device" data-live-device="SYS"></select>
-            </div>
-            <div class="live-field">
-              <label for="live-sys-vad">Voice activity detection</label>
-              <select id="live-sys-vad" data-live-vad="SYS">
-                <option value="silero" selected>Silero VAD</option>
-                <option value="none">Disabled</option>
-              </select>
-            </div>
-            <label class="live-force-label">
-              <input id="live-sys-force" type="checkbox" data-live-force="SYS" />
-              Replace an existing SYS draft
-            </label>
-            <div class="live-controls">
-              <button id="live-sys-start" class="primary" type="button"
-                      data-live-start="SYS">Start SYS</button>
-              <button id="live-sys-stop" class="cancel-btn" type="button"
-                      data-live-stop="SYS" disabled>Stop SYS</button>
-              <span id="live-sys-elapsed" class="live-elapsed">00:00</span>
-            </div>
-            <div class="live-refinement" aria-labelledby="live-sys-refine-title">
-              <div class="live-refinement-heading">
-                <span id="live-sys-refine-title">Offline refinement</span>
-                <span id="live-sys-refine-badge" class="badge">No draft</span>
-              </div>
-              <div class="live-field">
-                <label for="live-sys-refine-engine">Canonical ASR engine</label>
-                <select id="live-sys-refine-engine" data-live-refine-engine="SYS">
-                  <option value="faster-whisper" selected>Faster Whisper (large-v3-turbo)</option>
-                  <option value="gigaam">GigaAM</option>
-                </select>
-              </div>
-              <label id="live-sys-refine-force-wrap" class="live-force-label" hidden>
-                <input id="live-sys-refine-force" type="checkbox" data-live-refine-force="SYS" />
-                Replace the existing canonical transcript
-              </label>
-              <button id="live-sys-refine" type="button" data-live-refine="SYS" disabled>
-                Refine offline
-              </button>
-              <p id="live-sys-refine-summary" class="live-refinement-summary"
-                 aria-live="polite">Record and stop a draft first.</p>
-            </div>
-            <div id="live-sys-error" class="err-msg" role="alert" hidden></div>
-            <ul id="live-sys-warnings" class="live-warnings"
-                aria-label="System audio capture warnings"></ul>
-            <div class="live-partial-wrap">
-              <span class="live-caption">Current partial</span>
-              <p id="live-sys-partial" class="live-partial" aria-live="polite">Waiting for speech...</p>
-            </div>
-            <div id="live-sys-finals" class="live-final-list" role="log"
-                 aria-live="polite" aria-relevant="additions text"
-                 aria-label="Final system audio transcript">
-              <p class="empty">No final SYS lines yet</p>
-            </div>
-          </section>
-        </div>
-        <section class="live-conversation" aria-labelledby="live-conversation-title">
-          <div class="live-conversation-heading">
-            <div>
-              <h3 id="live-conversation-title">Conversation</h3>
-              <p>Final MIC and SYS lines aligned on one meeting timeline.</p>
-            </div>
-            <span id="live-conversation-badge" class="badge">MIX draft</span>
-          </div>
-          <div id="live-conversation-finals" class="live-conversation-list" role="log"
-               aria-live="polite" aria-relevant="additions text"
-               aria-label="Unified live conversation transcript">
-            <p class="empty">No final conversation lines yet</p>
+        <nav class="workspace-tabs" aria-label="Разделы карточки">
+          <button type="button" data-workspace-tab="overview">Обзор</button>
+          <button class="active" type="button" data-workspace-tab="transcript" aria-current="page">Транскрипт</button>
+          <button type="button" data-workspace-tab="artifacts">Артефакты</button>
+          <button type="button" data-workspace-tab="qa">Вопросы</button>
+          <button type="button" data-workspace-tab="live">Live</button>
+          <button type="button" data-workspace-tab="pipeline">Обработка</button>
+        </nav>
+
+        <section class="media-strip" aria-label="Медиаплеер"><div class="panel-body" id="media-panel"><div class="empty">Загрузка медиа...</div></div></section>
+
+        <section class="workspace-tab" data-workspace-panel="overview" hidden>
+          <div class="overview-grid">
+            <article class="summary-surface"><h2>Состояние встречи</h2><dl><div><dt>Название</dt><dd id="overview-title">—</dd></div><div><dt>Дата</dt><dd id="overview-date">—</dd></div><div><dt>Статус</dt><dd id="overview-status">—</dd></div><div><dt>Участники</dt><dd id="overview-participants">—</dd></div></dl></article>
+            <article class="summary-surface"><h2>Готовые результаты</h2><div id="overview-results" class="pipeline-results"><span class="empty">Загрузка...</span></div></article>
+            <article class="summary-surface overview-wide"><h2>Что делать дальше</h2><p id="overview-next">Проверяем готовность pipeline...</p><button type="button" data-open-tab="pipeline">Открыть обработку</button></article>
           </div>
         </section>
-      </div>
-    </div>
 
-    <!-- Media player -->
-    <div class="panel">
-      <div class="panel-header">Media</div>
-      <div class="panel-body" id="media-panel">
-        <div class="empty">Loading media&hellip;</div>
-      </div>
-    </div>
-
-    <!-- Artifacts -->
-    <div class="panel">
-      <div class="panel-header">
-        Artifacts
-        <button id="close-artifact-btn" class="compact-btn" hidden>Close</button>
-      </div>
-      <div class="panel-body" id="artifacts-panel">
-        <div class="empty">Loading artifacts&hellip;</div>
-      </div>
-    </div>
-
-    <!-- Speaker mapping -->
-    <div class="panel">
-      <div class="panel-header">Speaker mapping</div>
-      <div class="panel-body">
-        <div id="speaker-map-panel" class="speaker-map-list">
-          <div class="empty">Loading speakers&hellip;</div>
-        </div>
-        <div class="speaker-actions">
-          <button id="speaker-map-save-btn">Save mapping</button>
-          <span id="speaker-map-status" class="speaker-status"></span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Pipeline controls / status -->
-    <div class="panel">
-      <div class="panel-header">
-        Pipeline
-        <button id="jobs-refresh-btn" class="compact-btn">&#8635; Refresh</button>
-      </div>
-      <div class="panel-body">
-        <div id="jobs-status" class="jobs-status">
-          <div class="empty">Loading&hellip;</div>
-        </div>
-        <div id="jobs-last-error" class="err-msg" hidden></div>
-        <div id="jobs-error" class="err-msg" hidden></div>
-        <div id="pipeline-actions" class="pipeline-actions"></div>
-        <div id="jobs-stages" class="jobs-stages"></div>
-        <div id="pipeline-results" class="pipeline-results"></div>
-      </div>
-    </div>
-
-    <!-- Q&A -->
-    <div class="panel">
-      <div class="panel-header">Q&amp;A</div>
-      <div class="panel-body">
-        <div class="qa-section">
-          <h4>Ask about this meeting</h4>
-          <textarea id="qa-question" class="qa-input"
-                    placeholder="Ask a question about this meeting&hellip;"></textarea>
-          <div class="qa-row">
-            <button id="qa-ask-btn">Ask</button>
+        <section class="workspace-tab active" data-workspace-panel="transcript">
+          <div class="workspace-layout">
+            <article class="panel transcript-col">
+              <div class="panel-header"><span>Транскрипт</span><span id="seg-count" class="seg-count"></span></div>
+              <div class="transcript-search"><label for="seg-filter">Поиск по репликам</label><input id="seg-filter" type="search" placeholder="Введите фразу или имя" /></div>
+              <div class="transcript-list" id="transcript-list"><div class="empty">Загрузка транскрипта...</div></div>
+            </article>
+            <aside class="panel context-col">
+              <div class="panel-header">Спикеры</div>
+              <div class="panel-body"><div id="speaker-map-panel" class="speaker-map-list"><div class="empty">Загрузка спикеров...</div></div><div class="speaker-actions"><button id="speaker-map-save-btn" type="button">Сохранить сопоставление</button><span id="speaker-map-status" class="speaker-status" role="status"></span></div></div>
+            </aside>
           </div>
-          <div id="qa-availability" class="qa-mode"></div>
-          <div id="qa-chat-status" class="qa-status"></div>
-          <div id="qa-chat-mode" class="qa-mode"></div>
-          <div id="qa-chat-error" class="qa-error"></div>
-          <div id="qa-answer" class="qa-answer"></div>
-          <div id="qa-refusal" class="qa-refusal"></div>
-          <div id="qa-citations"></div>
-        </div>
+        </section>
 
-        <div class="qa-section">
-          <h4>Search in meeting</h4>
-          <div class="qa-row">
-            <input id="qa-search-input" class="qa-input" type="text"
-                   placeholder="Search transcript &amp; artifacts&hellip;" />
-            <button id="qa-search-btn">Search</button>
+        <section class="workspace-tab" data-workspace-panel="artifacts" hidden>
+          <article class="panel artifacts-workbench"><div class="panel-header"><span>Артефакты встречи</span><button id="close-artifact-btn" class="compact-btn" type="button" hidden>Закрыть просмотр</button></div><div class="panel-body" id="artifacts-panel"><div class="empty">Загрузка артефактов...</div></div></article>
+        </section>
+
+        <section class="workspace-tab" data-workspace-panel="qa" hidden>
+          <div class="qa-layout">
+            <article class="panel"><div class="panel-header">Вопрос по встрече</div><div class="panel-body qa-section"><label for="qa-question">Вопрос</label><textarea id="qa-question" class="qa-input" placeholder="Например: какие решения приняли?"></textarea><div class="qa-row"><button id="qa-ask-btn" class="primary" type="button">Задать вопрос</button></div><div id="qa-availability" class="qa-mode"></div><div id="qa-chat-status" class="qa-status"></div><div id="qa-chat-mode" class="qa-mode"></div><div id="qa-chat-error" class="qa-error" role="alert"></div><div id="qa-answer" class="qa-answer"></div><div id="qa-refusal" class="qa-refusal"></div><div id="qa-citations"></div></div></article>
+            <article class="panel"><div class="panel-header">Поиск по встрече</div><div class="panel-body qa-section"><div class="qa-row"><input id="qa-search-input" class="qa-input" type="search" placeholder="Фраза, решение, задача" /><button id="qa-search-btn" type="button">Найти</button></div><div id="qa-search-status" class="qa-status"></div><div id="qa-search-mode" class="qa-mode"></div><div id="qa-search-error" class="qa-error" role="alert"></div><div id="qa-search-results"></div></div></article>
           </div>
-          <div id="qa-search-status" class="qa-status"></div>
-          <div id="qa-search-mode" class="qa-mode"></div>
-          <div id="qa-search-error" class="qa-error"></div>
-          <div id="qa-search-results"></div>
-        </div>
-      </div>
+        </section>
+
+        <section class="workspace-tab" data-workspace-panel="live" hidden>
+          <article class="panel live-panel" id="live-panel" aria-labelledby="live-panel-title">
+            <div class="panel-header"><span id="live-panel-title">Live-транскрибация</span><button id="live-refresh-btn" class="compact-btn" type="button">Обновить источники</button></div>
+            <div class="panel-body"><div class="live-draft-banner" role="note">Live-текст — черновик и не индексируется. После встречи запустите offline refinement.</div><div id="live-global-error" class="err-msg" role="alert" hidden></div>
+              <div class="live-tracks">
+                <section class="live-track" data-live-source="MIC" aria-labelledby="live-mic-title">
+                  <div class="live-track-heading"><div><h3 id="live-mic-title">Микрофон</h3><span class="live-source-label">MIC</span></div><span id="live-mic-badge" class="badge">Проверка</span></div>
+                  <p id="live-mic-readiness" class="live-readiness" role="status">Проверяем источник...</p>
+                  <div class="live-field"><label for="live-mic-device">Аудиоустройство</label><select id="live-mic-device" data-live-device="MIC"></select></div>
+                  <div class="live-field"><label for="live-mic-vad">Детектор речи</label><select id="live-mic-vad" data-live-vad="MIC"><option value="silero" selected>Silero VAD</option><option value="none">Выключен</option></select></div>
+                  <label class="live-force-label"><input id="live-mic-force" type="checkbox" data-live-force="MIC" /> Заменить существующий MIC-черновик</label>
+                  <div class="live-controls"><button id="live-mic-start" class="primary" type="button" data-live-start="MIC">Запустить MIC</button><button id="live-mic-stop" class="cancel-btn" type="button" data-live-stop="MIC" disabled>Остановить</button><span id="live-mic-elapsed" class="live-elapsed">00:00</span></div>
+                  <div class="live-refinement"><div class="live-refinement-heading"><span>Offline refinement</span><span id="live-mic-refine-badge" class="badge">Нет черновика</span></div><div class="live-field"><label for="live-mic-refine-engine">Финальный ASR</label><select id="live-mic-refine-engine" data-live-refine-engine="MIC"><option value="faster-whisper" selected>Faster Whisper · large-v3-turbo</option><option value="gigaam">GigaAM</option></select></div><label id="live-mic-refine-force-wrap" class="live-force-label" hidden><input id="live-mic-refine-force" type="checkbox" data-live-refine-force="MIC" /> Заменить финальный транскрипт</label><button id="live-mic-refine" type="button" data-live-refine="MIC" disabled>Уточнить offline</button><p id="live-mic-refine-summary" class="live-refinement-summary">Сначала запишите и остановите черновик.</p></div>
+                  <div id="live-mic-error" class="err-msg" role="alert" hidden></div><ul id="live-mic-warnings" class="live-warnings" aria-label="Предупреждения записи микрофона"></ul><div class="live-partial-wrap"><span class="live-caption">Текущая фраза</span><p id="live-mic-partial" class="live-partial" aria-live="polite">Ожидаем речь...</p></div><div id="live-mic-finals" class="live-final-list" role="log" aria-live="polite" aria-relevant="additions text"><p class="empty">Финальных MIC-реплик пока нет</p></div>
+                </section>
+
+                <section class="live-track" data-live-source="SYS" aria-labelledby="live-sys-title">
+                  <div class="live-track-heading"><div><h3 id="live-sys-title">Системный звук</h3><span class="live-source-label">SYS</span></div><span id="live-sys-badge" class="badge">Проверка</span></div>
+                  <p id="live-sys-readiness" class="live-readiness" role="status">Проверяем источник...</p>
+                  <div class="live-field"><label for="live-sys-device">Loopback-устройство</label><select id="live-sys-device" data-live-device="SYS"></select></div>
+                  <div class="live-field"><label for="live-sys-vad">Детектор речи</label><select id="live-sys-vad" data-live-vad="SYS"><option value="silero" selected>Silero VAD</option><option value="none">Выключен</option></select></div>
+                  <label class="live-force-label"><input id="live-sys-force" type="checkbox" data-live-force="SYS" /> Заменить существующий SYS-черновик</label>
+                  <div class="live-controls"><button id="live-sys-start" class="primary" type="button" data-live-start="SYS">Запустить SYS</button><button id="live-sys-stop" class="cancel-btn" type="button" data-live-stop="SYS" disabled>Остановить</button><span id="live-sys-elapsed" class="live-elapsed">00:00</span></div>
+                  <div class="live-refinement"><div class="live-refinement-heading"><span>Offline refinement</span><span id="live-sys-refine-badge" class="badge">Нет черновика</span></div><div class="live-field"><label for="live-sys-refine-engine">Финальный ASR</label><select id="live-sys-refine-engine" data-live-refine-engine="SYS"><option value="faster-whisper" selected>Faster Whisper · large-v3-turbo</option><option value="gigaam">GigaAM</option></select></div><label id="live-sys-refine-force-wrap" class="live-force-label" hidden><input id="live-sys-refine-force" type="checkbox" data-live-refine-force="SYS" /> Заменить финальный транскрипт</label><button id="live-sys-refine" type="button" data-live-refine="SYS" disabled>Уточнить offline</button><p id="live-sys-refine-summary" class="live-refinement-summary">Сначала запишите и остановите черновик.</p></div>
+                  <div id="live-sys-error" class="err-msg" role="alert" hidden></div><ul id="live-sys-warnings" class="live-warnings" aria-label="Предупреждения записи системного звука"></ul><div class="live-partial-wrap"><span class="live-caption">Текущая фраза</span><p id="live-sys-partial" class="live-partial" aria-live="polite">Ожидаем речь...</p></div><div id="live-sys-finals" class="live-final-list" role="log" aria-live="polite" aria-relevant="additions text"><p class="empty">Финальных SYS-реплик пока нет</p></div>
+                </section>
+              </div>
+              <section class="live-conversation" aria-labelledby="live-conversation-title"><div class="live-conversation-heading"><div><h3 id="live-conversation-title">Единый диалог</h3><p>Финальные MIC и SYS реплики на одной шкале времени.</p></div><span id="live-conversation-badge" class="badge">MIX-черновик</span></div><div id="live-conversation-finals" class="live-conversation-list" role="log" aria-live="polite" aria-relevant="additions text"><p class="empty">Реплик пока нет</p></div></section>
+            </div>
+          </article>
+        </section>
+
+        <section class="workspace-tab" data-workspace-panel="pipeline" hidden>
+          <div class="pipeline-layout">
+            <article class="panel"><div class="panel-header"><span>Этапы pipeline</span><button id="jobs-refresh-btn" class="compact-btn" type="button">Обновить</button></div><div class="panel-body"><div id="jobs-status" class="jobs-status"><div class="empty">Загрузка...</div></div><div id="jobs-last-error" class="err-msg" hidden></div><div id="jobs-error" class="err-msg" hidden></div><div id="pipeline-actions" class="pipeline-actions"></div><div id="jobs-stages" class="jobs-stages"></div></div></article>
+            <aside class="panel"><div class="panel-header">Готовые результаты</div><div class="panel-body"><div id="pipeline-results" class="pipeline-results"></div><p class="muted">Готовность и блокировки приходят от серверного preflight.</p></div></aside>
+          </div>
+        </section>
+      </main>
     </div>
-
-  </div><!-- right-col -->
-
-</div><!-- workspace -->
-
-<script src="/assets/v1/workspace.js" defer></script>
+  </div>
+  <script src="/assets/v2/workspace.js" defer></script>
 </body>
 </html>

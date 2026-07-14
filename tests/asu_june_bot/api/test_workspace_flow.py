@@ -95,12 +95,12 @@ def test_last_error_shown_public_safe(html: str) -> None:
 # ---------------------------------------------------------------------------
 
 def test_run_full_pipeline_button(html: str) -> None:
-    assert "Run full pipeline" in html
+    assert "Запустить полный цикл" in html
     assert 'profile: "full"' in html
 
 
 def test_resume_button_only_for_partial_pipeline(html: str) -> None:
-    assert "Resume pipeline" in html
+    assert "Продолжить цикл" in html
     block = html[html.index("function renderPipelineActions"):]
     block = block[: block.index("function renderResults")]
     # resume rendered only when some stages are done AND some pending
@@ -109,15 +109,15 @@ def test_resume_button_only_for_partial_pipeline(html: str) -> None:
 
 
 def test_retry_button_only_when_failed_stage(html: str) -> None:
-    assert "Retry failed stage" in html
+    assert "Повторить сбойный этап" in html
     block = html[html.index("function renderPipelineActions"):]
     block = block[: block.index("function renderResults")]
     assert "_failedStage" in block
 
 
 def test_force_rerun_is_explicit_not_default(html: str) -> None:
-    # done stages get an explicit "Force rerun" control, not a default Start
-    assert "Force rerun" in html
+    # done stages get an explicit force control, not a default Start
+    assert "Перезапустить принудительно" in html
     assert "retryStage(forceBtn.dataset.stage, true)" in html
     # plain retry and pipeline start never pass force implicitly
     assert "retryStage(retryBtn.dataset.stage, false)" in html
@@ -265,9 +265,9 @@ def test_meeting_search_aborts_without_csrf(html: str) -> None:
 
 
 def test_workspace_auth_state_is_explicit_and_not_only_overlay(html: str) -> None:
-    assert "Checking auth..." in html
-    assert "Signed in:" in html
-    assert "Not signed in" in html
+    assert "Проверка..." in html
+    assert "auth.textContent = `${label} · ${roles}`" in html
+    assert "Вход не выполнен" in html
     assert "hideAuthOverlay()" in html
 
 

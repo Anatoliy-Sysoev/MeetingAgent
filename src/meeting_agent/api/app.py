@@ -22,7 +22,7 @@ from meeting_agent.api.routes_live import router as live_router
 from meeting_agent.api.routes_meetingagent_ui import router as meetingagent_ui_router
 from meeting_agent.api.routes_meetings import router as meetings_router
 from meeting_agent.api.routes_workspace import router as workspace_router
-from meeting_agent.api.ui_assets import UI_ASSETS_V1_DIR
+from meeting_agent.api.ui_assets import UI_ASSETS_V1_DIR, UI_ASSETS_V2_DIR
 from meeting_agent.shared.config import load_config
 
 
@@ -37,6 +37,11 @@ def install_core_infrastructure(app: FastAPI, config: dict) -> None:
         "/assets/v1",
         StaticFiles(directory=UI_ASSETS_V1_DIR, check_dir=True),
         name="ui-assets-v1",
+    )
+    app.mount(
+        "/assets/v2",
+        StaticFiles(directory=UI_ASSETS_V2_DIR, check_dir=True),
+        name="ui-assets-v2",
     )
 
 

@@ -36,7 +36,7 @@ from asu_june_bot.api.routes_admin_ui import (  # noqa: E402
 )
 from asu_june_bot.api.routes_meetingagent_ui import router as meetingagent_router  # noqa: E402
 from asu_june_bot.api.routes_workspace import router as workspace_router  # noqa: E402
-from asu_june_bot.api.ui_assets import UI_ASSETS_V1_DIR  # noqa: E402
+from asu_june_bot.api.ui_assets import UI_ASSETS_V1_DIR, UI_ASSETS_V2_DIR  # noqa: E402
 
 
 MEETING_ID = "2026-07-12__browser-smoke"
@@ -49,6 +49,11 @@ def _build_ui_app() -> FastAPI:
         "/assets/v1",
         StaticFiles(directory=UI_ASSETS_V1_DIR, check_dir=True),
         name="ui-assets-v1",
+    )
+    app.mount(
+        "/assets/v2",
+        StaticFiles(directory=UI_ASSETS_V2_DIR, check_dir=True),
+        name="ui-assets-v2",
     )
     app.include_router(meetingagent_router)
     app.include_router(workspace_router)
@@ -177,7 +182,8 @@ def test_meetingagent_upload_and_pipeline_workflow(page: Page, ui_base_url: str)
     response = page.goto(f"{ui_base_url}/MeetingAgent", wait_until="networkidle")
     assert response is not None
     assert "script-src 'self'" in response.headers["content-security-policy"]
-    expect(page.locator("#authStatus")).to_contain_text("admin@local")
+    expect(page.locator("#authStatus")).to_have_text("Администратор")
+    expect(page.locator("#railAccount")).to_have_text("admin@local")
     expect(page.locator("#adminNav")).to_be_hidden()
 
     page.locator("#showUploadBtn").click()
@@ -185,11 +191,11 @@ def test_meetingagent_upload_and_pipeline_workflow(page: Page, ui_base_url: str)
         {"name": "smoke.mp4", "mimeType": "video/mp4", "buffer": b"browser-smoke"}
     )
     page.locator("#meetingTitle").fill("Browser smoke")
-    page.locator("#postUploadAction").select_option("none")
+    page.locator('input[name="profile-choice"][value="none"]').check()
     page.locator("#asrEngine").select_option("gigaam")
     page.locator("#uploadSubmit").click()
 
-    expect(page.locator("#message")).to_contain_text("карточка встречи создана")
+    expect(page.locator("#message")).to_contain_text("Карточка встречи создана")
     expect(page.locator("#uploadResult")).to_contain_text(MEETING_ID)
     upload_headers = captured["upload_headers"]
     assert isinstance(upload_headers, dict)
@@ -197,7 +203,7 @@ def test_meetingagent_upload_and_pipeline_workflow(page: Page, ui_base_url: str)
     assert str(upload_headers.get("content-type", "")).startswith("multipart/form-data")
 
     page.get_by_role("button", name="Запустить транскрибацию").click()
-    expect(page.locator("#message")).to_contain_text("Pipeline запущен")
+    expect(page.locator("#message")).to_contain_text("Обработка запущена")
     assert captured["pipeline"] == {"profile": "transcript_only", "asr_engine": "gigaam"}
     pipeline_headers = captured["pipeline_headers"]
     assert isinstance(pipeline_headers, dict)
@@ -427,7 +433,7 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
     name_input.fill("Иван Петров")
     role_input.fill("Руководитель")
     page.locator("#speaker-map-save-btn").click()
-    expect(page.locator("#speaker-map-status")).to_have_text("Saved")
+    expect(page.locator("#speaker-map-status")).to_have_text("Сохранено")
     assert captured["mapping"] == {
         "mapping": {"SPEAKER_01": {"name": "Иван Петров", "role": "Руководитель"}}
     }
@@ -436,9 +442,11 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
     assert mapping_headers.get("x-csrf-token") == "workspace-csrf"
     expect(page.locator("#transcript-list")).to_contain_text("Иван Петров")
 
-    page.get_by_role("button", name="View").click()
+    page.locator('[data-workspace-tab="artifacts"]').click()
+    page.get_by_role("button", name="Открыть").click()
     expect(page.locator("#artifact-viewer")).to_contain_text("Итог встречи")
 
+    page.locator('[data-workspace-tab="qa"]').click()
     page.locator("#qa-question").fill("Какой срок согласовали?")
     page.locator("#qa-ask-btn").click()
     expect(page.locator("#qa-answer")).to_have_text("Срок поставки согласован.")
@@ -448,10 +456,11 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
     page.locator("#qa-search-input").fill("срок поставки")
     page.locator("#qa-search-btn").click()
     expect(page.locator("#qa-search-results")).to_contain_text("Согласовали срок поставки")
-    expect(page.locator("#qa-search-mode")).to_have_text("retrieval: lexical")
+    expect(page.locator("#qa-search-mode")).to_have_text("поиск: лексический")
     assert captured["search"] == {"query": "срок поставки", "top_k": 5}
 
-    page.get_by_role("button", name="Run full pipeline").click()
+    page.locator('[data-workspace-tab="pipeline"]').click()
+    page.get_by_role("button", name="Запустить полный цикл").click()
     expect(page.locator("#jobs-error")).to_be_hidden()
     assert captured["pipeline"] == {"profile": "full", "resume": False, "force": False}
     pipeline_headers = captured["pipeline_headers"]
@@ -737,14 +746,17 @@ def test_workspace_live_mic_start_partial_stop_and_final(
         wait_until="networkidle",
     )
     assert response is not None
-    expect(page.locator("#live-mic-badge")).to_have_text("Ready")
-    expect(page.locator("#live-sys-badge")).to_have_text("Ready")
-    expect(page.locator("#live-panel")).to_contain_text("draft and is not indexed")
+    page.locator('[data-workspace-tab="live"]').click()
+    expect(page.locator("#live-mic-badge")).to_have_text("Готово")
+    expect(page.locator("#live-sys-badge")).to_have_text("Готово")
+    expect(page.locator("#live-panel")).to_contain_text("черновик и не индексируется")
 
     page.locator("#live-mic-start").click()
-    expect(page.locator("#live-mic-badge")).to_have_text("Recording")
+    expect(page.locator("#live-mic-badge")).to_have_text("Запись")
     expect(page.locator("#live-mic-partial")).to_have_text("Черновая реплика")
-    expect(page.get_by_role("button", name="Run full pipeline")).to_be_disabled()
+    page.locator('[data-workspace-tab="pipeline"]').click()
+    expect(page.get_by_role("button", name="Запустить полный цикл")).to_be_disabled()
+    page.locator('[data-workspace-tab="live"]').click()
     expect(page.locator("#live-sys-start")).to_be_enabled()
     assert captured["start_body"] == {
         "source": "MIC",
@@ -756,8 +768,8 @@ def test_workspace_live_mic_start_partial_stop_and_final(
     assert start_headers.get("x-csrf-token") == "live-browser-csrf"
 
     page.locator("#live-mic-stop").click()
-    expect(page.locator("#live-mic-badge")).to_have_text("Completed")
-    expect(page.locator("#live-mic-partial")).to_have_text("No active partial")
+    expect(page.locator("#live-mic-badge")).to_have_text("Завершено")
+    expect(page.locator("#live-mic-partial")).to_have_text("Нет активного фрагмента")
     expect(page.locator("#live-mic-finals")).to_contain_text(
         "Финальная реплика из микрофона."
     )
@@ -767,18 +779,20 @@ def test_workspace_live_mic_start_partial_stop_and_final(
     )
     expect(page.locator("#live-conversation-finals")).to_contain_text("MIC")
     expect(page.locator("#live-mic-warnings")).to_contain_text("mic audio dropped")
-    expect(page.get_by_role("button", name="Run full pipeline")).to_be_enabled()
+    page.locator('[data-workspace-tab="pipeline"]').click()
+    expect(page.get_by_role("button", name="Запустить полный цикл")).to_be_enabled()
     stop_headers = captured["stop_headers"]
     assert isinstance(stop_headers, dict)
     assert stop_headers.get("x-csrf-token") == "live-browser-csrf"
 
-    expect(page.locator("#live-mic-refine-badge")).to_have_text("Draft")
+    page.locator('[data-workspace-tab="live"]').click()
+    expect(page.locator("#live-mic-refine-badge")).to_have_text("Черновик")
     expect(page.locator("#live-mic-refine")).to_be_enabled()
     page.locator("#live-mic-refine").click()
-    expect(page.locator("#live-mic-refine-badge")).to_have_text("Refining")
-    expect(page.locator("#live-mic-refine-badge")).to_have_text("Final", timeout=8_000)
+    expect(page.locator("#live-mic-refine-badge")).to_have_text("Уточнение")
+    expect(page.locator("#live-mic-refine-badge")).to_have_text("Готово", timeout=8_000)
     expect(page.locator("#live-mic-refine-summary")).to_contain_text(
-        "Character delta versus live draft: +12"
+        "Разница с live-черновиком: +12 символов"
     )
     assert captured["refinement_body"] == {
         "source": "MIC",
@@ -1082,7 +1096,8 @@ def test_meetingagent_live_creation_opens_workspace_and_checks_sources(
 
     expect(page).to_have_url(f"{ui_base_url}{prefix}/workspace")
     expect(page.locator("#hdr-title")).to_have_text("Browser live")
-    expect(page.locator("#live-panel-title")).to_have_text("Live transcription")
+    page.locator('[data-workspace-tab="live"]').click()
+    expect(page.locator("#live-panel-title")).to_have_text("Live-транскрибация")
     assert captured["create_body"] == {
         "title": "Browser live",
         "language": "ru",
