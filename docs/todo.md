@@ -146,9 +146,12 @@
   path-free queue/loss metrics with report warnings.
 - [x] TEST-DEPENDENCY-AUDIT-WINDOWS-UTF8 (#209): force deterministic UTF-8
   subprocess semantics for pip-audit under Cyrillic Windows profile paths.
-- [~] MA-MEETINGAGENT-UI-MOCKUPS (#237): responsive registry, upload/live,
-  processing and Workspace mockups plus API state/role/accessibility contract
-  are ready for owner review; production UI remains unchanged until approval.
+- [x] MA-MEETINGAGENT-UI-MOCKUPS (#237): approved responsive registry,
+  upload/live, processing and Workspace mockups plus API state/role/accessibility
+  contract.
+- [x] MA-MEETINGAGENT-UI-V2 (#253): production table-first registry,
+  addressable create/processing routes and tabbed Workspace on isolated
+  `/assets/v2/*`, with role-aware writes, strict CSP and Chromium workflow tests.
 
 ## Meeting Product Backlog
 

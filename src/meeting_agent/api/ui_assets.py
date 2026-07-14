@@ -8,6 +8,7 @@ from typing import Mapping
 
 UI_ROOT = Path(__file__).resolve().with_name("ui")
 UI_ASSETS_V1_DIR = UI_ROOT / "assets" / "v1"
+UI_ASSETS_V2_DIR = UI_ROOT / "assets" / "v2"
 UI_TEMPLATES_DIR = UI_ROOT / "templates"
 MAX_UI_TEMPLATE_BYTES = 512 * 1024
 MAX_UI_ASSET_BYTES = 1024 * 1024
@@ -22,17 +23,14 @@ _TEMPLATES = MappingProxyType(
 )
 _ASSETS = MappingProxyType(
     {
-        name: UI_ASSETS_V1_DIR / name
-        for name in (
-            "bot.css",
-            "bot.js",
-            "admin.css",
-            "admin.js",
-            "meetingagent.css",
-            "meetingagent.js",
-            "workspace.css",
-            "workspace.js",
-        )
+        "bot.css": UI_ASSETS_V1_DIR / "bot.css",
+        "bot.js": UI_ASSETS_V1_DIR / "bot.js",
+        "admin.css": UI_ASSETS_V1_DIR / "admin.css",
+        "admin.js": UI_ASSETS_V1_DIR / "admin.js",
+        "meetingagent.css": UI_ASSETS_V2_DIR / "meetingagent.css",
+        "meetingagent.js": UI_ASSETS_V2_DIR / "meetingagent.js",
+        "workspace.css": UI_ASSETS_V2_DIR / "workspace.css",
+        "workspace.js": UI_ASSETS_V2_DIR / "workspace.js",
     }
 )
 

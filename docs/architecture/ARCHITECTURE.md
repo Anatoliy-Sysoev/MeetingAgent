@@ -95,7 +95,13 @@ Preflight для каждой стадии:
 
 ### Meeting Workspace UI
 
-`GET /meetings/{id}/workspace` отдаёт single-page UI встречи: медиаплеер, кликабельный транскрипт (seek по сегментам), просмотр текстовых артефактов, панель Pipeline.
+`GET /MeetingAgent` отдаёт table-first реестр встреч; `/MeetingAgent/new` и
+`/MeetingAgent/processing` открывают адресуемые состояния создания и мониторинга.
+`GET /meetings/{id}/workspace` отдаёт вкладочный single-page UI встречи:
+медиаплеер, кликабельный транскрипт (seek по сегментам), сопоставление спикеров,
+артефакты, meeting-scoped Q&A, Live и панель Pipeline. MeetingAgent/Workspace
+используют `/assets/v2/*`; Project Knowledge Bot и admin сохраняют независимый
+`/assets/v1/*` контракт.
 
 Pipeline-панель управляет job runner-ом из браузера:
 
