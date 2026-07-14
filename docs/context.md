@@ -4,15 +4,19 @@
 
 ## Now
 
-- MA-DEPS-DOCS-MATERIAL97 (#244) independently validates Material for MkDocs
-  9.7.6, strict internal-link checks and the exact Python 3.12 docs graph.
-- canonical main before this task: `3454cb1` / `build: validate isolated GigaAM
-  runtime (#247)`.
+- MA-DEPS-MAJOR-COMPATIBILITY (#236) closes the umbrella review by removing the
+  unsafe catch-all Python Dependabot group and recording all compatibility rows.
+- canonical main before this task: `4d13324` / `build: validate Material docs
+  maintenance update (#248)`.
 - History purge #167 remains gated by explicit owner approval and backup.
   Dependency follow-ups are tracked as #236 and #241-#244; UI mockups are #237.
 
 ## Done latest
 
+- MA-DEPS-MAJOR-COMPATIBILITY (#236): NumPy/retrieval, transcription,
+  diarization, live audio, isolated GigaAM and docs now have explicit matrix
+  rows and rollback boundaries. Python Dependabot PRs are ungrouped so one bot
+  update cannot again mix unrelated runtime majors; a unit test enforces it.
 - MA-DEPS-DOCS-MATERIAL97 (#244): pins Material 9.7.6, adds MkDocs 1.6 strict
   target/anchor validation and makes Pages use `mkdocs build --strict`; clean
   docs install, `pip check`, zero-advisory audit and strict build pass. Material
@@ -292,8 +296,6 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- MA-DEPS-MAJOR-COMPATIBILITY (#236): review major dependency upgrades in
-  isolated runtime groups instead of one conflicting Dependabot batch.
 - MA-MEETINGAGENT-UI-MOCKUPS (#237): approve table-first product mockups before
   the next large Workspace/registry UI refactor.
 

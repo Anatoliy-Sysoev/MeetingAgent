@@ -1163,3 +1163,26 @@ targets, unrecognized relative links и anchors, что превращает и�
 - новые deprecated Material plugins не включаются;
 - переход на Zensical рассматривается отдельным ADR до завершения периода
   критических fixes, без смешивания с runtime dependency PR.
+
+## 2026-07-13 - Python Dependabot PR Не Может Быть Catch-All Batch
+
+Решение: удалить глобальную Python-группу `patterns: ["*"]` из Dependabot.
+Каждое Python dependency update создаётся отдельным PR и обязано обновлять
+direct range вместе с соответствующим exact lock и runtime-specific smoke.
+
+Почему:
+
+- прежний grouped PR смешал NumPy, native audio, GigaAM ONNX/Torch и docs theme;
+- разные профили имеют разные hardware, ABI, security и rollback risks;
+- конфликт constraints остановил grouped CI до meaningful tests;
+- compatibility review #241-#244 подтвердил, что независимые clean environments
+  дают проверяемые и локализованные результаты.
+
+Следствия:
+
+- unit contract запрещает Python catch-all groups;
+- open PR limit остаётся равным пяти, чтобы не создавать неограниченный шум;
+- GitHub Actions остаются grouped, потому что их majors отдельно проверяются
+  reviewed allowlist contract;
+- новый major dependency проходит через отдельный issue/branch/PR и получает
+  строку в compatibility matrix до merge.
