@@ -21,6 +21,7 @@ MeetingAgent — локальный репозиторий проектной п
 | `docs/architecture/TECHNICAL_FILE_RELATIONSHIPS.md` | Диаграммы технических файлов, вызовов, структур и данных MeetingAgent |
 | `docs/architecture/MEETING_ARTIFACTS_PIPELINE.md` | Архитектура генерации итогов встречи MAP -> REDUCE -> RENDER |
 | `docs/architecture/ADMIN_CONSOLE.md` | Контракт admin console: users/roles, auth settings, jobs, audit, health, RBAC |
+| `docs/ru/ui_interaction_model.md` | Целевая table-first навигация MeetingAgent, API/UI states, роли и responsive-макеты |
 | `docs/architecture/FOLDER_STRUCTURE.md` | Базовая структура папок встреч |
 | `docs/project_knowledge_bot.md` | Обзор Project Knowledge Bot |
 | `docs/quality/QUERY_FEEDBACK_LOOP.md` | Feedback loop для baseline RAG / dataset helpers |

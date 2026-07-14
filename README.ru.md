@@ -179,6 +179,10 @@ Workspace. Карточка создаётся без фиктивного media
 Текущий следующий слой работ: производный MIC+SYS MIX и углубление продуктового
 администрирования.
 
+Целевая table-first модель реестра, создания встречи, монитора обработки и
+Workspace подготовлена в документе [Модель UI](docs/ru/ui_interaction_model.md)
+для отдельного утверждения владельцем до изменения production-интерфейса.
+
 ## Публичные Примеры
 
 - [Synthetic meeting dataset](examples/meeting_dataset/README.md)

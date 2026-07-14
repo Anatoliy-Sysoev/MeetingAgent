@@ -1,5 +1,23 @@
 # Решения
 
+## 2026-07-14 - Production UI Refactor Gated By Approved Interaction Model
+
+Статус: proposed в #237; решение становится accepted только после утверждения
+владельцем и merge PR с макетами.
+
+- MeetingAgent остаётся основным продуктом встреч на `/MeetingAgent`, а Project
+  Knowledge Bot остаётся отдельной поверхностью на `/ui`.
+- Целевой поток: реестр -> создание -> обработка -> Workspace встречи.
+  Workspace разделяется на task-вкладки вместо растущей вертикальной колонки
+  несвязанных панелей.
+- Источником состояния UI являются server readiness, durable job ID, auth
+  permissions и public-safe error codes. Браузер не угадывает состояние по
+  именам файлов, а видимость контролов не заменяет серверный RBAC.
+- Desktop остаётся table/workspace-first; узкий экран показывает подписанные
+  записи и одну рабочую область Workspace за раз.
+- Production templates/routes не рефакторятся до review public-safe desktop и
+  narrow mockups и API state matrix из `docs/en|ru/ui_interaction_model.md`.
+
 ## 2026-07-10 - Host Allowlist И Bootstrap DNS-Rebinding Defense
 
 Решение: MeetingAgent проверяет каждый HTTP/WebSocket `Host` через встроенный allowlist middleware. Local bootstrap bypass требует одновременно direct loopback peer, trusted local Host и отсутствие proxy headers.
