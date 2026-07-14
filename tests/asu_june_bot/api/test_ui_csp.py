@@ -27,6 +27,8 @@ PRODUCT_PAGES = (
     "/",
     "/ui",
     "/MeetingAgent",
+    "/MeetingAgent/new",
+    "/MeetingAgent/processing",
     "/meetings/2026-07-12__csp-test/workspace",
 )
 ASSET_NAMES = (
@@ -38,6 +40,10 @@ ASSET_NAMES = (
     "meetingagent.js",
     "workspace.css",
     "workspace.js",
+)
+ASSET_PATHS = (
+    *(f"/assets/v1/{name}" for name in ("bot.css", "bot.js", "admin.css", "admin.js")),
+    *(f"/assets/v2/{name}" for name in ("meetingagent.css", "meetingagent.js", "workspace.css", "workspace.js")),
 )
 
 
@@ -98,23 +104,25 @@ def test_product_page_contains_only_external_scripts_and_styles(
     assert not re.search(r"<script(?![^>]*\ssrc=)[^>]*>", html, re.IGNORECASE)
     assert not re.search(r"\sstyle\s*=", html, re.IGNORECASE)
     assert not re.search(r"\son[a-z]+\s*=", html, re.IGNORECASE)
-    assert re.search(r'<link[^>]+href="/assets/v1/[^\"]+\.css"', html)
-    assert re.search(r'<script[^>]+src="/assets/v1/[^\"]+\.js"[^>]*></script>', html)
+    assert re.search(r'<link[^>]+href="/assets/v[12]/[^\"]+\.css"', html)
+    assert re.search(r'<script[^>]+src="/assets/v[12]/[^\"]+\.js"[^>]*></script>', html)
 
 
-@pytest.mark.parametrize("name", ASSET_NAMES)
-def test_versioned_asset_is_servable_and_immutable(client: TestClient, name: str) -> None:
-    response = client.get(f"/assets/v1/{name}")
+@pytest.mark.parametrize("path", ASSET_PATHS)
+def test_versioned_asset_is_servable_and_immutable(client: TestClient, path: str) -> None:
+    response = client.get(path)
     assert response.status_code == 200
     assert response.content
     assert response.headers["cache-control"] == "public, max-age=31536000, immutable"
     assert response.headers["x-content-type-options"] == "nosniff"
-    expected_type = "javascript" if name.endswith(".js") else "css"
+    expected_type = "javascript" if path.endswith(".js") else "css"
     assert expected_type in response.headers["content-type"]
 
 
 def test_unknown_asset_is_not_servable(client: TestClient) -> None:
     response = client.get("/assets/v1/not-allowlisted.js")
+    assert response.status_code == 404
+    response = client.get("/assets/v2/not-allowlisted.js")
     assert response.status_code == 404
 
 
@@ -126,8 +134,11 @@ def test_api_docs_are_not_broken_by_product_csp(client: TestClient) -> None:
 
 def test_template_placeholders_are_resolved_in_responses(client: TestClient) -> None:
     bot = client.get("/ui").text
+    meetingagent = client.get("/MeetingAgent/new").text
     workspace = client.get("/meetings/2026-07-12__csp-test/workspace").text
     assert "__MAX_QUERY_CHARS__" not in bot
+    assert "__INITIAL_SECTION__" not in meetingagent
+    assert 'data-initial-section="new-meeting"' in meetingagent
     assert "__MEETING_ID__" not in workspace
     assert 'data-meeting-id="2026-07-12__csp-test"' in workspace
 
@@ -170,4 +181,6 @@ def test_ui_templates_and_assets_are_declared_as_wheel_package_data() -> None:
         "ui/templates/*.html",
         "ui/assets/v1/*.css",
         "ui/assets/v1/*.js",
+        "ui/assets/v2/*.css",
+        "ui/assets/v2/*.js",
     }

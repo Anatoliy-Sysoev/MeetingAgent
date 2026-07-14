@@ -27,8 +27,8 @@ def test_retrieval_mode_elements_present(html: str) -> None:
 
 def test_retrieval_mode_labels(html: str) -> None:
     assert 'qaModeLabel' in html
-    assert 'retrieval: semantic (vector)' in html
-    assert 'retrieval: lexical' in html
+    assert 'поиск: семантический (vector)' in html
+    assert 'поиск: лексический' in html
     # mode is set from the API field, not guessed
     assert 'qaModeLabel(data.retrieval_mode)' in html
 

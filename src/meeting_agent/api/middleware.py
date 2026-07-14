@@ -27,7 +27,7 @@ CONTENT_SECURITY_POLICY = "; ".join(
 
 
 def _is_product_ui_path(path: str) -> bool:
-    return path in {"/", "/ui", "/MeetingAgent", "/admin"} or (
+    return path in {"/", "/ui", "/MeetingAgent", "/MeetingAgent/new", "/MeetingAgent/processing", "/admin"} or (
         path.startswith("/meetings/") and path.endswith("/workspace")
     )
 
@@ -46,6 +46,6 @@ async def request_context_middleware(request: Request, call_next: Callable[[Requ
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     if _is_product_ui_path(request.url.path):
         response.headers["Content-Security-Policy"] = CONTENT_SECURITY_POLICY
-    if request.url.path.startswith("/assets/v1/"):
+    if request.url.path.startswith(("/assets/v1/", "/assets/v2/")):
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     return response

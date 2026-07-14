@@ -326,7 +326,7 @@ def test_workspace_html_includes_pipeline_controls(tmp_path: Path) -> None:
     body = resp.text
     assert "jobs-stages" in body
     assert "jobs-refresh-btn" in body
-    assert "Pipeline" in body
+    assert "Этапы pipeline" in body
 
 
 def test_workspace_js_references_csrf_header_and_endpoints(tmp_path: Path) -> None:

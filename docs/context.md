@@ -4,16 +4,25 @@
 
 ## Now
 
-- MA-MEETINGAGENT-UI-MOCKUPS (#237) has a public-safe responsive prototype,
-  desktop/narrow review images and a complete API/UI state matrix; production
-  templates remain unchanged until owner approval.
-- canonical main before this task: `d5e94c9` / `build: isolate Python
-  dependency updates (#249)`.
+- MA-MEETINGAGENT-UI-V2 (#253) implements the approved table-first registry,
+  addressable create/processing states and the tabbed Workspace on packaged
+  `/assets/v2/*`; Project Knowledge Bot/admin remain isolated on v1 assets.
+- canonical main before this task: `405ffb3` / `Merge pull request #252 from
+  Anatoliy-Sysoev/codex/237-meetingagent-ui-mockups`.
 - History purge #167 remains gated by explicit owner approval and backup.
   UI interaction model approval is tracked as #237.
 
 ## Done latest
 
+- MA-MEETINGAGENT-UI-MOCKUPS (#237): approved responsive registry, creation,
+  processing and Workspace prototypes plus the API/state/role matrix are now
+  the production UI v2 baseline.
+- MA-MEETINGAGENT-UI-V2 (#253): `/MeetingAgent` is a dense authenticated
+  registry; `/MeetingAgent/new` supports offline/live creation and ASR/profile
+  selection; `/MeetingAgent/processing` monitors/cancels the active job; the
+  Workspace is split into Overview, Transcript, Artifacts, Q&A, Live and
+  Pipeline tabs without removing existing API features. Browser smoke covers
+  upload, pipeline, transcript mapping, artifacts, Q&A and live refinement.
 - MA-DEPS-MAJOR-COMPATIBILITY (#236): NumPy/retrieval, transcription,
   diarization, live audio, isolated GigaAM and docs now have explicit matrix
   rows and rollback boundaries. Python Dependabot PRs are ungrouped so one bot

@@ -1204,3 +1204,31 @@ direct range вместе с соответствующим exact lock и runtim
   reviewed allowlist contract;
 - новый major dependency проходит через отдельный issue/branch/PR и получает
   строку в compatibility matrix до merge.
+
+## 2026-07-14 - MeetingAgent UI v2 Отделён От Интерфейса Knowledge Bot
+
+Решение: основная поверхность MeetingAgent становится table-first реестром на
+`/MeetingAgent`, а создание и мониторинг получают адресуемые состояния
+`/MeetingAgent/new` и `/MeetingAgent/processing`. Карточка встречи использует
+вкладки Overview, Transcript, Artifacts, Q&A, Live и Pipeline. Эти поверхности
+публикуются через `/assets/v2/*`; Project Knowledge Bot и admin сохраняют v1.
+
+Почему:
+
+- реестр и повторяемые операции важнее marketing/card layout для 10-15
+  внутренних пользователей;
+- MeetingAgent и Project Knowledge Bot являются разными продуктами и не должны
+  выглядеть как два режима одного чата;
+- отдельная версия assets не меняет CSP и не ломает проверенные v1-контракты;
+- адресуемые состояния позволяют обновлять страницу и делиться ссылкой без
+  потери текущего рабочего раздела;
+- Workspace должен открывать все уже реализованные API-функции без длинной
+  смешанной страницы.
+
+Следствия:
+
+- write-контролы скрыты до проверки RBAC и все browser writes сохраняют CSRF;
+- динамический контент строится через DOM API/textContent, без inline scripts,
+  handlers, styles или browser storage;
+- дальнейшее несовместимое изменение UI требует нового versioned asset path;
+- UI mockups остаются design evidence, а не параллельным runtime.

@@ -165,7 +165,7 @@ http://127.0.0.1:8000/
 http://127.0.0.1:8000/ui
 ```
 
-The built-in web UI supports local login, displays the current auth state, obtains CSRF tokens through `GET /auth/csrf`, and sends authenticated requests from the browser. Administrators with `users.manage` can open `http://127.0.0.1:8000/admin` after login to manage bounded user pages, roles and account status and to review redacted deployment/bootstrap safety. Product pages use packaged versioned assets and a restrictive self-only Content Security Policy without inline scripts or styles. See [API and Auth Setup](docs/en/API_AUTH_SETUP.md).
+The built-in web UI supports local login, displays the current auth state, obtains CSRF tokens through `GET /auth/csrf`, and sends authenticated requests from the browser. `/MeetingAgent` is the table-first meeting registry; `/MeetingAgent/new` creates offline or live meetings and `/MeetingAgent/processing` monitors the active local job. The Project Knowledge Bot remains a separate `/ui` surface. Administrators with `users.manage` can open `http://127.0.0.1:8000/admin` after login to manage bounded user pages, roles and account status and to review redacted deployment/bootstrap safety. Product pages use packaged versioned assets and a restrictive self-only Content Security Policy without inline scripts or styles. See [API and Auth Setup](docs/en/API_AUTH_SETUP.md).
 
 ### 4. Ask A CLI Question
 
@@ -241,13 +241,13 @@ The workspace includes:
   explicit offline refinement into the canonical transcript;
 - meeting-scoped search and Q&A with vector retrieval fallback, timestamps, speaker labels, and source citations.
 
-The current product gap is no longer the basic offline pipeline. Live-only
-cards, live/offline coordination, a derived MIC+SYS transcript timeline and
-source-scoped offline refinement are available in the browser. Remaining work
-is concentrated in deeper product administration, product-package separation
-and the next UI design pass. The proposed registry, creation, processing and
-Workspace interaction model is available in the
-[UI interaction model](docs/en/ui_interaction_model.md) for owner review.
+The table-first registry, explicit creation/processing routes and tabbed
+Workspace are implemented as UI v2. Live-only cards, live/offline coordination,
+a derived MIC+SYS transcript timeline and source-scoped offline refinement are
+available in the browser. The approved interaction model and API/state matrix
+are documented in the [UI interaction model](docs/en/ui_interaction_model.md).
+Remaining product work is concentrated in deeper administration and the later
+standalone Project Knowledge Bot package split.
 
 ### Live Transcription
 
