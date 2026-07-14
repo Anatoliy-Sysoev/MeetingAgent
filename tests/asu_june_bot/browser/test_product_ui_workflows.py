@@ -36,7 +36,11 @@ from asu_june_bot.api.routes_admin_ui import (  # noqa: E402
 )
 from asu_june_bot.api.routes_meetingagent_ui import router as meetingagent_router  # noqa: E402
 from asu_june_bot.api.routes_workspace import router as workspace_router  # noqa: E402
-from asu_june_bot.api.ui_assets import UI_ASSETS_V1_DIR, UI_ASSETS_V2_DIR  # noqa: E402
+from asu_june_bot.api.ui_assets import (  # noqa: E402
+    UI_ASSETS_V1_DIR,
+    UI_ASSETS_V2_DIR,
+    UI_ASSETS_V3_DIR,
+)
 
 
 MEETING_ID = "2026-07-12__browser-smoke"
@@ -54,6 +58,11 @@ def _build_ui_app() -> FastAPI:
         "/assets/v2",
         StaticFiles(directory=UI_ASSETS_V2_DIR, check_dir=True),
         name="ui-assets-v2",
+    )
+    app.mount(
+        "/assets/v3",
+        StaticFiles(directory=UI_ASSETS_V3_DIR, check_dir=True),
+        name="ui-assets-v3",
     )
     app.include_router(meetingagent_router)
     app.include_router(workspace_router)
@@ -469,24 +478,21 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
     assert errors == []
 
 
-def test_workspace_live_mic_start_partial_stop_and_final(
+def test_workspace_live_unified_start_partial_stop_and_final(
     page: Page,
     ui_base_url: str,
 ) -> None:
     captured: dict[str, object] = {}
-    live_started = False
-    live_stopped = False
-    refinement_started = False
-    refinement_job_polls = 0
-    session_id = "live-browser-session"
-    refinement_job_id = "live-refinement-job"
+    live_started = {"MIC": False, "SYS": False}
+    live_stopped = {"MIC": False, "SYS": False}
+    session_ids = {"MIC": "live-browser-mic", "SYS": "live-browser-sys"}
 
-    def session_payload() -> dict[str, object]:
-        status = "completed" if live_stopped else "running"
+    def session_payload(source: str) -> dict[str, object]:
+        status = "completed" if live_stopped[source] else "running"
         return {
-            "session_id": session_id,
+            "session_id": session_ids[source],
             "meeting_id": MEETING_ID,
-            "source": "MIC",
+            "source": source,
             "status": status,
             "engine": "vosk",
             "model": "vosk-model-small-ru",
@@ -494,16 +500,15 @@ def test_workspace_live_mic_start_partial_stop_and_final(
             "created_at": "2026-07-13T12:00:00+00:00",
             "started_at": "2026-07-13T12:00:00+00:00",
             "updated_at": "2026-07-13T12:00:02+00:00",
-            "finished_at": "2026-07-13T12:00:02+00:00" if live_stopped else None,
-            "last_event_id": 4 if live_stopped else 2,
-            "warnings": ["mic_audio_dropped"] if live_stopped else [],
+            "finished_at": "2026-07-13T12:00:02+00:00" if live_stopped[source] else None,
+            "last_event_id": 4 if live_stopped[source] else 2,
+            "warnings": [f"{source.lower()}_audio_dropped"] if live_stopped[source] else [],
             "error": None,
-            "artifact_keys": ["live_segments_mic"] if live_stopped else [],
-            "is_active": not live_stopped,
+            "artifact_keys": [f"live_segments_{source.lower()}"] if live_stopped[source] else [],
+            "is_active": not live_stopped[source],
         }
 
     def handle_api(route: Route) -> None:
-        nonlocal live_started, live_stopped, refinement_started, refinement_job_polls
         request = route.request
         parsed = urlparse(request.url)
         path = parsed.path
@@ -532,7 +537,7 @@ def test_workspace_live_mic_start_partial_stop_and_final(
                     "meeting_id": MEETING_ID,
                     "title": "Live browser smoke",
                     "date": "2026-07-13",
-                    "processing_status": "transcribing" if live_started else "new",
+                    "processing_status": "transcribing" if any(live_started.values()) else "new",
                 },
             )
         elif path == f"{prefix}/media":
@@ -569,11 +574,11 @@ def test_workspace_live_mic_start_partial_stop_and_final(
             )
         elif path == f"{prefix}/live/sessions/active":
             source = query.get("source", [""])[0]
-            active = session_payload() if source == "MIC" and live_started and not live_stopped else None
+            active = session_payload(source) if source in live_started and live_started[source] and not live_stopped[source] else None
             _fulfill_json(route, {"meeting_id": MEETING_ID, "session": active})
         elif path == f"{prefix}/live/timeline":
             segments = []
-            if live_stopped:
+            if all(live_stopped.values()):
                 segments = [
                     {
                         "segment_id": "live-mix-mic-browser",
@@ -585,7 +590,18 @@ def test_workspace_live_mic_start_partial_stop_and_final(
                         "origin_end": 1.2,
                         "text": "Финальная реплика из микрофона.",
                         "confidence": None,
-                    }
+                    },
+                    {
+                        "segment_id": "live-mix-sys-browser",
+                        "origin_segment_id": "live-browser-final-sys",
+                        "source": "SYS",
+                        "start": 0.2,
+                        "end": 1.4,
+                        "origin_start": 0.2,
+                        "origin_end": 1.4,
+                        "text": "Финальная реплика системного звука.",
+                        "confidence": None,
+                    },
                 ]
             _fulfill_json(
                 route,
@@ -601,23 +617,32 @@ def test_workspace_live_mic_start_partial_stop_and_final(
                     "warnings": [],
                 },
             )
-        elif path == f"{prefix}/live/sessions" and request.method == "POST":
-            live_started = True
+        elif path == f"{prefix}/live/capture" and request.method == "POST":
+            live_started.update({"MIC": True, "SYS": True})
             captured["start_body"] = json.loads(request.post_data or "{}")
             captured["start_headers"] = request.headers
-            _fulfill_json(route, session_payload(), status=202)
-        elif path == f"{prefix}/live/sessions/{session_id}" and request.method == "GET":
-            _fulfill_json(route, session_payload())
-        elif path == f"{prefix}/live/sessions/{session_id}/events":
+            _fulfill_json(
+                route,
+                {"meeting_id": MEETING_ID, "sessions": {source: session_payload(source) for source in ("MIC", "SYS")}},
+                status=202,
+            )
+        elif request.method == "GET" and path in {
+            f"{prefix}/live/sessions/{session_ids['MIC']}",
+            f"{prefix}/live/sessions/{session_ids['SYS']}",
+        }:
+            source = "MIC" if path.endswith(session_ids["MIC"]) else "SYS"
+            _fulfill_json(route, session_payload(source))
+        elif path.endswith("/events") and any(session_id in path for session_id in session_ids.values()):
+            source = "MIC" if session_ids["MIC"] in path else "SYS"
             after = int(query.get("after", ["0"])[0])
-            if live_stopped and after < 4:
+            if live_stopped[source] and after < 4:
                 events = [
                     {
                         "event_id": 3,
                         "type": "final",
-                        "source": "MIC",
-                        "segment_id": "live-browser-final",
-                        "text": "Финальная реплика из микрофона.",
+                        "source": source,
+                        "segment_id": f"live-browser-final-{source.lower()}",
+                        "text": "Финальная реплика из микрофона." if source == "MIC" else "Финальная реплика системного звука.",
                         "start": 0.0,
                         "end": 1.2,
                         "is_final": True,
@@ -625,13 +650,13 @@ def test_workspace_live_mic_start_partial_stop_and_final(
                     {"event_id": 4, "type": "status", "status": "completed"},
                 ]
                 next_after = 4
-            elif not live_stopped and after < 2:
+            elif not live_stopped[source] and after < 2:
                 events = [
                     {
                         "event_id": 2,
                         "type": "partial",
-                        "source": "MIC",
-                        "text": "Черновая реплика",
+                        "source": source,
+                        "text": f"Черновая реплика {source}",
                         "start": 0.0,
                         "end": 0.4,
                         "is_final": False,
@@ -644,97 +669,24 @@ def test_workspace_live_mic_start_partial_stop_and_final(
             _fulfill_json(
                 route,
                 {
-                    "session_id": session_id,
+                    "session_id": session_ids[source],
                     "meeting_id": MEETING_ID,
-                    "source": "MIC",
-                    "status": "completed" if live_stopped else "running",
+                    "source": source,
+                    "status": "completed" if live_stopped[source] else "running",
                     "events": events,
                     "oldest_event_id": 1,
-                    "newest_event_id": 4 if live_stopped else 2,
+                    "newest_event_id": 4 if live_stopped[source] else 2,
                     "next_after": next_after,
                     "truncated": False,
                     "partial_events_durable": False,
                 },
             )
-        elif path == f"{prefix}/live/sessions/{session_id}/stop" and request.method == "POST":
-            live_stopped = True
+        elif path == f"{prefix}/live/capture/stop" and request.method == "POST":
+            live_stopped.update({"MIC": True, "SYS": True})
             captured["stop_headers"] = request.headers
-            _fulfill_json(route, session_payload())
-        elif path == f"{prefix}/live/refinement" and request.method == "GET":
-            source = query.get("source", ["MIC"])[0]
-            if source != "MIC" or not live_stopped:
-                payload = {
-                    "meeting_id": MEETING_ID,
-                    "source": source,
-                    "state": "unavailable",
-                    "can_refine": False,
-                    "can_resume": False,
-                    "can_force": False,
-                    "reason": "live_draft_missing",
-                }
-            elif not refinement_started:
-                payload = {
-                    "meeting_id": MEETING_ID,
-                    "source": source,
-                    "state": "draft",
-                    "can_refine": True,
-                    "can_resume": False,
-                    "can_force": False,
-                    "live": {"engine": "vosk", "segments_count": 1, "chars_count": 35},
-                }
-            elif refinement_job_polls < 2:
-                payload = {
-                    "meeting_id": MEETING_ID,
-                    "source": source,
-                    "state": "refining",
-                    "can_refine": False,
-                    "can_resume": False,
-                    "can_force": False,
-                    "live": {"engine": "vosk", "segments_count": 1, "chars_count": 35},
-                }
-            else:
-                payload = {
-                    "meeting_id": MEETING_ID,
-                    "source": source,
-                    "state": "final",
-                    "can_refine": False,
-                    "can_resume": False,
-                    "can_force": True,
-                    "live": {"engine": "vosk", "segments_count": 1, "chars_count": 35},
-                    "offline": {"engine": "faster-whisper", "model": "large-v3-turbo"},
-                    "comparison": {"chars_count_delta": 12},
-                }
-            _fulfill_json(route, payload)
-        elif path == f"{prefix}/live/refinement" and request.method == "POST":
-            refinement_started = True
-            captured["refinement_body"] = json.loads(request.post_data or "{}")
-            captured["refinement_headers"] = request.headers
             _fulfill_json(
                 route,
-                {
-                    "meeting_id": MEETING_ID,
-                    "source": "MIC",
-                    "state": "refining",
-                    "job": {
-                        "job_id": refinement_job_id,
-                        "meeting_id": MEETING_ID,
-                        "stage": "transcribe",
-                        "status": "running",
-                    },
-                },
-                status=202,
-            )
-        elif path == f"{prefix}/jobs/{refinement_job_id}":
-            refinement_job_polls += 1
-            status = "running" if refinement_job_polls < 2 else "completed"
-            _fulfill_json(
-                route,
-                {
-                    "job_id": refinement_job_id,
-                    "meeting_id": MEETING_ID,
-                    "stage": "transcribe",
-                    "status": status,
-                },
+                {"meeting_id": MEETING_ID, "sessions": {source: session_payload(source) for source in ("MIC", "SYS")}},
             )
         else:
             route.continue_()
@@ -747,19 +699,19 @@ def test_workspace_live_mic_start_partial_stop_and_final(
     )
     assert response is not None
     page.locator('[data-workspace-tab="live"]').click()
-    expect(page.locator("#live-mic-badge")).to_have_text("Готово")
-    expect(page.locator("#live-sys-badge")).to_have_text("Готово")
+    expect(page.locator("#live-capture-badge")).to_have_text("Готово")
     expect(page.locator("#live-panel")).to_contain_text("черновик и не индексируется")
 
-    page.locator("#live-mic-start").click()
-    expect(page.locator("#live-mic-badge")).to_have_text("Запись")
-    expect(page.locator("#live-mic-partial")).to_have_text("Черновая реплика")
+    page.locator("#live-start-btn").click()
+    expect(page.locator("#live-capture-badge")).to_have_text("Запись")
+    expect(page.locator("#live-partial")).to_contain_text("Черновая реплика MIC")
+    expect(page.locator("#live-partial")).to_contain_text("Черновая реплика SYS")
     page.locator('[data-workspace-tab="pipeline"]').click()
     expect(page.get_by_role("button", name="Запустить полный цикл")).to_be_disabled()
     page.locator('[data-workspace-tab="live"]').click()
-    expect(page.locator("#live-sys-start")).to_be_enabled()
     assert captured["start_body"] == {
-        "source": "MIC",
+        "mic_audio_device_index": None,
+        "sys_audio_device_index": None,
         "vad": "silero",
         "force": False,
     }
@@ -767,42 +719,25 @@ def test_workspace_live_mic_start_partial_stop_and_final(
     assert isinstance(start_headers, dict)
     assert start_headers.get("x-csrf-token") == "live-browser-csrf"
 
-    page.locator("#live-mic-stop").click()
-    expect(page.locator("#live-mic-badge")).to_have_text("Завершено")
-    expect(page.locator("#live-mic-partial")).to_have_text("Нет активного фрагмента")
-    expect(page.locator("#live-mic-finals")).to_contain_text(
-        "Финальная реплика из микрофона."
-    )
-    expect(page.locator("#live-mic-finals")).to_contain_text("MIC")
+    page.locator("#live-stop-btn").click()
+    expect(page.locator("#live-capture-badge")).to_have_text("Завершено")
+    expect(page.locator("#live-partial")).to_have_text("Нет активного фрагмента")
     expect(page.locator("#live-conversation-finals")).to_contain_text(
         "Финальная реплика из микрофона."
     )
+    expect(page.locator("#live-conversation-finals")).to_contain_text(
+        "Финальная реплика системного звука."
+    )
     expect(page.locator("#live-conversation-finals")).to_contain_text("MIC")
-    expect(page.locator("#live-mic-warnings")).to_contain_text("mic audio dropped")
+    expect(page.locator("#live-conversation-finals")).to_contain_text("SYS")
+    expect(page.locator("#live-warnings")).to_contain_text("MIC: mic audio dropped")
+    expect(page.locator("#live-warnings")).to_contain_text("SYS: sys audio dropped")
     page.locator('[data-workspace-tab="pipeline"]').click()
     expect(page.get_by_role("button", name="Запустить полный цикл")).to_be_enabled()
     stop_headers = captured["stop_headers"]
     assert isinstance(stop_headers, dict)
     assert stop_headers.get("x-csrf-token") == "live-browser-csrf"
 
-    page.locator('[data-workspace-tab="live"]').click()
-    expect(page.locator("#live-mic-refine-badge")).to_have_text("Черновик")
-    expect(page.locator("#live-mic-refine")).to_be_enabled()
-    page.locator("#live-mic-refine").click()
-    expect(page.locator("#live-mic-refine-badge")).to_have_text("Уточнение")
-    expect(page.locator("#live-mic-refine-badge")).to_have_text("Готово", timeout=8_000)
-    expect(page.locator("#live-mic-refine-summary")).to_contain_text(
-        "Разница с live-черновиком: +12 символов"
-    )
-    assert captured["refinement_body"] == {
-        "source": "MIC",
-        "asr_engine": "faster-whisper",
-        "force": False,
-        "resume": False,
-    }
-    refinement_headers = captured["refinement_headers"]
-    assert isinstance(refinement_headers, dict)
-    assert refinement_headers.get("x-csrf-token") == "live-browser-csrf"
     assert errors == []
 
 

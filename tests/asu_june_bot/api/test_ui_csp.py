@@ -43,7 +43,8 @@ ASSET_NAMES = (
 )
 ASSET_PATHS = (
     *(f"/assets/v1/{name}" for name in ("bot.css", "bot.js", "admin.css", "admin.js")),
-    *(f"/assets/v2/{name}" for name in ("meetingagent.css", "meetingagent.js", "workspace.css", "workspace.js")),
+    *(f"/assets/v2/{name}" for name in ("meetingagent.css", "meetingagent.js")),
+    *(f"/assets/v3/{name}" for name in ("workspace.css", "workspace.js")),
 )
 
 
@@ -104,8 +105,8 @@ def test_product_page_contains_only_external_scripts_and_styles(
     assert not re.search(r"<script(?![^>]*\ssrc=)[^>]*>", html, re.IGNORECASE)
     assert not re.search(r"\sstyle\s*=", html, re.IGNORECASE)
     assert not re.search(r"\son[a-z]+\s*=", html, re.IGNORECASE)
-    assert re.search(r'<link[^>]+href="/assets/v[12]/[^\"]+\.css"', html)
-    assert re.search(r'<script[^>]+src="/assets/v[12]/[^\"]+\.js"[^>]*></script>', html)
+    assert re.search(r'<link[^>]+href="/assets/v[123]/[^\"]+\.css"', html)
+    assert re.search(r'<script[^>]+src="/assets/v[123]/[^\"]+\.js"[^>]*></script>', html)
 
 
 @pytest.mark.parametrize("path", ASSET_PATHS)
@@ -123,6 +124,8 @@ def test_unknown_asset_is_not_servable(client: TestClient) -> None:
     response = client.get("/assets/v1/not-allowlisted.js")
     assert response.status_code == 404
     response = client.get("/assets/v2/not-allowlisted.js")
+    assert response.status_code == 404
+    response = client.get("/assets/v3/not-allowlisted.js")
     assert response.status_code == 404
 
 
@@ -183,4 +186,6 @@ def test_ui_templates_and_assets_are_declared_as_wheel_package_data() -> None:
         "ui/assets/v1/*.js",
         "ui/assets/v2/*.css",
         "ui/assets/v2/*.js",
+        "ui/assets/v3/*.css",
+        "ui/assets/v3/*.js",
     }

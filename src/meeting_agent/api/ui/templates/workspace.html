@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Карточка встречи · MeetingAgent</title>
-  <link rel="stylesheet" href="/assets/v2/workspace.css" />
+  <link rel="stylesheet" href="/assets/v3/workspace.css" />
 </head>
 <body data-meeting-id="__MEETING_ID__">
   <a class="skip-link" href="#workspace-main">Перейти к содержимому</a>
@@ -86,29 +86,20 @@
           <article class="panel live-panel" id="live-panel" aria-labelledby="live-panel-title">
             <div class="panel-header"><span id="live-panel-title">Live-транскрибация</span><button id="live-refresh-btn" class="compact-btn" type="button">Обновить источники</button></div>
             <div class="panel-body"><div class="live-draft-banner" role="note">Live-текст — черновик и не индексируется. После встречи запустите offline refinement.</div><div id="live-global-error" class="err-msg" role="alert" hidden></div>
-              <div class="live-tracks">
-                <section class="live-track" data-live-source="MIC" aria-labelledby="live-mic-title">
-                  <div class="live-track-heading"><div><h3 id="live-mic-title">Микрофон</h3><span class="live-source-label">MIC</span></div><span id="live-mic-badge" class="badge">Проверка</span></div>
-                  <p id="live-mic-readiness" class="live-readiness" role="status">Проверяем источник...</p>
-                  <div class="live-field"><label for="live-mic-device">Аудиоустройство</label><select id="live-mic-device" data-live-device="MIC"></select></div>
-                  <div class="live-field"><label for="live-mic-vad">Детектор речи</label><select id="live-mic-vad" data-live-vad="MIC"><option value="silero" selected>Silero VAD</option><option value="none">Выключен</option></select></div>
-                  <label class="live-force-label"><input id="live-mic-force" type="checkbox" data-live-force="MIC" /> Заменить существующий MIC-черновик</label>
-                  <div class="live-controls"><button id="live-mic-start" class="primary" type="button" data-live-start="MIC">Запустить MIC</button><button id="live-mic-stop" class="cancel-btn" type="button" data-live-stop="MIC" disabled>Остановить</button><span id="live-mic-elapsed" class="live-elapsed">00:00</span></div>
-                  <div class="live-refinement"><div class="live-refinement-heading"><span>Offline refinement</span><span id="live-mic-refine-badge" class="badge">Нет черновика</span></div><div class="live-field"><label for="live-mic-refine-engine">Финальный ASR</label><select id="live-mic-refine-engine" data-live-refine-engine="MIC"><option value="faster-whisper" selected>Faster Whisper · large-v3-turbo</option><option value="gigaam">GigaAM</option></select></div><label id="live-mic-refine-force-wrap" class="live-force-label" hidden><input id="live-mic-refine-force" type="checkbox" data-live-refine-force="MIC" /> Заменить финальный транскрипт</label><button id="live-mic-refine" type="button" data-live-refine="MIC" disabled>Уточнить offline</button><p id="live-mic-refine-summary" class="live-refinement-summary">Сначала запишите и остановите черновик.</p></div>
-                  <div id="live-mic-error" class="err-msg" role="alert" hidden></div><ul id="live-mic-warnings" class="live-warnings" aria-label="Предупреждения записи микрофона"></ul><div class="live-partial-wrap"><span class="live-caption">Текущая фраза</span><p id="live-mic-partial" class="live-partial" aria-live="polite">Ожидаем речь...</p></div><div id="live-mic-finals" class="live-final-list" role="log" aria-live="polite" aria-relevant="additions text"><p class="empty">Финальных MIC-реплик пока нет</p></div>
-                </section>
-
-                <section class="live-track" data-live-source="SYS" aria-labelledby="live-sys-title">
-                  <div class="live-track-heading"><div><h3 id="live-sys-title">Системный звук</h3><span class="live-source-label">SYS</span></div><span id="live-sys-badge" class="badge">Проверка</span></div>
-                  <p id="live-sys-readiness" class="live-readiness" role="status">Проверяем источник...</p>
-                  <div class="live-field"><label for="live-sys-device">Loopback-устройство</label><select id="live-sys-device" data-live-device="SYS"></select></div>
-                  <div class="live-field"><label for="live-sys-vad">Детектор речи</label><select id="live-sys-vad" data-live-vad="SYS"><option value="silero" selected>Silero VAD</option><option value="none">Выключен</option></select></div>
-                  <label class="live-force-label"><input id="live-sys-force" type="checkbox" data-live-force="SYS" /> Заменить существующий SYS-черновик</label>
-                  <div class="live-controls"><button id="live-sys-start" class="primary" type="button" data-live-start="SYS">Запустить SYS</button><button id="live-sys-stop" class="cancel-btn" type="button" data-live-stop="SYS" disabled>Остановить</button><span id="live-sys-elapsed" class="live-elapsed">00:00</span></div>
-                  <div class="live-refinement"><div class="live-refinement-heading"><span>Offline refinement</span><span id="live-sys-refine-badge" class="badge">Нет черновика</span></div><div class="live-field"><label for="live-sys-refine-engine">Финальный ASR</label><select id="live-sys-refine-engine" data-live-refine-engine="SYS"><option value="faster-whisper" selected>Faster Whisper · large-v3-turbo</option><option value="gigaam">GigaAM</option></select></div><label id="live-sys-refine-force-wrap" class="live-force-label" hidden><input id="live-sys-refine-force" type="checkbox" data-live-refine-force="SYS" /> Заменить финальный транскрипт</label><button id="live-sys-refine" type="button" data-live-refine="SYS" disabled>Уточнить offline</button><p id="live-sys-refine-summary" class="live-refinement-summary">Сначала запишите и остановите черновик.</p></div>
-                  <div id="live-sys-error" class="err-msg" role="alert" hidden></div><ul id="live-sys-warnings" class="live-warnings" aria-label="Предупреждения записи системного звука"></ul><div class="live-partial-wrap"><span class="live-caption">Текущая фраза</span><p id="live-sys-partial" class="live-partial" aria-live="polite">Ожидаем речь...</p></div><div id="live-sys-finals" class="live-final-list" role="log" aria-live="polite" aria-relevant="additions text"><p class="empty">Финальных SYS-реплик пока нет</p></div>
-                </section>
-              </div>
+              <section class="live-capture" aria-labelledby="live-capture-title">
+                <div class="live-capture-heading"><div><h3 id="live-capture-title">Запись встречи</h3><p>Микрофон и системный звук записываются одновременно.</p></div><span id="live-capture-badge" class="badge">Проверка</span></div>
+                <p id="live-capture-status" class="live-readiness" role="status">Проверяем источники...</p>
+                <div class="live-device-grid">
+                  <div class="live-field"><label for="live-mic-device">Микрофон</label><select id="live-mic-device" data-live-device="MIC"></select><small id="live-mic-readiness">Проверяем микрофон...</small></div>
+                  <div class="live-field"><label for="live-sys-device">Системный звук</label><select id="live-sys-device" data-live-device="SYS"></select><small id="live-sys-readiness">Проверяем системный звук...</small></div>
+                  <div class="live-field"><label for="live-vad">Детектор речи</label><select id="live-vad"><option value="silero" selected>Silero VAD</option><option value="none">Выключен</option></select></div>
+                </div>
+                <label class="live-force-label"><input id="live-force" type="checkbox" /> Заменить существующий live-черновик</label>
+                <div class="live-controls"><button id="live-start-btn" class="primary" type="button">Начать запись</button><button id="live-stop-btn" class="cancel-btn" type="button" disabled>Остановить запись</button><span id="live-elapsed" class="live-elapsed">00:00</span></div>
+                <ul id="live-warnings" class="live-warnings" aria-label="Предупреждения live-записи"></ul>
+                <div class="live-partial-wrap"><span class="live-caption">Текущая речь</span><p id="live-partial" class="live-partial" aria-live="polite">Ожидаем речь...</p></div>
+                <div class="live-aftercare"><p>После завершения live-черновик останется вне индекса. Для финального транскрипта запустите offline-обработку.</p><button type="button" data-open-tab="pipeline">Перейти к обработке</button></div>
+              </section>
               <section class="live-conversation" aria-labelledby="live-conversation-title"><div class="live-conversation-heading"><div><h3 id="live-conversation-title">Единый диалог</h3><p>Финальные MIC и SYS реплики на одной шкале времени.</p></div><span id="live-conversation-badge" class="badge">MIX-черновик</span></div><div id="live-conversation-finals" class="live-conversation-list" role="log" aria-live="polite" aria-relevant="additions text"><p class="empty">Реплик пока нет</p></div></section>
             </div>
           </article>
@@ -123,6 +114,6 @@
       </main>
     </div>
   </div>
-  <script src="/assets/v2/workspace.js" defer></script>
+  <script src="/assets/v3/workspace.js" defer></script>
 </body>
 </html>
