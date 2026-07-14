@@ -4,16 +4,21 @@
 
 ## Now
 
-- MA-MEETINGAGENT-UI-V2 (#253) implements the approved table-first registry,
-  addressable create/processing states and the tabbed Workspace on packaged
-  `/assets/v2/*`; Project Knowledge Bot/admin remain isolated on v1 assets.
-- canonical main before this task: `405ffb3` / `Merge pull request #252 from
-  Anatoliy-Sysoev/codex/237-meetingagent-ui-mockups`.
+- MA-LIVE-UNIFIED-CAPTURE-UI (#255) makes MIC and SYS one user-level recording
+  operation in Workspace while preserving separate source sessions, WAV files
+  and provenance internally. The incompatible Workspace update uses immutable
+  `/assets/v3/*`; the registry remains on `/assets/v2/*`.
+- canonical main before this task: `5af1bb1` / `Merge pull request #254 from
+  Anatoliy-Sysoev/codex/253-meetingagent-ui-v2`.
 - History purge #167 remains gated by explicit owner approval and backup.
   UI interaction model approval is tracked as #237.
 
 ## Done latest
 
+- MA-LIVE-UNIFIED-CAPTURE-UI (#255): Workspace has one start/stop control,
+  shared VAD/replace settings, MIC and SYS device selectors, one elapsed timer,
+  aggregated warnings/partials and one source-aware conversation. Group API
+  start rolls MIC back if SYS cannot start; group stop attempts both sources.
 - MA-MEETINGAGENT-UI-MOCKUPS (#237): approved responsive registry, creation,
   processing and Workspace prototypes plus the API/state/role matrix are now
   the production UI v2 baseline.
@@ -277,6 +282,8 @@ GET  /meetings/{id}/live/timeline
 GET  /meetings/{id}/live/refinement
 POST /meetings/{id}/live/refinement
 GET  /meetings/{id}/live/sessions/active
+POST /meetings/{id}/live/capture
+POST /meetings/{id}/live/capture/stop
 POST /meetings/{id}/live/sessions
 GET  /meetings/{id}/live/sessions/{session_id}
 GET  /meetings/{id}/live/sessions/{session_id}/events

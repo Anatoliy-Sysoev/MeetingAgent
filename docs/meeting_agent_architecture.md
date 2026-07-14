@@ -168,6 +168,14 @@ source/live_audio.<SOURCE>.wav  # real MIC/SYS capture only
 
 `<SOURCE>` равен `MIC`, `SYS` или `MIX`, поэтому несколько дорожек могут сосуществовать в одной карточке встречи.
 
+В Workspace пользователь управляет MIC и SYS как одной записью: выбирает оба
+устройства и нажимает одну кнопку запуска или остановки. API создаёт две
+source-scoped сессии и объединяет их статус, предупреждения, partials и финальные
+реплики в одном Live-разделе. Внутреннее разделение не убирается: независимые
+WAV/segments/report нужны для provenance, диагностики и offline refinement. Если
+SYS не стартует после MIC, групповой запуск останавливает уже созданную MIC-сессию
+и возвращает контролируемую ошибку вместо скрытой однодорожечной записи.
+
 Ограничение: live transcript не считается финальным источником истины для протокола. После встречи нужно запускать offline ASR через `scripts/22_transcribe_meeting.py` или импортировать готовые canonical segments. Поэтому live draft completion не ставит `processing_status=transcribed`; статус остается `processing`.
 
 Для реального MIC/SYS полный canonical поток до VAD сохраняется как PCM16 mono

@@ -13,7 +13,7 @@ from asu_june_bot.api.app import create_app
 from asu_june_bot.auth.repository import AuthRepository
 from asu_june_bot.auth.service import AdminService, LocalAuthService
 from asu_june_bot.auth.throttle import LoginThrottle
-from asu_june_bot.live_sessions import LiveSessionService
+from asu_june_bot.live_sessions import LiveSessionPreflightFailed, LiveSessionService
 from meeting_agent.live_transcription.audio_capture import AudioDevice, AudioSourcePreflight
 from meeting_agent.live_transcription.schema import LiveSegment
 from meeting_agent.live_transcription.vosk_backend import VoskLiveResult
@@ -186,6 +186,10 @@ def test_viewer_can_read_preflight_but_cannot_start(live_api) -> None:
         f"/meetings/{MEETING_ID}/live/sessions",
         json={"source": "MIC"},
     )
+    capture = client.post(
+        f"/meetings/{MEETING_ID}/live/capture",
+        json={"vad": "silero"},
+    )
 
     assert preflight.status_code == 200
     assert preflight.json()["devices"] == [
@@ -194,6 +198,7 @@ def test_viewer_can_read_preflight_but_cannot_start(live_api) -> None:
     assert "hostapi" not in preflight.text
     assert "Users" not in preflight.text
     assert start.status_code == 403
+    assert capture.status_code == 403
     timeline = client.get(f"/meetings/{MEETING_ID}/live/timeline")
     assert timeline.status_code == 200
     assert timeline.json()["segments"] == []
@@ -298,6 +303,97 @@ def test_machine_token_can_start_and_stop_without_csrf(live_api) -> None:
     )
     assert stopped.status_code == 200
     assert stopped.json()["status"] == "completed"
+
+
+def test_unified_capture_starts_and_stops_mic_and_sys(live_api) -> None:
+    client, service, _transcriber, _admin = live_api
+
+    started = client.post(
+        f"/meetings/{MEETING_ID}/live/capture",
+        json={
+            "mic_audio_device_index": 3,
+            "sys_audio_device_index": 3,
+            "vad": "silero",
+            "force": False,
+        },
+        headers=AUTH,
+    )
+
+    assert started.status_code == 202, started.json()
+    assert set(started.json()["sessions"]) == {"MIC", "SYS"}
+    assert service.active(MEETING_ID, source="MIC") is not None
+    assert service.active(MEETING_ID, source="SYS") is not None
+
+    stopped = client.post(
+        f"/meetings/{MEETING_ID}/live/capture/stop",
+        headers=AUTH,
+    )
+
+    assert stopped.status_code == 200, stopped.json()
+    assert set(stopped.json()["sessions"]) == {"MIC", "SYS"}
+    assert all(item["status"] == "completed" for item in stopped.json()["sessions"].values())
+    assert service.active(MEETING_ID, source="MIC") is None
+    assert service.active(MEETING_ID, source="SYS") is None
+
+
+def test_unified_capture_requires_csrf_for_cookie_session(live_api) -> None:
+    client, service, _transcriber, admin = live_api
+    csrf = _login(client, admin, email="capture-editor@example.test", roles=["editor"])
+
+    rejected_start = client.post(
+        f"/meetings/{MEETING_ID}/live/capture",
+        json={"vad": "silero"},
+    )
+    assert rejected_start.status_code == 403
+    assert service.active(MEETING_ID, source="MIC") is None
+    assert service.active(MEETING_ID, source="SYS") is None
+
+    started = client.post(
+        f"/meetings/{MEETING_ID}/live/capture",
+        json={"vad": "silero"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert started.status_code == 202
+
+    rejected_stop = client.post(f"/meetings/{MEETING_ID}/live/capture/stop")
+    assert rejected_stop.status_code == 403
+    assert service.active(MEETING_ID, source="MIC") is not None
+    assert service.active(MEETING_ID, source="SYS") is not None
+
+    stopped = client.post(
+        f"/meetings/{MEETING_ID}/live/capture/stop",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert stopped.status_code == 200
+
+
+def test_unified_capture_rolls_back_first_source_when_second_fails(
+    live_api,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, service, _transcriber, _admin = live_api
+    original_start = service.start
+
+    def fail_sys(meeting_id: str, *, source: str, **kwargs):
+        if source == "SYS":
+            raise LiveSessionPreflightFailed(
+                "sys_loopback_device_missing",
+                "Loopback device is unavailable",
+            )
+        return original_start(meeting_id, source=source, **kwargs)
+
+    monkeypatch.setattr(service, "start", fail_sys)
+
+    response = client.post(
+        f"/meetings/{MEETING_ID}/live/capture",
+        json={"vad": "silero"},
+        headers=AUTH,
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "sys_loopback_device_missing"
+    assert service.active(MEETING_ID, source="MIC") is None
+    assert service.active(MEETING_ID, source="SYS") is None
 
 
 def test_duplicate_active_session_returns_machine_readable_409(live_api) -> None:

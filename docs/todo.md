@@ -131,6 +131,9 @@
 - [x] MA-LIVE-UNIFIED-TIMELINE-V1 (#233): derive atomic no-index MIX transcript
   artifacts from clock-aligned MIC/SYS final segments and render one bounded,
   source-aware Conversation view through an authenticated timeline API.
+- [x] MA-LIVE-UNIFIED-CAPTURE-UI (#255): one Workspace start/stop operation for
+  selected MIC and SYS devices, with atomic-style rollback on partial start,
+  aggregate status/warnings/partials and separate internal source provenance.
 - [x] API-VALIDATION-CTX-SANITIZATION (#227): recursively sanitize non-JSON
   Pydantic validation context so malformed requests return bounded 422, not 500;
   exception-derived/custom sensitive messages and local paths are redacted.
