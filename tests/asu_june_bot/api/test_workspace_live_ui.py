@@ -34,12 +34,15 @@ def _function_block(source: str, name: str) -> str:
     return block[: block.index("\n}\n") + 2]
 
 
-def test_live_panel_has_distinct_mic_and_sys_tracks(html: str) -> None:
+def test_live_panel_has_one_capture_control_with_two_device_inputs(html: str) -> None:
     assert 'id="live-panel"' in html
-    assert 'data-live-source="MIC"' in html
-    assert 'data-live-source="SYS"' in html
-    assert 'id="live-mic-title">Микрофон' in html
-    assert 'id="live-sys-title">Системный звук' in html
+    assert 'id="live-capture-title">Запись встречи' in html
+    assert 'id="live-mic-device"' in html
+    assert 'id="live-sys-device"' in html
+    assert 'id="live-start-btn"' in html
+    assert 'id="live-stop-btn"' in html
+    assert 'Запустить MIC' not in html
+    assert 'Запустить SYS' not in html
     assert 'data-live-source="MIX"' not in html
 
 
@@ -48,27 +51,19 @@ def test_live_draft_is_explicitly_not_indexed(html: str) -> None:
     assert "offline refinement" in html
 
 
-def test_live_controls_are_native_and_source_scoped(html: str) -> None:
-    for source in ("mic", "sys"):
-        assert f'id="live-{source}-device"' in html
-        assert f'id="live-{source}-vad"' in html
-        assert f'id="live-{source}-force"' in html
-        assert f'id="live-{source}-start"' in html
-        assert f'id="live-{source}-stop"' in html
-        assert f'id="live-{source}-partial"' in html
-        assert f'id="live-{source}-finals"' in html
-        assert f'id="live-{source}-refine-engine"' in html
-        assert f'id="live-{source}-refine-force"' in html
-        assert f'id="live-{source}-refine"' in html
-        assert f'id="live-{source}-refine-badge"' in html
-        assert f'id="live-{source}-refine-summary"' in html
+def test_live_controls_are_native_and_meeting_scoped(html: str) -> None:
+    assert 'id="live-vad"' in html
+    assert 'id="live-force"' in html
+    assert 'id="live-partial"' in html
+    assert 'id="live-elapsed"' in html
+    assert 'Начать запись' in html
+    assert 'Остановить запись' in html
 
 
 def test_live_controls_have_accessible_status_and_labels(html: str) -> None:
-    assert 'aria-labelledby="live-mic-title"' in html
-    assert 'aria-labelledby="live-sys-title"' in html
+    assert 'aria-labelledby="live-capture-title"' in html
     assert 'aria-live="polite"' in html
-    assert html.count('role="log"') == 3
+    assert html.count('role="log"') == 1
     assert 'aria-relevant="additions text"' in html
     assert 'role="alert"' in html
     assert 'for="live-mic-device"' in html
@@ -78,11 +73,9 @@ def test_live_controls_have_accessible_status_and_labels(html: str) -> None:
 def test_live_api_contract_is_fully_wired(html: str) -> None:
     assert "/live/preflight?${query.toString()}" in html
     assert "/live/sessions/active?${query.toString()}" in html
-    assert "/live/sessions`" in html
+    assert "/live/capture`" in html
+    assert "/live/capture/stop`" in html
     assert "${prefix}/events?after=${state.cursor}&limit=200" in html
-    assert "${sessionId}/stop`" in html
-    assert "/live/refinement?${query.toString()}" in html
-    assert "/live/refinement`" in html
     assert "/live/timeline" in html
 
 
@@ -112,32 +105,8 @@ def test_live_conversation_refreshes_saved_mix_after_session_completion(html: st
     assert "timeline_started_at" in load
 
 
-def test_live_refinement_uses_csrf_and_tracks_durable_job(html: str) -> None:
-    block = _function_block(html, "startLiveRefinement")
-    assert "ensureCsrf()" in block
-    assert 'method: "POST"' in block
-    assert '"X-CSRF-Token": csrf' in block
-    assert "asr_engine" in block
-    assert "resume: refinement.state === \"failed\"" in block
-    assert "force: refinement.state === \"final\"" in block
-    assert "started.job.job_id" in block
-    assert "_trackedJobId = started.job.job_id" in block
-    assert block.index("if (!csrf)") < block.index('method: "POST"')
-
-
-def test_live_refinement_distinguishes_product_states(html: str) -> None:
-    assert "function renderLiveRefinement" in html
-    for state in ("unavailable", "draft", "refining", "final", "failed"):
-        assert f'{state}:' in html
-    assert "Канонический транскрипт готов" in html
-    assert "Продолжить уточнение" in html
-    assert "Идёт уточнение..." in html
-    assert "Черновик сохранён и исключён из индекса" in html
-    assert "Сначала подтвердите замену" in html
-
-
 def test_live_start_and_stop_require_csrf_before_post(html: str) -> None:
-    for name in ("startLiveSession", "stopLiveSession"):
+    for name in ("startLiveCapture", "stopLiveCapture"):
         block = _function_block(html, name)
         assert "ensureCsrf()" in block
         assert 'method: "POST"' in block
@@ -145,16 +114,18 @@ def test_live_start_and_stop_require_csrf_before_post(html: str) -> None:
         assert block.index("if (!csrf)") < block.index('method: "POST"')
 
 
-def test_live_start_sends_explicit_source_vad_device_and_force(html: str) -> None:
-    block = _function_block(html, "startLiveSession")
-    assert "const body = { source, vad, force }" in block
-    assert "body.audio_device_index = device" in block
+def test_live_start_sends_both_devices_vad_and_force(html: str) -> None:
+    block = _function_block(html, "startLiveCapture")
+    assert 'mic_audio_device_index: selectedLiveDevice("MIC")' in block
+    assert 'sys_audio_device_index: selectedLiveDevice("SYS")' in block
+    assert 'vad: document.getElementById("live-vad").value' in block
+    assert 'force: document.getElementById("live-force").checked' in block
     assert "JSON.stringify(body)" in block
-    assert 'liveElement(source, "force").checked = false' in block
+    assert 'document.getElementById("live-force").checked = false' in block
 
 
 def test_live_permissions_gate_start_and_stop(html: str) -> None:
-    block = html[html.index("function renderLiveTrack") :]
+    block = html[html.index("function renderLiveCapture") :]
     block = block[: block.index("async function liveResponseMessage")]
     assert '_permissions.has("jobs.start")' in block
     assert '_permissions.has("jobs.cancel")' in block
@@ -173,15 +144,13 @@ def test_live_partial_is_replaced_by_final_event(html: str) -> None:
     assert "batchSeen.has(eventId)" in block
 
 
-def test_live_final_dom_is_bounded_and_source_labeled(html: str) -> None:
+def test_live_conversation_dom_is_bounded_and_source_labeled(html: str) -> None:
     assert "LIVE_FINAL_ROWS_MAX = 250" in html
     assert "state.finals.splice" in html
-    assert "renderedFinalsRevision" in html
     assert "renderedDevicesRevision" in html
-    assert "renderedWarningsKey" in html
-    block = html[html.index("function renderLiveFinals") :]
-    block = block[: block.index("function renderLiveTrack")]
-    assert "`${source} · ${fmtSec(event.start)}–${fmtSec(event.end)}`" in block
+    block = html[html.index("function renderLiveConversation") :]
+    block = block[: block.index("async function loadLiveTimeline")]
+    assert "rowData.source" in block
     assert "textContent" in block
     assert "replaceChildren" in block
 
@@ -200,8 +169,7 @@ def test_live_elapsed_and_capture_warnings_are_rendered(html: str) -> None:
     assert "liveElapsedSeconds" in html
     assert "function renderLiveWarnings" in html
     assert "session.warnings" in html
-    assert 'aria-label="Предупреждения записи микрофона"' in html
-    assert 'aria-label="Предупреждения записи системного звука"' in html
+    assert 'aria-label="Предупреждения live-записи"' in html
 
 
 def test_live_blocked_reasons_are_controlled(html: str) -> None:
@@ -246,7 +214,7 @@ def test_live_and_offline_pipeline_are_mutually_exclusive_in_ui(html: str) -> No
         block = _function_block(html, name)
         assert "anyLiveActive()" in block
         assert block.index("anyLiveActive()") < block.index('method: "POST"')
-    start = _function_block(html, "startLiveSession")
+    start = _function_block(html, "startLiveCapture")
     assert "_activeJob !== null" in start
     assert start.index("_activeJob !== null") < start.index('method: "POST"')
 

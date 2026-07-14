@@ -46,6 +46,6 @@ async def request_context_middleware(request: Request, call_next: Callable[[Requ
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     if _is_product_ui_path(request.url.path):
         response.headers["Content-Security-Policy"] = CONTENT_SECURITY_POLICY
-    if request.url.path.startswith(("/assets/v1/", "/assets/v2/")):
+    if request.url.path.startswith(("/assets/v1/", "/assets/v2/", "/assets/v3/")):
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     return response
