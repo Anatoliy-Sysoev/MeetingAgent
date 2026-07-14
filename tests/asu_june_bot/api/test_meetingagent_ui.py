@@ -19,12 +19,28 @@ def test_meetingagent_route_returns_main_ui() -> None:
     resp = client.get("/MeetingAgent")
     assert resp.status_code == 200
     assert "MeetingAgent" in resp.text
-    assert "Новая запись" in resp.text
+    assert "Новая встреча" in resp.text
 
 
-def test_meetingagent_ui_links_to_june_bot(html: str) -> None:
+def test_meetingagent_ui_links_to_project_knowledge_bot(html: str) -> None:
     assert 'href="/ui"' in html
-    assert "Джун бот" in html
+    assert "Project Knowledge Bot" in html
+
+
+@pytest.mark.parametrize(
+    ("path", "section"),
+    (
+        ("/MeetingAgent", "meetings"),
+        ("/MeetingAgent/new", "new-meeting"),
+        ("/MeetingAgent/processing", "operations"),
+    ),
+)
+def test_meetingagent_target_routes_select_section(path: str, section: str) -> None:
+    client = TestClient(create_app(), raise_server_exceptions=False)
+    resp = client.get(path)
+    assert resp.status_code == 200
+    assert f'data-initial-section="{section}"' in resp.text
+    assert 'href="/assets/v2/meetingagent.css"' in resp.text
 
 
 def test_meetingagent_ui_lists_and_uploads_meetings(html: str) -> None:
@@ -51,6 +67,20 @@ def test_meetingagent_ui_starts_pipeline_profiles(html: str) -> None:
     assert 'value="faster-whisper"' in html
     assert 'value="gigaam"' in html
     assert "asr_engine: selectedAsrEngine()" in html
+    assert "qa_ready" in html
+
+
+def test_meetingagent_v2_has_registry_filters_and_processing_monitor(html: str) -> None:
+    for marker in (
+        'id="meetingSearch"',
+        'id="meetingStatusFilter"',
+        'id="meetingPeriodFilter"',
+        'id="activeWork"',
+        'id="operationStages"',
+    ):
+        assert marker in html
+    assert "function filteredMeetings" in html
+    assert "function renderOperation" in html
 
 
 def test_meetingagent_ui_uses_csrf_for_mutating_requests(html: str) -> None:
