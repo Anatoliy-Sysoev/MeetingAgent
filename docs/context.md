@@ -4,6 +4,10 @@
 
 ## Now
 
+- MA-AUTH-DB-WORK-ROOT-RESOLUTION (#264) makes a relative `paths.auth_db`
+  resolve under configured `work_root_path`, preventing a second empty auth
+  database when the API starts from another CWD or worktree. The analogous
+  meetings-root inconsistency is tracked separately as #265.
 - MA-LIVE-DIART-INTEGRATION-V1 (#261) wires the isolated localhost sidecar into
   finalized SYS live capture. Speaker turns are overlap-mapped to Vosk segments,
   persisted atomically as a no-index artifact and exposed in the unified

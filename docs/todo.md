@@ -67,6 +67,10 @@
 
 ## Active / Next
 
+- [x] MA-AUTH-DB-WORK-ROOT-RESOLUTION (#264): resolve relative auth SQLite paths
+  under configured `work_root_path` so local admins survive alternate CWDs.
+- [ ] MA-MEETINGS-ROOT-WORK-ROOT-RESOLUTION (#265): resolve the meeting registry
+  root consistently for MeetingsService, jobs and live sessions.
 - [x] SEC-P0-PUBLIC-TREE-CLEANUP (#166, PR #182): current public HEAD cleaned; private corpus overlays and privacy regression guards added — dd4d0a4.
 - [ ] SEC-P0-GIT-HISTORY-PURGE (#167): purge deleted private blobs after backup and explicit force-push approval.
 - [x] MA-TELEGRAM-AUTH-HARDENING (#168, PR #183): authenticated Chat API calls and fail-closed Telegram policy — 529b8b3.

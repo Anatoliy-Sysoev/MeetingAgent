@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from fastapi import Request
@@ -142,7 +141,10 @@ def build_core_app_state(config: dict[str, Any] | None = None) -> CoreAppState:
         config,
         paths.get("jobs_state") or "logs/jobs_state.json",
     )
-    auth_db_path = Path(paths.get("auth_db") or DEFAULT_DB_PATH)
+    auth_db_path = resolve_work_path(
+        config,
+        paths.get("auth_db") or DEFAULT_DB_PATH,
+    )
     auth_repository = AuthRepository(auth_db_path)
     auth_repository.initialize()
     auth_cfg = config.get("auth") if isinstance(config.get("auth"), dict) else {}
