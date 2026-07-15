@@ -68,7 +68,9 @@ testpaths = ["tests"]
   "ui/assets/v2/*.css",
   "ui/assets/v2/*.js",
   "ui/assets/v3/*.css",
-  "ui/assets/v3/*.js"
+  "ui/assets/v3/*.js",
+  "ui/assets/v4/*.css",
+  "ui/assets/v4/*.js"
 ]
 
 [tool.ruff]

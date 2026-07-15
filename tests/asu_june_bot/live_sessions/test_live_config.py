@@ -20,6 +20,9 @@ def test_live_settings_have_bounded_product_defaults() -> None:
         "stop_timeout_seconds": 15.0,
         "audio_archive_max_bytes": 2_000_000_000,
         "audio_archive_min_free_bytes": 256 * 1024 * 1024,
+        "diarization_enabled": False,
+        "diarization_base_url": "http://127.0.0.1:8765",
+        "diarization_timeout_seconds": 900.0,
     }
 
 
@@ -34,6 +37,12 @@ def test_live_settings_have_bounded_product_defaults() -> None:
         {"live": {"stop_timeout_seconds": True}},
         {"live": {"audio_archive_max_bytes": "2000000000"}},
         {"live": {"audio_archive_min_free_bytes": False}},
+        {"live": {"diarization": []}},
+        {"live": {"diarization": {"enabled": "true"}}},
+        {"live": {"diarization": {"base_url": True}}},
+        {"live": {"diarization": {"timeout_seconds": False}}},
+        {"live": {"diarization": {"timeout_seconds": 0}}},
+        {"live": {"diarization": {"timeout_seconds": 3601}}},
     ],
 )
 def test_live_settings_reject_wrong_types(config: dict) -> None:

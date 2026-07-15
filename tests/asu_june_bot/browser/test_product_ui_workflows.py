@@ -40,6 +40,7 @@ from asu_june_bot.api.ui_assets import (  # noqa: E402
     UI_ASSETS_V1_DIR,
     UI_ASSETS_V2_DIR,
     UI_ASSETS_V3_DIR,
+    UI_ASSETS_V4_DIR,
 )
 
 
@@ -63,6 +64,11 @@ def _build_ui_app() -> FastAPI:
         "/assets/v3",
         StaticFiles(directory=UI_ASSETS_V3_DIR, check_dir=True),
         name="ui-assets-v3",
+    )
+    app.mount(
+        "/assets/v4",
+        StaticFiles(directory=UI_ASSETS_V4_DIR, check_dir=True),
+        name="ui-assets-v4",
     )
     app.include_router(meetingagent_router)
     app.include_router(workspace_router)

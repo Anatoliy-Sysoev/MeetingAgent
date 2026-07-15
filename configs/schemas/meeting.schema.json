@@ -316,6 +316,9 @@
         "live_audio_sys": {
           "$ref": "#/$defs/relative_path"
         },
+        "live_diarization_sys": {
+          "$ref": "#/$defs/relative_path"
+        },
         "live_refinement_mic": {
           "$ref": "#/$defs/relative_path"
         },

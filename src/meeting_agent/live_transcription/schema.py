@@ -22,6 +22,7 @@ SOURCE_ARTIFACT_KEYS = {
         "live_vtt": "live_vtt_sys",
         "live_report": "live_report_sys",
         "live_audio": "live_audio_sys",
+        "live_diarization": "live_diarization_sys",
     },
     "MIX": {
         "live_segments": "live_segments_mix",
