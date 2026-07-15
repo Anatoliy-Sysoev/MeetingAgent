@@ -46,6 +46,15 @@ def test_diart_compose_profile_is_hardened() -> None:
     assert service["build"]["dockerfile"] == "Dockerfile.diart"
     assert "env_file" not in service
     assert service["environment"]["HF_TOKEN"] == "${HF_TOKEN:-}"
+    assert service["environment"]["HF_HOME"] == "/cache/huggingface"
+    assert service["environment"]["PYANNOTE_CACHE"] == "/cache/pyannote"
+    assert service["environment"]["TORCH_HOME"] == "/cache/torch"
+    assert service["environment"]["XDG_CACHE_HOME"] == "/cache/xdg"
+    assert service["environment"]["MPLCONFIGDIR"] == "/cache/matplotlib"
+    assert all(
+        not str(value).startswith("/home/")
+        for value in service["environment"].values()
+    )
     assert "MEETINGAGENT_API_TOKEN" not in service["environment"]
 
 
