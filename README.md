@@ -133,6 +133,10 @@ On Windows, use a single ASCII Ollama model store before running Docker/API work
 
 See [Ollama local runtime](docs/operations/OLLAMA_LOCAL_RUNTIME.md).
 
+Optional real-time speaker diarization is packaged as an isolated CPU-only
+Diart pilot. It is not installed into the core image; see
+[Diart live diarization](docs/operations/DIART_LIVE_DIARIZATION.md).
+
 ### 3. Run MeetingAgent Core Or The Integrated Runtime
 
 MeetingAgent Core only:

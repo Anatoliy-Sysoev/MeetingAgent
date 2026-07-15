@@ -1,9 +1,13 @@
 # Текущий Контекст
 
-Обновлено: 2026-07-14.
+Обновлено: 2026-07-15.
 
 ## Now
 
+- MA-LIVE-DIART-PILOT (#257) packages Diart as an isolated CPU-only Python 3.10
+  sidecar. The exact dependency lock, non-root container and deterministic
+  streaming smoke are verified; real pyannote model loading remains an explicit
+  operator step that requires accepted model conditions and a local `HF_TOKEN`.
 - MA-LIVE-UNIFIED-CAPTURE-UI (#255) makes MIC and SYS one user-level recording
   operation in Workspace while preserving separate source sessions, WAV files
   and provenance internally. The incompatible Workspace update uses immutable
@@ -15,6 +19,10 @@
 
 ## Done latest
 
+- MA-LIVE-DIART-PILOT (#257): added an exact CUDA-free Diart/pyannote/Torch CPU
+  lock, hardened optional Compose profile, synthetic streaming preflight and an
+  operations runbook. Diart remains a pilot and is not wired into live sessions
+  until a real Russian meeting quality/latency comparison passes.
 - MA-LIVE-UNIFIED-CAPTURE-UI (#255): Workspace has one start/stop control,
   shared VAD/replace settings, MIC and SYS device selectors, one elapsed timer,
   aggregated warnings/partials and one source-aware conversation. Group API

@@ -1259,3 +1259,14 @@ direct range вместе с соответствующим exact lock и runtim
   совместимости, но продуктовый Workspace их отдельно не показывает;
 - Workspace JS/CSS публикуются как `/assets/v3/workspace.*`, потому что v2 уже
   имеет годовой immutable cache и не может менять содержимое по прежнему URL.
+# 2026-07-15 — Diart остаётся изолированным CPU-sidecar для live-пилота
+
+- Diart не устанавливается в core, GigaAM или sherpa окружения.
+- Проверенный pilot runtime: Python 3.10, Diart 0.9.2, pyannote.audio 3.1.1,
+  CPU Torch 2.2.2 и NumPy 1.26.4.
+- Выбран pyannote.audio 3.1.1 вместо рекомендуемого upstream `<3.1`, потому
+  что 3.0.1 тянет GPU ONNX Runtime; отклонение требует quality comparison.
+- Synthetic stream smoke является install gate, но не доказательством качества.
+- Реальные gated-модели загружаются только с локальным `HF_TOKEN`; веса и
+  runtime outputs не публикуются.
+- Offline sherpa-onnx остаётся каноническим refinement/fallback.

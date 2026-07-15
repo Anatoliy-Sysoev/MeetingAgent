@@ -88,6 +88,10 @@ ollama pull bge-m3
 ollama pull qwen3.5:4b
 ```
 
+Опциональная live-диаризация говорящих упакована в изолированный CPU-only
+пилот Diart и не устанавливается в основной образ. Инструкция:
+[Diart live diarization](docs/operations/DIART_LIVE_DIARIZATION.md).
+
 ## Запуск MeetingAgent Core
 
 ```powershell

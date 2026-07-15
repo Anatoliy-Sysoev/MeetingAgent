@@ -69,6 +69,7 @@ scripts:
     - scripts/47_dependency_audit.py
     - scripts/48_retrieval_coverage.py
     - scripts/49_rebuild_meeting_vector_cache.py
+    - scripts/50_diart_preflight.py
     - scripts/meeting_agent_api.py
     - scripts/asu_june_bot_api.py
     - scripts/asu_june_bot_audit_sources_v2.py
@@ -151,6 +152,7 @@ supported_cli_help:
   - scripts/44_evaluate_meeting_summary.py
   - scripts/45_validate_release_notes.py
   - scripts/49_rebuild_meeting_vector_cache.py
+  - scripts/50_diart_preflight.py
   - scripts/meeting_agent_api.py
   - scripts/asu_june_bot_api.py
   - scripts/asu_june_bot_chat.py

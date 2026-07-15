@@ -158,6 +158,12 @@
 
 ## Meeting Product Backlog
 
+- [x] MA-LIVE-DIART-PILOT (#257): isolated CPU-only Diart runtime with exact
+  Python 3.10/Linux lock, hardened container, deterministic streaming smoke and
+  explicit gated-model preflight.
+- [ ] MA-LIVE-DIART-INTEGRATION: benchmark real Russian meetings after model
+  access is configured, then feed preliminary SYS speaker turns into the live
+  timeline without changing the canonical offline sherpa refinement.
 - [x] MA-DEPS-MAJOR-COMPATIBILITY (#236): validate core/transcription/
   diarization/live/GigaAM/docs separately and prohibit catch-all Python
   Dependabot grouping.
