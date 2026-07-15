@@ -16,6 +16,7 @@ from asu_june_bot.live_sessions import (
 from asu_june_bot.live_sessions.store import LiveSessionStore, LiveSessionStoreError
 from asu_june_bot.meetings.service import MeetingsService
 from meeting_agent.live_transcription.audio_capture import AudioDevice, AudioSourcePreflight
+from meeting_agent.live_transcription.diart_client import DiartSpeakerTurn
 from meeting_agent.live_transcription.mix import LiveMixError
 from meeting_agent.live_transcription.schema import LiveSegment
 from meeting_agent.live_transcription.vosk_backend import VoskLiveResult
@@ -125,6 +126,7 @@ def _service(
     state_path: Path | None = None,
     events_max: int = 20,
     active_sessions_max: int = 2,
+    diarizer=None,
 ) -> LiveSessionService:
     return LiveSessionService(
         meetings_root=tmp_path / "meetings",
@@ -135,6 +137,7 @@ def _service(
         stop_timeout_seconds=2,
         transcriber=transcriber or _BlockingTranscriber(),
         source_preflight=_available_preflight,
+        diarizer=diarizer,
     )
 
 
@@ -421,6 +424,61 @@ def test_sys_capture_registers_separate_audio_archive(tmp_path: Path) -> None:
         assert card["artifacts"]["live_audio_sys"] == "source/live_audio.SYS.wav"
         assert card["source"]["media_files"][0]["path"] == "source/live_audio.SYS.wav"
         assert (meeting_dir / "source" / "live_audio.SYS.wav").is_file()
+    finally:
+        service.shutdown()
+
+
+def test_sys_capture_applies_optional_diart_speakers_and_registers_artifact(
+    tmp_path: Path,
+) -> None:
+    meeting_dir = _meeting(tmp_path / "meetings")
+    transcriber = _BlockingTranscriber()
+    calls: list[tuple[str, str]] = []
+
+    def diarizer(meeting_id: str, source: str) -> list[DiartSpeakerTurn]:
+        calls.append((meeting_id, source))
+        return [DiartSpeakerTurn("SPEAKER_00", 0.0, 1.0)]
+
+    service = _service(tmp_path, transcriber=transcriber, diarizer=diarizer)
+    try:
+        started = service.start(MEETING_ID, source="SYS")
+        assert transcriber.started.wait(timeout=1)
+        stopped = service.stop(MEETING_ID, started["session_id"])
+
+        assert stopped["status"] == "completed"
+        assert calls == [(MEETING_ID, "SYS")]
+        card = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
+        rel = card["artifacts"]["live_diarization_sys"]
+        assert rel == "transcript/live/live_diarization.SYS.json"
+        assert rel in card["rag"]["no_index_artifacts"]
+        source_row = json.loads(
+            (meeting_dir / "transcript/live/live_segments.SYS.jsonl")
+            .read_text(encoding="utf-8")
+            .strip()
+        )
+        assert source_row["metadata"]["speaker_label"] == "SPEAKER_00"
+        timeline = service.timeline(MEETING_ID)
+        assert timeline["segments"][0]["speaker"] == "SPEAKER_00"
+        assert timeline["segments"][0]["speaker_source"] == "diart"
+    finally:
+        service.shutdown()
+
+
+def test_diart_failure_does_not_fail_sys_capture(tmp_path: Path) -> None:
+    _meeting(tmp_path / "meetings")
+    transcriber = _BlockingTranscriber()
+
+    def diarizer(_meeting_id: str, _source: str):
+        raise RuntimeError(r"private sidecar failure at C:\Users\secret")
+
+    service = _service(tmp_path, transcriber=transcriber, diarizer=diarizer)
+    try:
+        started = service.start(MEETING_ID, source="SYS")
+        assert transcriber.started.wait(timeout=1)
+        stopped = service.stop(MEETING_ID, started["session_id"])
+        assert stopped["status"] == "completed"
+        assert "live_diarization_unavailable" in stopped["warnings"]
+        assert "Users" not in json.dumps(stopped)
     finally:
         service.shutdown()
 

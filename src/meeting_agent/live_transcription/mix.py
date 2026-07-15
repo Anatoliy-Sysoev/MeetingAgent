@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,6 +22,7 @@ LIVE_MIX_TEXT_MAX = 20_000
 LIVE_MIX_ID_MAX = 180
 LIVE_MIX_CLOCK_OFFSET_MAX_SECONDS = 7 * 24 * 60 * 60
 _SOURCES = ("MIC", "SYS")
+_SPEAKER_RE = re.compile(r"^SPEAKER_[0-9]{2,4}$")
 _MIX_WARNING_CODES = frozenset(
     {
         "mic_segments_missing",
@@ -162,6 +164,27 @@ def _source_segment(
     model = _bounded_text(row.get("model"), 160) or None
     created_at = _bounded_text(row.get("created_at"), 80) or None
     digest = hashlib.sha256(f"{source}\0{origin_id}".encode("utf-8")).hexdigest()[:16]
+    source_metadata = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
+    speaker = _bounded_text(source_metadata.get("speaker_label"), 32)
+    if not _SPEAKER_RE.fullmatch(speaker):
+        speaker = ""
+    metadata = {
+        "derived_track": "MIX",
+        "origin_source": source,
+        "origin_segment_id": origin_id,
+        "origin_start": round(start, 3),
+        "origin_end": round(end, 3),
+        "source_offset_seconds": round(offset_seconds, 3),
+        "source_started_at": source_started_at,
+    }
+    if speaker:
+        metadata.update(
+            {
+                "speaker": speaker,
+                "speaker_label": speaker,
+                "speaker_source": "diart",
+            }
+        )
     return LiveSegment(
         segment_id=f"live-mix-{source.lower()}-{digest}",
         segment_index=0,
@@ -174,15 +197,7 @@ def _source_segment(
         confidence=confidence,
         is_final=True,
         created_at=created_at,
-        metadata={
-            "derived_track": "MIX",
-            "origin_source": source,
-            "origin_segment_id": origin_id,
-            "origin_start": round(start, 3),
-            "origin_end": round(end, 3),
-            "source_offset_seconds": round(offset_seconds, 3),
-            "source_started_at": source_started_at,
-        },
+        metadata=metadata,
     )
 
 
@@ -386,19 +401,25 @@ def read_derived_mix_timeline(
         confidence = _finite_number(row.get("confidence"))
         if confidence is not None and not 0 <= confidence <= 1:
             confidence = None
-        safe_rows.append(
-            {
-                "segment_id": segment_id,
-                "origin_segment_id": origin_id,
-                "source": source,
-                "start": round(start, 3),
-                "end": round(end, 3),
-                "origin_start": round(origin_start, 3),
-                "origin_end": round(origin_end, 3),
-                "text": text,
-                "confidence": confidence,
-            }
-        )
+        speaker = _bounded_text(metadata.get("speaker_label"), 32)
+        if not _SPEAKER_RE.fullmatch(speaker):
+            speaker = ""
+        safe_row = {
+            "segment_id": segment_id,
+            "origin_segment_id": origin_id,
+            "source": source,
+            "start": round(start, 3),
+            "end": round(end, 3),
+            "origin_start": round(origin_start, 3),
+            "origin_end": round(origin_end, 3),
+            "text": text,
+            "confidence": confidence,
+        }
+        if speaker:
+            safe_row["speaker"] = speaker
+            safe_row["speaker_label"] = speaker
+            safe_row["speaker_source"] = "diart"
+        safe_rows.append(safe_row)
 
     safe_rows.sort(
         key=lambda row: (

@@ -9,7 +9,7 @@ import threading
 import time
 import uuid
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -32,6 +32,11 @@ from meeting_agent.live_transcription import (
 from meeting_agent.live_transcription.audio_archive import (
     DEFAULT_ARCHIVE_MAX_BYTES,
     DEFAULT_ARCHIVE_MIN_FREE_BYTES,
+)
+from meeting_agent.live_transcription.diart_client import (
+    DiartSpeakerTurn,
+    assign_diart_speakers,
+    write_diart_turns_atomic,
 )
 from meeting_agent.live_transcription.schema import SOURCE_ARTIFACT_KEYS
 from meeting_agent.live_transcription.vad import SileroVadConfig
@@ -191,6 +196,7 @@ class LiveSessionService:
         audio_archive_min_free_bytes: int = DEFAULT_ARCHIVE_MIN_FREE_BYTES,
         transcriber: Callable[[VoskLiveConfig], VoskLiveResult] = transcribe_vosk_live,
         source_preflight: Callable[..., AudioSourcePreflight] = preflight_audio_source,
+        diarizer: Callable[[str, str], list[DiartSpeakerTurn]] | None = None,
         store: LiveSessionStore | None = None,
         coordinator: MeetingWorkCoordinator | None = None,
     ) -> None:
@@ -227,6 +233,7 @@ class LiveSessionService:
         self.audio_archive_min_free_bytes = audio_archive_min_free_bytes
         self.transcriber = transcriber
         self.source_preflight = source_preflight
+        self.diarizer = diarizer
         if store is not None and Path(state_path).resolve() != store.path.resolve():
             raise ValueError("state_path does not match the supplied live store")
         self.store = store or LiveSessionStore(
@@ -781,6 +788,30 @@ class LiveSessionService:
                     "Live audio archive was not finalized",
                 )
             warnings = self._result_warnings(result)
+            diart_path: Path | None = None
+            if config.source == "SYS" and self.diarizer is not None:
+                try:
+                    turns = self.diarizer(meeting_dir.name, config.source)
+                    result = replace(
+                        result,
+                        segments=assign_diart_speakers(result.segments, turns),
+                    )
+                    diart_path = (
+                        meeting_dir
+                        / "transcript"
+                        / "live"
+                        / "live_diarization.SYS.json"
+                    )
+                    write_diart_turns_atomic(
+                        diart_path,
+                        meeting_id=meeting_dir.name,
+                        source=config.source,
+                        turns=turns,
+                    )
+                    if not turns:
+                        warnings.append("live_diarization_no_turns")
+                except Exception:  # noqa: BLE001 - optional sidecar must not fail capture
+                    warnings.append("live_diarization_unavailable")
             with self._lock:
                 record = self._records[session_id]
                 started_at = str(record["started_at"])
@@ -808,6 +839,8 @@ class LiveSessionService:
                 source=config.source,
             )
             written["live_audio"] = audio_archive
+            if diart_path is not None:
+                written["live_diarization"] = diart_path
             with self._lock:
                 record = self._records[session_id]
                 record["warnings"] = warnings[:50]
@@ -978,16 +1011,11 @@ class LiveSessionService:
             no_index = list(no_index) if isinstance(no_index, list) else []
             if refinement_rel is not None:
                 no_index = [value for value in no_index if value != refinement_rel]
-            for key in (
-                "live_segments",
-                "live_partials",
-                "live_transcript",
-                "live_srt",
-                "live_vtt",
-                "live_report",
-                "live_audio",
-            ):
-                value = artifacts.get(source_keys[key])
+            for key in written:
+                artifact_key = source_keys.get(key)
+                if artifact_key is None:
+                    continue
+                value = artifacts.get(artifact_key)
                 if isinstance(value, str) and value not in no_index:
                     no_index.append(value)
             rag["no_index_artifacts"] = no_index

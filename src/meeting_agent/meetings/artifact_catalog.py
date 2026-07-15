@@ -20,6 +20,8 @@ ARTIFACT_CATALOG: list[dict[str, str]] = [
      "default_path": "transcript/live/refinement.MIC.json", "content_type": "json"},
     {"artifact_key": "live_refinement_sys", "title": "SYS refinement report", "stage": "transcribe",
      "default_path": "transcript/live/refinement.SYS.json", "content_type": "json"},
+    {"artifact_key": "live_diarization_sys", "title": "Live SYS diarization", "stage": "diarize",
+     "default_path": "transcript/live/live_diarization.SYS.json", "content_type": "json"},
     {"artifact_key": "diarization", "title": "Diarization", "stage": "diarize",
      "default_path": "transcript/diarization.jsonl", "content_type": "jsonl"},
     {"artifact_key": "speaker_transcript", "title": "Speaker transcript", "stage": "merge",

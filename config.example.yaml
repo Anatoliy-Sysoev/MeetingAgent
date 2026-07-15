@@ -78,6 +78,12 @@ live:
   # Source-scoped PCM16 WAV archive used by canonical offline refinement.
   audio_archive_max_bytes: 2000000000
   audio_archive_min_free_bytes: 268435456
+  # Optional preliminary SYS speaker labels via the localhost Diart sidecar.
+  # Offline sherpa diarization remains canonical.
+  diarization:
+    enabled: false
+    base_url: "http://127.0.0.1:8765"
+    timeout_seconds: 900
 
 include_extensions:
   - ".docx"

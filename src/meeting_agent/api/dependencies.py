@@ -21,6 +21,7 @@ from meeting_agent.auth.trusted_proxy import load_trusted_proxy_cidrs
 from meeting_agent.jobs.runner import JobRunner
 from meeting_agent.jobs.store import JobStore
 from meeting_agent.live_sessions import LiveSessionService, LiveSessionStore
+from meeting_agent.live_transcription.diart_client import DiartHttpClient
 from meeting_agent.meeting_work import MeetingWorkCoordinator
 from meeting_agent.meetings.qa import MeetingQAService
 from meeting_agent.meetings.service import (
@@ -87,6 +88,26 @@ def live_settings(config: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Invalid live.vad: expected a non-empty string")
     if not isinstance(model_path, str) or not model_path:
         raise ValueError("Invalid live.model_path: expected a non-empty string")
+    diarization = raw.get("diarization")
+    if diarization is None:
+        diarization = {}
+    if not isinstance(diarization, dict):
+        raise ValueError("Invalid live.diarization: expected a mapping")
+    diarization_enabled = diarization.get("enabled", False)
+    if not isinstance(diarization_enabled, bool):
+        raise ValueError("Invalid live.diarization.enabled: expected a boolean")
+    diarization_base_url = diarization.get("base_url", "http://127.0.0.1:8765")
+    if not isinstance(diarization_base_url, str) or not diarization_base_url:
+        raise ValueError("Invalid live.diarization.base_url: expected a non-empty string")
+    diarization_timeout = diarization.get("timeout_seconds", 900)
+    if isinstance(diarization_timeout, bool) or not isinstance(
+        diarization_timeout, (int, float)
+    ):
+        raise ValueError("Invalid live.diarization.timeout_seconds: expected a number")
+    if not 1 <= float(diarization_timeout) <= 3_600:
+        raise ValueError(
+            "Invalid live.diarization.timeout_seconds: expected a value in 1..3600"
+        )
     return {
         "model_path": model_path,
         "vad": vad,
@@ -103,6 +124,9 @@ def live_settings(config: dict[str, Any]) -> dict[str, Any]:
         "audio_archive_min_free_bytes": integer(
             "audio_archive_min_free_bytes", 256 * 1024 * 1024
         ),
+        "diarization_enabled": diarization_enabled,
+        "diarization_base_url": diarization_base_url,
+        "diarization_timeout_seconds": float(diarization_timeout),
     }
 
 
@@ -140,6 +164,14 @@ def build_core_app_state(config: dict[str, Any] | None = None) -> CoreAppState:
         paths.get("live_sessions_state") or "logs/live_sessions_state.json",
     )
     live_model_path = resolve_work_path(config, live_cfg["model_path"])
+    diart_client = (
+        DiartHttpClient(
+            live_cfg["diarization_base_url"],
+            timeout_seconds=live_cfg["diarization_timeout_seconds"],
+        )
+        if live_cfg["diarization_enabled"]
+        else None
+    )
     meeting_work_lock_path = resolve_work_path(
         config,
         paths.get("meeting_work_lock") or "logs/meeting_work.lock",
@@ -178,6 +210,7 @@ def build_core_app_state(config: dict[str, Any] | None = None) -> CoreAppState:
         stop_timeout_seconds=live_cfg["stop_timeout_seconds"],
         audio_archive_max_bytes=live_cfg["audio_archive_max_bytes"],
         audio_archive_min_free_bytes=live_cfg["audio_archive_min_free_bytes"],
+        diarizer=diart_client.diarize if diart_client is not None else None,
         store=live_store,
         coordinator=coordinator,
     )
