@@ -4,6 +4,10 @@
 
 ## Now
 
+- MA-DIART-CACHE-PATHS (#259) routes Hugging Face, Torch, XDG and Matplotlib
+  caches into the writable ignored `/cache` volume while retaining a non-root,
+  read-only container. Real gated-model loading now completes with `ok: true`;
+  legacy embedding compatibility warnings remain a quality-benchmark input.
 - MA-LIVE-DIART-PILOT (#257) packages Diart as an isolated CPU-only Python 3.10
   sidecar. The exact dependency lock, non-root container and deterministic
   streaming smoke are verified; real pyannote model loading remains an explicit
@@ -19,6 +23,9 @@
 
 ## Done latest
 
+- MA-DIART-CACHE-PATHS (#259): real model loading no longer attempts to write
+  `/home/meetingagent/.cache`; a Compose contract test preserves the hardened
+  cache layout.
 - MA-LIVE-DIART-PILOT (#257): added an exact CUDA-free Diart/pyannote/Torch CPU
   lock, hardened optional Compose profile, synthetic streaming preflight and an
   operations runbook. Diart remains a pilot and is not wired into live sessions

@@ -158,6 +158,8 @@
 
 ## Meeting Product Backlog
 
+- [x] MA-DIART-CACHE-PATHS (#259): route all optional Diart model/runtime caches
+  into the writable ignored volume without weakening the read-only container.
 - [x] MA-LIVE-DIART-PILOT (#257): isolated CPU-only Diart runtime with exact
   Python 3.10/Linux lock, hardened container, deterministic streaming smoke and
   explicit gated-model preflight.

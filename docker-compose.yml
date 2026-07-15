@@ -145,6 +145,9 @@ services:
       HF_HOME: /cache/huggingface
       HF_TOKEN: "${HF_TOKEN:-}"
       MPLCONFIGDIR: /cache/matplotlib
+      PYANNOTE_CACHE: /cache/pyannote
+      TORCH_HOME: /cache/torch
+      XDG_CACHE_HOME: /cache/xdg
     volumes:
       - ./data/diart_cache:/cache
       - ./data/diart_output:/output
