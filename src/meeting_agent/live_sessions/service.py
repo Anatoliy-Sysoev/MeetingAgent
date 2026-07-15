@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import platform
 import re
 import tempfile
 import threading
@@ -140,8 +141,13 @@ def _safe_number(value: Any, *, default: float = 0.0) -> float:
     return result if math.isfinite(result) and result >= 0 else default
 
 
-def _vosk_model_ready(path: Path) -> bool:
-    return (
+def _vosk_model_status(
+    path: Path,
+    *,
+    native_runtime: bool,
+    system_name: str | None = None,
+) -> tuple[bool, str | None]:
+    layout_ready = (
         path.is_dir()
         and (path / "am" / "final.mdl").is_file()
         and (path / "conf" / "model.conf").is_file()
@@ -153,6 +159,16 @@ def _vosk_model_ready(path: Path) -> bool:
             )
         )
     )
+    if not layout_ready:
+        return False, "model_missing"
+    current_system = (system_name or platform.system()).lower()
+    if (
+        native_runtime
+        and current_system == "windows"
+        and not str(path.resolve()).isascii()
+    ):
+        return False, "model_path_unsupported"
+    return True, None
 
 
 def _write_json_atomic(path: Path, data: dict[str, Any]) -> None:
@@ -232,6 +248,10 @@ class LiveSessionService:
         self.audio_archive_max_bytes = audio_archive_max_bytes
         self.audio_archive_min_free_bytes = audio_archive_min_free_bytes
         self.transcriber = transcriber
+        self._uses_native_vosk_runtime = (
+            transcriber is transcribe_vosk_live
+            and source_preflight is preflight_audio_source
+        )
         self.source_preflight = source_preflight
         self.diarizer = diarizer
         if store is not None and Path(state_path).resolve() != store.path.resolve():
@@ -283,6 +303,10 @@ class LiveSessionService:
         audio_device_index: int | None = None,
     ) -> dict[str, Any]:
         normalized = str(source or "").upper()
+        model_ready, model_reason = _vosk_model_status(
+            self.model_path,
+            native_runtime=self._uses_native_vosk_runtime,
+        )
         try:
             result = self.source_preflight(
                 normalized,
@@ -293,7 +317,7 @@ class LiveSessionService:
                 "source": normalized,
                 "available": False,
                 "reason": "source_preflight_failed",
-                "model_ready": _vosk_model_ready(self.model_path),
+                "model_ready": model_ready,
                 "devices": [],
                 "devices_truncated": False,
             }
@@ -304,10 +328,9 @@ class LiveSessionService:
             }
             for device in result.devices[:64]
         ]
-        model_ready = _vosk_model_ready(self.model_path)
         reason = result.reason if result.reason in _PREFLIGHT_REASONS else None
         if result.available and not model_ready:
-            reason = "model_missing"
+            reason = model_reason or "model_missing"
         elif not result.available and reason is None:
             reason = "source_preflight_failed"
         return {
