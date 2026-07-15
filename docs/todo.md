@@ -4,6 +4,9 @@
 
 ## Done
 
+- [x] MA-WINDOWS-SAFE-PROCESS-LIVENESS (#271): replace unsafe Windows
+  `os.kill(pid, 0)` liveness checks with Win32 process status queries and prove
+  that process identity capture does not terminate API-launched workers.
 - [x] MA-JOB-RUNTIME-PYTHON-SELECTION (#269): select explicit local Python
   workers for offline stages/ASR engines, retain backward-compatible fallback,
   report path-free readiness and preserve rejected dry-run diagnostics.
