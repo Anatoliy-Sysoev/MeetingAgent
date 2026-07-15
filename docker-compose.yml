@@ -135,3 +135,28 @@ services:
       - ALL
     tmpfs:
       - /tmp
+
+  diart:
+    build:
+      context: .
+      dockerfile: Dockerfile.diart
+    image: meetingagent:diart-pilot
+    environment:
+      HF_HOME: /cache/huggingface
+      HF_TOKEN: "${HF_TOKEN:-}"
+      MPLCONFIGDIR: /cache/matplotlib
+    volumes:
+      - ./data/diart_cache:/cache
+      - ./data/diart_output:/output
+      - "${MEETINGAGENT_DIART_INPUT_DIR:-./watched_folder}:/input:ro"
+    profiles:
+      - diart
+    command: ["--json"]
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
