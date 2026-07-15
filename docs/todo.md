@@ -4,6 +4,9 @@
 
 ## Done
 
+- [x] MA-EXTRACTIVE-ARTIFACT-OVERCLASSIFICATION (#277): prevent chunk-level
+  semantic types from turning every utterance into a structured artifact and
+  label extractive summary/protocol output honestly.
 - [x] MA-DIARIZATION-REAL-RUN-VALIDATION-REGRESSION (#275): use native config
   validation in the real diarization path and cover output publication with a
   direct entrypoint test.
@@ -83,6 +86,10 @@
 
 ## Active / Next
 
+- [ ] MA-WORKSPACE-TRANSCRIPT-VIRTUALIZATION (#278): keep large transcripts
+  responsive with bounded DOM rendering and reliable search/seek navigation.
+- [ ] MA-PIPELINE-STRUCTURED-ARTIFACT-INDEX-STAGE (#279): index final structured
+  artifacts after analysis in the one-click full pipeline.
 - [x] MA-AUTH-DB-WORK-ROOT-RESOLUTION (#264): resolve relative auth SQLite paths
   under configured `work_root_path` so local admins survive alternate CWDs.
 - [ ] MA-MEETINGS-ROOT-WORK-ROOT-RESOLUTION (#265): resolve the meeting registry
