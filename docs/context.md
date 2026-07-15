@@ -4,6 +4,11 @@
 
 ## Now
 
+- MA-LIVE-DIART-INTEGRATION-V1 (#261) wires the isolated localhost sidecar into
+  finalized SYS live capture. Speaker turns are overlap-mapped to Vosk segments,
+  persisted atomically as a no-index artifact and exposed in the unified
+  timeline; failures remain non-fatal. True during-capture streaming remains a
+  separately scoped follow-up.
 - MA-DIART-CACHE-PATHS (#259) routes Hugging Face, Torch, XDG and Matplotlib
   caches into the writable ignored `/cache` volume while retaining a non-root,
   read-only container. Real gated-model loading now completes with `ok: true`;
@@ -23,6 +28,10 @@
 
 ## Done latest
 
+- MA-LIVE-DIART-INTEGRATION-V1 (#261): added a loopback-only bounded HTTP
+  client, hardened read-only `diart-api` Compose service, finalized-WAV speaker
+  mapping, MIX/UI labels, schema/catalog registration and real 25-second model
+  smoke. Offline sherpa remains canonical.
 - MA-DIART-CACHE-PATHS (#259): real model loading no longer attempts to write
   `/home/meetingagent/.cache`; a Compose contract test preserves the hardened
   cache layout.

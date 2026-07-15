@@ -1,6 +1,6 @@
 # Todo
 
-Обновлено: 2026-07-14.
+Обновлено: 2026-07-15.
 
 ## Done
 
@@ -163,9 +163,12 @@
 - [x] MA-LIVE-DIART-PILOT (#257): isolated CPU-only Diart runtime with exact
   Python 3.10/Linux lock, hardened container, deterministic streaming smoke and
   explicit gated-model preflight.
-- [ ] MA-LIVE-DIART-INTEGRATION: benchmark real Russian meetings after model
-  access is configured, then feed preliminary SYS speaker turns into the live
-  timeline without changing the canonical offline sherpa refinement.
+- [x] MA-LIVE-DIART-INTEGRATION-V1 (#261): localhost-only sidecar labels the
+  finalized SYS live WAV, maps speaker turns to Vosk segments and publishes
+  preliminary labels in the no-index MIX timeline without weakening capture.
+- [ ] MA-LIVE-DIART-STREAMING-V2 (#262): feed bounded PCM chunks to Diart while capture
+  is active, reconcile evolving labels and benchmark Russian meeting quality;
+  offline sherpa remains canonical.
 - [x] MA-DEPS-MAJOR-COMPATIBILITY (#236): validate core/transcription/
   diarization/live/GigaAM/docs separately and prohibit catch-all Python
   Dependabot grouping.

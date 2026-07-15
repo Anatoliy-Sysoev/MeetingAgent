@@ -41,6 +41,12 @@ Meeting cache maintenance:
 - `49_rebuild_meeting_vector_cache.py` validates and atomically compacts the
   meeting-scoped semantic Q&A cache without calling Ollama.
 
+Optional live diarization:
+
+- `50_diart_preflight.py` verifies the isolated CPU-only Diart runtime;
+- `51_diart_service.py` is the localhost-only Docker sidecar used to label the
+  finalized SYS live-audio track before the combined timeline is rebuilt.
+
 ## Legacy Baseline
 
 Scripts `01_*` through `18_*`, `asu_june_bot_search.py`, and the `rag_*`

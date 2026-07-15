@@ -137,6 +137,17 @@ Optional real-time speaker diarization is packaged as an isolated CPU-only
 Diart pilot. It is not installed into the core image; see
 [Diart live diarization](docs/operations/DIART_LIVE_DIARIZATION.md).
 
+After accepting the gated pyannote model terms and adding `HF_TOKEN` to the
+local ignored `.env`, start the optional localhost sidecar:
+
+```powershell
+docker compose --profile diart-live up -d diart-api
+```
+
+Set `live.diarization.enabled: true` in local `config.yaml`, then start Core as
+usual. The first product slice labels finalized SYS live segments after Stop;
+offline sherpa diarization remains canonical.
+
 ### 3. Run MeetingAgent Core Or The Integrated Runtime
 
 MeetingAgent Core only:

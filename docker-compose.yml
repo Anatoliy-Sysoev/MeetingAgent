@@ -163,3 +163,42 @@ services:
       - ALL
     tmpfs:
       - /tmp
+
+  diart-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.diart
+    image: meetingagent:diart-pilot
+    entrypoint: ["python3", "scripts/51_diart_service.py"]
+    environment:
+      HF_HOME: /cache/huggingface
+      HF_TOKEN: "${HF_TOKEN:-}"
+      MPLCONFIGDIR: /cache/matplotlib
+      PYANNOTE_CACHE: /cache/pyannote
+      TORCH_HOME: /cache/torch
+      XDG_CACHE_HOME: /cache/xdg
+    volumes:
+      - ./data/diart_cache:/cache
+      - ./meetings:/meetings:ro
+    ports:
+      - "127.0.0.1:8765:8765"
+    profiles:
+      - diart-live
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=3).read()"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s

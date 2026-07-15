@@ -34,6 +34,7 @@ RUN python3 -m pip install --upgrade "pip==26.1.1" \
     && python3 -m pip check
 
 COPY scripts/50_diart_preflight.py /app/scripts/50_diart_preflight.py
+COPY scripts/51_diart_service.py /app/scripts/51_diart_service.py
 
 RUN install -d -o meetingagent -g meetingagent /cache /input /output
 

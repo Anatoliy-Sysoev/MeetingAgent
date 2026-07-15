@@ -2,9 +2,9 @@
 
 Обновлено: 2026-07-15.
 
-Diart используется только как экспериментальный CPU-sidecar для определения
-говорящих в реальном времени. Он не заменяет Vosk/Whisper/GigaAM: ASR создаёт
-текст, а Diart создаёт интервалы `кто говорил когда`.
+Diart используется как опциональный CPU-sidecar для предварительного
+определения говорящих на SYS-дорожке. Он не заменяет Vosk/Whisper/GigaAM: ASR
+создаёт текст, а Diart создаёт интервалы `кто говорил когда`.
 
 ## Граница Пилота
 
@@ -79,7 +79,46 @@ checkpoint обучен на старых версиях pyannote.audio/Torch; �
 обновите `main` и повторите команду: начиная с #259 Torch/XDG cache не использует
 домашний каталог контейнера.
 
-## Целевая Интеграция После Пилота
+## Localhost Sidecar
+
+После успешного real-model preflight включите интеграцию только в локальном
+ignored `config.yaml`:
+
+```yaml
+live:
+  diarization:
+    enabled: true
+    base_url: "http://127.0.0.1:8765"
+    timeout_seconds: 900
+```
+
+Запустите sidecar и Core API:
+
+```powershell
+docker compose --profile diart-live up -d diart-api
+.\.venv\Scripts\python.exe scripts\meeting_agent_api.py --host 127.0.0.1 --port 8000
+```
+
+Проверка sidecar:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8765/health
+```
+
+Контейнер видит `meetings/` только read-only, принимает только безопасный
+`meeting_id` и обрабатывает `source/live_audio.SYS.wav`. После Stop Core:
+
+1. получает speaker turns через localhost HTTP;
+2. связывает их с финальными Vosk-сегментами по максимальному overlap;
+3. атомарно пишет `transcript/live/live_diarization.SYS.json`;
+4. перестраивает no-index MIX timeline со `SPEAKER_XX`;
+5. при недоступном sidecar сохраняет запись и добавляет bounded warning вместо
+   перевода live-сессии в failed.
+
+Артефакт и live draft не индексируются. Имена/роли назначаются существующим
+Speaker Mapping UI, а offline sherpa-onnx остаётся канонической диаризацией.
+
+## Следующий Streaming Этап
 
 Diart должен получать непрерывный 16 kHz mono SYS-поток до удаления тишины,
 чтобы сохранить реальную временную шкалу. MIC известен как локальный
@@ -96,4 +135,7 @@ refinement, а существующий Speaker Mapping UI назначает и
   CPU runtime; влияние оценивается только реальным benchmark;
 - одновременная речь, эхо и компрессия conferencing-клиента ухудшают качество;
 - pilot image имеет размер около 575 MB без model cache;
-- production live API/UI и reconciliation с sherpa не входят в #257.
+- текущая интеграция запускает Diart после финализации SYS WAV; speaker labels
+  не появляются chunk-by-chunk во время активной записи;
+- автоматическая reconciliation предварительных labels с offline sherpa пока
+  не реализована.

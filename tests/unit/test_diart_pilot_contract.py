@@ -57,6 +57,16 @@ def test_diart_compose_profile_is_hardened() -> None:
     )
     assert "MEETINGAGENT_API_TOKEN" not in service["environment"]
 
+    api = compose["services"]["diart-api"]
+    assert api["profiles"] == ["diart-live"]
+    assert api["read_only"] is True
+    assert api["cap_drop"] == ["ALL"]
+    assert "no-new-privileges:true" in api["security_opt"]
+    assert api["ports"] == ["127.0.0.1:8765:8765"]
+    assert "./meetings:/meetings:ro" in api["volumes"]
+    assert "MEETINGAGENT_API_TOKEN" not in api["environment"]
+    assert api["environment"]["PYANNOTE_CACHE"] == "/cache/pyannote"
+
 
 def test_diart_preflight_help_has_no_optional_import_requirement() -> None:
     result = subprocess.run(
@@ -68,3 +78,15 @@ def test_diart_preflight_help_has_no_optional_import_requirement() -> None:
     )
     assert result.returncode == 0
     assert "--load-models" in result.stdout
+
+
+def test_diart_sidecar_help_has_no_optional_import_requirement() -> None:
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "51_diart_service.py"), "--help"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert "--meetings-root" in result.stdout

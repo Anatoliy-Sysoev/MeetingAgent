@@ -1270,3 +1270,23 @@ direct range вместе с соответствующим exact lock и runtim
 - Реальные gated-модели загружаются только с локальным `HF_TOKEN`; веса и
   runtime outputs не публикуются.
 - Offline sherpa-onnx остаётся каноническим refinement/fallback.
+
+## 2026-07-15 — Первая Интеграция Diart Работает После Stop
+
+Решение: Core вызывает localhost-only `diart-api` после атомарной финализации
+SYS WAV, назначает preliminary `SPEAKER_XX` финальным Vosk-сегментам по
+максимальному overlap и затем перестраивает MIX timeline.
+
+Почему:
+
+- этот шаг проверяет реальный model/runtime и продуктовый контракт без передачи
+  raw PCM через новую streaming transport поверхность;
+- контейнеру достаточно read-only доступа к `meetings/`, а Core не получает
+  Torch/pyannote/Hugging Face зависимости или токен;
+- сбой опциональной диаризации не должен уничтожать уже сохранённую live-запись;
+- `SPEAKER_XX` являются предварительными, поэтому артефакт остаётся no-index, а
+  canonical offline sherpa и ручной Speaker Mapping сохраняют приоритет.
+
+Следствие: это post-stop live refinement, а не полная online diarization.
+Chunk-by-chunk PCM transport, устойчивость identity между окнами и автоматическая
+reconciliation с sherpa оформляются отдельной задачей.
