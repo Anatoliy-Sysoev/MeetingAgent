@@ -133,3 +133,26 @@ def test_render_summary_and_protocol_include_source_confidence_and_speaker() -> 
     assert "confidence=0.91; ok" in summary
     assert "[00:00:15, Мария Петрова]" in protocol
     assert "confidence=0.91; ok" in protocol
+
+
+def test_extractive_rendering_is_labeled_honestly() -> None:
+    module = load_module()
+    meeting = {
+        "meeting_id": "2026-01-15__kickoff",
+        "title": "Kickoff",
+        "date": "2026-01-15",
+    }
+    reduced = {"summary_bullets": []}
+    docs = {
+        "decisions": {"items": []},
+        "tasks": {"items": []},
+        "risks": {"items": []},
+        "open_questions": {"items": []},
+    }
+
+    summary = module.render_summary(meeting, reduced, docs, mode="extractive")
+    protocol = module.render_protocol(meeting, docs, mode="extractive")
+
+    assert "эвристический extractive" in summary
+    assert "эвристический extractive" in protocol
+    assert "LLM map-reduce" not in summary
