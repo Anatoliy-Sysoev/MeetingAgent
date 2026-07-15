@@ -4,6 +4,9 @@
 
 ## Done
 
+- [x] MA-JOB-RUNTIME-PYTHON-SELECTION (#269): select explicit local Python
+  workers for offline stages/ASR engines, retain backward-compatible fallback,
+  report path-free readiness and preserve rejected dry-run diagnostics.
 - [x] MA-LIVE-VOSK-WINDOWS-PATH-READINESS (#267): block unsupported native
   Windows Vosk model paths before capture and document the live API runtime.
 - [x] MA-API-MEETINGS-RESTORE (#30): read-only Meeting API restored.
@@ -59,7 +62,9 @@
 - [x] MA-MEETING-QA-BAD-ANSWER-FALLBACK (#151): malformed short Meeting Q&A LLM fragments return controlled `no_answer`, not successful `answered`.
 - [x] MA-MEETING-INDEX-ATOMIC-UPDATES (#153): meeting chunks/artifacts index upserts skip malformed runtime JSONL lines and write through lock + atomic replace.
 - [x] MA-WORKSPACE-AUTH-STATE-CLARITY (#154): Workspace header shows explicit auth state and CSRF 403 does not trigger misleading login overlay.
-- [x] MA-DIARIZATION-RUNTIME-PREFLIGHT (#160): diarization dry-run/readiness/job preflight checks optional sherpa-onnx runtime deps and blocks the UI stage with `diarization_runtime_missing` instead of producing repeated failed jobs.
+- [x] MA-DIARIZATION-RUNTIME-PREFLIGHT (#160): canonical diarization dry-run/job
+  preflight checks sherpa-onnx dependencies; #269 moves that check into the
+  selected isolated worker instead of importing it from the API runtime.
 - [x] MA-ADMIN-CONSOLE-USERS-V1 (#234): protected `/admin` user/role lifecycle,
   explicit account status confirmation, real bounded pagination, redacted
   security/bootstrap summary and permission-gated product navigation.

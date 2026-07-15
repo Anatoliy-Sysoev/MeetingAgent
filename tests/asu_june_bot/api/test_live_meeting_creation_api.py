@@ -45,6 +45,13 @@ class _Runner:
     def recovery_summary(self, _meeting_id: str) -> dict[str, object]:
         return {"state": "clean", "recovered_jobs": 0}
 
+    def worker_runtime_error(
+        self,
+        _stage: str,
+        _options: dict[str, object] | None = None,
+    ) -> None:
+        return None
+
 
 @dataclass(slots=True)
 class _State:

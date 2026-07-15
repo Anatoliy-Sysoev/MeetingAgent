@@ -18,6 +18,7 @@ from meeting_agent.auth.service import (
 from meeting_agent.auth.throttle import LoginLimiter, build_login_throttle
 from meeting_agent.auth.trusted_proxy import load_trusted_proxy_cidrs
 from meeting_agent.jobs.runner import JobRunner
+from meeting_agent.jobs.runtimes import build_worker_runtime_registry
 from meeting_agent.jobs.store import JobStore
 from meeting_agent.live_sessions import LiveSessionService, LiveSessionStore
 from meeting_agent.live_transcription.diart_client import DiartHttpClient
@@ -195,6 +196,7 @@ def build_core_app_state(config: dict[str, Any] | None = None) -> CoreAppState:
         store=job_store,
         coordinator=coordinator,
         meetings_root=meetings_root,
+        worker_runtimes=build_worker_runtime_registry(config),
     )
     live_session_service = LiveSessionService(
         meetings_root=meetings_service.root,

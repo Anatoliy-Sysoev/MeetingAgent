@@ -1,5 +1,33 @@
 # Решения
 
+## 2026-07-15 - Отдельные Python Runtime Для Offline Workers
+
+Решение: API запускается из live-окружения, которому доступны MIC/SYS
+устройства и Vosk, а offline stages выбирают локальный Python через
+`jobs.runtimes`. Faster-whisper, GigaAM и sherpa-onnx могут использовать
+разные изолированные окружения. Пустая конфигурация означает прежний запуск
+через Python API.
+
+Почему:
+
+- зависимости live capture и тяжёлых offline backend несовместимы как единый
+  устойчивый Windows dependency graph;
+- `sys.executable` неявно связывал корректность pipeline с тем, откуда запущен
+  API;
+- GigaAM и diarization уже эксплуатируются как optional isolated runtime;
+- локальные пути являются operator config и не должны попадать в публичный API
+  или Git.
+
+Следствия:
+
+- executable проверяется до job reservation;
+- backend dependency/model preflight выполняется выбранным worker через
+  canonical `--dry-run`, а не импортом из API-процесса;
+- readiness использует path-free `worker_runtime_missing`;
+- rejected dry-run сохраняет bounded redacted stderr и exit code;
+- live sessions остаются in-process до отдельного архитектурного решения о
+  process-isolated capture service.
+
 ## 2026-07-14 - Production UI Refactor Gated By Approved Interaction Model
 
 Статус: proposed в #237; решение становится accepted только после утверждения

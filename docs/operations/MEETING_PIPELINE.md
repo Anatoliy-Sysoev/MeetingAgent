@@ -169,6 +169,44 @@ mono
 
 `scripts/06_transcribe_meeting.py` остается legacy compatibility entrypoint и перенаправляет старый CLI на `scripts/22_transcribe_meeting.py --engine faster-whisper`.
 
+### 3.1 Изолированные Python runtime для API jobs
+
+API не обязан запускать тяжёлые offline-стадии из собственного Python. Это
+особенно важно на Windows: API с live-захватом должен видеть `sounddevice` и
+аудиоустройства, а faster-whisper, GigaAM и sherpa-onnx имеют разные графы
+зависимостей.
+
+Машинные пути задаются только в ignored `config.yaml`:
+
+```yaml
+jobs:
+  runtimes:
+    default: "C:/ma-live/Scripts/python.exe"
+    transcription: "C:/ma-asr/Scripts/python.exe"
+    gigaam: "C:/ma-gigaam/Scripts/python.exe"
+    diarization: "C:/ma-diarization/Scripts/python.exe"
+```
+
+Приоритет выбора:
+
+- faster-whisper: `transcription` -> `default` -> Python API;
+- GigaAM: `gigaam` -> `transcription` -> `default` -> Python API;
+- diarization: `diarization` -> `default` -> Python API;
+- остальные offline-стадии: `default` -> Python API.
+
+Те же значения можно передать через `MEETINGAGENT_WORKER_PYTHON`,
+`MEETINGAGENT_TRANSCRIPTION_PYTHON`, `MEETINGAGENT_GIGAAM_PYTHON` и
+`MEETINGAGENT_DIARIZATION_PYTHON`. Env имеет приоритет над YAML. Пустая
+конфигурация сохраняет прежний single-env режим.
+
+Перед резервированием job runner проверяет наличие выбранного executable.
+`GET /meetings/{id}/pipeline/readiness?asr_engine=gigaam` возвращает
+машинный `worker_runtime_missing`, но не локальный путь. Проверка библиотек и
+моделей выполняется `--dry-run` уже внутри выбранного worker. При отказе
+сохраняются exit code и ограниченный редактированный stderr; абсолютные пути
+не отдаются через API. Live MIC/SYS остаётся внутри Python-процесса API,
+поскольку он владеет аудиоустройствами и in-memory сессиями.
+
 ### 4. Live Draft Transcription
 
 Live-транскрибация отделена от offline ASR. Ее задача - черновой transcript во время разговора, а не финальный transcript для протокола.

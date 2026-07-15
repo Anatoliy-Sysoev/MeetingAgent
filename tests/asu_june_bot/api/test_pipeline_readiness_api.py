@@ -21,6 +21,7 @@ from asu_june_bot.auth.service import AdminService, LocalAuthService  # noqa: E4
 from asu_june_bot.auth.throttle import LoginThrottle  # noqa: E402
 from asu_june_bot.jobs.readiness import pipeline_readiness  # noqa: E402
 from asu_june_bot.jobs.runner import JobRunner, JobState  # noqa: E402
+from meeting_agent.jobs.runtimes import WorkerRuntimeRegistry  # noqa: E402
 from asu_june_bot.meetings.service import MeetingsService  # noqa: E402
 
 TOKEN = "test-readiness-token"
@@ -102,6 +103,25 @@ def test_audio_present_unblocks_transcribe(tmp_path: Path) -> None:
     assert stages["extract_audio"]["state"] == "done"
     assert stages["extract_audio"]["can_run"] is False
     assert stages["extract_audio"]["reason"] == "already_done"
+
+
+def test_worker_runtime_missing_blocks_ready_stage_without_path(tmp_path: Path) -> None:
+    d = _make_meeting(tmp_path)
+    _touch(d, "source/audio_16k_mono.wav")
+    stages = _stage_map(
+        pipeline_readiness(
+            MEETING_ID,
+            d,
+            worker_runtime_errors={
+                "transcribe": "configured worker runtime is unavailable"
+            },
+        )
+    )
+
+    assert stages["transcribe"]["state"] == "blocked"
+    assert stages["transcribe"]["can_run"] is False
+    assert stages["transcribe"]["reason"] == "worker_runtime_missing"
+    assert str(tmp_path) not in json.dumps(stages["transcribe"])
 
 
 def test_diarize_blocked_when_optional_runtime_missing(
@@ -202,7 +222,7 @@ def test_stages_sorted_by_order(tmp_path: Path) -> None:
 # API: GET /meetings/{id}/pipeline/readiness
 # ---------------------------------------------------------------------------
 
-def _make_client(root: Path) -> TestClient:
+def _make_client(root: Path, *, runner: JobRunner | None = None) -> TestClient:
     os.environ["MEETINGAGENT_API_TOKEN"] = TOKEN
     repo = AuthRepository(root / "_auth.db")
     repo.initialize()
@@ -210,7 +230,7 @@ def _make_client(root: Path) -> TestClient:
     client = TestClient(app, raise_server_exceptions=False)
     app.state.asu_june_bot = FakeState(
         meetings_service=MeetingsService(root),
-        job_runner=JobRunner(),
+        job_runner=runner or JobRunner(),
         local_auth_service=LocalAuthService(repo),
         admin_service=AdminService(repo),
     )
@@ -228,6 +248,29 @@ def test_api_returns_readiness_map(tmp_path: Path) -> None:
     stages = _stage_map(body)
     assert stages["transcribe"]["state"] == "ready"
     assert body["job_recovery"] is None
+
+
+def test_api_readiness_uses_selected_asr_runtime_without_exposing_path(
+    tmp_path: Path,
+) -> None:
+    d = _make_meeting(tmp_path)
+    _touch(d, "source/audio_16k_mono.wav")
+    private_path = tmp_path / "private" / "gigaam" / "python.exe"
+    runner = JobRunner(
+        worker_runtimes=WorkerRuntimeRegistry({"gigaam": private_path})
+    )
+    client = _make_client(tmp_path, runner=runner)
+
+    resp = client.get(
+        f"/meetings/{MEETING_ID}/pipeline/readiness?asr_engine=gigaam",
+        headers=AUTH,
+    )
+
+    assert resp.status_code == 200
+    stage = _stage_map(resp.json())["transcribe"]
+    assert stage["state"] == "blocked"
+    assert stage["reason"] == "worker_runtime_missing"
+    assert str(private_path) not in resp.text
 
 
 def test_api_returns_path_safe_recovery_summary(tmp_path: Path) -> None:

@@ -98,6 +98,7 @@ def pipeline_readiness(
     meeting_dir: Path,
     *,
     live_session_active: bool = False,
+    worker_runtime_errors: dict[str, str | None] | None = None,
 ) -> dict[str, Any]:
     """Build the readiness map for all runnable stages of one meeting."""
     card = _read_card(meeting_dir)
@@ -112,6 +113,7 @@ def pipeline_readiness(
         meta = STAGE_METADATA[stage]
         done = _stage_done(stage, meeting_dir, card)
         block_detail = _stage_blocked_reason(stage, meeting_dir)
+        runtime_detail = (worker_runtime_errors or {}).get(stage)
         if done:
             state, can_run = "done", False
             reason = "already_done"
@@ -124,6 +126,10 @@ def pipeline_readiness(
             state, can_run = "blocked", False
             reason = _block_reason_token(stage, block_detail)
             detail = block_detail
+        elif runtime_detail is not None:
+            state, can_run = "blocked", False
+            reason = "worker_runtime_missing"
+            detail = runtime_detail
         elif failed_stage == stage:
             # Previous run of this stage failed (#120); prerequisites are met,
             # so the stage can be retried right away.
