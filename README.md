@@ -231,6 +231,27 @@ Important entrypoints:
 .\.venv\Scripts\python.exe scripts\29_analyze_meeting.py --meeting-dir "<meeting-dir>"
 ```
 
+For UI/API-launched offline processing, heavy stages can use separate local
+Python environments while the API keeps the live-capture environment that owns
+the audio devices. Configure machine-specific interpreter paths only in the
+ignored `config.yaml`:
+
+```yaml
+jobs:
+  runtimes:
+    default: "C:/ma-live/Scripts/python.exe"
+    transcription: "C:/ma-asr/Scripts/python.exe"
+    gigaam: "C:/ma-gigaam/Scripts/python.exe"
+    diarization: "C:/ma-diarization/Scripts/python.exe"
+```
+
+The equivalent environment variables are documented in `.env.example`.
+Unset values preserve the backward-compatible single-environment behavior.
+Runtime paths are never returned by the API. Pipeline readiness reports the
+path-free `worker_runtime_missing` reason, and a rejected child dry-run retains
+only a bounded redacted stderr tail and exit code. Live MIC/SYS capture remains
+in the API Python process by design; run the API from the live environment.
+
 Speaker diarization is optional and uses an isolated `sherpa-onnx` path by default. Install optional dependencies from `requirements-diarization.txt` and keep downloaded ONNX models under ignored `models/diarization/`.
 
 Runtime meeting outputs may contain private data and should not be committed.

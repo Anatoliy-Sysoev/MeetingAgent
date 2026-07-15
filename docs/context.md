@@ -4,6 +4,12 @@
 
 ## Now
 
+- MA-JOB-RUNTIME-PYTHON-SELECTION (#269) removes implicit `sys.executable`
+  coupling from API-launched offline stages. Local config can select separate
+  default, transcription, GigaAM and diarization Python workers; live capture
+  remains in the API live runtime. Missing workers block readiness with a
+  path-free reason before reservation, while rejected dry-runs retain bounded
+  redacted diagnostics.
 - MA-LIVE-VOSK-WINDOWS-PATH-READINESS (#267) prevents the native Windows Vosk
   runtime from starting with a non-ASCII model path that only passes the file
   layout check. Preflight now returns a bounded path-free reason, Workspace
@@ -37,6 +43,10 @@
 
 ## Done latest
 
+- MA-JOB-RUNTIME-PYTHON-SELECTION (#269): added validated stage/engine runtime
+  selection, env overrides, selected-worker dry-runs, path-safe readiness and
+  persisted exit/stderr diagnostics. Diarization dependency checks no longer
+  import sherpa-onnx from the API environment.
 - MA-LIVE-VOSK-WINDOWS-PATH-READINESS (#267): reproduced empty device lists
   from a core-only API environment and immediate worker failure from a complete
   Vosk model under a Cyrillic path; verified simultaneous MIC/SYS capture after
@@ -246,7 +256,9 @@
 - MA-MEETING-QA-BAD-ANSWER-FALLBACK (#151): meeting-scoped Q&A now treats degenerate one-word/fragment LLM outputs as controlled `no_answer` instead of successful `answered`.
 - MA-MEETING-INDEX-ATOMIC-UPDATES (#153): meeting chunk/artifact index upserts now skip malformed runtime JSONL lines and write `data/meeting_chunks.jsonl` through lock + temp file + `os.replace`.
 - MA-WORKSPACE-AUTH-STATE-CLARITY (#154): Workspace header shows signed-in/auth-unavailable/not-signed-in state; 403 CSRF failures no longer show the login-required overlay as if the session were absent.
-- MA-DIARIZATION-RUNTIME-PREFLIGHT (#160, PR #161): sherpa-onnx diarization now checks optional runtime dependencies during dry-run/readiness/job preflight; missing `sherpa_onnx` blocks the UI stage with `diarization_runtime_missing` instead of allowing a failed job.
+- MA-DIARIZATION-RUNTIME-PREFLIGHT (#160, PR #161): sherpa-onnx dependency and
+  model checks run in the canonical diarization dry-run; #269 executes that
+  dry-run with the selected isolated worker rather than the API interpreter.
 
 ## Current Product State
 
@@ -270,7 +282,9 @@
   corrupt or oversized snapshot fails API startup closed. After an API restart,
   a verified live child is exposed as `orphaned` for explicit cancellation;
   a missing child becomes `failed` and the stage becomes `ready_for_retry`.
-- Diarization is optional-runtime gated: if sherpa-onnx dependencies are not installed in the active API environment, readiness returns `blocked` / `diarization_runtime_missing` and the Workspace should not start the stage. Use the isolated diarization environment or install `requirements-diarization.txt` before enabling it.
+- Diarization is optional-runtime gated through `jobs.runtimes.diarization`.
+  The API checks the configured worker executable without exposing its path;
+  the canonical worker-side dry-run validates sherpa-onnx and ONNX models.
 - Workspace UI: media player, clickable transcript, artifact viewer, job controls, readiness map, one-click pipeline profiles, meeting-scoped Search/Q&A.
 - UI delivery (#180): `/`, `/ui`, `/MeetingAgent` and meeting Workspace load
   packaged `/assets/v1` CSS/JS under a restrictive CSP; dynamic values are

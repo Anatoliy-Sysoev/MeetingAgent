@@ -5,7 +5,6 @@ import json
 import os
 import re
 import shutil
-import sys
 import tempfile
 import uuid
 from dataclasses import dataclass, field
@@ -19,6 +18,7 @@ from meeting_agent.jobs.processes import (
     subprocess_group_kwargs,
     terminate_process_tree,
 )
+from meeting_agent.jobs.runtimes import WorkerRuntimeRegistry
 from meeting_agent.jobs.store import JobStore, JobStoreConflict, JobStoreError
 from meeting_agent.meeting_work import (
     MeetingWorkConflict,
@@ -153,20 +153,9 @@ def _index_preflight(meeting_dir: Path) -> str | None:
 
 
 def _diarize_preflight(meeting_dir: Path) -> str | None:
-    """Return an error if optional diarization runtime is unavailable."""
+    """Check stage inputs before the worker-runtime dry run."""
     if not (meeting_dir / "source" / "audio_16k_mono.wav").exists():
         return "normalized audio not found; run extract_audio first"
-    try:
-        from meeting_agent.diarization.sherpa_backend import (
-            SherpaDiarizationError,
-            validate_runtime_dependencies,
-        )
-
-        validate_runtime_dependencies()
-    except SherpaDiarizationError as exc:
-        return str(exc)
-    except Exception as exc:  # noqa: BLE001
-        return f"diarization runtime preflight failed: {exc}"
     return None
 
 
@@ -838,6 +827,7 @@ class JobRunner:
         meetings_root: Path | str = "meetings",
         store: JobStore | None = None,
         coordinator: MeetingWorkCoordinator | None = None,
+        worker_runtimes: WorkerRuntimeRegistry | None = None,
     ) -> None:
         if state_path is not None and store is not None:
             raise ValueError("Pass state_path or store, not both")
@@ -853,6 +843,7 @@ class JobRunner:
         ):
             raise ValueError("Meeting work coordinator uses a different job store")
         self.coordinator = coordinator
+        self.worker_runtimes = worker_runtimes or WorkerRuntimeRegistry()
         self.active_job: JobState | None = None
         self.history: list[JobState] = []
         self.active_pipeline: PipelineJobState | None = None
@@ -1114,8 +1105,11 @@ class JobRunner:
         except ValueError as exc:
             raise PreflightFailed(str(exc)) from exc
         supports_dry_run: bool = cfg["supports_dry_run"]
+        runtime = self.worker_runtimes.select(stage, stage_options)
+        if not runtime.available:
+            raise PreflightFailed("configured worker runtime is unavailable")
 
-        cmd = [sys.executable, str(script), "--meeting-dir", str(meeting_dir), *base_args]
+        cmd = [str(runtime.executable), str(script), "--meeting-dir", str(meeting_dir), *base_args]
 
         # Reserve concurrency slot
         async with self._lock:
@@ -1192,6 +1186,14 @@ class JobRunner:
                 self._persist_job_update(job, "job_preflight_finished")
                 if proc.returncode != 0:
                     detail = (stderr_bytes or b"").decode("utf-8", errors="replace").strip()
+                    job.status = "failed"
+                    job.finished_at = _now_iso()
+                    job.exit_code = proc.returncode
+                    job.stderr_lines = detail.splitlines()[-_STDERR_TAIL:]
+                    await self._finish_job_without_monitor(
+                        job,
+                        event_type="job_preflight_failed",
+                    )
                     raise PreflightFailed(
                         _public_error_detail(detail or "dry-run failed", meeting_dir=meeting_dir)
                     )
@@ -1227,12 +1229,21 @@ class JobRunner:
             return job
 
         except Exception:
+            was_active = False
             async with self._lock:
                 if self.active_job is job:
                     self.active_job = None
-            if self.store is not None:
+                    was_active = True
+            if self.store is not None and was_active:
                 self.store.release_job(_job_record(job), "job_start_rejected")
             raise
+
+    def worker_runtime_error(
+        self,
+        stage: str,
+        options: dict[str, Any] | None = None,
+    ) -> str | None:
+        return self.worker_runtimes.public_error(stage, options)
 
     async def cancel(self, job_id: str) -> JobState | PipelineJobState:
         pipeline = self._find_pipeline(job_id)
