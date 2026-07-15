@@ -96,6 +96,24 @@ def test_core_app_starts_without_bot_routes(tmp_path: Path, monkeypatch) -> None
         assert app.state.meeting_agent is app.state.asu_june_bot
 
 
+def test_relative_auth_db_resolves_under_configured_work_root(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import meeting_agent.api.dependencies as dependencies
+
+    monkeypatch.setattr(dependencies, "check_and_fail_if_unsafe", lambda _config: None)
+    config = _core_config(tmp_path)
+    config["paths"]["auth_db"] = "runtime/auth.db"
+
+    state = dependencies.build_core_app_state(config)
+    try:
+        assert state.auth_repository.db_path == (tmp_path / "runtime" / "auth.db").resolve()
+        assert state.auth_repository.db_path.exists()
+    finally:
+        state.live_session_service.shutdown()
+
+
 def test_integrated_app_adds_bot_routes() -> None:
     from asu_june_bot.api.app import create_app as create_integrated_app
 
