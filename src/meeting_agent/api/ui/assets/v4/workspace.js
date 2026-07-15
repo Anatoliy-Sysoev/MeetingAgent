@@ -319,6 +319,7 @@ function filterSegments(q) {
 
 const LIVE_REASON_TEXT = {
   model_missing: "Локальная модель Vosk не установлена или повреждена.",
+  model_path_unsupported: "В Windows модель Vosk должна находиться в каталоге без кириллицы.",
   sounddevice_missing: "Компонент захвата микрофона не установлен.",
   mic_input_device_missing: "Микрофон не найден.",
   mic_input_device_not_found: "Выбранный микрофон больше недоступен.",

@@ -190,11 +190,23 @@ Optional dependencies:
 коротком ASCII-пути, например `C:\ma-live`: глубокое дерево лицензий Torch может
 иначе завершить распаковку с `WinError 206`.
 
-Vosk-модель хранится локально в ignored `models/`, например:
+Workspace API запускайте из того же Python 3.12 live-окружения. Если API
+запущен из core-only `.venv`, preflight вернёт `sounddevice_missing` /
+`sys_loopback_backend_missing`, а списки устройств останутся пустыми:
+
+```powershell
+C:\ma-live\Scripts\python.exe scripts\meeting_agent_api.py --host 127.0.0.1 --port 8000
+```
+
+На Windows Vosk-модель хранится в ignored ASCII-only пути, например:
 
 ```text
-models/vosk/vosk-model-small-ru-0.22/
+C:/ma-models/vosk-model-small-ru-0.22/
 ```
+
+Нативный Vosk не гарантирует загрузку модели из пути с не-ASCII символами.
+Preflight блокирует такой путь до запуска live worker и не раскрывает
+абсолютный путь через API/UI.
 
 Проверка без запуска ASR:
 
