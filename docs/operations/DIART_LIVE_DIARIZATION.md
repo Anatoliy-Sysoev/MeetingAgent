@@ -67,6 +67,17 @@ docker compose --profile diart run --rm diart --json --load-models
 
 Токен не печатается и не записывается в Git. Cache сохраняется в
 `data/diart_cache/`, поэтому после первой загрузки модель не скачивается заново.
+Hugging Face, pyannote, Torch, XDG и Matplotlib cache paths явно направлены в
+этот volume; контейнеру не требуется запись в read-only домашний каталог.
+
+Проверенный real-model preflight возвращает `ok: true` и строит pipeline с
+обеими моделями. Legacy `pyannote/embedding` при загрузке предупреждает, что
+checkpoint обучен на старых версиях pyannote.audio/Torch; поэтому успешная
+загрузка не заменяет quality benchmark на русской встрече.
+
+Если старый профиль завершается с `Read-only file system: /home/meetingagent/.cache`,
+обновите `main` и повторите команду: начиная с #259 Torch/XDG cache не использует
+домашний каталог контейнера.
 
 ## Целевая Интеграция После Пилота
 
@@ -81,6 +92,8 @@ refinement, а существующий Speaker Mapping UI назначает и
 
 - без `HF_TOKEN` реальные gated-модели не загружаются;
 - labels являются анонимными и могут изменяться по ходу разговора;
+- legacy embedding checkpoint выдаёт compatibility warnings на современном
+  CPU runtime; влияние оценивается только реальным benchmark;
 - одновременная речь, эхо и компрессия conferencing-клиента ухудшают качество;
 - pilot image имеет размер около 575 MB без model cache;
 - production live API/UI и reconciliation с sherpa не входят в #257.
