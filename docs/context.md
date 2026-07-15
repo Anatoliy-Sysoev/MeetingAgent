@@ -4,6 +4,10 @@
 
 ## Now
 
+- MA-WINDOWS-SAFE-PROCESS-LIVENESS (#271) replaces the POSIX-style
+  `os.kill(pid, 0)` probe on Windows with `OpenProcess/GetExitCodeProcess`.
+  API-launched workers now survive process identity capture, while cancellation
+  still uses verified PID + creation-time identity.
 - MA-JOB-RUNTIME-PYTHON-SELECTION (#269) removes implicit `sys.executable`
   coupling from API-launched offline stages. Local config can select separate
   default, transcription, GigaAM and diarization Python workers; live capture
@@ -43,6 +47,9 @@
 
 ## Done latest
 
+- MA-WINDOWS-SAFE-PROCESS-LIVENESS (#271): reproduced the UI-only
+  `0xC0000142` worker failure, proved that `process_identity()` terminated the
+  child, added typed Win32 handle calls and a real subprocess regression test.
 - MA-JOB-RUNTIME-PYTHON-SELECTION (#269): added validated stage/engine runtime
   selection, env overrides, selected-worker dry-runs, path-safe readiness and
   persisted exit/stderr diagnostics. Diarization dependency checks no longer

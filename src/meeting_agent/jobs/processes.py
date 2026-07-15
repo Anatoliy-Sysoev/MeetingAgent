@@ -12,6 +12,8 @@ from typing import Any
 def _pid_alive(pid: int) -> bool:
     if pid <= 0:
         return False
+    if os.name == "nt":
+        return _windows_pid_alive(pid)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -23,11 +25,41 @@ def _pid_alive(pid: int) -> bool:
     return True
 
 
+def _windows_process_handle(pid: int) -> tuple[Any, Any]:
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    return kernel32, kernel32.OpenProcess(0x1000, False, pid)
+
+
+def _windows_pid_alive(pid: int) -> bool:
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32, process = _windows_process_handle(pid)
+    if not process:
+        return ctypes.get_last_error() == 5
+    exit_code = wintypes.DWORD()
+    kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, wintypes.LPDWORD]
+    kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+    try:
+        if not kernel32.GetExitCodeProcess(process, ctypes.byref(exit_code)):
+            return False
+        return exit_code.value == 259
+    finally:
+        kernel32.CloseHandle(process)
+
+
 def _windows_process_identity(pid: int) -> str | None:
     import ctypes
     from ctypes import wintypes
 
-    process = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)
+    kernel32, process = _windows_process_handle(pid)
     if not process:
         return None
     creation = wintypes.FILETIME()
@@ -35,7 +67,15 @@ def _windows_process_identity(pid: int) -> str | None:
     kernel = wintypes.FILETIME()
     user = wintypes.FILETIME()
     try:
-        ok = ctypes.windll.kernel32.GetProcessTimes(
+        kernel32.GetProcessTimes.argtypes = [
+            wintypes.HANDLE,
+            wintypes.LPFILETIME,
+            wintypes.LPFILETIME,
+            wintypes.LPFILETIME,
+            wintypes.LPFILETIME,
+        ]
+        kernel32.GetProcessTimes.restype = wintypes.BOOL
+        ok = kernel32.GetProcessTimes(
             process,
             ctypes.byref(creation),
             ctypes.byref(exit_time),
@@ -47,7 +87,7 @@ def _windows_process_identity(pid: int) -> str | None:
         ticks = (creation.dwHighDateTime << 32) | creation.dwLowDateTime
         return f"windows:{ticks}"
     finally:
-        ctypes.windll.kernel32.CloseHandle(process)
+        kernel32.CloseHandle(process)
 
 
 def _linux_process_identity(pid: int) -> str | None:
