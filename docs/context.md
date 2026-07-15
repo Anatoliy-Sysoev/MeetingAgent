@@ -4,6 +4,10 @@
 
 ## Now
 
+- MA-EXTRACTIVE-ARTIFACT-OVERCLASSIFICATION (#277) makes heuristic enrichment
+  classify sentence-local evidence instead of promoting every sentence from a
+  chunk-level semantic type. Summary and protocol now identify extractive
+  output honestly instead of presenting it as LLM map-reduce.
 - MA-DIARIZATION-REAL-RUN-VALIDATION-REGRESSION (#275) keeps dry-run and real
   diarization on the same native validation helper and adds direct coverage of
   the output-publication path.
@@ -54,6 +58,9 @@
 
 ## Done latest
 
+- MA-EXTRACTIVE-ARTIFACT-OVERCLASSIFICATION (#277): added conservative
+  sentence-local candidate extraction, filtered meeting setup chatter and
+  added honest analysis-mode labels to generated Markdown artifacts.
 - MA-DIARIZATION-REAL-RUN-VALIDATION-REGRESSION (#275): removed the stale
   validation-helper call left after #273 and added a `dry_run=false` entrypoint
   regression test.
