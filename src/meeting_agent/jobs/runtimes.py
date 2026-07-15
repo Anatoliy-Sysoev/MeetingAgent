@@ -14,6 +14,7 @@ _RUNTIME_ENV = {
     "gigaam": "MEETINGAGENT_GIGAAM_PYTHON",
     "diarization": "MEETINGAGENT_DIARIZATION_PYTHON",
 }
+_DIARIZATION_MODELS_ENV = "MEETINGAGENT_DIARIZATION_MODELS_DIR"
 
 
 @dataclass(frozen=True)
@@ -99,3 +100,20 @@ def build_worker_runtime_registry(config: dict[str, Any]) -> WorkerRuntimeRegist
             expanded = work_root / expanded
         resolved[key] = expanded.resolve()
     return WorkerRuntimeRegistry(resolved)
+
+
+def build_diarization_models_dir(config: dict[str, Any]) -> Path:
+    raw_config = config.get("diarization")
+    if raw_config is None:
+        raw_config = {}
+    if not isinstance(raw_config, dict):
+        raise ValueError("diarization must be an object")
+    env_value = os.getenv(_DIARIZATION_MODELS_ENV, "").strip()
+    raw_value = env_value if env_value else raw_config.get("models_dir", "models/diarization")
+    if not isinstance(raw_value, str) or not raw_value.strip():
+        raise ValueError("diarization.models_dir must be a non-empty string")
+    expanded = Path(os.path.expandvars(raw_value)).expanduser()
+    if not expanded.is_absolute():
+        work_root = Path(config.get("work_root_path") or Path.cwd()).resolve()
+        expanded = work_root / expanded
+    return expanded.resolve()

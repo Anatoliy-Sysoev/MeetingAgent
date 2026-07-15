@@ -40,6 +40,11 @@ transcription:
   beam_size: 5
   vad_filter: true
 
+diarization:
+  # Native Windows sherpa-onnx requires an ASCII-only model path. Keep this
+  # public default portable; use an absolute ASCII path in ignored config.yaml.
+  models_dir: "models/diarization"
+
 jobs:
   # Optional local Python interpreters for isolated heavy workers. Empty values
   # keep the current API interpreter for backward-compatible single-env setups.
