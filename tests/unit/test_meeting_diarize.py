@@ -99,7 +99,7 @@ def test_diarize_dry_run_does_not_mutate_meeting(
     meeting_dir = make_meeting(tmp_path)
     models_dir = make_models_dir(tmp_path)
     before = read_json(meeting_dir / "meeting.json")
-    monkeypatch.setattr(diarize23, "validate_runtime_dependencies", lambda: None)
+    monkeypatch.setattr(diarize23, "validate_runtime_config", lambda _config: None)
 
     code = diarize23.run(make_args(meeting_dir, models_dir, dry_run=True))
 
@@ -116,12 +116,12 @@ def test_diarize_dry_run_checks_runtime_dependencies(
     meeting_dir = make_meeting(tmp_path)
     models_dir = make_models_dir(tmp_path)
 
-    def fail_runtime() -> None:
+    def fail_runtime(_config) -> None:
         raise diarize23.SherpaDiarizationError(
             "sherpa-onnx diarization dependencies are not installed (sherpa_onnx)."
         )
 
-    monkeypatch.setattr(diarize23, "validate_runtime_dependencies", fail_runtime)
+    monkeypatch.setattr(diarize23, "validate_runtime_config", fail_runtime)
 
     try:
         diarize23.run(make_args(meeting_dir, models_dir, dry_run=True))

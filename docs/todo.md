@@ -4,6 +4,9 @@
 
 ## Done
 
+- [x] MA-DIARIZATION-ASCII-MODEL-PATH-READINESS (#273): configure the offline
+  sherpa model root, reject unsupported Windows Unicode paths before launch and
+  validate the native diarization config during dry-run.
 - [x] MA-WINDOWS-SAFE-PROCESS-LIVENESS (#271): replace unsafe Windows
   `os.kill(pid, 0)` liveness checks with Win32 process status queries and prove
   that process identity capture does not terminate API-launched workers.

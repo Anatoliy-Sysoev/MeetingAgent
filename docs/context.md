@@ -4,6 +4,10 @@
 
 ## Now
 
+- MA-DIARIZATION-ASCII-MODEL-PATH-READINESS (#273) makes the offline sherpa
+  model root configurable and rejects unsupported native Windows Unicode paths
+  before job reservation. Diarization dry-run now validates the real native
+  configuration instead of checking only Python imports and file existence.
 - MA-WINDOWS-SAFE-PROCESS-LIVENESS (#271) replaces the POSIX-style
   `os.kill(pid, 0)` probe on Windows with `OpenProcess/GetExitCodeProcess`.
   API-launched workers now survive process identity capture, while cancellation
@@ -47,6 +51,9 @@
 
 ## Done latest
 
+- MA-DIARIZATION-ASCII-MODEL-PATH-READINESS (#273): reproduced native model
+  path corruption under a Cyrillic Windows profile, added an ASCII model-root
+  contract and propagated it through API-launched workers.
 - MA-WINDOWS-SAFE-PROCESS-LIVENESS (#271): reproduced the UI-only
   `0xC0000142` worker failure, proved that `process_identity()` terminated the
   child, added typed Win32 handle calls and a real subprocess regression test.
