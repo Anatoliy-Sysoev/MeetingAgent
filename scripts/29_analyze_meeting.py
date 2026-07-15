@@ -587,7 +587,21 @@ def summary_sources(reduced: dict[str, Any], chunks: list[dict[str, Any]], meeti
     return refs
 
 
-def render_summary(meeting: dict[str, Any], reduced: dict[str, Any], docs: dict[str, dict[str, Any]]) -> str:
+def analysis_mode_label(mode: str) -> str:
+    if mode == "extractive":
+        return "эвристический extractive; все пункты требуют проверки"
+    if mode == "ollama-map-only":
+        return "LLM MAP без REDUCE с обязательными source_refs"
+    return "LLM map-reduce с обязательными source_refs"
+
+
+def render_summary(
+    meeting: dict[str, Any],
+    reduced: dict[str, Any],
+    docs: dict[str, dict[str, Any]],
+    *,
+    mode: str = "ollama-map-reduce",
+) -> str:
     chunks_for_summary = reduced.get("_source_chunks") or []
     summary_refs = summary_sources(reduced, chunks_for_summary, meeting) if chunks_for_summary else []
     lines = [
@@ -595,7 +609,7 @@ def render_summary(meeting: dict[str, Any], reduced: dict[str, Any], docs: dict[
         "",
         f"- Дата: {meeting['date']}",
         f"- meeting_id: `{meeting['meeting_id']}`",
-        "- Режим: LLM map-reduce с обязательными source_refs.",
+        f"- Режим: {analysis_mode_label(mode)}.",
         "",
         "## Кратко",
         "",
@@ -622,7 +636,12 @@ def render_summary(meeting: dict[str, Any], reduced: dict[str, Any], docs: dict[
     return "\n".join(lines) + "\n"
 
 
-def render_protocol(meeting: dict[str, Any], docs: dict[str, dict[str, Any]]) -> str:
+def render_protocol(
+    meeting: dict[str, Any],
+    docs: dict[str, dict[str, Any]],
+    *,
+    mode: str = "ollama-map-reduce",
+) -> str:
     lines = [
         f"# Протокол встречи: {meeting['title']}",
         "",
@@ -630,6 +649,7 @@ def render_protocol(meeting: dict[str, Any], docs: dict[str, dict[str, Any]]) ->
         "",
         f"- Дата: {meeting['date']}",
         f"- meeting_id: `{meeting['meeting_id']}`",
+        f"- Режим анализа: {analysis_mode_label(mode)}.",
         "",
         "## 2. Решения",
         "",
@@ -728,8 +748,14 @@ def run(args: argparse.Namespace) -> int:
         for key, schema_file in SCHEMA_FILES.items():
             validate_schema(docs[key], schema_dir / schema_file)
 
-        write_text_atomic(meeting_dir / ARTIFACT_PATHS["memo"], render_summary(meeting, reduced, docs))
-        write_text_atomic(meeting_dir / ARTIFACT_PATHS["protocol"], render_protocol(meeting, docs))
+        write_text_atomic(
+            meeting_dir / ARTIFACT_PATHS["memo"],
+            render_summary(meeting, reduced, docs, mode=args.mode),
+        )
+        write_text_atomic(
+            meeting_dir / ARTIFACT_PATHS["protocol"],
+            render_protocol(meeting, docs, mode=args.mode),
+        )
         for key in SCHEMA_FILES:
             write_json_atomic(meeting_dir / ARTIFACT_PATHS[key], docs[key])
 
