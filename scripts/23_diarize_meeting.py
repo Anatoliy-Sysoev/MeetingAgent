@@ -174,7 +174,7 @@ def run(args: argparse.Namespace) -> int:
         return 0
 
     try:
-        validate_model_paths(config)
+        validate_runtime_config(config)
         result = diarize_wav(audio_path, config)
         intervals, warnings = normalize_intervals(
             [interval.to_dict() for interval in result.intervals],
