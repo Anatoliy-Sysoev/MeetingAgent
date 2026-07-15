@@ -570,6 +570,21 @@ models/diarization/
   wespeaker_en_voxceleb_resnet34_LM.onnx
 ```
 
+На Windows нативный `sherpa-onnx` не поддерживает путь моделей с Unicode.
+Если профиль пользователя содержит кириллицу, модели нужно хранить, например,
+в `C:\ma-models\diarization` и указать в ignored `config.yaml`:
+
+```yaml
+diarization:
+  models_dir: "C:/ma-models/diarization"
+```
+
+Альтернатива для локального процесса:
+
+```powershell
+$env:MEETINGAGENT_DIARIZATION_MODELS_DIR = "C:\ma-models\diarization"
+```
+
 Проверка без обработки:
 
 ```powershell

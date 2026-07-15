@@ -272,6 +272,23 @@ def stage_base_args(stage: str, options: dict[str, Any] | None = None) -> list[s
     return result
 
 
+def _diarization_model_path_error(
+    models_dir: Path | None,
+    *,
+    platform_name: str | None = None,
+) -> str | None:
+    if (
+        models_dir is not None
+        and (platform_name or os.name) == "nt"
+        and not str(models_dir).isascii()
+    ):
+        return (
+            "configured diarization model path is unsupported on Windows; "
+            "use an ASCII-only diarization.models_dir"
+        )
+    return None
+
+
 # UI-facing metadata for each runnable stage. Keys MUST be a subset of
 # STAGE_COMMANDS — only stages the runner can actually execute are surfaced,
 # so the workspace never offers a button for an unimplemented stage.
@@ -828,6 +845,7 @@ class JobRunner:
         store: JobStore | None = None,
         coordinator: MeetingWorkCoordinator | None = None,
         worker_runtimes: WorkerRuntimeRegistry | None = None,
+        diarization_models_dir: Path | str | None = None,
     ) -> None:
         if state_path is not None and store is not None:
             raise ValueError("Pass state_path or store, not both")
@@ -844,6 +862,11 @@ class JobRunner:
             raise ValueError("Meeting work coordinator uses a different job store")
         self.coordinator = coordinator
         self.worker_runtimes = worker_runtimes or WorkerRuntimeRegistry()
+        self.diarization_models_dir = (
+            Path(diarization_models_dir).resolve()
+            if diarization_models_dir is not None
+            else None
+        )
         self.active_job: JobState | None = None
         self.history: list[JobState] = []
         self.active_pipeline: PipelineJobState | None = None
@@ -1106,10 +1129,13 @@ class JobRunner:
             raise PreflightFailed(str(exc)) from exc
         supports_dry_run: bool = cfg["supports_dry_run"]
         runtime = self.worker_runtimes.select(stage, stage_options)
-        if not runtime.available:
-            raise PreflightFailed("configured worker runtime is unavailable")
+        runtime_error = self.worker_runtime_error(stage, stage_options)
+        if runtime_error is not None:
+            raise PreflightFailed(runtime_error)
 
         cmd = [str(runtime.executable), str(script), "--meeting-dir", str(meeting_dir), *base_args]
+        if stage == "diarize" and self.diarization_models_dir is not None:
+            cmd.extend(["--models-dir", str(self.diarization_models_dir)])
 
         # Reserve concurrency slot
         async with self._lock:
@@ -1243,7 +1269,12 @@ class JobRunner:
         stage: str,
         options: dict[str, Any] | None = None,
     ) -> str | None:
-        return self.worker_runtimes.public_error(stage, options)
+        runtime_error = self.worker_runtimes.public_error(stage, options)
+        if runtime_error is not None:
+            return runtime_error
+        if stage == "diarize":
+            return _diarization_model_path_error(self.diarization_models_dir)
+        return None
 
     async def cancel(self, job_id: str) -> JobState | PipelineJobState:
         pipeline = self._find_pipeline(job_id)
