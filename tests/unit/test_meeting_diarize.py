@@ -5,6 +5,7 @@ import importlib.util
 import json
 import wave
 from pathlib import Path
+from types import SimpleNamespace
 
 from jsonschema import Draft202012Validator
 
@@ -135,3 +136,36 @@ def test_diarize_dry_run_checks_runtime_dependencies(
     validate_meeting(after)
     assert after["processing_status"] == "new"
     assert not (meeting_dir / "transcript" / "diarization.jsonl").exists()
+
+
+def test_diarize_real_run_validates_runtime_and_publishes_outputs(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    meeting_dir = make_meeting(tmp_path)
+    models_dir = make_models_dir(tmp_path)
+    validated = []
+
+    def validate_runtime(config) -> None:
+        validated.append(config)
+
+    fake_report = SimpleNamespace(
+        backend="sherpa-onnx",
+        to_dict=lambda: {"backend": "sherpa-onnx", "warnings": []},
+    )
+    fake_result = SimpleNamespace(intervals=[], report=fake_report)
+    monkeypatch.setattr(diarize23, "validate_runtime_config", validate_runtime)
+    monkeypatch.setattr(diarize23, "diarize_wav", lambda _audio, _config: fake_result)
+
+    code = diarize23.run(make_args(meeting_dir, models_dir, dry_run=False))
+
+    assert code == 0
+    assert len(validated) == 1
+    assert (meeting_dir / "transcript" / "diarization.jsonl").read_text(
+        encoding="utf-8"
+    ) == ""
+    report = read_json(meeting_dir / "transcript" / "diarization_report.json")
+    assert report == {"backend": "sherpa-onnx", "warnings": []}
+    meeting = read_json(meeting_dir / "meeting.json")
+    validate_meeting(meeting)
+    assert meeting["artifacts"]["diarization"] == "transcript/diarization.jsonl"

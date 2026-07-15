@@ -4,6 +4,9 @@
 
 ## Done
 
+- [x] MA-DIARIZATION-REAL-RUN-VALIDATION-REGRESSION (#275): use native config
+  validation in the real diarization path and cover output publication with a
+  direct entrypoint test.
 - [x] MA-DIARIZATION-ASCII-MODEL-PATH-READINESS (#273): configure the offline
   sherpa model root, reject unsupported Windows Unicode paths before launch and
   validate the native diarization config during dry-run.

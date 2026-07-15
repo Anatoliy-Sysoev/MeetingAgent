@@ -4,6 +4,9 @@
 
 ## Now
 
+- MA-DIARIZATION-REAL-RUN-VALIDATION-REGRESSION (#275) keeps dry-run and real
+  diarization on the same native validation helper and adds direct coverage of
+  the output-publication path.
 - MA-DIARIZATION-ASCII-MODEL-PATH-READINESS (#273) makes the offline sherpa
   model root configurable and rejects unsupported native Windows Unicode paths
   before job reservation. Diarization dry-run now validates the real native
@@ -51,6 +54,9 @@
 
 ## Done latest
 
+- MA-DIARIZATION-REAL-RUN-VALIDATION-REGRESSION (#275): removed the stale
+  validation-helper call left after #273 and added a `dry_run=false` entrypoint
+  regression test.
 - MA-DIARIZATION-ASCII-MODEL-PATH-READINESS (#273): reproduced native model
   path corruption under a Cyrillic Windows profile, added an ASCII model-root
   contract and propagated it through API-launched workers.
