@@ -297,15 +297,24 @@ Install optional live dependencies:
 
 Linux uses `constraints-live-py312-linux.txt`. Both platform locks select the
 official PyTorch CPU index and keep Torch/Silero outside the core install and
-base Docker image. On Windows, use a short environment path such as
+base Docker image. On Windows, use a short Python 3.12 environment path such as
 `C:\ma-live` when long-path support is disabled; Torch can otherwise fail to
-unpack with `WinError 206` before sounddevice is installed.
+unpack with `WinError 206` before sounddevice is installed. Start the API from
+that same live environment so device discovery is available to the Workspace:
 
-Keep Vosk models under ignored `models/`, for example:
+```powershell
+C:\ma-live\Scripts\python.exe scripts\meeting_agent_api.py --host 127.0.0.1 --port 8000
+```
+
+Keep Vosk models in an ignored ASCII-only path on Windows, for example:
 
 ```text
-models/vosk/vosk-model-small-ru-0.22/
+C:/ma-models/vosk-model-small-ru-0.22/
 ```
+
+The native Windows Vosk runtime cannot reliably load a model from a path with
+non-ASCII characters. Preflight rejects that path before capture starts and
+does not expose the configured path through the API.
 
 API preflight checks the minimum Vosk layout (`am/final.mdl`,
 `conf/model.conf`, and a supported graph FST), not only the directory name.

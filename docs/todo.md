@@ -4,6 +4,8 @@
 
 ## Done
 
+- [x] MA-LIVE-VOSK-WINDOWS-PATH-READINESS (#267): block unsupported native
+  Windows Vosk model paths before capture and document the live API runtime.
 - [x] MA-API-MEETINGS-RESTORE (#30): read-only Meeting API restored.
 - [x] MA-INGEST-DEDUP (#34): `POST /meetings/ingest`, sha256 dedup, auth guard.
 - [x] MA-JOB-API (#35): concurrency=1 job runner and base job endpoints.

@@ -4,6 +4,11 @@
 
 ## Now
 
+- MA-LIVE-VOSK-WINDOWS-PATH-READINESS (#267) prevents the native Windows Vosk
+  runtime from starting with a non-ASCII model path that only passes the file
+  layout check. Preflight now returns a bounded path-free reason, Workspace
+  explains the block, and the runbook requires the API and model to use the
+  Python 3.12 live/ASCII runtime boundary.
 - MA-AUTH-DB-WORK-ROOT-RESOLUTION (#264) makes a relative `paths.auth_db`
   resolve under configured `work_root_path`, preventing a second empty auth
   database when the API starts from another CWD or worktree. The analogous
@@ -32,6 +37,10 @@
 
 ## Done latest
 
+- MA-LIVE-VOSK-WINDOWS-PATH-READINESS (#267): reproduced empty device lists
+  from a core-only API environment and immediate worker failure from a complete
+  Vosk model under a Cyrillic path; verified simultaneous MIC/SYS capture after
+  moving the runtime and model to short ASCII paths.
 - MA-LIVE-DIART-INTEGRATION-V1 (#261): added a loopback-only bounded HTTP
   client, hardened read-only `diart-api` Compose service, finalized-WAV speaker
   mapping, MIX/UI labels, schema/catalog registration and real 25-second model

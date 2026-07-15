@@ -193,6 +193,49 @@ def test_preflight_rejects_empty_model_directory(tmp_path: Path) -> None:
     assert payload["reason"] == "model_missing"
 
 
+def test_windows_native_vosk_rejects_non_ascii_model_path(tmp_path: Path) -> None:
+    from meeting_agent.live_sessions.service import _vosk_model_status
+
+    model_path = _model(tmp_path / "модель")
+
+    assert _vosk_model_status(
+        model_path,
+        native_runtime=True,
+        system_name="Windows",
+    ) == (False, "model_path_unsupported")
+    assert _vosk_model_status(
+        model_path,
+        native_runtime=False,
+        system_name="Windows",
+    ) == (True, None)
+
+
+def test_preflight_blocks_unsupported_native_model_path(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _meeting(tmp_path / "meetings")
+    service = LiveSessionService(
+        meetings_root=tmp_path / "meetings",
+        state_path=tmp_path / "runtime" / "live.json",
+        model_path=_model(tmp_path),
+        source_preflight=_available_preflight,
+    )
+    monkeypatch.setattr(
+        "meeting_agent.live_sessions.service._vosk_model_status",
+        lambda *_args, **_kwargs: (False, "model_path_unsupported"),
+    )
+    try:
+        payload = service.preflight("MIC")
+    finally:
+        service.shutdown()
+
+    assert payload["available"] is False
+    assert payload["model_ready"] is False
+    assert payload["reason"] == "model_path_unsupported"
+    assert "модель" not in json.dumps(payload, ensure_ascii=False)
+
+
 def test_preflight_hides_raw_backend_exception(tmp_path: Path) -> None:
     _meeting(tmp_path / "meetings")
 

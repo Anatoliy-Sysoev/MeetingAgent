@@ -175,6 +175,7 @@ def test_live_elapsed_and_capture_warnings_are_rendered(html: str) -> None:
 def test_live_blocked_reasons_are_controlled(html: str) -> None:
     for code in (
         "model_missing",
+        "model_path_unsupported",
         "sounddevice_missing",
         "sys_loopback_backend_missing",
         "live_session_capacity",
