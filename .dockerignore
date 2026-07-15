@@ -3,10 +3,13 @@
 **
 
 !Dockerfile
+!Dockerfile.diart
 !requirements.txt
 !requirements-transcription.txt
 !constraints-py312.txt
 !requirements-diarization.txt
+!requirements-diart.txt
+!constraints-diart-py310-linux.txt
 !config.docker.yaml
 
 !src/
