@@ -6,7 +6,14 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+import pytest  # noqa: E402
+
 from meeting_agent.diarization import assign_speaker, normalize_intervals, overlap_seconds  # noqa: E402
+from meeting_agent.diarization.sherpa_backend import (  # noqa: E402
+    SherpaDiarizationConfig,
+    SherpaDiarizationError,
+    validate_native_model_paths,
+)
 
 
 def test_normalize_intervals_sorts_and_formats_speakers() -> None:
@@ -65,3 +72,18 @@ def test_assign_speaker_returns_unknown_when_overlap_is_too_small() -> None:
 def test_overlap_seconds() -> None:
     assert overlap_seconds(0, 10, 5, 12) == 5
     assert overlap_seconds(0, 3, 3, 5) == 0
+
+
+def test_native_windows_model_paths_must_be_ascii(tmp_path: Path) -> None:
+    segmentation = tmp_path / "модели" / "segmentation.onnx"
+    embedding = tmp_path / "модели" / "embedding.onnx"
+    segmentation.parent.mkdir()
+    segmentation.write_bytes(b"model")
+    embedding.write_bytes(b"model")
+    config = SherpaDiarizationConfig(
+        segmentation_model=segmentation,
+        embedding_model=embedding,
+    )
+
+    with pytest.raises(SherpaDiarizationError, match="ASCII-only"):
+        validate_native_model_paths(config, platform_name="nt")

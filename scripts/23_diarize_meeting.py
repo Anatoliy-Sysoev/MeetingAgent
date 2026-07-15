@@ -19,8 +19,7 @@ from meeting_agent.diarization.sherpa_backend import (  # noqa: E402
     SherpaDiarizationConfig,
     SherpaDiarizationError,
     diarize_wav,
-    validate_model_paths,
-    validate_runtime_dependencies,
+    validate_runtime_config,
 )
 
 
@@ -163,8 +162,7 @@ def run(args: argparse.Namespace) -> int:
     config = build_config(args)
     if args.dry_run:
         try:
-            validate_model_paths(config)
-            validate_runtime_dependencies()
+            validate_runtime_config(config)
         except SherpaDiarizationError as exc:
             raise DiarizeMeetingError(str(exc), stage="preflight") from exc
         print("diarization dry-run ok")

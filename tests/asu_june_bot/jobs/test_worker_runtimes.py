@@ -9,8 +9,10 @@ import pytest
 from meeting_agent.jobs.runner import JobRunner, PreflightFailed
 from meeting_agent.jobs.runtimes import (
     WorkerRuntimeRegistry,
+    build_diarization_models_dir,
     build_worker_runtime_registry,
 )
+from meeting_agent.jobs.runner import _diarization_model_path_error
 from meeting_agent.jobs.store import JobStore
 
 
@@ -96,6 +98,40 @@ def test_config_builder_resolves_relative_paths_and_env_override(
     assert registry.select("transcribe").executable == env_runtime
 
 
+def test_diarization_models_dir_resolves_config_and_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert build_diarization_models_dir(
+        {"work_root_path": tmp_path, "diarization": {"models_dir": "models/diarization"}}
+    ) == (tmp_path / "models" / "diarization").resolve()
+
+    env_dir = tmp_path / "ascii-models"
+    monkeypatch.setenv("MEETINGAGENT_DIARIZATION_MODELS_DIR", str(env_dir))
+    assert build_diarization_models_dir({"work_root_path": tmp_path}) == env_dir.resolve()
+
+
+@pytest.mark.parametrize("value", ["", 123, [], None])
+def test_diarization_models_dir_rejects_invalid_explicit_values(
+    tmp_path: Path,
+    value: object,
+) -> None:
+    config = {"work_root_path": tmp_path, "diarization": {"models_dir": value}}
+    with pytest.raises(ValueError, match="models_dir"):
+        build_diarization_models_dir(config)
+
+
+def test_windows_diarization_models_dir_requires_ascii() -> None:
+    detail = _diarization_model_path_error(
+        Path("C:/модели/diarization"),
+        platform_name="nt",
+    )
+
+    assert detail is not None
+    assert "ASCII-only" in detail
+    assert "C:/" not in detail
+
+
 @pytest.mark.parametrize(
     "runtimes",
     ["not-an-object", {"transcription": 123}, {"unknown": "python"}],
@@ -176,6 +212,44 @@ def test_diarization_dependency_preflight_runs_in_selected_worker(
     assert len(calls) == 2
     assert all(call[0] == str(executable) for call in calls)
     assert "--dry-run" in calls[0]
+
+
+def test_runner_passes_configured_diarization_models_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    meeting_dir = _meeting(tmp_path)
+    audio = meeting_dir / "source" / "audio_16k_mono.wav"
+    audio.parent.mkdir(parents=True)
+    audio.write_bytes(b"RIFF")
+    executable = _python_stub(tmp_path / "diarization" / "python.exe")
+    models_dir = Path("C:/ma-models/diarization")
+    calls: list[tuple[str, ...]] = []
+
+    async def fake_subprocess(*args: str, stdout: int, stderr: int) -> _ImmediateProcess:
+        calls.append(args)
+        return _ImmediateProcess()
+
+    monkeypatch.setattr("meeting_agent.jobs.runner._create_subprocess", fake_subprocess)
+    runner = JobRunner(
+        worker_runtimes=WorkerRuntimeRegistry({"diarization": executable}),
+        diarization_models_dir=models_dir,
+    )
+
+    async def scenario() -> None:
+        await runner.submit(
+            meeting_id=MEETING_ID,
+            stage="diarize",
+            meeting_dir=meeting_dir,
+        )
+        await asyncio.sleep(0)
+
+    asyncio.run(scenario())
+
+    assert len(calls) == 2
+    for call in calls:
+        models_index = call.index("--models-dir")
+        assert call[models_index + 1] == str(models_dir.resolve())
 
 
 def test_missing_runtime_blocks_before_reservation(
