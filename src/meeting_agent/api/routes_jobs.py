@@ -74,6 +74,7 @@ async def list_job_stages(
 async def pipeline_readiness_map(
     meeting_id: str,
     _principal: Annotated[Principal, Depends(require_permission("jobs.read"))],
+    asr_engine: Literal["faster-whisper", "gigaam"] = "faster-whisper",
     runner: JobRunner = Depends(_get_runner),
     service: MeetingsService = Depends(_get_meetings_service),
 ) -> JSONResponse:
@@ -90,6 +91,13 @@ async def pipeline_readiness_map(
         meeting_id,
         meeting_dir,
         live_session_active=live_session_active,
+        worker_runtime_errors={
+            stage: runner.worker_runtime_error(
+                stage,
+                {"asr_engine": asr_engine} if stage == "transcribe" else None,
+            )
+            for stage in STAGE_COMMANDS
+        },
     )
     payload["job_recovery"] = runner.recovery_summary(meeting_id)
     return JSONResponse(content=payload)
