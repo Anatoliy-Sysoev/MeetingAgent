@@ -77,3 +77,47 @@ def test_upsert_rows_preserves_meeting_chunks(tmp_path: Path) -> None:
     rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
 
     assert [row["chunk_id"] for row in rows] == ["m1-chunk", "other-decision", "new-decision"]
+
+
+def test_empty_artifact_upsert_removes_stale_rows_and_keeps_chunks(tmp_path: Path) -> None:
+    module = load_module()
+    output = tmp_path / "meeting_chunks.jsonl"
+    existing = [
+        {"meeting_id": "m1", "source_type": "meeting_chunk", "chunk_id": "m1-chunk"},
+        {"meeting_id": "m1", "source_type": "meeting_action_item", "chunk_id": "stale-task"},
+        {"meeting_id": "m2", "source_type": "meeting_decision", "chunk_id": "other"},
+    ]
+    output.write_text(
+        "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in existing),
+        encoding="utf-8",
+    )
+
+    module.upsert_rows(output, "m1", [])
+
+    rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert [row["chunk_id"] for row in rows] == ["m1-chunk", "other"]
+
+
+def test_safe_resolve_rejects_absolute_and_traversal_paths(tmp_path: Path) -> None:
+    module = load_module()
+
+    assert module.safe_resolve(tmp_path, "artifacts/tasks.json") == (
+        tmp_path / "artifacts" / "tasks.json"
+    ).resolve()
+    assert module.safe_resolve(tmp_path, "../private.json") is None
+    assert module.safe_resolve(tmp_path, str((tmp_path / "outside.json").resolve())) is None
+
+
+def test_update_meeting_marks_only_artifacts_actually_processed() -> None:
+    module = load_module()
+    meeting = {
+        "artifacts": {},
+        "rag": {"indexed_artifacts": ["artifacts/enriched_chunks.jsonl"]},
+    }
+
+    module.update_meeting(meeting, ["decisions"])
+
+    assert meeting["rag"]["indexed_artifacts"] == [
+        "artifacts/decisions.json",
+        "artifacts/enriched_chunks.jsonl",
+    ]
