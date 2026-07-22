@@ -4,6 +4,11 @@
 
 ## Now
 
+- MA-WORKSPACE-DIARIZE-RECOVERY (#301) fixes two failures observed in a real
+  Workspace run: the mutable v5 bundle now has a new revisioned asset URL so
+  browsers cannot reuse pre-speaker-count JavaScript, and cancellation clears
+  a recovered orphan that exits after API startup. A local UI smoke confirmed
+  that selecting six speakers launches the worker with `--num-speakers 6`.
 - MA-RESOLVED-SPEAKER-TURNS (#296, parent #285) provides a deterministic
   resolved transcript view and TXT/Markdown exports. Adjacent corrected turns
   merge only for the same known speaker/source without overlap or a meaningful

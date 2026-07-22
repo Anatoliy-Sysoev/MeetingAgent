@@ -319,6 +319,36 @@ def test_recovered_orphan_cancel_is_idempotent_and_clears_store(
     assert [item.job_id for item in runner.history].count("job-1") == 1
 
 
+def test_recovered_orphan_that_exits_before_cancel_clears_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "jobs.json"
+    meeting_dir = _meeting(tmp_path)
+    store = JobStore(path)
+    store.reserve_job(_job_record(_job(meeting_dir)))
+    process_alive = True
+    monkeypatch.setattr(
+        runner_mod,
+        "process_matches",
+        lambda _pid, _identity: process_alive,
+    )
+    runner = JobRunner(state_path=path, meetings_root=tmp_path)
+    process_alive = False
+
+    async def must_not_terminate(**_kwargs) -> bool:
+        raise AssertionError("an exited orphan must not be terminated")
+
+    monkeypatch.setattr(runner_mod, "terminate_process_tree", must_not_terminate)
+
+    cancelled = asyncio.run(runner.cancel("job-1"))
+
+    assert cancelled.status == "cancelled"
+    assert cancelled.recovery_status == "orphaned_process_missing"
+    assert runner.active_job is None
+    assert store.load()["active_job"] is None
+    assert runner.history[-1].job_id == "job-1"
+
+
 def test_identity_mismatch_never_targets_process_tree(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

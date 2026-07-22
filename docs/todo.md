@@ -4,6 +4,10 @@
 
 ## Done
 
+- [x] MA-WORKSPACE-DIARIZE-RECOVERY (#301): revision the Workspace v5 asset
+  URLs after speaker-count changes and release durable job reservations when a
+  recovered orphan exits before cancellation; verified through a real UI
+  launch with `--num-speakers 6`.
 - [x] MA-EXTRACTIVE-ARTIFACT-OVERCLASSIFICATION (#277): prevent chunk-level
   semantic types from turning every utterance into a structured artifact and
   label extractive summary/protocol output honestly.
