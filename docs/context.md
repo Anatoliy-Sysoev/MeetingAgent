@@ -4,6 +4,10 @@
 
 ## Now
 
+- MA-SPEAKER-OVERRIDES (#295, parent #285) adds audited, bounded and atomic
+  corrections for one transcript utterance or a selected range. Workspace
+  editors can assign an existing technical speaker label or restore automatic
+  attribution; raw ASR and diarization artifacts remain immutable.
 - MA-SPEAKER-DIRECTORY (#294, parent #285) adds a bounded private runtime
   profile store with CRUD API and Workspace select/create flow. Meeting
   mappings retain `speaker_id` plus reproducible name/role/company snapshots;
@@ -78,6 +82,9 @@
 
 ## Done latest
 
+- MA-SPEAKER-OVERRIDES (#295): added editor-only CSRF-protected correction and
+  reset APIs, a private event journal, resolved transcript fields that preserve
+  the automatic label, and a range-capable Workspace editor.
 - MA-SPEAKER-DIRECTORY (#294): added atomic bounded profile storage under
   `work_root_path`, editor-only path-free CRUD, duplicate detection and
   backward-compatible Workspace mapping snapshots.
