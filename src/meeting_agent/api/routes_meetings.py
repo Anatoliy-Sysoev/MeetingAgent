@@ -25,6 +25,7 @@ from meeting_agent.meetings.service import (
     MeetingsService,
     _safe_meeting_id,
 )
+from meeting_agent.speakers import SpeakerOverrideError
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
 
@@ -78,6 +79,19 @@ class SpeakerMappingRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     mapping: dict[str, SpeakerMappingEntry] = Field(default_factory=dict)
+
+
+class SpeakerOverrideRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(min_length=1, max_length=500)
+    speaker_label: str = Field(pattern=r"^SPEAKER_(?:UNKNOWN|\d{1,4})$")
+
+
+class SpeakerOverrideResetRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(min_length=1, max_length=500)
 
 
 @router.get("", response_model=MeetingListResponse)
@@ -185,6 +199,79 @@ def update_speaker_mapping(
     return result
 
 
+def _invalid_speaker_override(exc: SpeakerOverrideError) -> HTTPException:
+    return HTTPException(
+        status_code=422,
+        detail={
+            "error": "invalid_speaker_override",
+            "message": str(exc),
+        },
+    )
+
+
+@router.get("/{meeting_id}/speakers/overrides")
+def get_speaker_overrides(
+    meeting_id: str,
+    service: MeetingsService = Depends(get_meetings_service),
+    _principal: Annotated[Principal, Depends(require_permission("meetings.edit"))] = ...,
+) -> dict:
+    try:
+        result = service.get_speaker_overrides(meeting_id)
+    except (SpeakerOverrideError, ArtifactTooLargeError) as exc:
+        if isinstance(exc, ArtifactTooLargeError):
+            raise _too_large(exc) from exc
+        raise _invalid_speaker_override(exc) from exc
+    except MeetingCardError as exc:
+        raise _invalid_card(exc) from exc
+    if result is None:
+        raise _not_found(meeting_id)
+    return result
+
+
+@router.put("/{meeting_id}/speakers/overrides")
+def set_speaker_overrides(
+    meeting_id: str,
+    payload: SpeakerOverrideRequest,
+    service: MeetingsService = Depends(get_meetings_service),
+    principal: Annotated[Principal, Depends(require_action_permission("meetings.edit"))] = ...,
+) -> dict:
+    try:
+        result = service.set_speaker_overrides(
+            meeting_id, payload.segment_ids, payload.speaker_label, principal.principal_id
+        )
+    except SpeakerOverrideError as exc:
+        raise _invalid_speaker_override(exc) from exc
+    except ArtifactTooLargeError as exc:
+        raise _too_large(exc) from exc
+    except MeetingCardError as exc:
+        raise _invalid_card(exc) from exc
+    if result is None:
+        raise _not_found(meeting_id)
+    return result
+
+
+@router.post("/{meeting_id}/speakers/overrides/reset")
+def reset_speaker_overrides(
+    meeting_id: str,
+    payload: SpeakerOverrideResetRequest,
+    service: MeetingsService = Depends(get_meetings_service),
+    principal: Annotated[Principal, Depends(require_action_permission("meetings.edit"))] = ...,
+) -> dict:
+    try:
+        result = service.reset_speaker_overrides(
+            meeting_id, payload.segment_ids, principal.principal_id
+        )
+    except SpeakerOverrideError as exc:
+        raise _invalid_speaker_override(exc) from exc
+    except ArtifactTooLargeError as exc:
+        raise _too_large(exc) from exc
+    except MeetingCardError as exc:
+        raise _invalid_card(exc) from exc
+    if result is None:
+        raise _not_found(meeting_id)
+    return result
+
+
 # Declared BEFORE /{meeting_id}/artifacts/{artifact_name} so "manifest" is
 # never captured as an artifact name.
 @router.get("/{meeting_id}/artifacts/manifest")
@@ -218,6 +305,8 @@ def get_transcript_segments(
         result = service.get_transcript_segments(meeting_id)
     except ArtifactTooLargeError as exc:
         raise _too_large(exc) from exc
+    except SpeakerOverrideError as exc:
+        raise _invalid_speaker_override(exc) from exc
     if result is None:
         raise _not_found(meeting_id)
     return result

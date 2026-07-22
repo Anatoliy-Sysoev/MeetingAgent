@@ -675,7 +675,8 @@ speaker_overlap_ratio
 
 - для каждого ASR segment выбирается speaker interval с максимальным временным пересечением;
 - если покрытие меньше `0.3` длительности ASR segment, используется `SPEAKER_UNKNOWN`;
-- реальная идентификация людей не выполняется; ручной speaker mapping остается отдельным будущим слоем.
+- автоматическая идентификация людей не выполняется; ручной mapping, приватный
+  справочник профилей и корректировки отдельных реплик доступны в Workspace.
 
 ### 6. Meeting-Aware Chunking
 
@@ -1126,3 +1127,12 @@ API:
 В `meeting.json.speaker_mapping` сохраняются `speaker_id` и snapshot
 `name/role/company`. Историческая встреча продолжает отображать snapshot после
 удаления профиля из каталога.
+
+### Исправление ошибочно назначенных реплик
+
+Workspace позволяет выбрать одну или диапазон до 500 реплик и назначить одну
+из технических меток встречи. Правки требуют `meetings.edit` и CSRF. Они
+пишутся атомарно в приватный `transcript/speaker_overrides.json` как журнал с
+`old_speaker_label`, `new_speaker_label`, actor и timestamp. Команда «Вернуть
+авто» восстанавливает diarization label в resolved transcript. Файлы
+`segments.jsonl`, `diarization.jsonl` и `speaker_transcript.jsonl` не меняются.

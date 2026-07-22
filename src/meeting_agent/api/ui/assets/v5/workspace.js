@@ -9,6 +9,8 @@ let _filteredSegmentIndices = [];
 let _transcriptPage = 0;
 let _speakerRows = [];
 let _speakerProfiles = [];
+let _selectedSegmentIds = new Set();
+let _lastSelectedSegmentIndex = null;
 // CSRF token is held in this in-memory variable only — never written to the
 // DOM or to any persistent browser storage.
 let _csrfToken = null;
@@ -234,6 +236,9 @@ async function loadTranscript() {
   }
   const data = await resp.json();
   _segments = data.segments || [];
+  _selectedSegmentIds = new Set(
+    [..._selectedSegmentIds].filter((id) => _segments.some((segment) => segment.segment_id === id))
+  );
   _filteredSegmentIndices = _segments.map((_segment, index) => index);
   _transcriptPage = 0;
   document.getElementById("seg-count").textContent = `${_segments.length} сегментов`;
@@ -269,6 +274,18 @@ function renderTranscriptPage() {
     if (seg.start_sec != null) div.dataset.startSec = seg.start_sec;
 
     const meta = _mkEl("div", "seg-meta");
+    if (_permissions.has("meetings.edit")) {
+      const select = document.createElement("input");
+      select.type = "checkbox";
+      select.className = "seg-speaker-select";
+      select.checked = _selectedSegmentIds.has(seg.segment_id);
+      select.setAttribute("aria-label", `Выбрать реплику ${i + 1}`);
+      select.addEventListener("click", (event) => {
+        event.stopPropagation();
+        updateSegmentSelection(i, select.checked, event.shiftKey);
+      });
+      meta.appendChild(select);
+    }
     const time = _mkEl("span", "seg-time");
     time.textContent = fmtSec(seg.start_sec);
     meta.appendChild(time);
@@ -281,6 +298,13 @@ function renderTranscriptPage() {
       if (seg.speaker_role) {
         const role = document.createTextNode(` (${seg.speaker_role})`);
         meta.appendChild(role);
+      }
+      if (seg.speaker_overridden) {
+        const corrected = _mkEl("span", "seg-corrected");
+        corrected.textContent = "исправлено вручную";
+        corrected.title = `Автоматически: ${seg.automatic_speaker_label || "не определено"}`;
+        meta.appendChild(document.createTextNode(" "));
+        meta.appendChild(corrected);
       }
     }
 
@@ -300,6 +324,101 @@ function renderTranscriptPage() {
     : `${start + 1}–${start + visibleIndices.length} из ${_filteredSegmentIndices.length}`;
   prevButton.disabled = _transcriptPage === 0;
   nextButton.disabled = _transcriptPage >= pageCount - 1;
+}
+
+function updateSegmentSelection(index, checked, extendRange) {
+  const target = _segments[index];
+  if (!target?.segment_id) return;
+  const indices = extendRange && _lastSelectedSegmentIndex != null
+    ? Array.from(
+        { length: Math.abs(index - _lastSelectedSegmentIndex) + 1 },
+        (_unused, offset) => Math.min(index, _lastSelectedSegmentIndex) + offset,
+      )
+    : [index];
+  indices.forEach((itemIndex) => {
+    const id = _segments[itemIndex]?.segment_id;
+    if (!id) return;
+    if (checked) _selectedSegmentIds.add(id);
+    else _selectedSegmentIds.delete(id);
+  });
+  if (_selectedSegmentIds.size > 500) {
+    _selectedSegmentIds.clear();
+    setSpeakerOverrideStatus("За один раз можно изменить не более 500 реплик", true);
+  }
+  _lastSelectedSegmentIndex = index;
+  renderTranscriptPage();
+  updateSpeakerOverrideToolbar();
+}
+
+function setSpeakerOverrideStatus(message, isError = false) {
+  const status = document.getElementById("speaker-override-status");
+  if (!status) return;
+  status.textContent = message || "";
+  status.classList.toggle("err", isError);
+}
+
+function updateSpeakerOverrideToolbar() {
+  const toolbar = document.getElementById("speaker-override-toolbar");
+  if (!toolbar) return;
+  const canEdit = _permissions.has("meetings.edit");
+  toolbar.hidden = !canEdit;
+  document.getElementById("speaker-override-count").textContent =
+    `${_selectedSegmentIds.size} реплик выбрано`;
+  const disabled = _selectedSegmentIds.size === 0;
+  document.getElementById("speaker-override-apply").disabled = disabled;
+  document.getElementById("speaker-override-reset").disabled = disabled;
+  document.getElementById("speaker-override-clear").disabled = disabled;
+}
+
+function populateSpeakerOverrideLabels() {
+  const select = document.getElementById("speaker-override-label");
+  if (!select) return;
+  const previous = select.value;
+  const options = _speakerRows.map((speaker) => {
+    const option = document.createElement("option");
+    option.value = speaker.speaker_label;
+    option.textContent = speaker.display_name && speaker.display_name !== speaker.speaker_label
+      ? `${speaker.display_name} (${speaker.speaker_label})`
+      : speaker.speaker_label;
+    return option;
+  });
+  select.replaceChildren(...options);
+  if (_speakerRows.some((speaker) => speaker.speaker_label === previous)) select.value = previous;
+  updateSpeakerOverrideToolbar();
+}
+
+async function applySpeakerOverride(reset = false) {
+  if (_selectedSegmentIds.size === 0) return;
+  const csrf = await ensureCsrf();
+  if (!csrf) {
+    setSpeakerOverrideStatus("Требуется вход", true);
+    return;
+  }
+  const segmentIds = [..._selectedSegmentIds];
+  const endpoint = reset ? "speakers/overrides/reset" : "speakers/overrides";
+  const payload = { segment_ids: segmentIds };
+  if (!reset) payload.speaker_label = document.getElementById("speaker-override-label").value;
+  const resp = await apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}/${endpoint}`, {
+    method: reset ? "POST" : "PUT",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+    body: JSON.stringify(payload),
+  });
+  if (!resp || !resp.ok) {
+    setSpeakerOverrideStatus("Не удалось изменить спикера", true);
+    return;
+  }
+  _selectedSegmentIds.clear();
+  _lastSelectedSegmentIndex = null;
+  await loadTranscript();
+  updateSpeakerOverrideToolbar();
+  setSpeakerOverrideStatus(reset ? "Автоматическая атрибуция восстановлена" : "Спикер изменён");
+}
+
+function clearSpeakerOverrideSelection() {
+  _selectedSegmentIds.clear();
+  _lastSelectedSegmentIndex = null;
+  renderTranscriptPage();
+  updateSpeakerOverrideToolbar();
 }
 
 function showTranscriptSegment(index, options = {}) {
@@ -1088,6 +1207,7 @@ async function loadSpeakerMapping() {
   }
   const data = await resp.json();
   _speakerRows = data.speakers || [];
+  populateSpeakerOverrideLabels();
   if (_speakerRows.length === 0) {
     panel.replaceChildren(_mkEmptyMsg("Метки спикеров пока не найдены"));
     return;
@@ -2063,6 +2183,12 @@ if (_closeArtifactBtn) _closeArtifactBtn.addEventListener("click", closeArtifact
 
 const _speakerMapSaveBtn = document.getElementById("speaker-map-save-btn");
 if (_speakerMapSaveBtn) _speakerMapSaveBtn.addEventListener("click", saveSpeakerMapping);
+const _speakerOverrideApply = document.getElementById("speaker-override-apply");
+if (_speakerOverrideApply) _speakerOverrideApply.addEventListener("click", () => applySpeakerOverride(false));
+const _speakerOverrideReset = document.getElementById("speaker-override-reset");
+if (_speakerOverrideReset) _speakerOverrideReset.addEventListener("click", () => applySpeakerOverride(true));
+const _speakerOverrideClear = document.getElementById("speaker-override-clear");
+if (_speakerOverrideClear) _speakerOverrideClear.addEventListener("click", clearSpeakerOverrideSelection);
 
 const _jobsRefreshBtn = document.getElementById("jobs-refresh-btn");
 if (_jobsRefreshBtn) {

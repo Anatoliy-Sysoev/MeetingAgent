@@ -89,11 +89,14 @@
 - [x] MA-SPEAKER-DIRECTORY (#294, parent #285): private runtime speaker
   profiles, editor-only CRUD, duplicate detection and Workspace select/create
   with historical meeting snapshots.
+- [x] MA-SPEAKER-OVERRIDES (#295, parent #285): audited single/range speaker
+  corrections with undo, immutable raw ASR/diarization artifacts and a
+  CSRF-protected Workspace editor.
 - [x] MA-DIARIZATION-SPEAKER-COUNT (#292, parent #285): choose auto or an exact
   speaker count before diarization, pass it through API/runner and retain
   requested/actual counts in the report and meeting card.
-- [ ] MA-SPEAKER-CURATION-V2 (#285): continue with per-utterance overrides
-  (#295), resolved-turn merging (#296) and targeted downstream rebuild (#297).
+- [ ] MA-SPEAKER-CURATION-V2 (#285): continue with resolved-turn merging
+  (#296) and targeted downstream rebuild (#297).
 - [x] MA-WORKSPACE-TRANSCRIPT-VIRTUALIZATION (#278): keep large transcripts
   responsive with bounded DOM rendering and reliable search/seek navigation.
 - [x] MA-PIPELINE-STRUCTURED-ARTIFACT-INDEX-STAGE (#279): index final structured
