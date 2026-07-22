@@ -20,6 +20,10 @@ from meeting_agent.jobs.processes import (
 )
 from meeting_agent.jobs.runtimes import WorkerRuntimeRegistry
 from meeting_agent.jobs.store import JobStore, JobStoreConflict, JobStoreError
+from meeting_agent.meetings.artifact_catalog import (
+    ARTIFACT_DEFAULT_PATHS,
+    STRUCTURED_INDEX_ARTIFACT_KEYS,
+)
 from meeting_agent.meeting_work import (
     MeetingWorkConflict,
     MeetingWorkCoordinator,
@@ -171,6 +175,19 @@ def _analyze_preflight(meeting_dir: Path) -> str | None:
     return "enriched_chunks.jsonl not found; run enrich first"
 
 
+def _index_artifacts_preflight(meeting_dir: Path) -> str | None:
+    err, data = _read_card(meeting_dir)
+    if err:
+        return err
+    artifacts = _artifact_map(data or {})
+    for key in STRUCTURED_INDEX_ARTIFACT_KEYS:
+        rel = artifacts.get(key, ARTIFACT_DEFAULT_PATHS[key])
+        resolved = _safe_resolve(meeting_dir, rel)
+        if resolved is None or not resolved.is_file():
+            return "structured meeting artifacts not found; run analyze first"
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Stage command registry
 # ---------------------------------------------------------------------------
@@ -227,6 +244,12 @@ STAGE_COMMANDS: dict[str, dict[str, Any]] = {
         "base_args": ["--mode", "extractive", "--force"],
         "supports_dry_run": False,
         "preflight": _analyze_preflight,
+    },
+    "index_artifacts": {
+        "script": _ROOT / "scripts" / "32_index_meeting_artifacts.py",
+        "base_args": [],
+        "supports_dry_run": False,
+        "preflight": _index_artifacts_preflight,
     },
 }
 
@@ -350,6 +373,13 @@ STAGE_METADATA: dict[str, dict[str, Any]] = {
         "requires": ["enriched_chunks"],
         "outputs": ["meeting_artifacts"],
         "order": 80,
+    },
+    "index_artifacts": {
+        "label": "Index meeting artifacts",
+        "description": "Write final decisions, tasks, risks, and questions to the meeting search index.",
+        "requires": ["meeting_artifacts"],
+        "outputs": ["structured_artifact_search_index"],
+        "order": 90,
     },
 }
 
@@ -551,6 +581,7 @@ PIPELINE_PROFILES: dict[str, list[str]] = {
         "enrich",
         "index",
         "analyze",
+        "index_artifacts",
     ],
     "transcript_only": ["extract_audio", "transcribe"],
     "qa_ready": ["extract_audio", "transcribe", "merge", "chunk", "enrich", "index"],

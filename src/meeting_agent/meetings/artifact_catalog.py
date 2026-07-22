@@ -48,3 +48,15 @@ ARTIFACT_CATALOG: list[dict[str, str]] = [
 ARTIFACT_DEFAULT_PATHS: dict[str, str] = {
     spec["artifact_key"]: spec["default_path"] for spec in ARTIFACT_CATALOG
 }
+
+# Search-index completion markers. The chunk index and the structured artifact
+# index are separate pipeline stages and must not make each other look done.
+CHUNK_INDEX_MARKERS = frozenset(
+    {"transcript/chunks.jsonl", "artifacts/enriched_chunks.jsonl"}
+)
+STRUCTURED_INDEX_ARTIFACT_KEYS = (
+    "decisions",
+    "tasks",
+    "risks",
+    "open_questions",
+)
