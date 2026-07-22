@@ -99,6 +99,15 @@ def test_run_full_pipeline_button(html: str) -> None:
     assert 'profile: "full"' in html
 
 
+def test_diarization_speaker_count_is_wired_to_all_job_paths(html: str) -> None:
+    assert 'id="diarization-speaker-count"' in html
+    assert "selectedDiarizationSpeakerCount" in html
+    assert 'stage === "diarize"' in html
+    assert "payload.num_speakers = numSpeakers" in html
+    assert 'stage === "diarize" && numSpeakers !== null' in html
+    assert "Existing diarization will be rebuilt" in html
+
+
 def test_resume_button_only_for_partial_pipeline(html: str) -> None:
     assert "Продолжить цикл" in html
     block = html[html.index("function renderPipelineActions"):]

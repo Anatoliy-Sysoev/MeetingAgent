@@ -68,6 +68,8 @@ def test_meetingagent_ui_starts_pipeline_profiles(html: str) -> None:
     assert 'value="faster-whisper"' in html
     assert 'value="gigaam"' in html
     assert "asr_engine: selectedAsrEngine()" in html
+    assert 'id="diarizationSpeakerCount"' in html
+    assert "payload.num_speakers = numSpeakers" in html
     assert "qa_ready" in html
     assert '["index_artifacts", "Индекс артефактов"' in html
     assert "из ${PIPELINE_STAGES.length}" in html

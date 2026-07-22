@@ -7,6 +7,7 @@ import wave
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from jsonschema import Draft202012Validator
 
 
@@ -165,7 +166,23 @@ def test_diarize_real_run_validates_runtime_and_publishes_outputs(
         encoding="utf-8"
     ) == ""
     report = read_json(meeting_dir / "transcript" / "diarization_report.json")
-    assert report == {"backend": "sherpa-onnx", "warnings": []}
+    assert report == {
+        "backend": "sherpa-onnx",
+        "warnings": [],
+        "requested_num_speakers": None,
+        "actual_num_speakers": 0,
+    }
     meeting = read_json(meeting_dir / "meeting.json")
     validate_meeting(meeting)
     assert meeting["artifacts"]["diarization"] == "transcript/diarization.jsonl"
+    assert meeting["diarization_summary"] == {
+        "requested_num_speakers": None,
+        "actual_num_speakers": 0,
+        "backend": "sherpa-onnx",
+        "updated_at": meeting["diarization_summary"]["updated_at"],
+    }
+
+
+def test_diarize_cli_rejects_out_of_range_speaker_count() -> None:
+    with pytest.raises(SystemExit):
+        diarize23.parse_args(["--meeting-dir", "meeting", "--num-speakers", "21"])

@@ -86,6 +86,12 @@
 
 ## Active / Next
 
+- [x] MA-DIARIZATION-SPEAKER-COUNT (#292, parent #285): choose auto or an exact
+  speaker count before diarization, pass it through API/runner and retain
+  requested/actual counts in the report and meeting card.
+- [ ] MA-SPEAKER-CURATION-V2 (#285): continue with the private speaker
+  directory, per-utterance overrides, resolved-turn merging and targeted
+  downstream rebuild as separate child issues.
 - [x] MA-WORKSPACE-TRANSCRIPT-VIRTUALIZATION (#278): keep large transcripts
   responsive with bounded DOM rendering and reliable search/seek navigation.
 - [x] MA-PIPELINE-STRUCTURED-ARTIFACT-INDEX-STAGE (#279): index final structured

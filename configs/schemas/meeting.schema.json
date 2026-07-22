@@ -87,6 +87,38 @@
         }
       }
     },
+    "diarization_summary": {
+      "type": "object",
+      "description": "Последние запрошенные и фактически найденные параметры offline diarization.",
+      "additionalProperties": false,
+      "required": [
+        "requested_num_speakers",
+        "actual_num_speakers",
+        "backend",
+        "updated_at"
+      ],
+      "properties": {
+        "requested_num_speakers": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "maximum": 20
+        },
+        "actual_num_speakers": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "backend": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
     "live_refinements": {
       "type": "object",
       "description": "Состояние явного offline-ASR уточнения сохраненных MIC/SYS live-черновиков.",
