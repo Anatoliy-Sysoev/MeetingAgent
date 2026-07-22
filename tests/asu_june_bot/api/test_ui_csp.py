@@ -105,8 +105,14 @@ def test_product_page_contains_only_external_scripts_and_styles(
     assert not re.search(r"<script(?![^>]*\ssrc=)[^>]*>", html, re.IGNORECASE)
     assert not re.search(r"\sstyle\s*=", html, re.IGNORECASE)
     assert not re.search(r"\son[a-z]+\s*=", html, re.IGNORECASE)
-    assert re.search(r'<link[^>]+href="/assets/v[12345]/[^\"]+\.css"', html)
-    assert re.search(r'<script[^>]+src="/assets/v[12345]/[^\"]+\.js"[^>]*></script>', html)
+    assert re.search(
+        r'<link[^>]+href="/assets/v[12345]/[^\"]+\.css(?:\?rev=[a-zA-Z0-9._-]+)?"',
+        html,
+    )
+    assert re.search(
+        r'<script[^>]+src="/assets/v[12345]/[^\"]+\.js(?:\?rev=[a-zA-Z0-9._-]+)?"[^>]*></script>',
+        html,
+    )
 
 
 @pytest.mark.parametrize("path", ASSET_PATHS)
