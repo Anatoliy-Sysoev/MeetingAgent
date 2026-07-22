@@ -100,11 +100,23 @@ def choose_audio(meeting_dir: Path, meeting: dict[str, Any], explicit_audio: str
     )
 
 
-def update_meeting(meeting: dict[str, Any]) -> None:
+def update_meeting(
+    meeting: dict[str, Any],
+    *,
+    requested_num_speakers: int | None,
+    actual_num_speakers: int,
+    backend: str,
+) -> None:
     artifacts = dict(meeting.get("artifacts", {}))
     artifacts["diarization"] = OUTPUT_DIARIZATION
     artifacts["diarization_report"] = OUTPUT_REPORT
     meeting["artifacts"] = artifacts
+    meeting["diarization_summary"] = {
+        "requested_num_speakers": requested_num_speakers,
+        "actual_num_speakers": actual_num_speakers,
+        "backend": backend,
+        "updated_at": now_iso(),
+    }
     meeting["updated_at"] = now_iso()
     meeting.pop("last_error", None)
     if meeting.get("processing_status") == "failed":
@@ -181,10 +193,17 @@ def run(args: argparse.Namespace) -> int:
             backend=result.report.backend,
         )
         report_data = result.report.to_dict()
+        report_data["requested_num_speakers"] = args.num_speakers
+        report_data["actual_num_speakers"] = len({interval.speaker for interval in intervals})
         report_data["warnings"] = list(report_data.get("warnings") or []) + warnings
         write_jsonl(output_jsonl, [interval.to_dict() for interval in intervals])
         write_json_atomic(output_report, report_data)
-        update_meeting(meeting)
+        update_meeting(
+            meeting,
+            requested_num_speakers=args.num_speakers,
+            actual_num_speakers=report_data["actual_num_speakers"],
+            backend=result.report.backend,
+        )
         validate_schema(meeting, schema_path)
         write_json_atomic(meeting_path, meeting)
     except SherpaDiarizationError as exc:
@@ -214,7 +233,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default="sherpa-onnx-pyannote-segmentation-3-0/model.onnx",
     )
     parser.add_argument("--embedding-model", default="wespeaker_en_voxceleb_resnet34_LM.onnx")
-    parser.add_argument("--num-speakers", type=int, help="Known number of speakers. Omit for auto.")
+    parser.add_argument(
+        "--num-speakers",
+        type=int,
+        choices=range(1, 21),
+        metavar="1..20",
+        help="Known number of speakers. Omit for auto.",
+    )
     parser.add_argument("--min-speakers", type=int, help="Reserved for future backends.")
     parser.add_argument("--max-speakers", type=int, help="Reserved for future backends.")
     parser.add_argument("--cluster-threshold", type=float, default=0.5)

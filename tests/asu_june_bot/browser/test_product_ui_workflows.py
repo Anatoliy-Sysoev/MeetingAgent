@@ -214,6 +214,7 @@ def test_meetingagent_upload_and_pipeline_workflow(page: Page, ui_base_url: str)
     page.locator("#meetingTitle").fill("Browser smoke")
     page.locator('input[name="profile-choice"][value="none"]').check()
     page.locator("#asrEngine").select_option("gigaam")
+    page.locator("#diarizationSpeakerCount").select_option("4")
     page.locator("#uploadSubmit").click()
 
     expect(page.locator("#message")).to_contain_text("Карточка встречи создана")
@@ -225,7 +226,11 @@ def test_meetingagent_upload_and_pipeline_workflow(page: Page, ui_base_url: str)
 
     page.get_by_role("button", name="Запустить транскрибацию").click()
     expect(page.locator("#message")).to_contain_text("Обработка запущена")
-    assert captured["pipeline"] == {"profile": "transcript_only", "asr_engine": "gigaam"}
+    assert captured["pipeline"] == {
+        "profile": "transcript_only",
+        "asr_engine": "gigaam",
+        "num_speakers": 4,
+    }
     pipeline_headers = captured["pipeline_headers"]
     assert isinstance(pipeline_headers, dict)
     assert pipeline_headers.get("x-csrf-token") == "browser-csrf"

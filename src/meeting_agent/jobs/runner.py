@@ -261,6 +261,17 @@ ASR_ENGINE_ARGS: dict[str, list[str]] = {
 
 def stage_base_args(stage: str, options: dict[str, Any] | None = None) -> list[str]:
     cfg = STAGE_COMMANDS[stage]
+    if stage == "diarize":
+        result = list(cfg["base_args"])
+        num_speakers = (options or {}).get("num_speakers")
+        if num_speakers is None:
+            return result
+        if isinstance(num_speakers, bool) or not isinstance(num_speakers, int):
+            raise ValueError("Diarization speaker count must be an integer")
+        if not 1 <= num_speakers <= 20:
+            raise ValueError("Diarization speaker count must be in the range 1..20")
+        result.extend(["--num-speakers", str(num_speakers)])
+        return result
     if stage != "transcribe":
         return list(cfg["base_args"])
     engine = str((options or {}).get("asr_engine") or "faster-whisper")
