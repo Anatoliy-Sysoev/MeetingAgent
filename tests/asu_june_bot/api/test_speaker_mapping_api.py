@@ -63,6 +63,12 @@ def make_meeting(root: Path, *, card_extra: dict | None = None) -> Path:
         "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows),
         encoding="utf-8",
     )
+    (meeting_dir / "transcript" / "segments.jsonl").write_text(
+        '{"segment_id":"seg-raw","text":"raw"}\n', encoding="utf-8"
+    )
+    (meeting_dir / "transcript" / "diarization.jsonl").write_text(
+        '{"speaker":"SPEAKER_01","start":0,"end":1}\n', encoding="utf-8"
+    )
     (meeting_dir / "meeting.json").write_text(
         json.dumps(card, ensure_ascii=False),
         encoding="utf-8",
@@ -281,3 +287,143 @@ def test_speaker_directory_write_requires_csrf_and_rejects_duplicate(tmp_path: P
         headers={"X-CSRF-Token": csrf},
     )
     assert duplicate.status_code == 409
+
+
+def test_speaker_override_single_and_range_are_resolved_without_raw_mutation(tmp_path: Path) -> None:
+    meeting_dir = make_meeting(tmp_path)
+    raw_segments = (meeting_dir / "transcript" / "segments.jsonl").read_bytes()
+    raw_diarization = (meeting_dir / "transcript" / "diarization.jsonl").read_bytes()
+    raw_speaker_transcript = (meeting_dir / "transcript" / "speaker_transcript.jsonl").read_bytes()
+    client, admin = make_client(tmp_path)
+    cookie, csrf = login(client, admin, "override-editor@example.com", ["editor"])
+    auth = {"X-CSRF-Token": csrf}
+    cookies = {"ma_session": cookie}
+
+    single = client.put(
+        f"/meetings/{MEETING_ID}/speakers/overrides",
+        json={"segment_ids": ["utt-1"], "speaker_label": "SPEAKER_02"},
+        headers=auth,
+        cookies=cookies,
+    )
+    assert single.status_code == 200, single.text
+    assert single.json()["overrides"][0]["segment_id"] == "utt-1"
+
+    range_update = client.put(
+        f"/meetings/{MEETING_ID}/speakers/overrides",
+        json={"segment_ids": ["utt-1", "utt-2"], "speaker_label": "SPEAKER_01"},
+        headers=auth,
+        cookies=cookies,
+    )
+    assert range_update.status_code == 200, range_update.text
+    assert {item["segment_id"] for item in range_update.json()["overrides"]} == {"utt-1", "utt-2"}
+
+    transcript = client.get(f"/meetings/{MEETING_ID}/transcript/segments", cookies=cookies)
+    assert transcript.status_code == 200
+    rows = transcript.json()["segments"]
+    assert [row["speaker_label"] for row in rows] == ["SPEAKER_01", "SPEAKER_01"]
+    assert rows[0]["automatic_speaker_label"] == "SPEAKER_01"
+    assert rows[1]["automatic_speaker_label"] == "SPEAKER_02"
+    assert all(row["speaker_overridden"] for row in rows)
+    assert (meeting_dir / "transcript" / "segments.jsonl").read_bytes() == raw_segments
+    assert (meeting_dir / "transcript" / "diarization.jsonl").read_bytes() == raw_diarization
+    assert (meeting_dir / "transcript" / "speaker_transcript.jsonl").read_bytes() == raw_speaker_transcript
+
+
+def test_speaker_override_reset_restores_automatic_attribution(tmp_path: Path) -> None:
+    make_meeting(tmp_path)
+    client, admin = make_client(tmp_path)
+    cookie, csrf = login(client, admin, "override-reset@example.com", ["editor"])
+    request = {"headers": {"X-CSRF-Token": csrf}, "cookies": {"ma_session": cookie}}
+    assert client.put(
+        f"/meetings/{MEETING_ID}/speakers/overrides",
+        json={"segment_ids": ["utt-1"], "speaker_label": "SPEAKER_02"},
+        **request,
+    ).status_code == 200
+
+    reset = client.post(
+        f"/meetings/{MEETING_ID}/speakers/overrides/reset",
+        json={"segment_ids": ["utt-1"]},
+        **request,
+    )
+    assert reset.status_code == 200
+    assert reset.json()["overrides"] == []
+    transcript = client.get(f"/meetings/{MEETING_ID}/transcript/segments", cookies=request["cookies"])
+    row = transcript.json()["segments"][0]
+    assert row["speaker_label"] == "SPEAKER_01"
+    assert row["speaker_overridden"] is False
+
+
+def test_speaker_override_rejects_unknown_ids_labels_and_missing_csrf(tmp_path: Path) -> None:
+    make_meeting(tmp_path)
+    client, admin = make_client(tmp_path)
+    cookie, csrf = login(client, admin, "override-security@example.com", ["editor"])
+    endpoint = f"/meetings/{MEETING_ID}/speakers/overrides"
+
+    no_csrf = client.put(
+        endpoint,
+        json={"segment_ids": ["utt-1"], "speaker_label": "SPEAKER_02"},
+        cookies={"ma_session": cookie},
+    )
+    assert no_csrf.status_code == 403
+    unknown_id = client.put(
+        endpoint,
+        json={"segment_ids": ["utt-404"], "speaker_label": "SPEAKER_02"},
+        cookies={"ma_session": cookie},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert unknown_id.status_code == 422
+    unknown_label = client.put(
+        endpoint,
+        json={"segment_ids": ["utt-1"], "speaker_label": "SPEAKER_99"},
+        cookies={"ma_session": cookie},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert unknown_label.status_code == 422
+    assert "C:\\" not in unknown_id.text + unknown_label.text
+
+
+def test_speaker_override_write_requires_editor_and_audit_read_is_private(tmp_path: Path) -> None:
+    make_meeting(tmp_path)
+    client, admin = make_client(tmp_path)
+    viewer_cookie, viewer_csrf = login(client, admin, "override-viewer@example.com", ["viewer"])
+    endpoint = f"/meetings/{MEETING_ID}/speakers/overrides"
+
+    assert client.get(endpoint, cookies={"ma_session": viewer_cookie}).status_code == 403
+    denied = client.put(
+        endpoint,
+        json={"segment_ids": ["utt-1"], "speaker_label": "SPEAKER_02"},
+        cookies={"ma_session": viewer_cookie},
+        headers={"X-CSRF-Token": viewer_csrf},
+    )
+    assert denied.status_code == 403
+
+
+def test_corrupt_speaker_override_document_returns_controlled_error(tmp_path: Path) -> None:
+    meeting_dir = make_meeting(tmp_path)
+    (meeting_dir / "transcript" / "speaker_overrides.json").write_text(
+        '{"schema_version":1,"meeting_id":"wrong","events":[]}', encoding="utf-8"
+    )
+    client, admin = make_client(tmp_path)
+    cookie, _csrf = login(client, admin, "override-corrupt@example.com", ["editor"])
+
+    resp = client.get(f"/meetings/{MEETING_ID}/transcript/segments", cookies={"ma_session": cookie})
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "invalid_speaker_override"
+    assert "C:\\" not in resp.text
+
+
+def test_invalid_or_duplicate_source_segment_ids_fail_closed(tmp_path: Path) -> None:
+    meeting_dir = make_meeting(tmp_path)
+    transcript_path = meeting_dir / "transcript" / "speaker_transcript.jsonl"
+    transcript_path.write_text(
+        '{"utterance_id":[],"speaker":"SPEAKER_01","start":0,"end":1,"text":"bad"}\n',
+        encoding="utf-8",
+    )
+    client, admin = make_client(tmp_path)
+    cookie, _csrf = login(client, admin, "override-bad-source@example.com", ["editor"])
+
+    resp = client.get(f"/meetings/{MEETING_ID}/transcript/segments", cookies={"ma_session": cookie})
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "invalid_speaker_override"

@@ -242,19 +242,26 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
     ui_base_url: str,
 ) -> None:
     captured: dict[str, object] = {}
-    mapping = {"SPEAKER_01": {"name": "", "role": ""}}
+    mapping = {
+        "SPEAKER_01": {"name": "", "role": ""},
+        "SPEAKER_02": {"name": "", "role": ""},
+    }
+    overrides: dict[str, str] = {}
     tail_start = 20.0 + (1504 * 2.0)
 
     def transcript_payload() -> dict[str, object]:
-        display = mapping["SPEAKER_01"]["name"] or "SPEAKER_01"
+        first_label = overrides.get("seg-000001", "SPEAKER_01")
+        display = mapping[first_label]["name"] or first_label
         rows = [
             {
                 "segment_id": "seg-000001",
                 "start_sec": 12.0,
                 "end_sec": 15.0,
                 "speaker": display,
-                "speaker_label": "SPEAKER_01",
-                "speaker_role": mapping["SPEAKER_01"]["role"],
+                "speaker_label": first_label,
+                "speaker_role": mapping[first_label]["role"],
+                "automatic_speaker_label": "SPEAKER_01",
+                "speaker_overridden": "seg-000001" in overrides,
                 "text": "Согласовали срок поставки.",
             }
         ]
@@ -277,18 +284,16 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
         return {"segments": rows}
 
     def speaker_payload() -> dict[str, object]:
-        values = mapping["SPEAKER_01"]
-        return {
-            "speakers": [
-                {
-                    "speaker_label": "SPEAKER_01",
-                    "name": values["name"],
-                    "role": values["role"],
-                    "display_name": values["name"] or "SPEAKER_01",
-                    "mapped": bool(values["name"] or values["role"]),
-                }
-            ]
-        }
+        speakers = []
+        for label, values in mapping.items():
+            speakers.append({
+                "speaker_label": label,
+                "name": values["name"],
+                "role": values["role"],
+                "display_name": values["name"] or label,
+                "mapped": bool(values["name"] or values["role"]),
+            })
+        return {"speakers": speakers}
 
     def handle_api(route: Route) -> None:
         request = route.request
@@ -335,6 +340,20 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
             captured["mapping_headers"] = request.headers
             mapping.update(body["mapping"])
             _fulfill_json(route, speaker_payload())
+        elif path == f"{prefix}/speakers/overrides" and request.method == "PUT":
+            body = json.loads(request.post_data or "{}")
+            captured["speaker_override"] = body
+            captured["speaker_override_headers"] = request.headers
+            for segment_id in body["segment_ids"]:
+                overrides[segment_id] = body["speaker_label"]
+            _fulfill_json(route, {"overrides": []})
+        elif path == f"{prefix}/speakers/overrides/reset" and request.method == "POST":
+            body = json.loads(request.post_data or "{}")
+            captured["speaker_override_reset"] = body
+            captured["speaker_override_reset_headers"] = request.headers
+            for segment_id in body["segment_ids"]:
+                overrides.pop(segment_id, None)
+            _fulfill_json(route, {"overrides": []})
         elif path == f"{prefix}/artifacts":
             _fulfill_json(
                 route,
@@ -484,8 +503,8 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
     page.locator("#seg-next").click()
     expect(page.locator("#seg-page-status")).to_have_text("151–300 из 1505")
 
-    name_input = page.locator('.speaker-map-row input[data-field="name"]')
-    role_input = page.locator('.speaker-map-row input[data-field="role"]')
+    name_input = page.locator('.speaker-map-row input[data-field="name"]').first
+    role_input = page.locator('.speaker-map-row input[data-field="role"]').first
     name_input.fill("Иван Петров")
     role_input.fill("Руководитель")
     page.locator("#speaker-map-save-btn").click()
@@ -497,6 +516,25 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
     assert isinstance(mapping_headers, dict)
     assert mapping_headers.get("x-csrf-token") == "workspace-csrf"
     expect(page.locator("#transcript-list")).to_contain_text("Иван Петров")
+
+    first_segment = page.locator("#transcript-list .seg").first
+    first_segment.locator(".seg-speaker-select").check()
+    page.locator("#speaker-override-label").select_option("SPEAKER_02")
+    page.locator("#speaker-override-apply").click()
+    expect(first_segment).to_contain_text("SPEAKER_02")
+    expect(first_segment).to_contain_text("исправлено вручную")
+    assert captured["speaker_override"] == {
+        "segment_ids": ["seg-000001"],
+        "speaker_label": "SPEAKER_02",
+    }
+    assert captured["speaker_override_headers"].get("x-csrf-token") == "workspace-csrf"
+
+    first_segment.locator(".seg-speaker-select").check()
+    page.locator("#speaker-override-reset").click()
+    expect(first_segment).to_contain_text("Иван Петров")
+    expect(first_segment.locator(".seg-corrected")).to_have_count(0)
+    assert captured["speaker_override_reset"] == {"segment_ids": ["seg-000001"]}
+    assert captured["speaker_override_reset_headers"].get("x-csrf-token") == "workspace-csrf"
 
     page.locator('[data-workspace-tab="artifacts"]').click()
     page.get_by_role("button", name="Открыть").click()
