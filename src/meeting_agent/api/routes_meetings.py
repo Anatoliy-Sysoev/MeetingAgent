@@ -70,6 +70,8 @@ class SpeakerMappingEntry(BaseModel):
 
     name: str = Field(default="", max_length=120)
     role: str = Field(default="", max_length=120)
+    company: str = Field(default="", max_length=120)
+    speaker_id: str = Field(default="", pattern=r"^(?:|spk_[0-9a-f]{32})$")
 
 
 class SpeakerMappingRequest(BaseModel):

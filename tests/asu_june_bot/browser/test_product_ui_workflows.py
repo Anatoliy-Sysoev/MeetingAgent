@@ -327,6 +327,8 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
             _fulfill_json(route, transcript_payload())
         elif path == f"{prefix}/speakers" and request.method == "GET":
             _fulfill_json(route, speaker_payload())
+        elif path == "/speakers" and request.method == "GET":
+            _fulfill_json(route, {"profiles": [], "count": 0})
         elif path == f"{prefix}/speakers/mapping" and request.method == "PUT":
             body = json.loads(request.post_data or "{}")
             captured["mapping"] = body

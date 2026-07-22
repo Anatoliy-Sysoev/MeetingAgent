@@ -589,7 +589,9 @@ h3 { margin-bottom: 6px; font-size: 14px; }
 .context-col { position: sticky; top: 84px; max-height: calc(100vh - 105px); overflow: auto; }
 .speaker-map-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .speaker-map-label { grid-column: 1 / -1; color: var(--primary); font-weight: 700; overflow-wrap: anywhere; }
-.speaker-map-row input { width: 100%; }
+.speaker-map-row input, .speaker-map-row select { width: 100%; }
+.speaker-map-row select[data-field="profile"] { grid-column: 1 / -1; }
+.speaker-map-row button { justify-self: start; }
 .speaker-actions { position: sticky; bottom: 0; padding-top: 10px; background: var(--surface); }
 
 .artifacts-workbench { min-height: 520px; }
