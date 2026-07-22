@@ -461,8 +461,9 @@ GET  /admin/review/chat-runs/export
 ## Open decisions / blockers
 
 - #167 awaits GitHub Support removal of internal pull-request refs and cached
-  commit views. All operator-controlled public branches and tags are already
-  rewritten and fresh-clone verification is clean.
+  commit views under Support ticket #4593146. All operator-controlled public
+  branches and tags are already rewritten and fresh-clone verification is
+  clean.
 - #237 intentionally does not change production UI before owner approval.
 - Admin users/roles and redacted security status are available at `/admin`;
   aggregate jobs/audit/settings endpoints and destructive meeting admin actions
