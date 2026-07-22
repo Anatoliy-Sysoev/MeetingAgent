@@ -27,6 +27,7 @@ from meeting_agent.api.ui_assets import (
     UI_ASSETS_V2_DIR,
     UI_ASSETS_V3_DIR,
     UI_ASSETS_V4_DIR,
+    UI_ASSETS_V5_DIR,
 )
 from meeting_agent.shared.config import load_config
 
@@ -57,6 +58,11 @@ def install_core_infrastructure(app: FastAPI, config: dict) -> None:
         "/assets/v4",
         StaticFiles(directory=UI_ASSETS_V4_DIR, check_dir=True),
         name="ui-assets-v4",
+    )
+    app.mount(
+        "/assets/v5",
+        StaticFiles(directory=UI_ASSETS_V5_DIR, check_dir=True),
+        name="ui-assets-v5",
     )
 
 

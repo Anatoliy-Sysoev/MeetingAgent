@@ -41,6 +41,7 @@ from asu_june_bot.api.ui_assets import (  # noqa: E402
     UI_ASSETS_V2_DIR,
     UI_ASSETS_V3_DIR,
     UI_ASSETS_V4_DIR,
+    UI_ASSETS_V5_DIR,
 )
 
 
@@ -69,6 +70,11 @@ def _build_ui_app() -> FastAPI:
         "/assets/v4",
         StaticFiles(directory=UI_ASSETS_V4_DIR, check_dir=True),
         name="ui-assets-v4",
+    )
+    app.mount(
+        "/assets/v5",
+        StaticFiles(directory=UI_ASSETS_V5_DIR, check_dir=True),
+        name="ui-assets-v5",
     )
     app.include_router(meetingagent_router)
     app.include_router(workspace_router)
@@ -232,6 +238,38 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
 ) -> None:
     captured: dict[str, object] = {}
     mapping = {"SPEAKER_01": {"name": "", "role": ""}}
+    tail_start = 20.0 + (1504 * 2.0)
+
+    def transcript_payload() -> dict[str, object]:
+        display = mapping["SPEAKER_01"]["name"] or "SPEAKER_01"
+        rows = [
+            {
+                "segment_id": "seg-000001",
+                "start_sec": 12.0,
+                "end_sec": 15.0,
+                "speaker": display,
+                "speaker_label": "SPEAKER_01",
+                "speaker_role": mapping["SPEAKER_01"]["role"],
+                "text": "Согласовали срок поставки.",
+            }
+        ]
+        for index in range(1, 1505):
+            start = 20.0 + (index * 2.0)
+            text = f"Реплика номер {index}."
+            if index == 1504:
+                text = "Уникальный хвостовой маркер и срок поставки."
+            rows.append(
+                {
+                    "segment_id": f"seg-{index + 1:06d}",
+                    "start_sec": start,
+                    "end_sec": start + 1.0,
+                    "speaker": display,
+                    "speaker_label": "SPEAKER_01",
+                    "speaker_role": mapping["SPEAKER_01"]["role"],
+                    "text": text,
+                }
+            )
+        return {"segments": rows}
 
     def speaker_payload() -> dict[str, object]:
         values = mapping["SPEAKER_01"]
@@ -281,23 +319,7 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
         elif path == f"{prefix}/media":
             _fulfill_json(route, {"media": []})
         elif path == f"{prefix}/transcript/segments":
-            display = mapping["SPEAKER_01"]["name"] or "SPEAKER_01"
-            _fulfill_json(
-                route,
-                {
-                    "segments": [
-                        {
-                            "segment_id": "seg-000001",
-                            "start_sec": 12.0,
-                            "end_sec": 15.0,
-                            "speaker": display,
-                            "speaker_label": "SPEAKER_01",
-                            "speaker_role": mapping["SPEAKER_01"]["role"],
-                            "text": "Согласовали срок поставки.",
-                        }
-                    ]
-                },
-            )
+            _fulfill_json(route, transcript_payload())
         elif path == f"{prefix}/speakers" and request.method == "GET":
             _fulfill_json(route, speaker_payload())
         elif path == f"{prefix}/speakers/mapping" and request.method == "PUT":
@@ -408,9 +430,9 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
                     "retrieval_mode": "vector",
                     "citations": [
                         {
-                            "citation_label": "[00:00:12, SPEAKER_01]",
-                            "start_sec": 12.0,
-                            "excerpt": "Согласовали срок поставки.",
+                            "citation_label": "[00:50:28, SPEAKER_01]",
+                            "start_sec": tail_start,
+                            "excerpt": "Уникальный хвостовой маркер и срок поставки.",
                         }
                     ],
                 },
@@ -425,8 +447,8 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
                         {
                             "text": "Согласовали срок поставки.",
                             "source": {
-                                "citation_label": "[00:00:12, SPEAKER_01]",
-                                "start_sec": 12.0,
+                                "citation_label": "[00:50:28, SPEAKER_01]",
+                                "start_sec": tail_start,
                             },
                         }
                     ],
@@ -440,8 +462,20 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
     response = page.goto(f"{ui_base_url}{f'/meetings/{MEETING_ID}/workspace'}", wait_until="networkidle")
     assert response is not None
     assert "'unsafe-inline'" not in response.headers["content-security-policy"]
+    assert errors == []
     expect(page.locator("#hdr-title")).to_have_text("Workspace browser smoke")
     expect(page.locator("#transcript-list")).to_contain_text("Согласовали срок поставки")
+    expect(page.locator("#seg-page-status")).to_have_text("1–150 из 1505")
+    assert page.locator("#transcript-list .seg").count() == 150
+
+    page.locator("#seg-filter").fill("уникальный хвостовой маркер")
+    expect(page.locator("#seg-page-status")).to_have_text("1–1 из 1")
+    assert page.locator("#transcript-list .seg").count() == 1
+    expect(page.locator("#transcript-list")).to_contain_text("Уникальный хвостовой маркер")
+    page.locator("#seg-filter").fill("")
+    expect(page.locator("#seg-page-status")).to_have_text("1–150 из 1505")
+    page.locator("#seg-next").click()
+    expect(page.locator("#seg-page-status")).to_have_text("151–300 из 1505")
 
     name_input = page.locator('.speaker-map-row input[data-field="name"]')
     role_input = page.locator('.speaker-map-row input[data-field="role"]')
@@ -465,9 +499,13 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
     page.locator("#qa-question").fill("Какой срок согласовали?")
     page.locator("#qa-ask-btn").click()
     expect(page.locator("#qa-answer")).to_have_text("Срок поставки согласован.")
-    expect(page.locator("#qa-citations")).to_contain_text("[00:00:12, SPEAKER_01]")
+    expect(page.locator("#qa-citations")).to_contain_text("[00:50:28, SPEAKER_01]")
     assert captured["chat"] == {"query": "Какой срок согласовали?", "top_k": 5}
+    page.locator("#qa-citations .qa-citation").click()
+    expect(page.locator("#seg-page-status")).to_have_text("1501–1505 из 1505")
+    expect(page.locator("#transcript-list")).to_contain_text("Уникальный хвостовой маркер")
 
+    page.locator('[data-workspace-tab="qa"]').click()
     page.locator("#qa-search-input").fill("срок поставки")
     page.locator("#qa-search-btn").click()
     expect(page.locator("#qa-search-results")).to_contain_text("Согласовали срок поставки")
