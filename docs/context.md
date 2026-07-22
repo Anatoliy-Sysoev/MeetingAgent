@@ -4,6 +4,10 @@
 
 ## Now
 
+- MA-DIARIZATION-SPEAKER-COUNT (#292, parent #285) exposes auto or an exact
+  `1..20` speaker count in both MeetingAgent UI surfaces. The strict API and
+  JobRunner pass it to sherpa-onnx before reservation; the meeting card and
+  diarization report preserve requested and actual counts.
 - MA-PIPELINE-STRUCTURED-ARTIFACT-INDEX-STAGE (#279) adds the explicit
   `index_artifacts` stage after `analyze` in the full pipeline. Chunk and
   structured index completion are tracked independently, including valid
@@ -70,6 +74,9 @@
 
 ## Done latest
 
+- MA-DIARIZATION-SPEAKER-COUNT (#292): added strict single-stage, retry and
+  pipeline option propagation, explicit diarization force-rerun wording and
+  backward-compatible report/card metadata without mutating raw ASR.
 - MA-PIPELINE-STRUCTURED-ARTIFACT-INDEX-STAGE (#279): the one-click full
   profile now runs `enrich -> index -> analyze -> index_artifacts`; readiness,
   manifest status, resume/force semantics and end-to-end meeting retrieval

@@ -463,6 +463,11 @@ function selectedAsrEngine() {
   return byId("asrEngine") ? byId("asrEngine").value : "faster-whisper";
 }
 
+function selectedSpeakerCount() {
+  const value = byId("diarizationSpeakerCount")?.value || "";
+  return value ? Number(value) : null;
+}
+
 async function startPipeline(meetingId, profile) {
   state.csrf = state.csrf || await getCsrfToken();
   if (!state.csrf) {
@@ -470,10 +475,13 @@ async function startPipeline(meetingId, profile) {
     return;
   }
   try {
+    const payload = { profile, asr_engine: selectedAsrEngine() };
+    const numSpeakers = selectedSpeakerCount();
+    if (numSpeakers !== null) payload.num_speakers = numSpeakers;
     const resp = await apiFetch(`/meetings/${encodeURIComponent(meetingId)}/jobs/pipeline`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-CSRF-Token": state.csrf },
-      body: JSON.stringify({ profile, asr_engine: selectedAsrEngine() }),
+      body: JSON.stringify(payload),
     });
     const data = await safeJson(resp);
     showMessage(`Обработка запущена: ${data.job_id || data.pipeline_id || profile}`, "ok");
