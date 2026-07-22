@@ -80,13 +80,19 @@
   operation in Workspace while preserving separate source sessions, WAV files
   and provenance internally. The incompatible Workspace update uses immutable
   `/assets/v3/*`; the registry remains on `/assets/v2/*`.
-- canonical main before this task: `5af1bb1` / `Merge pull request #254 from
-  Anatoliy-Sysoev/codex/253-meetingagent-ui-v2`.
-- History purge #167 remains gated by explicit owner approval and backup.
-  UI interaction model approval is tracked as #237.
+- SEC-P0-GIT-HISTORY-PURGE (#167) completed the backup, local history rewrite,
+  full verification and force-update of every public branch and tag. A fresh
+  GitHub clone contains no targeted paths, known private markers or removed
+  large blobs. GitHub still retains old commits through internal pull-request
+  refs, so server-side Support cleanup is the only remaining closure step.
+- UI interaction model approval is tracked as #237.
 
 ## Done latest
 
+- SEC-P0-GIT-HISTORY-PURGE (#167): created and verified an offline mirror and
+  bundle, rewrote 983 commits, restored the exact public-safe product tree,
+  force-updated 46 branches plus `v0.1.0`, and validated a new GitHub clone.
+  The post-rewrite suite passed with 2016 tests and 13 explicit skips.
 - MA-RESOLVED-SPEAKER-TURNS (#296): added configurable resolved-turn merging,
   provenance-preserving API/exports and bounded source-utterance expansion in
   the virtualized Workspace transcript.
@@ -454,7 +460,9 @@ GET  /admin/review/chat-runs/export
 
 ## Open decisions / blockers
 
-- #167 rewrites published history and invalidates old clones; it is blocked on explicit owner approval and a verified backup.
+- #167 awaits GitHub Support removal of internal pull-request refs and cached
+  commit views. All operator-controlled public branches and tags are already
+  rewritten and fresh-clone verification is clean.
 - #237 intentionally does not change production UI before owner approval.
 - Admin users/roles and redacted security status are available at `/admin`;
   aggregate jobs/audit/settings endpoints and destructive meeting admin actions

@@ -108,7 +108,9 @@
 - [x] MA-MEETINGS-ROOT-WORK-ROOT-RESOLUTION (#265): resolve the meeting registry
   root consistently for MeetingsService, jobs and live sessions.
 - [x] SEC-P0-PUBLIC-TREE-CLEANUP (#166, PR #182): current public HEAD cleaned; private corpus overlays and privacy regression guards added — dd4d0a4.
-- [ ] SEC-P0-GIT-HISTORY-PURGE (#167): purge deleted private blobs after backup and explicit force-push approval.
+- [ ] SEC-P0-GIT-HISTORY-PURGE (#167): verified backup, full rewrite and
+  branch/tag force-push are complete; close after GitHub Support removes
+  internal pull-request refs and cached commit views.
 - [x] MA-TELEGRAM-AUTH-HARDENING (#168, PR #183): authenticated Chat API calls and fail-closed Telegram policy — 529b8b3.
 - [x] MA-BOOTSTRAP-HOST-VALIDATION (#169, PR #184): strict Host allowlist and DNS-rebinding-safe local bootstrap — afd4ede.
 - [x] MA-HEALTH-RESPONSE-HARDENING (#170): minimal public liveness, admin-only detailed diagnostics, bounded Telegram rendering and redacted dependency errors.

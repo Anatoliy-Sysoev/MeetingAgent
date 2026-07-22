@@ -97,6 +97,29 @@
 - public-safety regression test проверяет allowlist, known private markers и literal Windows user-profile paths;
 - history purge выполняется только после backup и явного согласования force-push.
 
+## 2026-07-22 - Переписывание Публичной Git History
+
+Решение: после явного согласования владельца создать проверяемые offline mirror
+и bundle, переписать все публичные ветки и теги через `git-filter-repo`, затем
+восстановить текущий public-safe tree и подтвердить результат fresh clone.
+
+Почему:
+
+- удаление файла из `HEAD` не удаляет его blobs из старых commits;
+- приватные eval/runtime материалы не должны оставаться доступны по Git object
+  или commit URL;
+- backup обязателен, потому что force-push инвалидирует старые clones и SHA;
+- GitHub internal pull-request refs и cached views очищаются только GitHub
+  Support после завершения клиентского rewrite.
+
+Следствия:
+
+- старые clones нельзя использовать для push; требуется fresh clone;
+- public branches/tags проверяются по запрещённым путям, маркерам и контрольным
+  blob OID до и после force-push;
+- actual backup locations, removed filenames and private content не
+  публикуются в Git.
+
 ## 2026-05-06 - Одна Папка, Один Git-Репозиторий
 
 Решение: каждый пет-проект получает отдельную папку и отдельный Git-репозиторий.
