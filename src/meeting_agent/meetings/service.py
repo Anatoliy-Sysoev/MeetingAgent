@@ -17,6 +17,7 @@ import jsonschema
 
 from meeting_agent.meetings.artifact_catalog import ARTIFACT_DEFAULT_PATHS
 from meeting_agent.meetings.ingest_lock import IngestLock
+from meeting_agent.speakers import SpeakerDirectory
 
 SUPPORTED_MEDIA_EXTENSIONS = frozenset({".mp4", ".mp3", ".wav", ".m4a"})
 _VIDEO_EXTENSIONS = frozenset({".mp4"})
@@ -309,12 +310,19 @@ def _speaker_mapping(card: Mapping[str, Any]) -> dict[str, dict[str, str]]:
             continue
         name = str(entry.get("name") or "").strip()
         role = str(entry.get("role") or "").strip()
-        if not name and not role:
+        company = str(entry.get("company") or "").strip()
+        speaker_id = str(entry.get("speaker_id") or "").strip()
+        if not name and not role and not company and not speaker_id:
             continue
-        result[label] = {
+        entry = {
             "name": name[:_SPEAKER_NAME_MAX_CHARS],
             "role": role[:_SPEAKER_ROLE_MAX_CHARS],
         }
+        if company:
+            entry["company"] = company[:_SPEAKER_ROLE_MAX_CHARS]
+        if speaker_id:
+            entry["speaker_id"] = speaker_id[:80]
+        result[label] = entry
     return result
 
 
@@ -327,13 +335,24 @@ def _normalize_speaker_mapping(mapping: Mapping[str, Any]) -> dict[str, dict[str
             raise ValueError(f"Speaker mapping entry must be an object: {label!r}")
         name = str(raw_entry.get("name") or "").strip()
         role = str(raw_entry.get("role") or "").strip()
+        company = str(raw_entry.get("company") or "").strip()
+        speaker_id = str(raw_entry.get("speaker_id") or "").strip()
         if len(name) > _SPEAKER_NAME_MAX_CHARS:
             raise ValueError(f"Speaker name is too long: {label!r}")
         if len(role) > _SPEAKER_ROLE_MAX_CHARS:
             raise ValueError(f"Speaker role is too long: {label!r}")
-        if not name and not role:
+        if len(company) > _SPEAKER_ROLE_MAX_CHARS:
+            raise ValueError(f"Speaker company is too long: {label!r}")
+        if speaker_id and not re.fullmatch(r"spk_[0-9a-f]{32}", speaker_id):
+            raise ValueError(f"Speaker id is invalid: {label!r}")
+        if not name and not role and not company and not speaker_id:
             continue
-        normalized[label] = {"name": name, "role": role}
+        entry = {"name": name, "role": role}
+        if company:
+            entry["company"] = company
+        if speaker_id:
+            entry["speaker_id"] = speaker_id
+        normalized[label] = entry
     return normalized
 
 
@@ -608,6 +627,7 @@ class MeetingsService:
         meetings_root: Path | str = "meetings",
         max_text_artifact_bytes: int = DEFAULT_MAX_TEXT_ARTIFACT_BYTES,
         max_upload_bytes: int = DEFAULT_MAX_UPLOAD_BYTES,
+        speaker_directory_path: Path | str | None = None,
     ) -> None:
         self.root = Path(meetings_root)
         if isinstance(max_text_artifact_bytes, bool):
@@ -632,6 +652,12 @@ class MeetingsService:
                 f"max_upload_bytes must be a positive integer, got {max_upload_bytes}"
             )
         self._max_upload_bytes = max_upload_bytes
+        directory_path = (
+            Path(speaker_directory_path)
+            if speaker_directory_path is not None
+            else self.root.parent / "data" / "meetingagent" / "speaker_directory.json"
+        )
+        self.speaker_directory = SpeakerDirectory(directory_path)
 
     @property
     def max_text_artifact_bytes(self) -> int:
@@ -962,10 +988,24 @@ class MeetingsService:
                 "speaker_label": label,
                 "name": str((mapping.get(label) or {}).get("name") or ""),
                 "role": str((mapping.get(label) or {}).get("role") or ""),
+                "company": str((mapping.get(label) or {}).get("company") or ""),
+                "speaker_id": str((mapping.get(label) or {}).get("speaker_id") or ""),
                 "display_name": display["speaker"],
                 "mapped": bool(display["speaker_mapped"]),
             })
         return {"meeting_id": meeting_id, "speakers": speakers, "mapping": mapping}
+
+    def list_speaker_profiles(self, *, query: str = "") -> list[dict[str, Any]]:
+        return self.speaker_directory.list(query=query)
+
+    def create_speaker_profile(self, data: Mapping[str, Any]) -> dict[str, Any]:
+        return self.speaker_directory.create(data)
+
+    def update_speaker_profile(self, speaker_id: str, data: Mapping[str, Any]) -> dict[str, Any]:
+        return self.speaker_directory.update(speaker_id, data)
+
+    def delete_speaker_profile(self, speaker_id: str) -> None:
+        self.speaker_directory.delete(speaker_id)
 
     def update_speaker_mapping(
         self, meeting_id: str, mapping: Mapping[str, Any]

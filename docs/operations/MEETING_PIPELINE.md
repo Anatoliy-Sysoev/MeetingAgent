@@ -1102,8 +1102,27 @@ Markdown-карточка и таблицы решений, задач, риск
 ## Будущие Улучшения
 
 - профили голосов;
-- ручной speaker mapping на реальные имена;
+- автоматическая идентификация голоса по профилю;
 - optional pyannote backend как high-quality режим после сравнения с sherpa-onnx;
 - синхронизация транскрипта с проигрывателем;
 - UI для ручной корректировки;
 - экспорт в DOCX/Markdown.
+
+## Приватный Справочник Спикеров
+
+Workspace позволяет выбрать существующий профиль или создать новый при
+сопоставлении `SPEAKER_XX`. По умолчанию каталог хранится в
+`data/meetingagent/speaker_directory.json`; путь можно изменить через
+`paths.speaker_directory`. Файл относится к приватным runtime-данным и не
+коммитится.
+
+API:
+
+- `GET /speakers` — список/поиск, требуется `meetings.edit`;
+- `POST /speakers` — создание, требуется `meetings.edit` и CSRF для cookie;
+- `PUT /speakers/{speaker_id}` — изменение;
+- `DELETE /speakers/{speaker_id}` — удаление только из справочника.
+
+В `meeting.json.speaker_mapping` сохраняются `speaker_id` и snapshot
+`name/role/company`. Историческая встреча продолжает отображать snapshot после
+удаления профиля из каталога.

@@ -8,6 +8,7 @@ let _segments = [];
 let _filteredSegmentIndices = [];
 let _transcriptPage = 0;
 let _speakerRows = [];
+let _speakerProfiles = [];
 // CSRF token is held in this in-memory variable only — never written to the
 // DOM or to any persistent browser storage.
 let _csrfToken = null;
@@ -1038,6 +1039,35 @@ async function stopLiveCapture() {
 }
 
 // ---- speaker mapping ----
+async function loadSpeakerDirectory() {
+  if (!_permissions.has("meetings.edit")) {
+    _speakerProfiles = [];
+    return;
+  }
+  const resp = await apiFetch("/speakers");
+  if (!resp || !resp.ok) {
+    _speakerProfiles = [];
+    return;
+  }
+  const data = await resp.json();
+  _speakerProfiles = Array.isArray(data.profiles) ? data.profiles : [];
+}
+
+function speakerProfileLabel(profile) {
+  const details = [profile.role, profile.company].filter(Boolean).join(" · ");
+  return details ? `${profile.name} — ${details}` : profile.name;
+}
+
+function applySpeakerProfile(row, profile) {
+  row.dataset.speakerId = profile?.speaker_id || "";
+  const name = row.querySelector('input[data-field="name"]');
+  const role = row.querySelector('input[data-field="role"]');
+  const company = row.querySelector('input[data-field="company"]');
+  if (name) name.value = profile?.name || "";
+  if (role) role.value = profile?.role || "";
+  if (company) company.value = profile?.company || "";
+}
+
 async function loadSpeakerMapping() {
   const panel = document.getElementById("speaker-map-panel");
   const status = document.getElementById("speaker-map-status");
@@ -1049,6 +1079,7 @@ async function loadSpeakerMapping() {
     status.textContent = "";
     status.classList.remove("err");
   }
+  await loadSpeakerDirectory();
   const resp = await apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}/speakers`);
   if (!resp) { panel.replaceChildren(); return; }
   if (!resp.ok) {
@@ -1068,6 +1099,26 @@ async function loadSpeakerMapping() {
     const label = _mkEl("div", "speaker-map-label");
     label.textContent = sp.speaker_label;
 
+    const profileSelect = document.createElement("select");
+    profileSelect.dataset.field = "profile";
+    const manual = document.createElement("option");
+    manual.value = "";
+    manual.textContent = "Ручной ввод";
+    profileSelect.append(manual);
+    _speakerProfiles.forEach((profile) => {
+      const option = document.createElement("option");
+      option.value = profile.speaker_id;
+      option.textContent = speakerProfileLabel(profile);
+      profileSelect.append(option);
+    });
+    profileSelect.value = sp.speaker_id || "";
+    profileSelect.disabled = !canEdit;
+    profileSelect.addEventListener("change", () => {
+      const profile = _speakerProfiles.find((item) => item.speaker_id === profileSelect.value);
+      if (profile) applySpeakerProfile(row, profile);
+      else row.dataset.speakerId = "";
+    });
+
     const name = document.createElement("input");
     name.type = "text";
     name.maxLength = 120;
@@ -1084,7 +1135,22 @@ async function loadSpeakerMapping() {
     role.dataset.field = "role";
     role.disabled = !canEdit;
 
-    row.append(label, name, role);
+    const company = document.createElement("input");
+    company.type = "text";
+    company.maxLength = 120;
+    company.placeholder = "Компания";
+    company.value = sp.company || "";
+    company.dataset.field = "company";
+    company.disabled = !canEdit;
+
+    const createProfile = document.createElement("button");
+    createProfile.type = "button";
+    createProfile.textContent = "Добавить в справочник";
+    createProfile.hidden = !canEdit;
+    createProfile.addEventListener("click", () => createSpeakerProfile(row));
+
+    row.dataset.speakerId = sp.speaker_id || "";
+    row.append(label, profileSelect, name, role, company, createProfile);
     return row;
   });
   panel.replaceChildren(...nodes);
@@ -1110,9 +1176,17 @@ async function saveSpeakerMapping() {
     if (!label) return;
     const nameInput = row.querySelector('input[data-field="name"]');
     const roleInput = row.querySelector('input[data-field="role"]');
+    const companyInput = row.querySelector('input[data-field="company"]');
     const name = (nameInput?.value || "").trim();
     const role = (roleInput?.value || "").trim();
-    if (name || role) mapping[label] = { name, role };
+    const company = (companyInput?.value || "").trim();
+    const speakerId = row.dataset.speakerId || "";
+    if (name || role || company || speakerId) {
+      const entry = { name, role };
+      if (company) entry.company = company;
+      if (speakerId) entry.speaker_id = speakerId;
+      mapping[label] = entry;
+    }
   });
   const resp = await apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}/speakers/mapping`, {
     method: "PUT",
@@ -1132,6 +1206,45 @@ async function saveSpeakerMapping() {
     status.textContent = "Сохранено";
     status.classList.remove("err");
   }
+}
+
+async function createSpeakerProfile(row) {
+  const status = document.getElementById("speaker-map-status");
+  const csrf = await ensureCsrf();
+  if (!csrf) {
+    if (status) status.textContent = "Требуется вход";
+    return;
+  }
+  const name = (row.querySelector('input[data-field="name"]')?.value || "").trim();
+  const role = (row.querySelector('input[data-field="role"]')?.value || "").trim();
+  const company = (row.querySelector('input[data-field="company"]')?.value || "").trim();
+  if (!name) {
+    if (status) status.textContent = "Для профиля укажите имя";
+    return;
+  }
+  const resp = await apiFetch("/speakers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+    body: JSON.stringify({ name, role, company, aliases: [], notes: "" }),
+  });
+  if (!resp || !resp.ok) {
+    if (status) status.textContent = resp?.status === 409
+      ? "Такой профиль уже есть в справочнике"
+      : "Не удалось создать профиль";
+    return;
+  }
+  const profile = await resp.json();
+  _speakerProfiles.push(profile);
+  row.dataset.speakerId = profile.speaker_id;
+  const select = row.querySelector('select[data-field="profile"]');
+  if (select) {
+    const option = document.createElement("option");
+    option.value = profile.speaker_id;
+    option.textContent = speakerProfileLabel(profile);
+    select.append(option);
+    select.value = profile.speaker_id;
+  }
+  if (status) status.textContent = "Профиль создан; сохраните сопоставление";
 }
 
 // ---- artifacts ----

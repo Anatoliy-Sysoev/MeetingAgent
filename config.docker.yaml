@@ -30,6 +30,7 @@ meetings:
   max_text_artifact_bytes: 10485760
 
 paths:
+  speaker_directory: data/meetingagent/speaker_directory.json
   jobs_state: logs/jobs_state.json
   live_sessions_state: logs/live_sessions_state.json
   meeting_work_lock: logs/meeting_work.lock

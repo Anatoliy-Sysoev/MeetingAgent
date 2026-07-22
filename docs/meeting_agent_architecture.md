@@ -249,16 +249,22 @@ MVP/product pipeline может работать без diarization:
 speaker = SPEAKER_UNKNOWN
 ```
 
-Ручной speaker mapping допускается позже как отдельный слой:
+Ручной speaker mapping и приватный локальный справочник реализованы отдельным
+слоем поверх стабильных технических labels:
 
 ```json
 {
   "SPEAKER_01": {
+    "speaker_id": "spk_<uuid>",
     "name": "Анатолий",
-    "role": "Системный аналитик"
+    "role": "Системный аналитик",
+    "company": "Организация"
   }
 }
 ```
+
+Профили хранятся только в ignored runtime-файле, а meeting card сохраняет
+snapshot полей. Поэтому удаление профиля из справочника не меняет историю.
 
 ## Meeting-Aware Chunking
 
