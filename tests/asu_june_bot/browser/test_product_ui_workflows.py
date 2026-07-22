@@ -330,6 +330,24 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
             _fulfill_json(route, {"media": []})
         elif path == f"{prefix}/transcript/segments":
             _fulfill_json(route, transcript_payload())
+        elif path == f"{prefix}/transcript/turns":
+            source_rows = transcript_payload()["segments"]
+            _fulfill_json(
+                route,
+                {
+                    "source_segments_count": len(source_rows),
+                    "turns_count": len(source_rows),
+                    "turns": [
+                        {
+                            **row,
+                            "turn_id": f"turn-{index + 1:06d}",
+                            "segment_ids": [row["segment_id"]],
+                            "utterance_ids": [row["segment_id"]],
+                        }
+                        for index, row in enumerate(source_rows)
+                    ],
+                },
+            )
         elif path == f"{prefix}/speakers" and request.method == "GET":
             _fulfill_json(route, speaker_payload())
         elif path == "/speakers" and request.method == "GET":

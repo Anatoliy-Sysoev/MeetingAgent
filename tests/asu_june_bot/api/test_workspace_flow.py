@@ -94,6 +94,10 @@ def test_speaker_override_editor_supports_single_range_and_reset(html: str) -> N
     assert "speaker_overridden" in html
     assert "automatic_speaker_label" in html
     assert '"speakers/overrides/reset"' in html
+    assert "/transcript/turns?max_gap_sec=1.5" in html
+    assert "renderTurnSources" in html
+    assert "const pageSize = 100" in html
+    assert "segment.segment_ids" in html
 
 
 def test_speaker_override_writes_use_csrf_and_dom_apis(html: str) -> None:

@@ -5,12 +5,15 @@ const MEETING_ID = document.body.dataset.meetingId || "";
 // ---- state ----
 let _player = null;
 let _segments = [];
+let _sourceSegments = [];
 let _filteredSegmentIndices = [];
 let _transcriptPage = 0;
 let _speakerRows = [];
 let _speakerProfiles = [];
 let _selectedSegmentIds = new Set();
 let _lastSelectedSegmentIndex = null;
+let _expandedTurnId = null;
+let _expandedTurnPage = 0;
 // CSRF token is held in this in-memory variable only — never written to the
 // DOM or to any persistent browser storage.
 let _csrfToken = null;
@@ -235,13 +238,23 @@ async function loadTranscript() {
     return;
   }
   const data = await resp.json();
-  _segments = data.segments || [];
+  _sourceSegments = data.segments || [];
+  _segments = _sourceSegments;
+  if (_sourceSegments.length > 0) {
+    const turnsResp = await apiFetch(
+      `/meetings/${encodeURIComponent(MEETING_ID)}/transcript/turns?max_gap_sec=1.5`
+    );
+    if (turnsResp && turnsResp.ok) {
+      const turnsData = await turnsResp.json();
+      _segments = turnsData.turns || [];
+    }
+  }
   _selectedSegmentIds = new Set(
     [..._selectedSegmentIds].filter((id) => _segments.some((segment) => segment.segment_id === id))
   );
   _filteredSegmentIndices = _segments.map((_segment, index) => index);
   _transcriptPage = 0;
-  document.getElementById("seg-count").textContent = `${_segments.length} сегментов`;
+  document.getElementById("seg-count").textContent = `${_segments.length} реплик`;
   if (_segments.length === 0) {
     list.replaceChildren(_mkEmptyMsg("Сегменты транскрипта пока не созданы"));
     document.getElementById("seg-page-status").textContent = "0 реплик";
@@ -278,7 +291,8 @@ function renderTranscriptPage() {
       const select = document.createElement("input");
       select.type = "checkbox";
       select.className = "seg-speaker-select";
-      select.checked = _selectedSegmentIds.has(seg.segment_id);
+      const sourceIds = Array.isArray(seg.segment_ids) ? seg.segment_ids : [seg.segment_id];
+      select.checked = sourceIds.length > 0 && sourceIds.every((id) => _selectedSegmentIds.has(id));
       select.setAttribute("aria-label", `Выбрать реплику ${i + 1}`);
       select.addEventListener("click", (event) => {
         event.stopPropagation();
@@ -313,6 +327,22 @@ function renderTranscriptPage() {
 
     div.appendChild(meta);
     div.appendChild(txt);
+    if (Array.isArray(seg.segment_ids) && seg.segment_ids.length > 1) {
+      const expand = document.createElement("button");
+      expand.type = "button";
+      expand.className = "turn-expand compact-btn";
+      expand.textContent = _expandedTurnId === seg.turn_id
+        ? "Скрыть исходные реплики"
+        : `Показать исходные реплики (${seg.segment_ids.length})`;
+      expand.addEventListener("click", (event) => {
+        event.stopPropagation();
+        _expandedTurnId = _expandedTurnId === seg.turn_id ? null : seg.turn_id;
+        _expandedTurnPage = 0;
+        renderTranscriptPage();
+      });
+      div.appendChild(expand);
+      if (_expandedTurnId === seg.turn_id) div.appendChild(renderTurnSources(seg));
+    }
     div.addEventListener("click", () => {
       if (seg.start_sec != null) seekTo(seg.start_sec);
     });
@@ -336,10 +366,14 @@ function updateSegmentSelection(index, checked, extendRange) {
       )
     : [index];
   indices.forEach((itemIndex) => {
-    const id = _segments[itemIndex]?.segment_id;
-    if (!id) return;
-    if (checked) _selectedSegmentIds.add(id);
-    else _selectedSegmentIds.delete(id);
+    const segment = _segments[itemIndex];
+    const ids = Array.isArray(segment?.segment_ids)
+      ? segment.segment_ids
+      : [segment?.segment_id].filter(Boolean);
+    ids.forEach((id) => {
+      if (checked) _selectedSegmentIds.add(id);
+      else _selectedSegmentIds.delete(id);
+    });
   });
   if (_selectedSegmentIds.size > 500) {
     _selectedSegmentIds.clear();
@@ -348,6 +382,55 @@ function updateSegmentSelection(index, checked, extendRange) {
   _lastSelectedSegmentIndex = index;
   renderTranscriptPage();
   updateSpeakerOverrideToolbar();
+}
+
+function renderTurnSources(turn) {
+  const container = _mkEl("div", "turn-sources");
+  const pageSize = 100;
+  const start = _expandedTurnPage * pageSize;
+  const ids = turn.segment_ids || [];
+  const sourceById = new Map(_sourceSegments.map((segment) => [segment.segment_id, segment]));
+  ids.slice(start, start + pageSize).forEach((id) => {
+    const segment = sourceById.get(id);
+    if (!segment) return;
+    const row = _mkEl("div", "turn-source-row");
+    const time = _mkEl("span", "seg-time");
+    time.textContent = fmtSec(segment.start_sec);
+    const text = document.createElement("span");
+    text.textContent = segment.text || "";
+    row.append(time, text);
+    row.addEventListener("click", (event) => {
+      event.stopPropagation();
+      seekTo(segment.start_sec);
+    });
+    container.appendChild(row);
+  });
+  if (ids.length > pageSize) {
+    const nav = _mkEl("div", "turn-source-nav");
+    const prev = document.createElement("button");
+    prev.type = "button";
+    prev.textContent = "Назад";
+    prev.disabled = start === 0;
+    prev.addEventListener("click", (event) => {
+      event.stopPropagation();
+      _expandedTurnPage -= 1;
+      renderTranscriptPage();
+    });
+    const next = document.createElement("button");
+    next.type = "button";
+    next.textContent = "Далее";
+    next.disabled = start + pageSize >= ids.length;
+    next.addEventListener("click", (event) => {
+      event.stopPropagation();
+      _expandedTurnPage += 1;
+      renderTranscriptPage();
+    });
+    const status = document.createElement("span");
+    status.textContent = `${start + 1}–${Math.min(start + pageSize, ids.length)} из ${ids.length}`;
+    nav.append(prev, status, next);
+    container.appendChild(nav);
+  }
+  return container;
 }
 
 function setSpeakerOverrideStatus(message, isError = false) {
