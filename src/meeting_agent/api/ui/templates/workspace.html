@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Карточка встречи · MeetingAgent</title>
-  <link rel="stylesheet" href="/assets/v4/workspace.css" />
+  <link rel="stylesheet" href="/assets/v5/workspace.css" />
 </head>
 <body data-meeting-id="__MEETING_ID__">
   <a class="skip-link" href="#workspace-main">Перейти к содержимому</a>
@@ -63,6 +63,11 @@
               <div class="panel-header"><span>Транскрипт</span><span id="seg-count" class="seg-count"></span></div>
               <div class="transcript-search"><label for="seg-filter">Поиск по репликам</label><input id="seg-filter" type="search" placeholder="Введите фразу или имя" /></div>
               <div class="transcript-list" id="transcript-list"><div class="empty">Загрузка транскрипта...</div></div>
+              <nav class="transcript-pagination" aria-label="Страницы транскрипта">
+                <button id="seg-prev" type="button" aria-label="Предыдущая страница">Назад</button>
+                <span id="seg-page-status" role="status"></span>
+                <button id="seg-next" type="button" aria-label="Следующая страница">Далее</button>
+              </nav>
             </article>
             <aside class="panel context-col">
               <div class="panel-header">Спикеры</div>
@@ -114,6 +119,6 @@
       </main>
     </div>
   </div>
-  <script src="/assets/v4/workspace.js" defer></script>
+  <script src="/assets/v5/workspace.js" defer></script>
 </body>
 </html>
