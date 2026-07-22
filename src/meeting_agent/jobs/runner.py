@@ -1334,6 +1334,21 @@ class JobRunner:
             # submit() owns the pre-launch path and will release the durable
             # reservation after its current await returns.
             return job
+        if (
+            job.status == "cancelled"
+            and job._process is None
+            and job.pid is not None
+            and not process_matches(job.pid, job.process_identity)
+        ):
+            # A recovered orphan can exit after API startup but before the
+            # operator cancels it. Treat the now-missing process as a
+            # successful termination instead of leaving the durable slot
+            # blocked until another API restart.
+            job.recovery_status = "orphaned_process_missing"
+            await self._finish_job_without_monitor(
+                job, event_type="orphaned_job_already_exited"
+            )
+            return job
         terminated = await terminate_process_tree(
             pid=job.pid,
             identity=job.process_identity,
