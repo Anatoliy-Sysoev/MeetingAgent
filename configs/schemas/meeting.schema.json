@@ -1,0 +1,707 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://meetingagent.local/schemas/meeting.schema.json",
+  "title": "MeetingAgent meeting.json",
+  "description": "Машинный контракт карточки встречи MeetingAgent. Описывает папку встречи, статус обработки, артефакты, классификацию, связи, RAG-индексацию и retention.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "meeting_id",
+    "title",
+    "date",
+    "source",
+    "processing_status",
+    "participants",
+    "artifacts",
+    "classification",
+    "links",
+    "retention",
+    "rag",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Версия схемы карточки встречи."
+    },
+    "meeting_id": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}__[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "description": "Человекочитаемый идентификатор и имя папки встречи: YYYY-MM-DD__short-title."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Дата встречи в формате YYYY-MM-DD."
+    },
+    "language": {
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$",
+      "maxLength": 35,
+      "description": "Язык встречи в компактном BCP 47 формате, например ru или en-US."
+    },
+    "start_time": {
+      "type": "string",
+      "pattern": "^\\d{2}:\\d{2}(?::\\d{2})?(?:[+-]\\d{2}:\\d{2})?$",
+      "description": "Время начала. Допустимо HH:MM, HH:MM:SS или время с часовым поясом."
+    },
+    "duration_minutes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "participants": {
+      "type": "array",
+      "description": "На первой итерации участники хранятся обычным списком строк без diarization.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "speaker_mapping": {
+      "type": "object",
+      "description": "Ручное сопоставление SPEAKER_XX с приватным speaker_id и snapshot имени, роли и компании.",
+      "propertyNames": {
+        "pattern": "^SPEAKER_(?:UNKNOWN|\\d{1,4})$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "role": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "company": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "speaker_id": {
+            "type": "string",
+            "pattern": "^spk_[0-9a-f]{32}$"
+          }
+        }
+      }
+    },
+    "diarization_summary": {
+      "type": "object",
+      "description": "Последние запрошенные и фактически найденные параметры offline diarization.",
+      "additionalProperties": false,
+      "required": [
+        "requested_num_speakers",
+        "actual_num_speakers",
+        "backend",
+        "updated_at"
+      ],
+      "properties": {
+        "requested_num_speakers": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "maximum": 20
+        },
+        "actual_num_speakers": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "backend": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "live_refinements": {
+      "type": "object",
+      "description": "Состояние явного offline-ASR уточнения сохраненных MIC/SYS live-черновиков.",
+      "propertyNames": {
+        "enum": [
+          "MIC",
+          "SYS"
+        ]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "state",
+          "offline_engine",
+          "started_at"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "MIC",
+              "SYS"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "refining",
+              "final",
+              "failed"
+            ]
+          },
+          "offline_engine": {
+            "type": "string",
+            "enum": [
+              "faster-whisper",
+              "gigaam"
+            ]
+          },
+          "offline_model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 160
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error_code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,80}$"
+          },
+          "report_artifact_key": {
+            "type": "string",
+            "enum": [
+              "live_refinement_mic",
+              "live_refinement_sys"
+            ]
+          },
+          "baseline_segments_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "resume_segments_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "offline_record",
+            "live_session"
+          ]
+        },
+        "original_location": {
+          "type": "string",
+          "description": "Исходный путь или описание места, откуда пришла запись."
+        },
+        "media_files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/media_file"
+          }
+        },
+        "audio_tracks": {
+          "type": "array",
+          "description": "Основные дорожки. Для live MVP MIC и SYS являются источниками истины.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "MIC",
+              "SYS"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "derived_tracks": {
+          "type": "array",
+          "description": "Производные дорожки для просмотра или экспорта, например MIX.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "MIX"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "processing_status": {
+      "type": "string",
+      "enum": [
+        "new",
+        "processing",
+        "transcribing",
+        "transcribed",
+        "summarized",
+        "classified",
+        "indexed",
+        "failed"
+      ]
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Относительные пути внутри папки встречи. Отсутствие поля означает, что артефакт еще не создан.",
+      "properties": {
+        "transcript": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "transcript_txt": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "transcript_json": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "transcript_srt": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "transcript_vtt": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "segments": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "transcription_report": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_segments": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_partials": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_transcript": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_srt": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_vtt": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_report": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_segments_mic": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_partials_mic": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_transcript_mic": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_srt_mic": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_vtt_mic": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_report_mic": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_audio_mic": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_segments_sys": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_partials_sys": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_transcript_sys": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_srt_sys": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_vtt_sys": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_report_sys": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_audio_sys": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_diarization_sys": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_refinement_mic": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_refinement_sys": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_segments_mix": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_partials_mix": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_transcript_mix": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_srt_mix": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_vtt_mix": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "live_report_mix": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "diarization": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "diarization_report": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "speaker_transcript": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "chunks": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "enriched_chunks": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "memo": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "protocol": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "decisions": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "tasks": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "risks": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "open_questions": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "pipeline_report": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "classification_report": {
+          "$ref": "#/$defs/relative_path"
+        }
+      }
+    },
+    "classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "project_stage": {
+          "type": "string",
+          "pattern": "^PRJ-\\d{2}$",
+          "description": "Код этапа проекта из docs/product/PROJECT_TAXONOMY.md."
+        },
+        "ftt_candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/classification_candidate"
+          }
+        },
+        "document_candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/classification_candidate"
+          }
+        },
+        "task_candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/classification_candidate"
+          }
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "summary": {
+          "type": "string"
+        },
+        "needs_review": {
+          "type": "boolean"
+        }
+      }
+    },
+    "links": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "related_documents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/related_link"
+          }
+        },
+        "related_meetings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/related_link"
+          }
+        },
+        "related_decisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/related_link"
+          }
+        }
+      }
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy"
+      ],
+      "properties": {
+        "policy": {
+          "type": "string",
+          "enum": [
+            "default",
+            "protected"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "review_after": {
+          "type": "string",
+          "format": "date"
+        },
+        "media_delete_after_days": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "rag": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index_policy"
+      ],
+      "properties": {
+        "index_policy": {
+          "type": "string",
+          "enum": [
+            "structured_artifacts_and_final_transcript",
+            "do_not_index"
+          ]
+        },
+        "indexed_artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/relative_path"
+          },
+          "uniqueItems": true
+        },
+        "no_index_artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/relative_path"
+          },
+          "uniqueItems": true
+        },
+        "last_indexed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "last_error": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Последняя ошибка обработки встречи. Поле очищается при успешном повторном запуске.",
+      "required": [
+        "stage",
+        "message",
+        "timestamp"
+      ],
+      "properties": {
+        "stage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "job_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "$defs": {
+    "relative_path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Относительный путь внутри папки встречи."
+    },
+    "media_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "media_type"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "media_type": {
+          "type": "string",
+          "enum": [
+            "video",
+            "audio",
+            "screen_recording",
+            "other"
+          ]
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "duration_seconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "classification_candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source_ref"
+          }
+        }
+      }
+    },
+    "related_link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id_or_path"
+      ],
+      "properties": {
+        "id_or_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        },
+        "relation": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "source_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "chunk_id": {
+          "type": "string"
+        },
+        "timecode_start": {
+          "type": "number",
+          "minimum": 0
+        },
+        "timecode_end": {
+          "type": "number",
+          "minimum": 0
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
