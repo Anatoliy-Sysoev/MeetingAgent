@@ -4,6 +4,10 @@
 
 ## Now
 
+- MA-PIPELINE-STRUCTURED-ARTIFACT-INDEX-STAGE (#279) adds the explicit
+  `index_artifacts` stage after `analyze` in the full pipeline. Chunk and
+  structured index completion are tracked independently, including valid
+  meetings whose structured artifact lists are empty.
 - MA-MEETINGS-ROOT-WORK-ROOT-RESOLUTION (#265) resolves relative meeting
   registry paths under `work_root_path`. MeetingsService, JobRunner and live
   sessions now share one absolute root even when the API starts from another
@@ -66,6 +70,10 @@
 
 ## Done latest
 
+- MA-PIPELINE-STRUCTURED-ARTIFACT-INDEX-STAGE (#279): the one-click full
+  profile now runs `enrich -> index -> analyze -> index_artifacts`; readiness,
+  manifest status, resume/force semantics and end-to-end meeting retrieval
+  cover the final structured rows without duplicates.
 - MA-MEETINGS-ROOT-WORK-ROOT-RESOLUTION (#265): removed CWD-dependent meeting
   discovery without copying or moving runtime meeting cards; absolute
   `meetings_root` values remain unchanged.
@@ -318,7 +326,7 @@
 - Meeting cards живут в ignored runtime `meetings/<meeting_id>/` и не публикуются в Git, если содержат реальные данные.
 - Offline ASR product profile: `faster-whisper large-v3-turbo`, `language=ru`, `compute_type=int8`; `small` остаётся только явным draft/dev CLI выбором.
 - Optional engines: GigaAM как внешний локальный backend; sherpa-onnx для diarization; Vosk для draft live transcription.
-- Job runner поддерживает стадии `extract_audio`, `transcribe`, `diarize`, `merge`, `chunk`, `enrich`, `index`, `analyze`.
+- Job runner поддерживает стадии `extract_audio`, `transcribe`, `diarize`, `merge`, `chunk`, `enrich`, `index`, `analyze`, `index_artifacts`.
 - Job state persists in ignored `logs/jobs_state.json`: records are written
   atomically under an OS advisory lock, histories/events are bounded, and a
   corrupt or oversized snapshot fails API startup closed. After an API restart,

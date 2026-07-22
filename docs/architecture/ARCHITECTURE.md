@@ -76,7 +76,7 @@ flowchart TD
     Q --> R["artifacts/memo.md / protocol.md / decisions.json / ..."]
 ```
 
-Стадии `extract_audio`, `transcribe`, `diarize`, `merge`, `chunk`, `enrich`, `index`, `analyze` реализованы в job runner и доступны через Workspace Pipeline panel и `POST /meetings/{id}/jobs/{stage}`.
+Стадии `extract_audio`, `transcribe`, `diarize`, `merge`, `chunk`, `enrich`, `index`, `analyze`, `index_artifacts` реализованы в job runner и доступны через Workspace Pipeline panel и `POST /meetings/{id}/jobs/{stage}`. Полный профиль завершает цепочку как `enrich -> index -> analyze -> index_artifacts`: сначала индексируются meeting chunks, затем созданные анализом решения, задачи, риски и открытые вопросы.
 
 Preflight для каждой стадии:
 - `extract_audio`: ffmpeg в PATH + существующий source media файл
@@ -84,6 +84,7 @@ Preflight для каждой стадии:
 - `chunk`: наличие `speaker_transcript.jsonl`
 - `enrich`: наличие `chunks.jsonl`
 - `index`, `analyze`: наличие `enriched_chunks.jsonl`
+- `index_artifacts`: наличие всех structured JSON-артефактов анализа
 
 Стадия `index` делает upsert в `data/meeting_chunks.jsonl` по `meeting_id` (замещает строки той же встречи, сохраняет другие). После `index` workspace Q&A (`POST /meetings/{id}/search` и `/chat`) может находить чанки этой встречи.
 
@@ -105,7 +106,7 @@ Preflight для каждой стадии:
 
 Pipeline-панель управляет job runner-ом из браузера:
 
-- `GET /meetings/{id}/jobs/stages` — список запускаемых стадий (`jobs.read`); отдаёт все стадии, которые реально умеет runner (`extract_audio`, `transcribe`, `diarize`, `merge`, `chunk`, `enrich`, `index`, `analyze`), отсортированных по `order`, без путей ФС и командных строк;
+- `GET /meetings/{id}/jobs/stages` — список запускаемых стадий (`jobs.read`); отдаёт все стадии, которые реально умеет runner (`extract_audio`, `transcribe`, `diarize`, `merge`, `chunk`, `enrich`, `index`, `analyze`, `index_artifacts`), отсортированных по `order`, без путей ФС и командных строк;
 - `GET /meetings/{id}/pipeline/readiness` — карта готовности стадий (`done`/`ready`/`blocked`), `can_run`, machine-readable `reason`, required/produced artifacts без путей ФС;
 - `POST /meetings/{id}/jobs/pipeline` — последовательный one-click запуск профилей `default`, `full`, `transcript_only`, `qa_ready`; готовые стадии пропускаются без `force`;
 - Start/Cancel вызывают существующие `POST /meetings/{id}/jobs/{stage}` (`jobs.start`) и `.../cancel` (`jobs.cancel`).

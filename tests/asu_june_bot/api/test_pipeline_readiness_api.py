@@ -83,12 +83,14 @@ def test_fresh_meeting_blocks_downstream_stages(tmp_path: Path) -> None:
     assert stages["merge"]["state"] == "blocked"
     assert stages["merge"]["reason"] == "transcript_missing"
     assert stages["chunk"]["state"] == "blocked"
-    # no chunks → enrich/index/analyze blocked
+    # no chunks/artifacts → downstream stages blocked
     assert stages["enrich"]["state"] == "blocked"
     assert stages["enrich"]["reason"] == "chunks_missing"
     assert stages["index"]["state"] == "blocked"
     assert stages["index"]["reason"] == "enriched_chunks_missing"
     assert stages["analyze"]["state"] == "blocked"
+    assert stages["index_artifacts"]["state"] == "blocked"
+    assert stages["index_artifacts"]["reason"] == "meeting_artifacts_missing"
     assert all(not s["can_run"] for s in stages.values() if s["state"] == "blocked")
 
 
@@ -170,13 +172,54 @@ def test_enriched_unblocks_index_and_analyze(tmp_path: Path) -> None:
     stages = _stage_map(pipeline_readiness(MEETING_ID, d))
     assert stages["index"]["state"] == "ready"
     assert stages["analyze"]["state"] == "ready"
+    assert stages["index_artifacts"]["state"] == "blocked"
 
 
 def test_index_done_via_rag_indexed_artifacts(tmp_path: Path) -> None:
-    d = _make_meeting(tmp_path, {"rag": {"indexed_artifacts": ["artifacts/enriched_chunks.jsonl"]}})
+    d = _make_meeting(
+        tmp_path,
+        {"rag": {"indexed_artifacts": [
+            "transcript/chunks.jsonl",
+            "artifacts/enriched_chunks.jsonl",
+        ]}},
+    )
     stages = _stage_map(pipeline_readiness(MEETING_ID, d))
     assert stages["index"]["state"] == "done"
     assert stages["index"]["can_run"] is False
+
+
+def test_analyze_outputs_unblock_structured_artifact_index(tmp_path: Path) -> None:
+    d = _make_meeting(tmp_path)
+    for rel in (
+        "artifacts/decisions.json",
+        "artifacts/tasks.json",
+        "artifacts/risks.json",
+        "artifacts/open_questions.json",
+    ):
+        _touch(d, rel)
+
+    stage = _stage_map(pipeline_readiness(MEETING_ID, d))["index_artifacts"]
+
+    assert stage["state"] == "ready"
+    assert stage["can_run"] is True
+
+
+def test_structured_artifact_index_done_requires_all_markers(tmp_path: Path) -> None:
+    markers = [
+        "artifacts/decisions.json",
+        "artifacts/tasks.json",
+        "artifacts/risks.json",
+        "artifacts/open_questions.json",
+    ]
+    d = _make_meeting(tmp_path, {"rag": {"indexed_artifacts": markers}})
+    stage = _stage_map(pipeline_readiness(MEETING_ID, d))["index_artifacts"]
+    assert stage["state"] == "done"
+
+    card = json.loads((d / "meeting.json").read_text(encoding="utf-8"))
+    card["rag"]["indexed_artifacts"].pop()
+    (d / "meeting.json").write_text(json.dumps(card), encoding="utf-8")
+    stage = _stage_map(pipeline_readiness(MEETING_ID, d))["index_artifacts"]
+    assert stage["state"] == "blocked"
 
 
 def test_analyze_done_via_summary(tmp_path: Path) -> None:
