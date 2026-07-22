@@ -1478,7 +1478,9 @@ function renderJobs(status) {
         ? "Permission required: jobs.retry"
         : liveBusy
           ? "Stop live capture before running pipeline stages"
-          : "Stage output already exists; this re-runs it from scratch";
+          : st.stage === "diarize"
+            ? "Existing diarization will be rebuilt with the selected speaker count"
+            : "Stage output already exists; this re-runs it from scratch";
       forceBtn.addEventListener("click", () => retryStage(forceBtn.dataset.stage, true));
       actions.appendChild(forceBtn);
     } else if (ready && ready.state === "ready_for_retry") {
@@ -1622,6 +1624,11 @@ function updateQaAvailability() {
   }
 }
 
+function selectedDiarizationSpeakerCount() {
+  const value = document.getElementById("diarization-speaker-count")?.value || "";
+  return value ? Number(value) : null;
+}
+
 async function startStage(stage) {
   if (_actionInProgress) return;
   setJobsError("");
@@ -1630,9 +1637,16 @@ async function startStage(stage) {
   if (!csrf) { setJobsError("Could not obtain CSRF token. Please log in again."); return; }
   _actionInProgress = true;
   try {
+    const body = stage === "diarize"
+      ? { num_speakers: selectedDiarizationSpeakerCount() }
+      : {};
     const resp = await apiFetch(
       `/meetings/${encodeURIComponent(MEETING_ID)}/jobs/${encodeURIComponent(stage)}`,
-      { method: "POST", headers: { "X-CSRF-Token": csrf } }
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        body: JSON.stringify(body),
+      }
     );
     if (!resp) return;  // 401 handled
     if (!resp.ok) { setJobsError(await describeError(resp, "Could not start job.")); return; }
@@ -1657,16 +1671,19 @@ async function startPipeline(opts) {
   if (!csrf) { setJobsError("Could not obtain CSRF token. Please log in again."); return; }
   _actionInProgress = true;
   try {
+    const payload = {
+      profile: opts.profile || "full",
+      resume: Boolean(opts.resume),
+      force: Boolean(opts.force),
+    };
+    const numSpeakers = selectedDiarizationSpeakerCount();
+    if (numSpeakers !== null) payload.num_speakers = numSpeakers;
     const resp = await apiFetch(
       `/meetings/${encodeURIComponent(MEETING_ID)}/jobs/pipeline`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
-        body: JSON.stringify({
-          profile: opts.profile || "full",
-          resume: Boolean(opts.resume),
-          force: Boolean(opts.force),
-        }),
+        body: JSON.stringify(payload),
       }
     );
     if (!resp) return;
@@ -1688,12 +1705,17 @@ async function retryStage(stage, force) {
   if (!csrf) { setJobsError("Could not obtain CSRF token. Please log in again."); return; }
   _actionInProgress = true;
   try {
+    const payload = { force: Boolean(force) };
+    const numSpeakers = selectedDiarizationSpeakerCount();
+    if (stage === "diarize" && numSpeakers !== null) {
+      payload.num_speakers = numSpeakers;
+    }
     const resp = await apiFetch(
       `/meetings/${encodeURIComponent(MEETING_ID)}/jobs/${encodeURIComponent(stage)}/retry`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
-        body: JSON.stringify({ force: Boolean(force) }),
+        body: JSON.stringify(payload),
       }
     );
     if (!resp) return;

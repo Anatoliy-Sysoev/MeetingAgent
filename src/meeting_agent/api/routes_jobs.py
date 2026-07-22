@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -113,6 +113,7 @@ class PipelineRequest(BaseModel):
     profile: str = Field("default", max_length=32)
     force: bool = False
     asr_engine: Literal["faster-whisper", "gigaam"] = "faster-whisper"
+    num_speakers: Annotated[int, Field(strict=True, ge=1, le=20)] | None = None
     # resume=true explicitly continues after a failure: done stages are
     # skipped and execution starts at the first not-yet-done stage.  This is
     # also the default behavior; force=true overrides the skip.
@@ -122,10 +123,32 @@ class PipelineRequest(BaseModel):
 
 class RetryRequest(BaseModel):
     force: bool = False
+    num_speakers: Annotated[int, Field(strict=True, ge=1, le=20)] | None = None
 
 
 class StageStartRequest(BaseModel):
     asr_engine: Literal["faster-whisper", "gigaam"] = "faster-whisper"
+    num_speakers: Annotated[int, Field(strict=True, ge=1, le=20)] | None = None
+
+
+def _stage_options(
+    stage: str,
+    body: StageStartRequest | RetryRequest | None,
+) -> dict[str, Any] | None:
+    if body is None:
+        return None
+    if stage == "transcribe" and isinstance(body, StageStartRequest):
+        return {"asr_engine": body.asr_engine}
+    if stage == "diarize":
+        return {"num_speakers": body.num_speakers}
+    return None
+
+
+def _pipeline_stage_options(body: PipelineRequest) -> dict[str, dict[str, Any]]:
+    options = {"transcribe": {"asr_engine": body.asr_engine}}
+    if body.num_speakers is not None:
+        options["diarize"] = {"num_speakers": body.num_speakers}
+    return options
 
 
 @router.post("/meetings/{meeting_id}/jobs/pipeline", status_code=202)
@@ -161,7 +184,7 @@ async def start_pipeline(
             force=body.force,
             resume=body.resume,
             stages=body.stages,
-            stage_options={"transcribe": {"asr_engine": body.asr_engine}},
+            stage_options=_pipeline_stage_options(body),
         )
     except JobAlreadyRunning as exc:
         raise _job_error(409, exc) from exc
@@ -207,7 +230,10 @@ async def retry_stage(
         )
     try:
         job = await runner.submit(
-            meeting_id=meeting_id, stage=stage, meeting_dir=meeting_dir
+            meeting_id=meeting_id,
+            stage=stage,
+            meeting_dir=meeting_dir,
+            stage_options=_stage_options(stage, body),
         )
     except JobAlreadyRunning as exc:
         raise _job_error(409, exc) from exc
@@ -247,7 +273,7 @@ async def start_job(
             meeting_id=meeting_id,
             stage=stage,
             meeting_dir=meeting_dir,
-            stage_options={"asr_engine": body.asr_engine} if body and stage == "transcribe" else None,
+            stage_options=_stage_options(stage, body),
         )
     except JobAlreadyRunning as exc:
         raise _job_error(409, exc) from exc

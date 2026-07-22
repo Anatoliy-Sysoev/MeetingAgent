@@ -187,6 +187,18 @@ def test_transcribe_stage_base_args_select_asr_engine() -> None:
     assert stage_base_args("transcribe", {"asr_engine": "gigaam"}) == ["--engine", "gigaam"]
 
 
+def test_diarize_stage_base_args_select_speaker_count() -> None:
+    assert stage_base_args("diarize") == []
+    assert stage_base_args("diarize", {"num_speakers": None}) == []
+    assert stage_base_args("diarize", {"num_speakers": 4}) == ["--num-speakers", "4"]
+
+
+@pytest.mark.parametrize("value", [True, "4", 0, 21])
+def test_diarize_stage_base_args_reject_invalid_speaker_count(value) -> None:
+    with pytest.raises(ValueError, match="speaker count"):
+        stage_base_args("diarize", {"num_speakers": value})
+
+
 def test_transcribe_stage_base_args_build_safe_live_refinement() -> None:
     options = {
         "asr_engine": "faster-whisper",
@@ -477,6 +489,41 @@ def test_api_pipeline_accepts_asr_engine_option(tmp_path: Path, monkeypatch: pyt
 
     assert resp.status_code == 202
     assert resp.json()["stage_options"] == {"transcribe": {"asr_engine": "gigaam"}}
+
+
+def test_api_pipeline_accepts_diarization_speaker_count(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    d = _make_meeting(tmp_path)
+    _patch_subprocess(monkeypatch, d)
+    monkeypatch.setattr(runner_mod.shutil, "which", lambda name: "/usr/bin/ffmpeg")
+    client, _runner = _make_client(tmp_path)
+
+    resp = client.post(
+        f"/meetings/{MEETING_ID}/jobs/pipeline",
+        headers=AUTH,
+        json={"profile": "full", "num_speakers": 4},
+    )
+
+    assert resp.status_code == 202
+    assert resp.json()["stage_options"]["diarize"] == {"num_speakers": 4}
+
+
+@pytest.mark.parametrize("value", [True, "4", 0, 21])
+def test_api_pipeline_rejects_invalid_diarization_speaker_count(
+    tmp_path: Path, value
+) -> None:
+    _make_meeting(tmp_path)
+    client, _runner = _make_client(tmp_path)
+
+    resp = client.post(
+        f"/meetings/{MEETING_ID}/jobs/pipeline",
+        headers=AUTH,
+        json={"profile": "full", "num_speakers": value},
+    )
+
+    assert resp.status_code == 422
+    assert _runner.active_pipeline is None
 
 
 def test_api_invalid_profile_422(tmp_path: Path) -> None:
