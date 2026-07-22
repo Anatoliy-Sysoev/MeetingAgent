@@ -4,6 +4,11 @@
 
 ## Now
 
+- MA-RESOLVED-SPEAKER-TURNS (#296, parent #285) provides a deterministic
+  resolved transcript view and TXT/Markdown exports. Adjacent corrected turns
+  merge only for the same known speaker/source without overlap or a meaningful
+  pause, while every source utterance ID remains available for citations and
+  bounded Workspace expansion.
 - MA-SPEAKER-OVERRIDES (#295, parent #285) adds audited, bounded and atomic
   corrections for one transcript utterance or a selected range. Workspace
   editors can assign an existing technical speaker label or restore automatic
@@ -82,6 +87,9 @@
 
 ## Done latest
 
+- MA-RESOLVED-SPEAKER-TURNS (#296): added configurable resolved-turn merging,
+  provenance-preserving API/exports and bounded source-utterance expansion in
+  the virtualized Workspace transcript.
 - MA-SPEAKER-OVERRIDES (#295): added editor-only CSRF-protected correction and
   reset APIs, a private event journal, resolved transcript fields that preserve
   the automatic label, and a range-capable Workspace editor.

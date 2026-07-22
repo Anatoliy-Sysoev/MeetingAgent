@@ -1136,3 +1136,10 @@ Workspace позволяет выбрать одну или диапазон д�
 `old_speaker_label`, `new_speaker_label`, actor и timestamp. Команда «Вернуть
 авто» восстанавливает diarization label в resolved transcript. Файлы
 `segments.jsonl`, `diarization.jsonl` и `speaker_transcript.jsonl` не меняются.
+
+Resolved-представление доступно через
+`GET /meetings/{id}/transcript/turns`. Параметр `max_gap_sec` ограничен `0..30`
+(по умолчанию `1.5`), а `format=txt|md` возвращает человекочитаемый экспорт.
+Не объединяются неизвестные спикеры, overlap, разные source tracks и реплики
+после паузы больше порога. Workspace раскрывает исходные реплики страницами по
+100 элементов, не снимая общий лимит виртуализированного списка.

@@ -427,3 +427,46 @@ def test_invalid_or_duplicate_source_segment_ids_fail_closed(tmp_path: Path) -> 
 
     assert resp.status_code == 422
     assert resp.json()["detail"]["error"] == "invalid_speaker_override"
+
+
+def test_resolved_turns_merge_corrected_speaker_and_export_text(tmp_path: Path) -> None:
+    make_meeting(tmp_path)
+    client, admin = make_client(tmp_path)
+    cookie, csrf = login(client, admin, "turn-editor@example.com", ["editor"])
+    request = {"headers": {"X-CSRF-Token": csrf}, "cookies": {"ma_session": cookie}}
+    corrected = client.put(
+        f"/meetings/{MEETING_ID}/speakers/overrides",
+        json={"segment_ids": ["utt-2"], "speaker_label": "SPEAKER_01"},
+        **request,
+    )
+    assert corrected.status_code == 200
+
+    turns = client.get(f"/meetings/{MEETING_ID}/transcript/turns", cookies=request["cookies"])
+    assert turns.status_code == 200, turns.text
+    body = turns.json()
+    assert body["source_segments_count"] == 2
+    assert body["turns_count"] == 1
+    assert body["turns"][0]["segment_ids"] == ["utt-1", "utt-2"]
+    assert body["turns"][0]["speaker_overridden"] is True
+
+    text_export = client.get(
+        f"/meetings/{MEETING_ID}/transcript/turns?format=txt", cookies=request["cookies"]
+    )
+    markdown_export = client.get(
+        f"/meetings/{MEETING_ID}/transcript/turns?format=md", cookies=request["cookies"]
+    )
+    assert text_export.status_code == 200
+    assert "[00:00:00] SPEAKER_01: Hello Hi" in text_export.text
+    assert markdown_export.status_code == 200
+    assert "**[00:00:00] SPEAKER_01:** Hello Hi" in markdown_export.text
+
+
+def test_resolved_turns_reject_invalid_gap(tmp_path: Path) -> None:
+    make_meeting(tmp_path)
+    client, admin = make_client(tmp_path)
+    cookie, _csrf = login(client, admin, "turn-gap@example.com", ["viewer"])
+    response = client.get(
+        f"/meetings/{MEETING_ID}/transcript/turns?max_gap_sec=31",
+        cookies={"ma_session": cookie},
+    )
+    assert response.status_code == 422
