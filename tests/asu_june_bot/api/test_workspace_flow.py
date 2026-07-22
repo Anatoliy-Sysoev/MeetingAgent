@@ -79,6 +79,10 @@ def test_speaker_mapping_panel_integrated(html: str) -> None:
     assert "/speakers/mapping" in html
     assert "loadSpeakerMapping" in html
     assert "saveSpeakerMapping" in html
+    assert 'apiFetch("/speakers")' in html
+    assert "createSpeakerProfile" in html
+    assert 'company.dataset.field = "company"' in html
+    assert "payload.num_speakers" in html
 
 
 def test_last_error_shown_public_safe(html: str) -> None:

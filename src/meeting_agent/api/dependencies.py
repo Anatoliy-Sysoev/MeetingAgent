@@ -166,6 +166,11 @@ def build_core_app_state(config: dict[str, Any] | None = None) -> CoreAppState:
         meetings_root=meetings_root,
         max_text_artifact_bytes=parse_max_text_artifact_bytes(config),
         max_upload_bytes=parse_max_upload_bytes(config),
+        speaker_directory_path=resolve_work_path(
+            config,
+            paths.get("speaker_directory")
+            or "data/meetingagent/speaker_directory.json",
+        ),
     )
     live_cfg = live_settings(config)
     live_state_path = resolve_work_path(
