@@ -1,6 +1,6 @@
 # Todo
 
-Обновлено: 2026-07-15.
+Обновлено: 2026-07-22.
 
 ## Done
 
@@ -86,7 +86,7 @@
 
 ## Active / Next
 
-- [ ] MA-WORKSPACE-TRANSCRIPT-VIRTUALIZATION (#278): keep large transcripts
+- [x] MA-WORKSPACE-TRANSCRIPT-VIRTUALIZATION (#278): keep large transcripts
   responsive with bounded DOM rendering and reliable search/seek navigation.
 - [ ] MA-PIPELINE-STRUCTURED-ARTIFACT-INDEX-STAGE (#279): index final structured
   artifacts after analysis in the one-click full pipeline.

@@ -1,9 +1,13 @@
 # Текущий Контекст
 
-Обновлено: 2026-07-15.
+Обновлено: 2026-07-22.
 
 ## Now
 
+- MA-WORKSPACE-TRANSCRIPT-VIRTUALIZATION (#278) keeps large meeting
+  transcripts responsive by rendering at most 150 filtered segments per page.
+  Search still covers the complete transcript, citations reveal off-page
+  segments, and playback highlighting no longer scans the full transcript DOM.
 - MA-EXTRACTIVE-ARTIFACT-OVERCLASSIFICATION (#277) makes heuristic enrichment
   classify sentence-local evidence instead of promoting every sentence from a
   chunk-level semantic type. Summary and protocol now identify extractive
@@ -58,6 +62,10 @@
 
 ## Done latest
 
+- MA-WORKSPACE-TRANSCRIPT-VIRTUALIZATION (#278): introduced immutable
+  Workspace assets v5, bounded transcript pagination, full-data search and
+  citation/seek navigation to segments outside the current page. Browser smoke
+  now exercises a 1,505-segment transcript while asserting a 150-row DOM cap.
 - MA-EXTRACTIVE-ARTIFACT-OVERCLASSIFICATION (#277): added conservative
   sentence-local candidate extraction, filtered meeting setup chatter and
   added honest analysis-mode labels to generated Markdown artifacts.
