@@ -85,6 +85,28 @@ def test_speaker_mapping_panel_integrated(html: str) -> None:
     assert "payload.num_speakers" in html
 
 
+def test_speaker_override_editor_supports_single_range_and_reset(html: str) -> None:
+    assert 'id="speaker-override-toolbar"' in html
+    assert 'id="speaker-override-label"' in html
+    assert 'id="speaker-override-apply"' in html
+    assert 'id="speaker-override-reset"' in html
+    assert "event.shiftKey" in html
+    assert "speaker_overridden" in html
+    assert "automatic_speaker_label" in html
+    assert '"speakers/overrides/reset"' in html
+
+
+def test_speaker_override_writes_use_csrf_and_dom_apis(html: str) -> None:
+    block = _fn_block(html, "applySpeakerOverride")
+    assert "ensureCsrf()" in block
+    assert "X-CSRF-Token" in block
+    assert block.index("if (!csrf)") < block.index("method: reset")
+    for fn in ("renderTranscriptPage", "populateSpeakerOverrideLabels"):
+        start = html.index(f"function {fn}")
+        block = html[start: html.index("\n}\n", start) + 2]
+        assert "innerHTML" not in block
+
+
 def test_last_error_shown_public_safe(html: str) -> None:
     # last error text comes from readiness detail (public-safe), via textContent
     assert "jobs-last-error" in html

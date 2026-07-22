@@ -17,7 +17,7 @@ import jsonschema
 
 from meeting_agent.meetings.artifact_catalog import ARTIFACT_DEFAULT_PATHS
 from meeting_agent.meetings.ingest_lock import IngestLock
-from meeting_agent.speakers import SpeakerDirectory
+from meeting_agent.speakers import SpeakerDirectory, SpeakerOverrideError, SpeakerOverrideStore
 
 SUPPORTED_MEDIA_EXTENSIONS = frozenset({".mp4", ".mp3", ".wav", ".m4a"})
 _VIDEO_EXTENSIONS = frozenset({".mp4"})
@@ -52,6 +52,7 @@ DEFAULT_MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024  # 2 GiB
 MAX_MEETING_TITLE_CHARS = 500
 MAX_ORIGINAL_FILENAME_CHARS = 255
 _SPEAKER_LABEL_RE = re.compile(r"^SPEAKER_(?:UNKNOWN|\d{1,4})$")
+_TRANSCRIPT_SEGMENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$")
 _LANGUAGE_TAG_RE = re.compile(r"^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$")
 _MEETING_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,159}$")
 _ARTIFACT_KEY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$")
@@ -368,6 +369,17 @@ def _speaker_display(label: str | None, mapping: Mapping[str, Mapping[str, str]]
         "speaker_role": role or None,
         "speaker_mapped": bool(name or role),
     }
+
+
+def _stable_transcript_segment_id(row: Mapping[str, Any], index: int) -> str:
+    candidate = row.get("utterance_id")
+    if candidate is None or candidate == "":
+        candidate = row.get("segment_id")
+    if candidate is None or candidate == "":
+        return f"seg-{index + 1:06d}"
+    if not isinstance(candidate, str) or not _TRANSCRIPT_SEGMENT_ID_RE.fullmatch(candidate):
+        raise SpeakerOverrideError("speaker transcript contains an invalid segment id")
+    return candidate
 
 
 def _detect_content_type(path: Path) -> str | None:
@@ -1038,6 +1050,69 @@ class MeetingsService:
             raise
         return self.get_speakers(meeting_id)
 
+    def _speaker_override_store(self, meeting_id: str) -> SpeakerOverrideStore:
+        meeting_dir = self._meeting_dir(meeting_id)
+        path = _safe_child_path(meeting_dir, "transcript/speaker_overrides.json")
+        if path is None:
+            raise SpeakerOverrideError("speaker override storage is unavailable")
+        return SpeakerOverrideStore(
+            path,
+            meeting_id,
+        )
+
+    def _automatic_speaker_labels(
+        self, meeting_id: str, card: Mapping[str, Any]
+    ) -> dict[str, str]:
+        rows = self._read_jsonl_artifact(meeting_id, card, "speaker_transcript")
+        labels: dict[str, str] = {}
+        for index, row in enumerate(rows):
+            segment_id = _stable_transcript_segment_id(row, index)
+            label = row.get("speaker") or row.get("speaker_id") or row.get("speaker_label")
+            if not isinstance(label, str) or not _SPEAKER_LABEL_RE.fullmatch(label):
+                label = "SPEAKER_UNKNOWN"
+            if segment_id in labels:
+                raise SpeakerOverrideError("speaker transcript contains duplicate segment ids")
+            labels[segment_id] = label
+        return labels
+
+    def get_speaker_overrides(self, meeting_id: str) -> dict[str, Any] | None:
+        if not _safe_meeting_id(meeting_id):
+            return None
+        card = self.get_meeting(meeting_id)
+        if card is None:
+            return None
+        self._automatic_speaker_labels(meeting_id, card)
+        result = self._speaker_override_store(meeting_id).snapshot()
+        return result
+
+    def set_speaker_overrides(
+        self,
+        meeting_id: str,
+        segment_ids: list[str],
+        speaker_label: str,
+        actor_id: str,
+    ) -> dict[str, Any] | None:
+        card = self.get_meeting(meeting_id)
+        if card is None:
+            return None
+        automatic = self._automatic_speaker_labels(meeting_id, card)
+        speakers = self.get_speakers(meeting_id)
+        known_labels = {row["speaker_label"] for row in (speakers or {}).get("speakers", [])}
+        if speaker_label not in known_labels:
+            raise SpeakerOverrideError("speaker label does not exist in this meeting")
+        return self._speaker_override_store(meeting_id).set(
+            segment_ids, speaker_label, automatic, actor_id
+        )
+
+    def reset_speaker_overrides(
+        self, meeting_id: str, segment_ids: list[str], actor_id: str
+    ) -> dict[str, Any] | None:
+        card = self.get_meeting(meeting_id)
+        if card is None:
+            return None
+        automatic = self._automatic_speaker_labels(meeting_id, card)
+        return self._speaker_override_store(meeting_id).reset(segment_ids, automatic, actor_id)
+
     def get_transcript_segments(self, meeting_id: str) -> dict[str, Any] | None:
         """Return normalized transcript segments for the workspace UI.
 
@@ -1056,20 +1131,29 @@ class MeetingsService:
         mapping = _speaker_mapping(card)
         speaker_rows = self._read_jsonl_artifact(meeting_id, card, "speaker_transcript")
         if speaker_rows:
+            overrides = self._speaker_override_store(meeting_id).current()
             base: dict[str, Any] = {"meeting_id": meeting_id, "segments": []}
             normalized = []
             for i, seg in enumerate(speaker_rows):
-                label = (
+                automatic_label = (
                     seg.get("speaker")
                     or seg.get("speaker_id")
                     or seg.get("speaker_label")
                 )
-                speaker = _speaker_display(label if isinstance(label, str) else None, mapping)
+                if not isinstance(automatic_label, str) or not _SPEAKER_LABEL_RE.fullmatch(automatic_label):
+                    automatic_label = "SPEAKER_UNKNOWN"
+                segment_id = _stable_transcript_segment_id(seg, i)
+                override = overrides.get(segment_id)
+                resolved_label = override["speaker_label"] if override else automatic_label
+                speaker = _speaker_display(resolved_label, mapping)
                 normalized.append({
-                    "segment_id": str(seg.get("utterance_id") or seg.get("segment_id") or f"seg-{i + 1:06d}"),
+                    "segment_id": segment_id,
                     "start_sec": _coerce_float(_first_present(seg, "start_sec", "start")),
                     "end_sec": _coerce_float(_first_present(seg, "end_sec", "end")),
                     **speaker,
+                    "automatic_speaker_label": automatic_label,
+                    "speaker_overridden": override is not None,
+                    "speaker_override_updated_at": override.get("updated_at") if override else None,
                     "text": (
                         seg.get("text") or seg.get("content") or seg.get("transcript") or ""
                     ),

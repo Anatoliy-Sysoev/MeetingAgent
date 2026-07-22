@@ -62,6 +62,15 @@
             <article class="panel transcript-col">
               <div class="panel-header"><span>Транскрипт</span><span id="seg-count" class="seg-count"></span></div>
               <div class="transcript-search"><label for="seg-filter">Поиск по репликам</label><input id="seg-filter" type="search" placeholder="Введите фразу или имя" /></div>
+              <div id="speaker-override-toolbar" class="speaker-override-toolbar" hidden>
+                <span id="speaker-override-count">0 реплик выбрано</span>
+                <label for="speaker-override-label">Назначить спикера</label>
+                <select id="speaker-override-label"></select>
+                <button id="speaker-override-apply" type="button">Применить</button>
+                <button id="speaker-override-reset" type="button">Вернуть авто</button>
+                <button id="speaker-override-clear" type="button">Снять выбор</button>
+                <span id="speaker-override-status" role="status"></span>
+              </div>
               <div class="transcript-list" id="transcript-list"><div class="empty">Загрузка транскрипта...</div></div>
               <nav class="transcript-pagination" aria-label="Страницы транскрипта">
                 <button id="seg-prev" type="button" aria-label="Предыдущая страница">Назад</button>
