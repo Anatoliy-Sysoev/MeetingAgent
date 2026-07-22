@@ -30,8 +30,8 @@ _ASSETS = MappingProxyType(
         "bot.js": UI_ASSETS_V1_DIR / "bot.js",
         "admin.css": UI_ASSETS_V1_DIR / "admin.css",
         "admin.js": UI_ASSETS_V1_DIR / "admin.js",
-        "meetingagent.css": UI_ASSETS_V2_DIR / "meetingagent.css",
-        "meetingagent.js": UI_ASSETS_V2_DIR / "meetingagent.js",
+        "meetingagent.css": UI_ASSETS_V3_DIR / "meetingagent.css",
+        "meetingagent.js": UI_ASSETS_V3_DIR / "meetingagent.js",
         "workspace.css": UI_ASSETS_V5_DIR / "workspace.css",
         "workspace.js": UI_ASSETS_V5_DIR / "workspace.js",
     }

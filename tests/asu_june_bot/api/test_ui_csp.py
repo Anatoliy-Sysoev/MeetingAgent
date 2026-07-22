@@ -43,7 +43,7 @@ ASSET_NAMES = (
 )
 ASSET_PATHS = (
     *(f"/assets/v1/{name}" for name in ("bot.css", "bot.js", "admin.css", "admin.js")),
-    *(f"/assets/v2/{name}" for name in ("meetingagent.css", "meetingagent.js")),
+    *(f"/assets/v3/{name}" for name in ("meetingagent.css", "meetingagent.js")),
     *(f"/assets/v5/{name}" for name in ("workspace.css", "workspace.js")),
 )
 

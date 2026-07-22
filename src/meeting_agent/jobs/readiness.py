@@ -17,6 +17,11 @@ from pathlib import Path
 from typing import Any
 
 from meeting_agent.jobs.runner import STAGE_COMMANDS, STAGE_METADATA
+from meeting_agent.meetings.artifact_catalog import (
+    ARTIFACT_DEFAULT_PATHS,
+    CHUNK_INDEX_MARKERS,
+    STRUCTURED_INDEX_ARTIFACT_KEYS,
+)
 
 # Relative output markers proving a stage has already completed.
 # Sources: scripts/21–29 output contracts (see each script's artifacts update).
@@ -41,6 +46,7 @@ _BLOCK_TOKENS: dict[str, str] = {
     "enrich": "chunks_missing",
     "index": "enriched_chunks_missing",
     "analyze": "enriched_chunks_missing",
+    "index_artifacts": "meeting_artifacts_missing",
 }
 
 _AUDIO_MARKER = "source/audio_16k_mono.wav"
@@ -65,10 +71,22 @@ def _marker_exists(meeting_dir: Path, rel: str) -> bool:
 
 
 def _stage_done(stage: str, meeting_dir: Path, card: dict[str, Any]) -> bool:
-    if stage == "index":
+    if stage in {"index", "index_artifacts"}:
         rag = card.get("rag")
         indexed = rag.get("indexed_artifacts") if isinstance(rag, dict) else None
-        return bool(indexed)
+        indexed_set = {
+            str(value) for value in indexed
+        } if isinstance(indexed, list) else set()
+        if stage == "index":
+            required = CHUNK_INDEX_MARKERS
+        else:
+            artifacts = card.get("artifacts")
+            artifact_map = artifacts if isinstance(artifacts, dict) else {}
+            required = {
+                str(artifact_map.get(key) or ARTIFACT_DEFAULT_PATHS[key])
+                for key in STRUCTURED_INDEX_ARTIFACT_KEYS
+            }
+        return required.issubset(indexed_set)
     marker = _DONE_MARKERS.get(stage)
     return bool(marker and _marker_exists(meeting_dir, marker))
 

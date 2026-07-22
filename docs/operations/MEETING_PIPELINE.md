@@ -874,7 +874,7 @@ artifacts/_partials/llm_map_reduce/
 
 ### 11. Structured Artifact Indexing
 
-После `29_analyze_meeting.py` structured JSON-артефакты можно экспортировать в общий meeting index как отдельные source types:
+После `29_analyze_meeting.py` structured JSON-артефакты экспортируются в общий meeting index как отдельные source types. В UI/API full profile это выполняет финальная стадия `index_artifacts`; вручную используется та же команда:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\32_index_meeting_artifacts.py `
@@ -906,6 +906,10 @@ text
 ```
 
 `31_meeting_search.py` читает эти source types вместе с `meeting_chunk` и повышает релевантность structured rows для запросов про решения, задачи, риски и открытые вопросы.
+
+Пустые валидные списки structured artifacts не являются ошибкой: стадия удаляет
+устаревшие structured rows предыдущего анализа и фиксирует успешное завершение.
+Повторный запуск идемпотентен и не создаёт duplicate rows.
 
 После экспорта нужно пересобрать smoke numpy index:
 

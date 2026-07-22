@@ -304,7 +304,7 @@ cloud ASR/LLM.
 
 ## Ближайшие 10 Задач
 
-> Status: historical planning note. All 10 tasks below are complete as of 2026-06. See docs/context.md and docs/todo.md for current state. Current pipeline stages available via job runner: extract_audio → transcribe → diarize → merge → chunk → enrich → index → analyze. Meeting-scoped search and chat are live at POST /meetings/{id}/search and POST /meetings/{id}/chat.
+> Status: historical planning note. All 10 tasks below are complete as of 2026-06. See docs/context.md and docs/todo.md for current state. Current full pipeline stages available via job runner: extract_audio → transcribe → diarize → merge → chunk → enrich → index → analyze → index_artifacts. Meeting-scoped search and chat are live at POST /meetings/{id}/search and POST /meetings/{id}/chat.
 
 ```text
 1. Зафиксировать architecture/scope docs.                    — DONE

@@ -88,7 +88,7 @@
 
 - [x] MA-WORKSPACE-TRANSCRIPT-VIRTUALIZATION (#278): keep large transcripts
   responsive with bounded DOM rendering and reliable search/seek navigation.
-- [ ] MA-PIPELINE-STRUCTURED-ARTIFACT-INDEX-STAGE (#279): index final structured
+- [x] MA-PIPELINE-STRUCTURED-ARTIFACT-INDEX-STAGE (#279): index final structured
   artifacts after analysis in the one-click full pipeline.
 - [x] MA-AUTH-DB-WORK-ROOT-RESOLUTION (#264): resolve relative auth SQLite paths
   under configured `work_root_path` so local admins survive alternate CWDs.
