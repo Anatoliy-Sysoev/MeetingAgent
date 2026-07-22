@@ -17,7 +17,13 @@ import jsonschema
 
 from meeting_agent.meetings.artifact_catalog import ARTIFACT_DEFAULT_PATHS
 from meeting_agent.meetings.ingest_lock import IngestLock
-from meeting_agent.speakers import SpeakerDirectory, SpeakerOverrideError, SpeakerOverrideStore
+from meeting_agent.speakers import (
+    SpeakerDirectory,
+    SpeakerOverrideError,
+    SpeakerOverrideStore,
+    merge_resolved_turns,
+    render_resolved_turns_text,
+)
 
 SUPPORTED_MEDIA_EXTENSIONS = frozenset({".mp4", ".mp3", ".wav", ".m4a"})
 _VIDEO_EXTENSIONS = frozenset({".mp4"})
@@ -1154,6 +1160,7 @@ class MeetingsService:
                     "automatic_speaker_label": automatic_label,
                     "speaker_overridden": override is not None,
                     "speaker_override_updated_at": override.get("updated_at") if override else None,
+                    "source": str(seg.get("source") or "MIX"),
                     "text": (
                         seg.get("text") or seg.get("content") or seg.get("transcript") or ""
                     ),
@@ -1187,6 +1194,30 @@ class MeetingsService:
             })
         base["segments"] = normalized
         return base
+
+    def get_resolved_speaker_turns(
+        self, meeting_id: str, *, max_gap_sec: float = 1.5
+    ) -> dict[str, Any] | None:
+        transcript = self.get_transcript_segments(meeting_id)
+        if transcript is None:
+            return None
+        segments = transcript.get("segments") or []
+        turns = merge_resolved_turns(segments, max_gap_sec=max_gap_sec)
+        return {
+            "meeting_id": meeting_id,
+            "max_gap_sec": float(max_gap_sec),
+            "source_segments_count": len(segments),
+            "turns_count": len(turns),
+            "turns": turns,
+        }
+
+    def render_resolved_speaker_transcript(
+        self, meeting_id: str, *, max_gap_sec: float = 1.5, markdown: bool = False
+    ) -> str | None:
+        result = self.get_resolved_speaker_turns(meeting_id, max_gap_sec=max_gap_sec)
+        if result is None:
+            return None
+        return render_resolved_turns_text(result["turns"], markdown=markdown)
 
     # ------------------------------------------------------------------
     # Write / ingest

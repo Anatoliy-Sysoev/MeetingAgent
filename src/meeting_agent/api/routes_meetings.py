@@ -5,7 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
-from starlette.responses import FileResponse
+from starlette.responses import FileResponse, PlainTextResponse
 
 from meeting_agent.api.auth import require_action_permission, require_permission
 from meeting_agent.api.dependencies import get_app_state, get_meeting_qa_service
@@ -309,6 +309,33 @@ def get_transcript_segments(
         raise _invalid_speaker_override(exc) from exc
     if result is None:
         raise _not_found(meeting_id)
+    return result
+
+
+@router.get("/{meeting_id}/transcript/turns")
+def get_resolved_speaker_turns(
+    meeting_id: str,
+    max_gap_sec: float = Query(default=1.5, ge=0, le=30),
+    format: str = Query(default="json", pattern=r"^(?:json|txt|md)$"),
+    service: MeetingsService = Depends(get_meetings_service),
+    _principal: Annotated[Principal, Depends(require_permission("transcripts.read"))] = ...,
+):
+    try:
+        if format == "json":
+            result = service.get_resolved_speaker_turns(meeting_id, max_gap_sec=max_gap_sec)
+        else:
+            result = service.render_resolved_speaker_transcript(
+                meeting_id, max_gap_sec=max_gap_sec, markdown=format == "md"
+            )
+    except ArtifactTooLargeError as exc:
+        raise _too_large(exc) from exc
+    except SpeakerOverrideError as exc:
+        raise _invalid_speaker_override(exc) from exc
+    if result is None:
+        raise _not_found(meeting_id)
+    if isinstance(result, str):
+        media_type = "text/markdown" if format == "md" else "text/plain"
+        return PlainTextResponse(result, media_type=media_type)
     return result
 
 
