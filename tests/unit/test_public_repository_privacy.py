@@ -48,6 +48,8 @@ def test_tracked_tree_has_no_known_customer_or_real_person_markers() -> None:
         "Торбик " + "Виталий",
         "Анатолий " + "Сысоев",
         "Антон " + "Васильев",
+        "C:" + "\\Users\\" + "Сотрудник",
+        "C:" + "/Users/" + "Сотрудник",
     )
     leaks: list[str] = []
 
