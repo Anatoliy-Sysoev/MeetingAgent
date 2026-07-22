@@ -21,6 +21,7 @@ from meeting_agent.api.routes_jobs import router as jobs_router
 from meeting_agent.api.routes_live import router as live_router
 from meeting_agent.api.routes_meetingagent_ui import router as meetingagent_ui_router
 from meeting_agent.api.routes_meetings import router as meetings_router
+from meeting_agent.api.routes_speakers import router as speakers_router
 from meeting_agent.api.routes_workspace import router as workspace_router
 from meeting_agent.api.ui_assets import (
     UI_ASSETS_V1_DIR,
@@ -74,6 +75,7 @@ def include_core_product_routes(app: FastAPI) -> None:
     app.include_router(admin_ui_router)
     app.include_router(admin_router)
     app.include_router(ingest_router)
+    app.include_router(speakers_router)
     app.include_router(meetings_router)
     app.include_router(jobs_router)
     app.include_router(live_router)

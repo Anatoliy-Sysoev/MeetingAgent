@@ -27,6 +27,7 @@ packages:
     - meeting_agent.jobs
     - meeting_agent.live_sessions
     - meeting_agent.meetings
+    - meeting_agent.speakers
     - meeting_agent.shared
     - meeting_agent.shared.llm
     - meeting_agent.transcription

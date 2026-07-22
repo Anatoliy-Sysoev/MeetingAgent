@@ -79,7 +79,10 @@ def make_client(root: Path) -> tuple[TestClient, AdminService]:
     auth = LocalAuthService(repo)
     admin = AdminService(repo)
     app.state.asu_june_bot = FakeState(
-        meetings_service=MeetingsService(root),
+        meetings_service=MeetingsService(
+            root,
+            speaker_directory_path=root / "data" / "speaker_directory.json",
+        ),
         local_auth_service=auth,
         admin_service=admin,
     )
@@ -189,3 +192,92 @@ def test_update_mapping_rejects_unknown_speaker_label(tmp_path: Path) -> None:
     )
 
     assert resp.status_code == 422
+
+
+def test_speaker_directory_crud_and_mapping_snapshot_survives_delete(tmp_path: Path) -> None:
+    make_meeting(tmp_path)
+    client, admin = make_client(tmp_path)
+    cookie, csrf = login(client, admin, "directory-editor@example.com", ["editor"])
+    headers = {"X-CSRF-Token": csrf}
+    cookies = {"ma_session": cookie}
+
+    created = client.post(
+        "/speakers",
+        json={"name": "Анна", "role": "Аналитик", "company": "Acme"},
+        headers=headers,
+        cookies=cookies,
+    )
+    assert created.status_code == 201, created.text
+    profile = created.json()
+    assert "C:\\" not in created.text
+
+    updated = client.put(
+        f"/speakers/{profile['speaker_id']}",
+        json={"name": "Анна", "role": "Ведущий аналитик", "company": "Acme"},
+        headers=headers,
+        cookies=cookies,
+    )
+    assert updated.status_code == 200, updated.text
+    profile = updated.json()
+
+    listed = client.get("/speakers?query=acme", cookies=cookies)
+    assert listed.status_code == 200
+    assert listed.json()["profiles"][0]["speaker_id"] == profile["speaker_id"]
+    assert client.get(
+        "/speakers", headers={"Authorization": f"Bearer {TOKEN}"}
+    ).status_code == 403
+
+    mapped = client.put(
+        f"/meetings/{MEETING_ID}/speakers/mapping",
+        json={
+            "mapping": {
+                "SPEAKER_01": {
+                    "speaker_id": profile["speaker_id"],
+                    "name": profile["name"],
+                    "role": profile["role"],
+                    "company": profile["company"],
+                }
+            }
+        },
+        headers=headers,
+        cookies=cookies,
+    )
+    assert mapped.status_code == 200, mapped.text
+
+    deleted = client.delete(
+        f"/speakers/{profile['speaker_id']}", headers=headers, cookies=cookies
+    )
+    assert deleted.status_code == 204
+    after = client.get(
+        f"/meetings/{MEETING_ID}/speakers",
+        headers={"Authorization": f"Bearer {TOKEN}"},
+    )
+    assert after.status_code == 200
+    snapshot = after.json()["mapping"]["SPEAKER_01"]
+    assert snapshot["name"] == "Анна"
+    assert snapshot["company"] == "Acme"
+    assert snapshot["role"] == "Ведущий аналитик"
+
+
+def test_speaker_directory_write_requires_csrf_and_rejects_duplicate(tmp_path: Path) -> None:
+    make_meeting(tmp_path)
+    client, admin = make_client(tmp_path)
+    cookie, csrf = login(client, admin, "directory-security@example.com", ["editor"])
+    payload = {"name": "Анна", "company": "Acme"}
+
+    missing_csrf = client.post("/speakers", json=payload, cookies={"ma_session": cookie})
+    assert missing_csrf.status_code == 403
+    first = client.post(
+        "/speakers",
+        json=payload,
+        cookies={"ma_session": cookie},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert first.status_code == 201
+    duplicate = client.post(
+        "/speakers",
+        json={"name": " анна ", "company": "acme"},
+        cookies={"ma_session": cookie},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert duplicate.status_code == 409

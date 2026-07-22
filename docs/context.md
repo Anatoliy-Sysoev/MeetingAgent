@@ -4,6 +4,10 @@
 
 ## Now
 
+- MA-SPEAKER-DIRECTORY (#294, parent #285) adds a bounded private runtime
+  profile store with CRUD API and Workspace select/create flow. Meeting
+  mappings retain `speaker_id` plus reproducible name/role/company snapshots;
+  profile deletion does not rewrite historical meetings.
 - MA-DIARIZATION-SPEAKER-COUNT (#292, parent #285) exposes auto or an exact
   `1..20` speaker count in both MeetingAgent UI surfaces. The strict API and
   JobRunner pass it to sherpa-onnx before reservation; the meeting card and
@@ -74,6 +78,9 @@
 
 ## Done latest
 
+- MA-SPEAKER-DIRECTORY (#294): added atomic bounded profile storage under
+  `work_root_path`, editor-only path-free CRUD, duplicate detection and
+  backward-compatible Workspace mapping snapshots.
 - MA-DIARIZATION-SPEAKER-COUNT (#292): added strict single-stage, retry and
   pipeline option propagation, explicit diarization force-rerun wording and
   backward-compatible report/card metadata without mutating raw ASR.
@@ -349,7 +356,10 @@
   and Playwright exercises the primary browser workflows in CI.
 - Workspace flow (#121): state panel (status + active job + public-safe last error), readiness-gated stage buttons (blocked → disabled with reason; done → explicit Force rerun; failed → Retry), pipeline actions (Run full / Resume when partially done / Retry failed stage), manifest-driven result chips (Transcript/Speaker transcript/Summary/Protocol/Tasks), Q&A disabled until chunks/index exist, panels auto-refresh after a job finishes; CSRF on every POST.
 - Job failure recovery: `meeting.json.last_error` schema accepts normalized runner fields `code` and `job_id`, so CLI stages and retry flows can validate and recover cards after failed API jobs.
-- Speaker mapping (#122): `meeting.json.speaker_mapping` stores real names/roles for diarized labels; `GET /meetings/{id}/speakers` discovers labels from diarization/transcript artifacts; `PUT /meetings/{id}/speakers/mapping` requires `meetings.edit` + CSRF; Workspace transcript shows mapped names while preserving `speaker_label`.
+- Speaker mapping (#122/#294): `meeting.json.speaker_mapping` stores real
+  name/role/company snapshots and optional private `speaker_id`; Workspace can
+  select/create profiles from the ignored runtime directory while preserving
+  stable technical labels.
 - Structured artifacts (#123): analyze stage keeps decisions/tasks/risks/open_questions source-grounded with `source_refs[]` that include `chunk_id`, timecodes, speakers, mapped speaker names and `utterance_ids`; each item carries `confidence` and `needs_review`; markdown summary/protocol surface the same source labels.
 - Meeting Q&A v2: vector retrieval over meeting chunks через Ollama `bge-m3`, fusion с lexical, lazy cache `data/meeting_embeddings_cache.jsonl`, graceful lexical fallback.
 - Meeting Q&A citations содержат timestamps, speaker labels, `utterance_ids`, `citation_label`, `citations_basis`; когда доступен transcript/speaker_transcript, citations дополнительно содержат exact `segment_id`, `segment_refs[]` и точный target для клика в Workspace; результаты строго scoped по `meeting_id`.

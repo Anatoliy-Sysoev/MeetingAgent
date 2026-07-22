@@ -114,6 +114,25 @@ def test_relative_auth_db_resolves_under_configured_work_root(
         state.live_session_service.shutdown()
 
 
+def test_relative_speaker_directory_resolves_under_configured_work_root(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import meeting_agent.api.dependencies as dependencies
+
+    monkeypatch.setattr(dependencies, "check_and_fail_if_unsafe", lambda _config: None)
+    config = _core_config(tmp_path)
+    config["paths"]["speaker_directory"] = "private/speakers.json"
+
+    state = dependencies.build_core_app_state(config)
+    try:
+        assert state.meetings_service.speaker_directory.path == (
+            tmp_path / "private" / "speakers.json"
+        ).resolve()
+    finally:
+        state.live_session_service.shutdown()
+
+
 def test_integrated_app_adds_bot_routes() -> None:
     from asu_june_bot.api.app import create_app as create_integrated_app
 

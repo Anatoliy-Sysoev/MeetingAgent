@@ -68,7 +68,7 @@
     },
     "speaker_mapping": {
       "type": "object",
-      "description": "Ручное сопоставление технических SPEAKER_XX меток с реальными именами и ролями.",
+      "description": "Ручное сопоставление SPEAKER_XX с приватным speaker_id и snapshot имени, роли и компании.",
       "propertyNames": {
         "pattern": "^SPEAKER_(?:UNKNOWN|\\d{1,4})$"
       },
@@ -83,6 +83,14 @@
           "role": {
             "type": "string",
             "maxLength": 120
+          },
+          "company": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "speaker_id": {
+            "type": "string",
+            "pattern": "^spk_[0-9a-f]{32}$"
           }
         }
       }
