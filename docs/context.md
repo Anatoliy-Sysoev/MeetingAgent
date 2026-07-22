@@ -4,6 +4,10 @@
 
 ## Now
 
+- MA-MEETINGS-ROOT-WORK-ROOT-RESOLUTION (#265) resolves relative meeting
+  registry paths under `work_root_path`. MeetingsService, JobRunner and live
+  sessions now share one absolute root even when the API starts from another
+  current working directory.
 - MA-WORKSPACE-TRANSCRIPT-VIRTUALIZATION (#278) keeps large meeting
   transcripts responsive by rendering at most 150 filtered segments per page.
   Search still covers the complete transcript, citations reveal off-page
@@ -62,6 +66,9 @@
 
 ## Done latest
 
+- MA-MEETINGS-ROOT-WORK-ROOT-RESOLUTION (#265): removed CWD-dependent meeting
+  discovery without copying or moving runtime meeting cards; absolute
+  `meetings_root` values remain unchanged.
 - MA-WORKSPACE-TRANSCRIPT-VIRTUALIZATION (#278): introduced immutable
   Workspace assets v5, bounded transcript pagination, full-data search and
   citation/seek navigation to segments outside the current page. Browser smoke

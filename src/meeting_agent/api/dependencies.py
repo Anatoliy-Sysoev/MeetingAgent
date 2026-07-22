@@ -140,7 +140,10 @@ def build_core_app_state(config: dict[str, Any] | None = None) -> CoreAppState:
     chat_base_url = str(ollama_cfg.get("chat_base_url") or "http://127.0.0.1:11434/v1")
     chat_model = str(ollama_cfg.get("chat_model") or "qwen3.5:4b")
     paths = config.get("paths") if isinstance(config.get("paths"), dict) else {}
-    meetings_root = paths.get("meetings_root") or "meetings"
+    meetings_root = resolve_work_path(
+        config,
+        paths.get("meetings_root") or "meetings",
+    )
     jobs_state_path = resolve_work_path(
         config,
         paths.get("jobs_state") or "logs/jobs_state.json",
