@@ -1,6 +1,6 @@
 # Текущий Контекст
 
-Обновлено: 2026-07-22.
+Обновлено: 2026-07-29.
 
 ## Now
 
@@ -457,11 +457,14 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- MA-MEETINGAGENT-UI-MOCKUPS (#237): owner reviews the table-first registry,
-  creation, processing and Workspace mockups and either approves or requests
-  concrete changes.
-- After approval, split production work into registry, creation wizard,
-  processing monitor and Workspace implementation issues.
+- MA-PIPELINE-PROGRESS-AND-ETA (#286): implement the first product slice for
+  transcription. Workspace must show processed media time / duration,
+  percentage and elapsed time for faster-whisper, completed / total chunks for
+  GigaAM, and an ETA only when the estimate is defensible.
+- MA-SPEAKER-DOWNSTREAM-REBUILD (#297): invalidate and selectively rebuild
+  dependent artifacts after curated speaker changes.
+- MA-LIVE-DIART-STREAMING-V2 (#262): evaluate bounded streaming diarization
+  during capture while keeping offline sherpa-onnx canonical.
 
 ## Open decisions / blockers
 

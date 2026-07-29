@@ -1,6 +1,6 @@
 # Todo
 
-Обновлено: 2026-07-22.
+Обновлено: 2026-07-29.
 
 ## Done
 
@@ -90,6 +90,10 @@
 
 ## Active / Next
 
+- [ ] MA-PIPELINE-PROGRESS-AND-ETA (#286): first deliverable is real
+  transcription progress in Workspace: processed media time / duration and
+  percent for faster-whisper, completed / total chunks for GigaAM, elapsed
+  time, stale-update warning and ETA only when a defensible estimate exists.
 - [x] MA-SPEAKER-DIRECTORY (#294, parent #285): private runtime speaker
   profiles, editor-only CRUD, duplicate detection and Workspace select/create
   with historical meeting snapshots.
