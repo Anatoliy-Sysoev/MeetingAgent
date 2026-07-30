@@ -1,9 +1,13 @@
 # Текущий Контекст
 
-Обновлено: 2026-07-29.
+Обновлено: 2026-07-30.
 
 ## Now
 
+- MA-PROJECT-HIERARCHY (#304) records the product contract for assigning
+  offline/live meetings to projects and bounded nested logical folders, for
+  example `Проект АСУ -> Этап 3 -> Модуль ТДО`. The hierarchy must remain
+  independent from physical runtime paths and support project-scoped search.
 - MA-WORKSPACE-DIARIZE-RECOVERY (#301) fixes two failures observed in a real
   Workspace run: the mutable v5 bundle now has a new revisioned asset URL so
   browsers cannot reuse pre-speaker-count JavaScript, and cancellation clears

@@ -1,6 +1,6 @@
 # Todo
 
-Обновлено: 2026-07-29.
+Обновлено: 2026-07-30.
 
 ## Done
 
@@ -208,6 +208,10 @@
 
 ## Meeting Product Backlog
 
+- [ ] MA-PROJECT-HIERARCHY (#304): create/select a project during offline or
+  live meeting creation, organize meetings in bounded nested logical folders,
+  show breadcrumbs/registry filters and enforce project-scoped retrieval
+  without exposing or rearranging physical runtime paths.
 - [x] MA-DIART-CACHE-PATHS (#259): route all optional Diart model/runtime caches
   into the writable ignored volume without weakening the read-only container.
 - [x] MA-LIVE-DIART-PILOT (#257): isolated CPU-only Diart runtime with exact
