@@ -1,9 +1,13 @@
 # Todo
 
-Обновлено: 2026-07-30.
+Обновлено: 2026-07-31.
 
 ## Done
 
+- [x] MA-PIPELINE-PROGRESS-AND-ETA (#286, ASR slice): publish atomic bounded
+  progress snapshots for faster-whisper media time and GigaAM chunks; expose
+  child and aggregate pipeline progress in API DTOs; render elapsed time,
+  nullable ETA and stale warnings in MeetingAgent and Workspace.
 - [x] MA-WORKSPACE-DIARIZE-RECOVERY (#301): revision the Workspace v5 asset
   URLs after speaker-count changes and release durable job reservations when a
   recovered orphan exits before cancellation; verified through a real UI
@@ -90,10 +94,10 @@
 
 ## Active / Next
 
-- [ ] MA-PIPELINE-PROGRESS-AND-ETA (#286): first deliverable is real
-  transcription progress in Workspace: processed media time / duration and
-  percent for faster-whisper, completed / total chunks for GigaAM, elapsed
-  time, stale-update warning and ETA only when a defensible estimate exists.
+- [ ] MA-PIPELINE-PROGRESS-AND-ETA (#286): ASR progress is implemented.
+  Add worker progress to the remaining stages only where current/total has a
+  real machine-readable source; keep unknown work indeterminate and do not
+  invent ETA from stage order.
 - [x] MA-SPEAKER-DIRECTORY (#294, parent #285): private runtime speaker
   profiles, editor-only CRUD, duplicate detection and Workspace select/create
   with historical meeting snapshots.

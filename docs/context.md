@@ -1,9 +1,17 @@
 # Текущий Контекст
 
-Обновлено: 2026-07-30.
+Обновлено: 2026-07-31.
 
 ## Now
 
+- MA-PIPELINE-PROGRESS-AND-ETA (#286) now has its first product slice:
+  faster-whisper publishes processed media seconds against the real source
+  duration, GigaAM publishes completed chunks against the generated chunk
+  count, and JobRunner exposes only a bounded normalized snapshot. The
+  MeetingAgent registry and Workspace show determinate or indeterminate
+  progress, elapsed time, honest nullable ETA and stale-update warnings.
+  Remaining pipeline stages stay under #286 until they have measurable worker
+  progress sources instead of UI guesses.
 - MA-PROJECT-HIERARCHY (#304) records the product contract for assigning
   offline/live meetings to projects and bounded nested logical folders, for
   example `Проект АСУ -> Этап 3 -> Модуль ТДО`. The hierarchy must remain
@@ -461,10 +469,9 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
-- MA-PIPELINE-PROGRESS-AND-ETA (#286): implement the first product slice for
-  transcription. Workspace must show processed media time / duration,
-  percentage and elapsed time for faster-whisper, completed / total chunks for
-  GigaAM, and an ETA only when the estimate is defensible.
+- MA-PIPELINE-PROGRESS-AND-ETA (#286): the real ASR progress slice is
+  implemented; extend the same bounded worker contract only to stages with a
+  defensible denominator or leave them indeterminate.
 - MA-SPEAKER-DOWNSTREAM-REBUILD (#297): invalidate and selectively rebuild
   dependent artifacts after curated speaker changes.
 - MA-LIVE-DIART-STREAMING-V2 (#262): evaluate bounded streaming diarization

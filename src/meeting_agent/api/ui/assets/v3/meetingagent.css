@@ -140,8 +140,10 @@ small { display: block; color: var(--muted); }
 .login-panel input { width: 100%; }
 .button-link { display: inline-flex; min-height: 36px; align-items: center; padding: 6px 12px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); color: var(--text); text-decoration: none; }
 .button-link:hover { border-color: var(--primary); background: var(--primary-soft); }
-.progress-track { height: 7px; overflow: hidden; border-radius: 2px; background: #dfe6ec; }
-.progress-track span, .wide-progress span { display: block; width: 0; height: 100%; background: var(--primary); transition: width .2s ease; }
+.progress-track { width: 100%; height: 7px; overflow: hidden; border: 0; border-radius: 2px; background: #dfe6ec; }
+.progress-track::-webkit-progress-bar, .wide-progress::-webkit-progress-bar { background: #dfe6ec; }
+.progress-track::-webkit-progress-value, .wide-progress::-webkit-progress-value { background: var(--primary); transition: width .2s ease; }
+.progress-track::-moz-progress-bar, .wide-progress::-moz-progress-bar { background: var(--primary); }
 .progress-step-0 { width: 0 !important; }
 .progress-step-1 { width: 12.5% !important; }
 .progress-step-2 { width: 25% !important; }
@@ -277,7 +279,7 @@ legend { margin-bottom: 8px; font-weight: 650; }
 .processing-summary > div { display: grid; gap: 3px; padding: 11px 13px; border-right: 1px solid var(--line); }
 .processing-summary > div:last-child { border-right: 0; }
 .processing-summary span { color: var(--muted); font-size: 11px; }
-.wide-progress { height: 7px; margin-bottom: 16px; }
+.wide-progress { width: 100%; height: 7px; margin-bottom: 16px; border: 0; }
 .monitor-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
 .stage-surface { padding: 0 16px 8px; }
 .stage-list { margin: 0; padding: 0; list-style: none; }

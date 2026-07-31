@@ -18,6 +18,7 @@ from meeting_agent.jobs.processes import (
     subprocess_group_kwargs,
     terminate_process_tree,
 )
+from meeting_agent.jobs.progress import normalize_progress_snapshot, read_progress_snapshot
 from meeting_agent.jobs.runtimes import WorkerRuntimeRegistry
 from meeting_agent.jobs.store import JobStore, JobStoreConflict, JobStoreError
 from meeting_agent.meetings.artifact_catalog import (
@@ -550,6 +551,8 @@ class JobState:
     exit_code: int | None = None
     stderr_lines: list[str] = field(default_factory=list)
     operation: dict[str, str] | None = None
+    _progress: dict[str, Any] | None = field(default=None, repr=False, compare=False)
+    _progress_path: Path | None = field(default=None, repr=False, compare=False)
     _process: Any = field(default=None, repr=False, compare=False)
     _meeting_dir: Path | None = field(default=None, repr=False, compare=False)
 
@@ -573,6 +576,18 @@ class JobState:
             d["meeting_status"] = meeting_status
         if self.operation is not None:
             d["operation"] = dict(self.operation)
+        progress = read_progress_snapshot(
+            self._progress_path,
+            running=self.status in {"starting", "running", "orphaned"},
+        )
+        if progress is None:
+            progress = normalize_progress_snapshot(
+                self._progress,
+                running=self.status in {"starting", "running", "orphaned"},
+            )
+        if progress is not None:
+            self._progress = progress
+            d["progress"] = progress
         return d
 
 
@@ -620,6 +635,7 @@ class PipelineJobState:
     finished_at: str | None = None
     recovery_status: str | None = None
     _meeting_dir: Path | None = field(default=None, repr=False, compare=False)
+    _current_job: JobState | None = field(default=None, repr=False, compare=False)
     _task: asyncio.Task[Any] | None = field(default=None, repr=False, compare=False)
 
     def as_dict(self, meeting_status: str | None = None) -> dict[str, Any]:
@@ -642,6 +658,51 @@ class PipelineJobState:
         }
         if meeting_status is not None:
             d["meeting_status"] = meeting_status
+        child_progress = (
+            self._current_job.as_dict().get("progress")
+            if self._current_job is not None
+            else None
+        )
+        if child_progress is not None:
+            d["progress"] = child_progress
+        completed = sum(
+            1
+            for item in self.stages
+            if item.get("status") == "completed"
+            or (
+                item.get("status") == "skipped"
+                and item.get("reason") == "already_done"
+            )
+        )
+        current_fraction = (
+            float(child_progress.get("percent") or 0.0) / 100.0
+            if isinstance(child_progress, dict)
+            else 0.0
+        )
+        total = len(self.stages)
+        if total:
+            pipeline_current = min(float(total), completed + current_fraction)
+            d["pipeline_progress"] = {
+                "phase": f"pipeline:{self.current_stage or self.status}",
+                "current": round(pipeline_current, 3),
+                "total": float(total),
+                "unit": "stages",
+                "percent": round(100.0 * pipeline_current / total, 1),
+                "elapsed_seconds": None,
+                "eta_seconds": None,
+                "eta_confidence": None,
+                "started_at": self.started_at,
+                "updated_at": (
+                    child_progress.get("updated_at")
+                    if isinstance(child_progress, dict)
+                    else None
+                ),
+                "stale": bool(
+                    child_progress.get("stale")
+                    if isinstance(child_progress, dict)
+                    else False
+                ),
+            }
         return d
 
 
@@ -701,6 +762,7 @@ def _job_record(job: JobState) -> dict[str, Any]:
         "recovery_status": job.recovery_status,
         "stderr_lines": public["stderr_tail"],
         "operation": dict(job.operation) if job.operation is not None else None,
+        "progress": public.get("progress"),
     }
 
 
@@ -753,6 +815,13 @@ def _job_from_record(record: dict[str, Any], meetings_root: Path) -> JobState:
         exit_code=record.get("exit_code") if isinstance(record.get("exit_code"), int) else None,
         stderr_lines=stderr_lines,
         operation=operation,
+        _progress=normalize_progress_snapshot(record.get("progress")),
+        _progress_path=(
+            _safe_record_meeting_dir(meetings_root, meeting_id)
+            / "runtime"
+            / "progress"
+            / f"{job_id}.json"
+        ),
         _meeting_dir=_safe_record_meeting_dir(meetings_root, meeting_id),
     )
 
@@ -970,6 +1039,7 @@ class JobRunner:
                 pipeline.status = "orphaned"
                 pipeline.recovery_status = "orphaned_process_alive"
                 self.active_pipeline = pipeline
+                pipeline._current_job = self.active_job
                 recovered_events.append(_pipeline_record(pipeline))
             else:
                 pipeline.status = (
@@ -1192,6 +1262,11 @@ class JobRunner:
                 operation=_operation_from_stage_options(stage, stage_options),
                 _meeting_dir=meeting_dir.resolve(),
             )
+            if stage == "transcribe":
+                job._progress_path = (
+                    job._meeting_dir / "runtime" / "progress" / f"{job.job_id}.json"
+                )
+                cmd.extend(["--progress-path", str(job._progress_path)])
             if self.store is not None:
                 try:
                     pipeline_id = (
@@ -1528,6 +1603,7 @@ class JobRunner:
                         stage_options=pstate.stage_options.get(stage),
                         _from_pipeline=True,
                     )
+                    pstate._current_job = child
                 except PreflightFailed as exc:
                     item["status"] = "failed"
                     item["reason"] = str(exc)
@@ -1545,6 +1621,7 @@ class JobRunner:
                 while child.status in ("starting", "running"):
                     await asyncio.sleep(_PIPELINE_POLL_SEC)
                 item["exit_code"] = child.exit_code
+                pstate._current_job = None
                 if child.status == "completed":
                     item["status"] = "completed"
                     self._persist_pipeline_update(pstate, "pipeline_stage_completed")
@@ -1584,6 +1661,7 @@ class JobRunner:
                 pstate._task = None
                 self._persist_pipeline_update(pstate, "pipeline_orphaned")
             else:
+                pstate._current_job = None
                 pstate.current_stage = None
                 pstate.finished_at = _now_iso()
                 if pstate.status == "running":

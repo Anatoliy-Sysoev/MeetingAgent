@@ -496,6 +496,40 @@ function jobIsActive(job) {
   return Boolean(job && ["queued", "starting", "running", "cancelling"].includes(job.status));
 }
 
+function formatDuration(seconds) {
+  if (!Number.isFinite(Number(seconds))) return "—";
+  const total = Math.max(0, Math.round(Number(seconds)));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  return hours ? `${hours} ч ${minutes} мин` : minutes ? `${minutes} мин ${secs} с` : `${secs} с`;
+}
+
+function jobProgress(job) {
+  const stage = job && (job.stage || job.current_stage);
+  const detailed = job && job.progress ? job.progress : null;
+  const aggregate = job && job.pipeline_progress && Number.isFinite(Number(job.pipeline_progress.percent))
+    ? job.pipeline_progress
+    : null;
+  const fallbackIndex = Math.max(0, PIPELINE_STAGES.findIndex((entry) => entry[0] === stage));
+  return {
+    stage,
+    detailed,
+    percent: detailed && detailed.percent != null && Number.isFinite(Number(detailed.percent))
+      ? Number(detailed.percent)
+      : detailed
+        ? null
+        : aggregate
+          ? Number(aggregate.percent)
+          : (100 * fallbackIndex / PIPELINE_STAGES.length),
+    text: detailed
+      ? `${detailed.percent == null ? "Выполняется" : `${Number(detailed.percent).toFixed(1)}%`} · прошло ${formatDuration(detailed.elapsed_seconds)} · осталось ${detailed.eta_seconds == null ? "оцениваем…" : formatDuration(detailed.eta_seconds)}${detailed.stale ? " · данные давно не обновлялись" : ""}`
+      : aggregate
+        ? `${Number(aggregate.percent).toFixed(1)}% общего pipeline`
+        : `${fallbackIndex + 1} из ${PIPELINE_STAGES.length} этапов`,
+  };
+}
+
 function renderActiveBanner() {
   const box = byId("activeWork");
   if (!jobIsActive(state.activeJob)) {
@@ -504,11 +538,13 @@ function renderActiveBanner() {
   }
   const job = state.activeJob;
   const meeting = state.meetings.find((item) => item.meeting_id === job.meeting_id);
-  const stage = job.stage || job.current_stage || "pipeline";
+  const progress = jobProgress(job);
+  const stage = progress.stage || "pipeline";
   const stageIndex = Math.max(0, PIPELINE_STAGES.findIndex((entry) => entry[0] === stage));
   byId("activeWorkTitle").textContent = `Обрабатывается: ${meeting ? meeting.title : job.meeting_id}`;
-  byId("activeWorkDetail").textContent = `${PIPELINE_STAGES[stageIndex]?.[1] || stage}, этап ${stageIndex + 1} из ${PIPELINE_STAGES.length}`;
-  byId("activeWorkProgress").className = `progress-step-${stageIndex}`;
+  byId("activeWorkDetail").textContent = `${PIPELINE_STAGES[stageIndex]?.[1] || stage} · ${progress.text}`;
+  if (progress.percent == null) byId("activeWorkProgress").removeAttribute("value");
+  else byId("activeWorkProgress").value = Math.max(0, Math.min(100, progress.percent));
   box.hidden = false;
 }
 
@@ -518,17 +554,19 @@ function renderOperation(job) {
   panel.replaceChildren();
   stages.replaceChildren();
   const active = jobIsActive(job);
-  const currentStage = job && (job.stage || job.current_stage);
+  const progress = jobProgress(job);
+  const currentStage = progress.stage;
   const currentIndex = Math.max(0, PIPELINE_STAGES.findIndex((entry) => entry[0] === currentStage));
   const meeting = job && state.meetings.find((item) => item.meeting_id === job.meeting_id);
   byId("operationMeeting").textContent = job ? `${meeting ? meeting.title : job.meeting_id} · ${meeting ? meeting.date || "" : ""}` : "Локальный job runner";
   byId("operationStatus").textContent = active ? "В работе" : "Нет активной задачи";
   byId("operationStatus").className = `status ${active ? "running" : "neutral"}`;
   byId("operationProfile").textContent = job ? job.profile || job.kind || "stage" : "—";
-  byId("operationProgressText").textContent = job ? `${currentIndex + 1} из ${PIPELINE_STAGES.length} этапов` : "—";
+  byId("operationProgressText").textContent = job ? progress.text : "—";
   byId("operationStage").textContent = job ? PIPELINE_STAGES[currentIndex]?.[1] || currentStage || "—" : "—";
   byId("operationStarted").textContent = job ? job.started_at || job.created_at || "—" : "—";
-  byId("operationProgress").className = `progress-step-${active ? currentIndex : 0}`;
+  if (active && progress.percent == null) byId("operationProgress").removeAttribute("value");
+  else byId("operationProgress").value = active ? Math.max(0, Math.min(100, progress.percent)) : 0;
   byId("operationCancel").hidden = !active || !state.permissions.has("jobs.cancel");
   byId("operationCancel").dataset.jobId = active ? job.job_id : "";
   byId("operationWorkspace").hidden = !job || !job.meeting_id;

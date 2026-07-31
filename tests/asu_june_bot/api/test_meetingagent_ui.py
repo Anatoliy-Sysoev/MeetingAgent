@@ -87,6 +87,10 @@ def test_meetingagent_ui_has_registry_filters_and_processing_monitor(html: str) 
         assert marker in html
     assert "function filteredMeetings" in html
     assert "function renderOperation" in html
+    assert "function jobProgress" in html
+    assert "eta_seconds" in html
+    assert "removeAttribute(\"value\")" in html
+    assert 'id="operationProgress"' in html
 
 
 def test_meetingagent_ui_uses_csrf_for_mutating_requests(html: str) -> None:

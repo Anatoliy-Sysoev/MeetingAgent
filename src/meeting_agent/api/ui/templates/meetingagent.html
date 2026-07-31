@@ -59,7 +59,7 @@
         <section id="section-meetings">
           <div class="active-work" id="activeWork" role="status" hidden>
             <div><strong id="activeWorkTitle">Идёт обработка</strong><span id="activeWorkDetail"></span></div>
-            <div class="progress-track" aria-label="Прогресс обработки"><span id="activeWorkProgress"></span></div>
+            <progress id="activeWorkProgress" class="progress-track" max="100" value="0" aria-label="Прогресс обработки"></progress>
             <button id="activeWorkOpen" type="button">Открыть монитор</button>
           </div>
 
@@ -136,7 +136,7 @@
         <section id="section-operations" hidden>
           <div class="meeting-strip"><div><span class="eyebrow" id="operationMeeting">Локальный job runner</span><h2>Обработка встречи</h2></div><div class="meeting-strip-actions"><span class="status running" id="operationStatus">Проверка</span><button id="operationCancel" type="button" data-write-control hidden>Остановить</button><a id="operationWorkspace" class="button-link" href="/MeetingAgent" hidden>Открыть карточку</a></div></div>
           <div class="processing-summary"><div><span>Профиль</span><strong id="operationProfile">—</strong></div><div><span>Выполнено</span><strong id="operationProgressText">—</strong></div><div><span>Текущий этап</span><strong id="operationStage">—</strong></div><div><span>Запущено</span><strong id="operationStarted">—</strong></div></div>
-          <div class="wide-progress"><span id="operationProgress"></span></div>
+          <progress id="operationProgress" class="wide-progress" max="100" value="0" aria-label="Прогресс активной задачи"></progress>
           <div class="monitor-layout">
             <div class="stage-surface"><div class="section-heading"><div><h2>Этапы pipeline</h2><span>Последовательно, concurrency = 1</span></div><button id="refreshOperationsBtn" type="button">Обновить</button></div><ol class="stage-list" id="operationStages"></ol></div>
             <aside class="job-surface"><h2>Текущая операция</h2><div id="activeJobPanel"><div class="empty">Активная задача не найдена.</div></div></aside>

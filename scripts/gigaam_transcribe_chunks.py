@@ -2,11 +2,17 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import shutil
 import sys
 import time
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from meeting_agent.jobs.progress import ProgressReporter, resolve_progress_path  # noqa: E402
 
 
 DEFAULT_MODEL = "v3_e2e_rnnt"
@@ -24,6 +30,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cache-root", default=r"C:\ProgramData\gigaam_cache", type=Path)
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--chunk-seconds", default=DEFAULT_CHUNK_SECONDS, type=float)
+    parser.add_argument("--progress-path", type=Path)
     return parser.parse_args()
 
 
@@ -60,6 +67,17 @@ def transcribe_chunks(args: argparse.Namespace) -> dict[str, object]:
         raise SystemExit(f"No chunks found in {args.chunks_dir}")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    progress_path = None
+    if args.progress_path:
+        meeting_dir = args.output_dir.resolve().parents[1]
+        progress_path = resolve_progress_path(meeting_dir, args.progress_path)
+    reporter = (
+        ProgressReporter(progress_path, phase="transcribe:gigaam", unit="chunks")
+        if progress_path
+        else None
+    )
+    if reporter is not None:
+        reporter.emit_safely(0, len(chunks), force=True)
     segments_path = args.output_dir / "segments_gigaam.jsonl"
     transcript_txt = args.output_dir / "transcript_gigaam.txt"
     transcript_md = args.output_dir / "transcript_gigaam.md"
@@ -99,6 +117,8 @@ def transcribe_chunks(args: argparse.Namespace) -> dict[str, object]:
             rows.append(row)
             fp.write(json.dumps(row, ensure_ascii=False) + "\n")
             fp.flush()
+            if reporter is not None:
+                reporter.emit_safely(index + 1, len(chunks), force=True)
 
     with transcript_txt.open("w", encoding="utf-8", newline="\n") as fp:
         for row in rows:
