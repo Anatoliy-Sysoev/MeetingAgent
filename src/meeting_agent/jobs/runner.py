@@ -30,6 +30,8 @@ from meeting_agent.meeting_work import (
     MeetingWorkCoordinator,
     MeetingWorkStateError,
 )
+from meeting_agent.speakers.rebuild import SPEAKER_REBUILD_STAGES
+from meeting_agent.speakers.rebuild import stage_prerequisites_are_current
 
 _ROOT = Path(__file__).resolve().parents[3]
 
@@ -126,11 +128,29 @@ def _chunk_preflight(meeting_dir: Path) -> str | None:
     if err:
         return err
     artifacts = _artifact_map(data or {})
-    speaker_rel = artifacts.get("speaker_transcript", "transcript/speaker_transcript.jsonl")
+    if stage_prerequisites_are_current(data or {}, "chunk") is False:
+        return "resolved speaker transcript is stale; run resolve_speakers first"
+    speaker_rel = artifacts.get("resolved_speaker_transcript") or artifacts.get(
+        "speaker_transcript", "transcript/speaker_transcript.jsonl"
+    )
     resolved = _safe_resolve(meeting_dir, speaker_rel)
     if resolved is not None and resolved.exists():
         return None
     return "speaker_transcript.jsonl not found; run transcribe, diarize, and merge first"
+
+
+def _resolve_speakers_preflight(meeting_dir: Path) -> str | None:
+    err, data = _read_card(meeting_dir)
+    if err:
+        return err
+    artifacts = _artifact_map(data or {})
+    speaker_rel = artifacts.get(
+        "speaker_transcript", "transcript/speaker_transcript.jsonl"
+    )
+    resolved = _safe_resolve(meeting_dir, speaker_rel)
+    if resolved is not None and resolved.is_file():
+        return None
+    return "speaker_transcript.jsonl not found; run merge first"
 
 
 def _enrich_preflight(meeting_dir: Path) -> str | None:
@@ -138,6 +158,8 @@ def _enrich_preflight(meeting_dir: Path) -> str | None:
     if err:
         return err
     artifacts = _artifact_map(data or {})
+    if stage_prerequisites_are_current(data or {}, "enrich") is False:
+        return "meeting chunks are stale; run chunk first"
     chunks_rel = artifacts.get("chunks", "transcript/chunks.jsonl")
     resolved = _safe_resolve(meeting_dir, chunks_rel)
     if resolved is not None and resolved.exists():
@@ -150,6 +172,8 @@ def _index_preflight(meeting_dir: Path) -> str | None:
     if err:
         return err
     artifacts = _artifact_map(data or {})
+    if stage_prerequisites_are_current(data or {}, "index") is False:
+        return "enriched chunks are stale; run enrich first"
     enriched_rel = artifacts.get("enriched_chunks", "artifacts/enriched_chunks.jsonl")
     resolved = _safe_resolve(meeting_dir, enriched_rel)
     if resolved is not None and resolved.exists():
@@ -169,6 +193,8 @@ def _analyze_preflight(meeting_dir: Path) -> str | None:
     if err:
         return err
     artifacts = _artifact_map(data or {})
+    if stage_prerequisites_are_current(data or {}, "analyze") is False:
+        return "enriched chunks are stale; run enrich first"
     enriched_rel = artifacts.get("enriched_chunks", "artifacts/enriched_chunks.jsonl")
     resolved = _safe_resolve(meeting_dir, enriched_rel)
     if resolved is not None and resolved.exists():
@@ -181,6 +207,8 @@ def _index_artifacts_preflight(meeting_dir: Path) -> str | None:
     if err:
         return err
     artifacts = _artifact_map(data or {})
+    if stage_prerequisites_are_current(data or {}, "index_artifacts") is False:
+        return "speaker-dependent indexes or analysis are stale; finish speaker rebuild first"
     for key in STRUCTURED_INDEX_ARTIFACT_KEYS:
         rel = artifacts.get(key, ARTIFACT_DEFAULT_PATHS[key])
         resolved = _safe_resolve(meeting_dir, rel)
@@ -221,6 +249,12 @@ STAGE_COMMANDS: dict[str, dict[str, Any]] = {
         "base_args": [],
         "supports_dry_run": False,
         "preflight": _merge_preflight,
+    },
+    "resolve_speakers": {
+        "script": _ROOT / "scripts" / "25_resolve_speaker_transcript.py",
+        "base_args": [],
+        "supports_dry_run": False,
+        "preflight": _resolve_speakers_preflight,
     },
     "chunk": {
         "script": _ROOT / "scripts" / "26_chunk_meeting.py",
@@ -357,6 +391,13 @@ STAGE_METADATA: dict[str, dict[str, Any]] = {
         "requires": ["transcript_segments", "speaker_segments"],
         "outputs": ["merged_transcript"],
         "order": 40,
+    },
+    "resolve_speakers": {
+        "label": "Resolve curated speakers",
+        "description": "Materialize manual speaker names and corrections without changing raw evidence.",
+        "requires": ["merged_transcript"],
+        "outputs": ["resolved_speaker_transcript"],
+        "order": 45,
     },
     "chunk": {
         "label": "Chunk transcript",
@@ -597,12 +638,21 @@ class JobState:
 
 # Stage sequences per profile. Only stages from STAGE_COMMANDS are allowed.
 PIPELINE_PROFILES: dict[str, list[str]] = {
-    "default": ["extract_audio", "transcribe", "merge", "chunk", "enrich", "index"],
+    "default": [
+        "extract_audio",
+        "transcribe",
+        "merge",
+        "resolve_speakers",
+        "chunk",
+        "enrich",
+        "index",
+    ],
     "full": [
         "extract_audio",
         "transcribe",
         "diarize",
         "merge",
+        "resolve_speakers",
         "chunk",
         "enrich",
         "index",
@@ -610,7 +660,16 @@ PIPELINE_PROFILES: dict[str, list[str]] = {
         "index_artifacts",
     ],
     "transcript_only": ["extract_audio", "transcribe"],
-    "qa_ready": ["extract_audio", "transcribe", "merge", "chunk", "enrich", "index"],
+    "qa_ready": [
+        "extract_audio",
+        "transcribe",
+        "merge",
+        "resolve_speakers",
+        "chunk",
+        "enrich",
+        "index",
+    ],
+    "speaker_rebuild": list(SPEAKER_REBUILD_STAGES),
 }
 
 _PIPELINE_POLL_SEC = 0.2
@@ -945,6 +1004,24 @@ def _read_meeting_status(meeting_dir: Path) -> str | None:
         return json.loads(card.read_text(encoding="utf-8")).get("processing_status")
     except Exception:
         return None
+
+
+def _mark_speaker_rebuild_terminal(meeting_dir: Path, status: str) -> None:
+    card_path = meeting_dir / "meeting.json"
+    try:
+        card = json.loads(card_path.read_text(encoding="utf-8"))
+        state = card.get("speaker_curation") if isinstance(card, dict) else None
+        if not isinstance(state, dict):
+            return
+        if status == "completed":
+            # The final index stage owns the authoritative transition to
+            # current after checking all revision markers.
+            return
+        state["state"] = "failed" if status == "failed" else "stale"
+        state["updated_at"] = _now_iso()
+        _write_json_atomic(card_path, card)
+    except Exception:  # noqa: BLE001
+        return
 
 
 class JobRunner:
@@ -1657,6 +1734,8 @@ class JobRunner:
                         item["reason"] = "pipeline orchestration failed"
                         break
         finally:
+            if pstate.profile == "speaker_rebuild":
+                _mark_speaker_rebuild_terminal(meeting_dir, pstate.status)
             if pstate.status == "orphaned":
                 pstate._task = None
                 self._persist_pipeline_update(pstate, "pipeline_orphaned")

@@ -76,7 +76,15 @@ flowchart TD
     Q --> R["artifacts/memo.md / protocol.md / decisions.json / ..."]
 ```
 
-Стадии `extract_audio`, `transcribe`, `diarize`, `merge`, `chunk`, `enrich`, `index`, `analyze`, `index_artifacts` реализованы в job runner и доступны через Workspace Pipeline panel и `POST /meetings/{id}/jobs/{stage}`. Полный профиль завершает цепочку как `enrich -> index -> analyze -> index_artifacts`: сначала индексируются meeting chunks, затем созданные анализом решения, задачи, риски и открытые вопросы.
+Стадии `extract_audio`, `transcribe`, `diarize`, `merge`,
+`resolve_speakers`, `chunk`, `enrich`, `index`, `analyze`,
+`index_artifacts` реализованы в job runner и доступны через Workspace Pipeline
+panel и `POST /meetings/{id}/jobs/{stage}`. `resolve_speakers` материализует
+ручные speaker mapping/override поверх неизменяемого raw speaker transcript.
+Полный профиль завершает цепочку как
+`resolve_speakers -> chunk -> enrich -> index -> analyze -> index_artifacts`.
+После ручной правки профиль `speaker_rebuild` выполняет только этот зависимый
+хвост и не запускает extract/ASR/diarization/merge.
 
 Preflight для каждой стадии:
 - `extract_audio`: ffmpeg в PATH + существующий source media файл
@@ -106,7 +114,13 @@ Preflight для каждой стадии:
 
 Pipeline-панель управляет job runner-ом из браузера:
 
-- `GET /meetings/{id}/jobs/stages` — список запускаемых стадий (`jobs.read`); отдаёт все стадии, которые реально умеет runner (`extract_audio`, `transcribe`, `diarize`, `merge`, `chunk`, `enrich`, `index`, `analyze`, `index_artifacts`), отсортированных по `order`, без путей ФС и командных строк;
+- `GET /meetings/{id}/jobs/stages` — список запускаемых стадий (`jobs.read`);
+  отдаёт все стадии, которые реально умеет runner, включая
+  `resolve_speakers`, без путей ФС и командных строк;
+- `GET /meetings/{id}/speakers/rebuild` — path-safe состояние ревизий
+  speaker-dependent outputs (`jobs.read`);
+- `POST /meetings/{id}/jobs/speaker-rebuild` — фиксированный resumable rebuild
+  зависимого хвоста (`jobs.start` + CSRF для browser session);
 - `GET /meetings/{id}/pipeline/readiness` — карта готовности стадий (`done`/`ready`/`blocked`), `can_run`, machine-readable `reason`, required/produced artifacts без путей ФС;
 - `POST /meetings/{id}/jobs/pipeline` — последовательный one-click запуск профилей `default`, `full`, `transcript_only`, `qa_ready`; готовые стадии пропускаются без `force`;
 - Start/Cancel вызывают существующие `POST /meetings/{id}/jobs/{stage}` (`jobs.start`) и `.../cancel` (`jobs.cancel`).

@@ -41,7 +41,11 @@ EXPECTED_KEYS = [
     "segments", "transcript_txt", "transcription_report",
     "live_refinement_mic", "live_refinement_sys", "live_diarization_sys",
     "diarization",
-    "speaker_transcript", "chunks", "enriched_chunks", "memo", "protocol",
+    "speaker_transcript",
+    "resolved_speaker_transcript",
+    "resolved_speaker_transcript_txt",
+    "resolved_speaker_transcript_md",
+    "chunks", "enriched_chunks", "memo", "protocol",
     "decisions", "tasks", "risks", "open_questions", "index_status",
     "structured_index_status",
 ]
@@ -77,7 +81,7 @@ def test_manifest_covers_all_stages(tmp_path: Path) -> None:
     assert list(entries) == EXPECTED_KEYS
     stages = {e["stage"] for e in entries.values()}
     assert stages == {
-        "transcribe", "diarize", "merge", "chunk", "enrich", "analyze",
+        "transcribe", "diarize", "merge", "resolve_speakers", "chunk", "enrich", "analyze",
         "index", "index_artifacts",
     }
 
@@ -255,6 +259,9 @@ def test_api_every_view_url_is_servable(tmp_path: Path) -> None:
     _touch(d, "transcript/live/live_diarization.SYS.json", "{}")
     _touch(d, "transcript/diarization.jsonl", '{"s":1}\n')
     _touch(d, "transcript/speaker_transcript.jsonl", '{"s":1}\n')
+    _touch(d, "transcript/resolved_speaker_transcript.jsonl", '{"s":1}\n')
+    _touch(d, "transcript/resolved_speaker_transcript.txt", "speaker: text")
+    _touch(d, "transcript/resolved_speaker_transcript.md", "# Resolved")
     _touch(d, "transcript/chunks.jsonl", '{"c":1}\n')
     _touch(d, "artifacts/enriched_chunks.jsonl", '{"c":1}\n')
     _touch(d, "artifacts/summary.md", "# S")

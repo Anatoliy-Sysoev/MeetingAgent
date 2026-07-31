@@ -910,7 +910,8 @@ def test_stage_catalog_covers_all_pipeline_stages() -> None:
 
     expected = {
         "extract_audio", "transcribe", "diarize", "merge",
-        "chunk", "enrich", "index", "analyze", "index_artifacts",
+        "resolve_speakers", "chunk", "enrich", "index", "analyze",
+        "index_artifacts",
     }
     actual = {s["stage"] for s in stage_catalog()}
     assert actual == expected

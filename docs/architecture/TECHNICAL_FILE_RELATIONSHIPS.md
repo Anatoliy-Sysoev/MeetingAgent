@@ -1,8 +1,15 @@
 # Диаграммы технических файлов MeetingAgent
 
-Обновлено: 2026-06-19.
+Обновлено: 2026-07-31.
 
-> Note: canonical offline transcription entrypoint is `scripts/22_transcribe_meeting.py` with `--engine faster-whisper --model large-v3-turbo`. `scripts/06_transcribe_meeting.py` is a compatibility wrapper only. Current full pipeline stages available via job runner: extract_audio → transcribe → diarize → merge → chunk → enrich → index → analyze → index_artifacts.
+> Note: canonical offline transcription entrypoint is
+> `scripts/22_transcribe_meeting.py` with
+> `--engine faster-whisper --model large-v3-turbo`.
+> `scripts/06_transcribe_meeting.py` is a compatibility wrapper only. Current
+> full pipeline stages available via job runner: extract_audio → transcribe →
+> diarize → merge → resolve_speakers → chunk → enrich → index → analyze →
+> index_artifacts. Speaker-only corrections use the tail beginning at
+> resolve_speakers.
 
 ## 1. Карта технических контуров
 

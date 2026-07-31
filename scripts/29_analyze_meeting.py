@@ -22,6 +22,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from meeting_agent.shared.config import load_config  # noqa: E402
 from meeting_agent.shared.llm.ollama_common import normalize_llm_answer  # noqa: E402
+from meeting_agent.speakers.rebuild import mark_stage_revision  # noqa: E402
 
 
 ARTIFACT_PATHS = {
@@ -695,6 +696,7 @@ def update_meeting(meeting: dict[str, Any]) -> None:
     meeting["processing_status"] = "summarized"
     meeting["updated_at"] = now_iso()
     meeting.pop("last_error", None)
+    mark_stage_revision(meeting, "analyze")
 
 
 def mark_failed(meeting_path: Path, meeting: dict[str, Any], exc: BaseException, stage: str) -> None:

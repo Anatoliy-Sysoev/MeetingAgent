@@ -411,6 +411,15 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
                     ]
                 },
             )
+        elif path == f"{prefix}/speakers/rebuild":
+            _fulfill_json(
+                route,
+                {
+                    "state": "not_initialized",
+                    "needs_rebuild": False,
+                    "stages": [],
+                },
+            )
         elif path == f"{prefix}/live/preflight":
             _fulfill_json(
                 route,
@@ -661,6 +670,15 @@ def test_workspace_live_unified_start_partial_stop_and_final(
             _fulfill_json(route, {"stages": []})
         elif path == f"{prefix}/artifacts/manifest":
             _fulfill_json(route, {"artifacts": []})
+        elif path == f"{prefix}/speakers/rebuild":
+            _fulfill_json(
+                route,
+                {
+                    "state": "not_initialized",
+                    "needs_rebuild": False,
+                    "stages": [],
+                },
+            )
         elif path == "/jobs/active":
             _fulfill_json(route, {})
         elif path == f"{prefix}/live/preflight":
@@ -1076,6 +1094,15 @@ def test_meetingagent_live_creation_opens_workspace_and_checks_sources(
             _fulfill_json(route, {"meeting_id": live_id, "status": "new", "stages": []})
         elif path == f"{prefix}/artifacts/manifest":
             _fulfill_json(route, {"artifacts": []})
+        elif path == f"{prefix}/speakers/rebuild":
+            _fulfill_json(
+                route,
+                {
+                    "state": "not_initialized",
+                    "needs_rebuild": False,
+                    "stages": [],
+                },
+            )
         elif path == f"{prefix}/live/preflight":
             source = parse_qs(parsed.query).get("source", [""])[0]
             preflights = captured["preflight_sources"]

@@ -10,6 +10,7 @@ let _filteredSegmentIndices = [];
 let _transcriptPage = 0;
 let _speakerRows = [];
 let _speakerProfiles = [];
+let _speakerRebuild = null;
 let _selectedSegmentIds = new Set();
 let _lastSelectedSegmentIndex = null;
 let _expandedTurnId = null;
@@ -492,7 +493,7 @@ async function applySpeakerOverride(reset = false) {
   }
   _selectedSegmentIds.clear();
   _lastSelectedSegmentIndex = null;
-  await loadTranscript();
+  await Promise.all([loadTranscript(), loadSpeakerRebuild()]);
   updateSpeakerOverrideToolbar();
   setSpeakerOverrideStatus(reset ? "Автоматическая атрибуция восстановлена" : "Спикер изменён");
 }
@@ -1404,11 +1405,69 @@ async function saveSpeakerMapping() {
     }
     return;
   }
-  await Promise.all([loadSpeakerMapping(), loadTranscript()]);
+  await Promise.all([loadSpeakerMapping(), loadTranscript(), loadSpeakerRebuild()]);
   if (status) {
     status.textContent = "Сохранено";
     status.classList.remove("err");
   }
+}
+
+async function loadSpeakerRebuild() {
+  const resp = await apiFetch(
+    `/meetings/${encodeURIComponent(MEETING_ID)}/speakers/rebuild`,
+    {}
+  );
+  _speakerRebuild = resp && resp.ok ? await resp.json() : null;
+  renderSpeakerRebuild();
+}
+
+function renderSpeakerRebuild() {
+  const status = document.getElementById("speaker-rebuild-status");
+  const button = document.getElementById("speaker-rebuild-btn");
+  if (!status || !button) return;
+  const needs = Boolean(_speakerRebuild?.needs_rebuild);
+  status.className = needs ? "stale" : "current";
+  status.textContent = needs
+    ? "После правки спикеров протокол, поиск и Q&A устарели."
+    : _speakerRebuild?.state === "current"
+      ? "Протокол, поиск и Q&A используют актуальных спикеров."
+      : "Правки спикеров ещё не требуют пересборки.";
+  button.hidden = !needs;
+  button.disabled = !needs || !_permissions.has("jobs.start") || _activeJob !== null || _actionInProgress;
+}
+
+async function startSpeakerRebuild() {
+  if (_actionInProgress || !_speakerRebuild?.needs_rebuild) return;
+  const csrf = await ensureCsrf();
+  if (!csrf) {
+    setSpeakerOverrideStatus("Требуется вход", true);
+    return;
+  }
+  _actionInProgress = true;
+  try {
+    const resp = await apiFetch(
+      `/meetings/${encodeURIComponent(MEETING_ID)}/jobs/speaker-rebuild`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        body: JSON.stringify({ resume: true }),
+      }
+    );
+    if (!resp || !resp.ok) {
+      setSpeakerOverrideStatus(
+        resp ? await describeError(resp, "Не удалось запустить пересборку") : "Не удалось запустить пересборку",
+        true
+      );
+      return;
+    }
+    const started = await safeJobBody(resp);
+    if (started?.job_id) _trackedJobId = started.job_id;
+    setWorkspaceTab("pipeline");
+  } finally {
+    _actionInProgress = false;
+  }
+  await refreshJobs();
+  startPolling();
 }
 
 async function createSpeakerProfile(row) {
@@ -1848,6 +1907,7 @@ function renderJobs(status) {
 
   renderResults();
   updateQaAvailability();
+  renderSpeakerRebuild();
 }
 
 // Pipeline-level actions: run full, resume, retry failed stage.
@@ -2089,6 +2149,7 @@ async function refreshJobs() {
     loadActiveJob(),
     loadReadiness(),
     loadManifest(),
+    loadSpeakerRebuild(),
   ]);
   renderJobs(status);
   renderLiveCapture();
@@ -2099,7 +2160,7 @@ async function refreshJobs() {
     _pollTimer = null;
   }
   if (hadActive && _activeJob === null) {
-    await Promise.all([loadTranscript(), loadArtifacts()]);
+    await Promise.all([loadTranscript(), loadArtifacts(), loadSpeakerRebuild()]);
   }
 }
 
@@ -2263,6 +2324,7 @@ async function reloadAll() {
     loadMedia(),
     loadTranscript(),
     loadSpeakerMapping(),
+    loadSpeakerRebuild(),
     loadArtifacts(),
     loadJobs(),
     loadLive(),
@@ -2284,6 +2346,8 @@ if (_closeArtifactBtn) _closeArtifactBtn.addEventListener("click", closeArtifact
 
 const _speakerMapSaveBtn = document.getElementById("speaker-map-save-btn");
 if (_speakerMapSaveBtn) _speakerMapSaveBtn.addEventListener("click", saveSpeakerMapping);
+const _speakerRebuildBtn = document.getElementById("speaker-rebuild-btn");
+if (_speakerRebuildBtn) _speakerRebuildBtn.addEventListener("click", startSpeakerRebuild);
 const _speakerOverrideApply = document.getElementById("speaker-override-apply");
 if (_speakerOverrideApply) _speakerOverrideApply.addEventListener("click", () => applySpeakerOverride(false));
 const _speakerOverrideReset = document.getElementById("speaker-override-reset");

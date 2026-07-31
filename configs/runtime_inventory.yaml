@@ -53,6 +53,7 @@ scripts:
     - scripts/22_transcribe_meeting.py
     - scripts/23_diarize_meeting.py
     - scripts/24_merge_transcript_speakers.py
+    - scripts/25_resolve_speaker_transcript.py
     - scripts/26_chunk_meeting.py
     - scripts/27_enrich_meeting_chunks.py
     - scripts/28_index_meeting_chunks.py
@@ -141,6 +142,7 @@ supported_cli_help:
   - scripts/22_transcribe_meeting.py
   - scripts/23_diarize_meeting.py
   - scripts/24_merge_transcript_speakers.py
+  - scripts/25_resolve_speaker_transcript.py
   - scripts/26_chunk_meeting.py
   - scripts/27_enrich_meeting_chunks.py
   - scripts/28_index_meeting_chunks.py

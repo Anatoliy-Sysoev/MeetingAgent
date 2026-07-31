@@ -21,6 +21,11 @@ from meeting_agent.speakers import (
     SpeakerDirectory,
     SpeakerOverrideError,
     SpeakerOverrideStore,
+    compute_source_revision,
+    ensure_source_revision,
+    mark_speaker_inputs_changed,
+    rebuild_status,
+    speaker_curation_requested,
     merge_resolved_turns,
     render_resolved_turns_text,
 )
@@ -1039,7 +1044,18 @@ class MeetingsService:
             card["speaker_mapping"] = normalized
         else:
             card.pop("speaker_mapping", None)
+        overrides = self._speaker_override_store(meeting_id).current()
+        mark_speaker_inputs_changed(
+            card,
+            meeting_dir=card_path.parent,
+            overrides=overrides,
+        )
         card["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        self._write_card_atomic(card_path, card)
+        return self.get_speakers(meeting_id)
+
+    @staticmethod
+    def _write_card_atomic(card_path: Path, card: Mapping[str, Any]) -> None:
         fd, tmp_name = tempfile.mkstemp(
             prefix=".meeting.",
             suffix=".json.tmp",
@@ -1050,11 +1066,87 @@ class MeetingsService:
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
                 fh.write(json.dumps(card, ensure_ascii=False, indent=2) + "\n")
+                fh.flush()
+                os.fsync(fh.fileno())
             tmp_path.replace(card_path)
         except Exception:
             tmp_path.unlink(missing_ok=True)
             raise
-        return self.get_speakers(meeting_id)
+
+    def _mark_speaker_curation_changed(
+        self,
+        meeting_id: str,
+        *,
+        overrides: Mapping[str, Any],
+    ) -> None:
+        card_path = self._card_path(meeting_id)
+        card = _read_meeting_json(card_path)
+        mark_speaker_inputs_changed(
+            card,
+            meeting_dir=card_path.parent,
+            overrides=overrides,
+        )
+        card["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        self._write_card_atomic(card_path, card)
+
+    def get_speaker_rebuild_status(self, meeting_id: str) -> dict[str, Any] | None:
+        if not _safe_meeting_id(meeting_id):
+            return None
+        card_path = self._card_path(meeting_id)
+        if not card_path.is_file():
+            return None
+        card = _read_meeting_json(card_path)
+        status = rebuild_status(card)
+        try:
+            overrides = self._speaker_override_store(meeting_id).current()
+            if not speaker_curation_requested(card, overrides):
+                return {"meeting_id": meeting_id, **status}
+            actual_revision = compute_source_revision(
+                card_path.parent,
+                card,
+                overrides,
+            )
+        except SpeakerOverrideError:
+            raise
+        state = card.get("speaker_curation")
+        if not isinstance(state, Mapping) or state.get("source_revision") != actual_revision:
+            status["state"] = "stale"
+            status["needs_rebuild"] = True
+        return {"meeting_id": meeting_id, **status}
+
+    def prepare_speaker_rebuild(self, meeting_id: str) -> dict[str, Any] | None:
+        if not _safe_meeting_id(meeting_id):
+            return None
+        card_path = self._card_path(meeting_id)
+        if not card_path.is_file():
+            return None
+        card = _read_meeting_json(card_path)
+        overrides = self._speaker_override_store(meeting_id).current()
+        ensure_source_revision(
+            card,
+            meeting_dir=card_path.parent,
+            overrides=overrides,
+        )
+        state = card.get("speaker_curation")
+        if isinstance(state, dict) and state.get("state") != "current":
+            state["state"] = "rebuilding"
+            state["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        card["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        self._write_card_atomic(card_path, card)
+        return {"meeting_id": meeting_id, **rebuild_status(card)}
+
+    def mark_speaker_rebuild_not_started(self, meeting_id: str) -> None:
+        card_path = self._card_path(meeting_id)
+        if not card_path.is_file():
+            return
+        card = _read_meeting_json(card_path)
+        state = card.get("speaker_curation")
+        if not isinstance(state, dict) or state.get("state") != "rebuilding":
+            return
+        state["state"] = "stale"
+        state["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        card["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        self._write_card_atomic(card_path, card)
 
     def _speaker_override_store(self, meeting_id: str) -> SpeakerOverrideStore:
         meeting_dir = self._meeting_dir(meeting_id)
@@ -1106,9 +1198,14 @@ class MeetingsService:
         known_labels = {row["speaker_label"] for row in (speakers or {}).get("speakers", [])}
         if speaker_label not in known_labels:
             raise SpeakerOverrideError("speaker label does not exist in this meeting")
-        return self._speaker_override_store(meeting_id).set(
+        result = self._speaker_override_store(meeting_id).set(
             segment_ids, speaker_label, automatic, actor_id
         )
+        self._mark_speaker_curation_changed(
+            meeting_id,
+            overrides=result.get("current") or {},
+        )
+        return result
 
     def reset_speaker_overrides(
         self, meeting_id: str, segment_ids: list[str], actor_id: str
@@ -1117,7 +1214,14 @@ class MeetingsService:
         if card is None:
             return None
         automatic = self._automatic_speaker_labels(meeting_id, card)
-        return self._speaker_override_store(meeting_id).reset(segment_ids, automatic, actor_id)
+        result = self._speaker_override_store(meeting_id).reset(
+            segment_ids, automatic, actor_id
+        )
+        self._mark_speaker_curation_changed(
+            meeting_id,
+            overrides=result.get("current") or {},
+        )
+        return result
 
     def get_transcript_segments(self, meeting_id: str) -> dict[str, Any] | None:
         """Return normalized transcript segments for the workspace UI.

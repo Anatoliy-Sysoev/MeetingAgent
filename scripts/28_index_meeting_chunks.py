@@ -14,6 +14,12 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
+from meeting_agent.speakers.rebuild import mark_stage_revision  # noqa: E402
+
 
 DEFAULT_OUTPUT = "data/meeting_chunks.jsonl"
 
@@ -183,7 +189,7 @@ def to_index_chunk(meeting_dir: Path, meeting: dict[str, Any], chunk: dict[str, 
         "timestamp_start": format_time(start),
         "timestamp_end": format_time(end),
         "speakers": chunk.get("speakers") or [],
-        "speaker_names": chunk.get("speakers") or [],
+        "speaker_names": chunk.get("speaker_names") or chunk.get("speakers") or [],
         "sources": chunk.get("sources") or [],
         "topic": chunk.get("topic"),
         "semantic_type": chunk.get("semantic_type"),
@@ -211,6 +217,7 @@ def update_meeting(meeting: dict[str, Any], output_path: Path) -> None:
     meeting["rag"] = rag
     meeting["updated_at"] = now_iso()
     meeting.pop("last_error", None)
+    mark_stage_revision(meeting, "index")
 
 
 def mark_failed(meeting_path: Path, meeting: dict[str, Any], exc: BaseException, stage: str) -> None:

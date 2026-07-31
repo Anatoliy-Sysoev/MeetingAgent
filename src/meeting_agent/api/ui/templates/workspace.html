@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Карточка встречи · MeetingAgent</title>
-  <link rel="stylesheet" href="/assets/v5/workspace.css?rev=20260731-1" />
+  <link rel="stylesheet" href="/assets/v5/workspace.css?rev=20260731-2" />
 </head>
 <body data-meeting-id="__MEETING_ID__">
   <a class="skip-link" href="#workspace-main">Перейти к содержимому</a>
@@ -80,7 +80,15 @@
             </article>
             <aside class="panel context-col">
               <div class="panel-header">Спикеры</div>
-              <div class="panel-body"><div id="speaker-map-panel" class="speaker-map-list"><div class="empty">Загрузка спикеров...</div></div><div class="speaker-actions"><button id="speaker-map-save-btn" type="button">Сохранить сопоставление</button><span id="speaker-map-status" class="speaker-status" role="status"></span></div></div>
+              <div class="panel-body">
+                <div id="speaker-map-panel" class="speaker-map-list"><div class="empty">Загрузка спикеров...</div></div>
+                <div class="speaker-actions"><button id="speaker-map-save-btn" type="button">Сохранить сопоставление</button><span id="speaker-map-status" class="speaker-status" role="status"></span></div>
+                <div class="speaker-rebuild-box">
+                  <strong>Зависимые материалы</strong>
+                  <p id="speaker-rebuild-status">Проверяем актуальность протокола и поиска...</p>
+                  <button id="speaker-rebuild-btn" class="primary" type="button">Пересобрать после правок</button>
+                </div>
+              </div>
             </aside>
           </div>
         </section>
@@ -128,6 +136,6 @@
       </main>
     </div>
   </div>
-  <script src="/assets/v5/workspace.js?rev=20260731-1" defer></script>
+  <script src="/assets/v5/workspace.js?rev=20260731-2" defer></script>
 </body>
 </html>

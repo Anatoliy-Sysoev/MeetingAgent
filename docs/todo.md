@@ -4,6 +4,10 @@
 
 ## Done
 
+- [x] MA-SPEAKER-DOWNSTREAM-REBUILD (#297, parent #285): revision-aware
+  materialized speaker transcript, stale index/Q&A guard, fixed six-stage
+  rebuild profile, resumable JobRunner API and Workspace action without
+  rerunning extract/ASR/diarization/merge.
 - [x] MA-PIPELINE-PROGRESS-AND-ETA (#286, ASR slice): publish atomic bounded
   progress snapshots for faster-whisper media time and GigaAM chunks; expose
   child and aggregate pipeline progress in API DTOs; render elapsed time,
@@ -110,7 +114,9 @@
 - [x] MA-DIARIZATION-SPEAKER-COUNT (#292, parent #285): choose auto or an exact
   speaker count before diarization, pass it through API/runner and retain
   requested/actual counts in the report and meeting card.
-- [ ] MA-SPEAKER-CURATION-V2 (#285): finish targeted downstream rebuild (#297).
+- [x] MA-SPEAKER-CURATION-V2 (#285): speaker count, private directory,
+  audited overrides, resolved turns and targeted downstream rebuild are
+  implemented.
 - [x] MA-WORKSPACE-TRANSCRIPT-VIRTUALIZATION (#278): keep large transcripts
   responsive with bounded DOM rendering and reliable search/seek navigation.
 - [x] MA-PIPELINE-STRUCTURED-ARTIFACT-INDEX-STAGE (#279): index final structured
