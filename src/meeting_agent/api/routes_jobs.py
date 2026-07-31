@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 
 from meeting_agent.jobs.readiness import pipeline_readiness
 from meeting_agent.meetings.service import MeetingsService, _safe_meeting_id
+from meeting_agent.speakers import SpeakerOverrideError
 
 router = APIRouter(tags=["jobs"])
 
@@ -131,6 +132,10 @@ class StageStartRequest(BaseModel):
     num_speakers: Annotated[int, Field(strict=True, ge=1, le=20)] | None = None
 
 
+class SpeakerRebuildRequest(BaseModel):
+    resume: bool = True
+
+
 def _stage_options(
     stage: str,
     body: StageStartRequest | RetryRequest | None,
@@ -149,6 +154,66 @@ def _pipeline_stage_options(body: PipelineRequest) -> dict[str, dict[str, Any]]:
     if body.num_speakers is not None:
         options["diarize"] = {"num_speakers": body.num_speakers}
     return options
+
+
+@router.get("/meetings/{meeting_id}/speakers/rebuild")
+async def get_speaker_rebuild(
+    meeting_id: str,
+    _principal: Annotated[Principal, Depends(require_permission("jobs.read"))],
+    service: MeetingsService = Depends(_get_meetings_service),
+) -> JSONResponse:
+    try:
+        payload = service.get_speaker_rebuild_status(meeting_id)
+    except SpeakerOverrideError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "invalid_speaker_override",
+                "message": "Speaker corrections are unavailable",
+            },
+        ) from exc
+    if payload is None:
+        raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
+    return JSONResponse(content=payload)
+
+
+@router.post("/meetings/{meeting_id}/jobs/speaker-rebuild", status_code=202)
+async def start_speaker_rebuild(
+    meeting_id: str,
+    body: SpeakerRebuildRequest,
+    _principal: Annotated[Principal, Depends(require_action_permission("jobs.start"))],
+    runner: JobRunner = Depends(_get_runner),
+    service: MeetingsService = Depends(_get_meetings_service),
+) -> JSONResponse:
+    meeting_dir = service.root / meeting_id
+    if not _safe_meeting_id(meeting_id) or not (meeting_dir / "meeting.json").is_file():
+        raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
+    try:
+        prepared = service.prepare_speaker_rebuild(meeting_id)
+        if prepared is None:
+            raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
+        pipeline = await runner.submit_pipeline(
+            meeting_id=meeting_id,
+            meeting_dir=meeting_dir,
+            profile="speaker_rebuild",
+            force=False,
+            resume=body.resume,
+        )
+    except SpeakerOverrideError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "invalid_speaker_override",
+                "message": "Speaker corrections are unavailable",
+            },
+        ) from exc
+    except JobAlreadyRunning as exc:
+        service.mark_speaker_rebuild_not_started(meeting_id)
+        raise _job_error(409, exc) from exc
+    except JobStateUnavailable as exc:
+        service.mark_speaker_rebuild_not_started(meeting_id)
+        raise _job_error(503, exc) from exc
+    return JSONResponse(status_code=202, content=pipeline.as_dict())
 
 
 @router.post("/meetings/{meeting_id}/jobs/pipeline", status_code=202)

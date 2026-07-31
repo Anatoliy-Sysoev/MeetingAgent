@@ -121,6 +121,7 @@ EXPECTED_STAGES_ORDERED = [
     "transcribe",
     "diarize",
     "merge",
+    "resolve_speakers",
     "chunk",
     "enrich",
     "index",

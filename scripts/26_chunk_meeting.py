@@ -9,6 +9,12 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
+from meeting_agent.speakers.rebuild import mark_stage_revision  # noqa: E402
+
 
 DEFAULT_MAX_SECONDS = 180.0
 DEFAULT_MAX_CHARS = 6000
@@ -146,9 +152,16 @@ def chunk_text(utterances: list[dict[str, Any]], meeting_id: str, max_seconds: f
             return
         index = len(chunks) + 1
         speakers = sorted({str(row["speaker"]) for row in current})
+        speaker_names = sorted(
+            {
+                str(row.get("speaker_name") or row["speaker"])
+                for row in current
+            }
+        )
         sources = sorted({str(row["source"]) for row in current})
         text = "\n".join(
-            f"[{row['speaker']}] {row['text']}" for row in current
+            f"[{row.get('speaker_name') or row['speaker']}] {row['text']}"
+            for row in current
         ).strip()
         chunks.append(
             {
@@ -158,6 +171,7 @@ def chunk_text(utterances: list[dict[str, Any]], meeting_id: str, max_seconds: f
                 "start": float(current[0]["start"]),
                 "end": float(current[-1]["end"]),
                 "speakers": speakers,
+                "speaker_names": speaker_names,
                 "sources": sources,
                 "text": text,
                 "utterance_ids": [str(row["utterance_id"]) for row in current],
@@ -179,6 +193,7 @@ def update_meeting(meeting: dict[str, Any]) -> None:
     meeting["artifacts"] = artifacts
     meeting["updated_at"] = now_iso()
     meeting.pop("last_error", None)
+    mark_stage_revision(meeting, "chunk")
 
 
 def mark_failed(meeting_path: Path, meeting: dict[str, Any], exc: BaseException, stage: str) -> None:
@@ -203,7 +218,8 @@ def run(args: argparse.Namespace) -> int:
 
     meeting = read_json(meeting_path)
     validate_schema(meeting, schema_path)
-    speaker_rel = meeting.get("artifacts", {}).get(
+    artifacts = meeting.get("artifacts", {})
+    speaker_rel = artifacts.get("resolved_speaker_transcript") or artifacts.get(
         "speaker_transcript",
         "transcript/speaker_transcript.jsonl",
     )

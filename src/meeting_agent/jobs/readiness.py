@@ -22,6 +22,10 @@ from meeting_agent.meetings.artifact_catalog import (
     CHUNK_INDEX_MARKERS,
     STRUCTURED_INDEX_ARTIFACT_KEYS,
 )
+from meeting_agent.speakers.rebuild import (
+    stage_prerequisites_are_current,
+    stage_revision_is_current,
+)
 
 # Relative output markers proving a stage has already completed.
 # Sources: scripts/21–29 output contracts (see each script's artifacts update).
@@ -30,6 +34,7 @@ _DONE_MARKERS: dict[str, str] = {
     "transcribe": "transcript/segments.jsonl",
     "diarize": "transcript/diarization.jsonl",
     "merge": "transcript/speaker_transcript.jsonl",
+    "resolve_speakers": "transcript/resolved_speaker_transcript.jsonl",
     "chunk": "transcript/chunks.jsonl",
     "enrich": "artifacts/enriched_chunks.jsonl",
     "analyze": "artifacts/summary.md",
@@ -42,6 +47,7 @@ _BLOCK_TOKENS: dict[str, str] = {
     "transcribe": "audio_missing",
     "diarize": "audio_missing",
     "merge": "transcript_missing",
+    "resolve_speakers": "merged_transcript_missing",
     "chunk": "merged_transcript_missing",
     "enrich": "chunks_missing",
     "index": "enriched_chunks_missing",
@@ -71,6 +77,9 @@ def _marker_exists(meeting_dir: Path, rel: str) -> bool:
 
 
 def _stage_done(stage: str, meeting_dir: Path, card: dict[str, Any]) -> bool:
+    revision_current = stage_revision_is_current(card, stage)
+    if revision_current is False:
+        return False
     if stage in {"index", "index_artifacts"}:
         rag = card.get("rag")
         indexed = rag.get("indexed_artifacts") if isinstance(rag, dict) else None
@@ -97,6 +106,9 @@ def _stage_blocked_reason(stage: str, meeting_dir: Path) -> str | None:
     Reuses runner preflights where they exist; transcribe/diarize add the
     readiness-level audio requirement (#114: no audio → blocked).
     """
+    card = _read_card(meeting_dir)
+    if stage_prerequisites_are_current(card, stage) is False:
+        return "speaker-dependent prerequisite is stale; run speaker rebuild in order"
     if stage in ("transcribe", "diarize") and not _marker_exists(meeting_dir, _AUDIO_MARKER):
         return "normalized audio not found; run extract_audio first"
     preflight = STAGE_COMMANDS.get(stage, {}).get("preflight")

@@ -54,6 +54,7 @@ _MARKERS = {
     "22_transcribe_meeting.py": "transcript/segments.jsonl",
     "23_diarize_meeting.py": "transcript/diarization.jsonl",
     "24_merge_transcript_speakers.py": "transcript/speaker_transcript.jsonl",
+    "25_resolve_speaker_transcript.py": "transcript/resolved_speaker_transcript.jsonl",
     "26_chunk_meeting.py": "transcript/chunks.jsonl",
     "27_enrich_meeting_chunks.py": "artifacts/enriched_chunks.jsonl",
     "28_index_meeting_chunks.py": None,  # writes rag.indexed_artifacts instead
@@ -164,17 +165,32 @@ def _stage_statuses(pipeline: PipelineJobState) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 def test_profiles_defined() -> None:
-    assert set(PIPELINE_PROFILES) == {"default", "full", "transcript_only", "qa_ready"}
+    assert set(PIPELINE_PROFILES) == {
+        "default",
+        "full",
+        "transcript_only",
+        "qa_ready",
+        "speaker_rebuild",
+    }
     assert PIPELINE_PROFILES["default"] == [
         "extract_audio",
         "transcribe",
         "merge",
+        "resolve_speakers",
         "chunk",
         "enrich",
         "index",
     ]
     assert PIPELINE_PROFILES["qa_ready"] == PIPELINE_PROFILES["default"]
     assert PIPELINE_PROFILES["full"][-2:] == ["analyze", "index_artifacts"]
+    assert PIPELINE_PROFILES["speaker_rebuild"] == [
+        "resolve_speakers",
+        "chunk",
+        "enrich",
+        "index",
+        "analyze",
+        "index_artifacts",
+    ]
 
 
 def test_transcribe_stage_base_args_select_asr_engine() -> None:

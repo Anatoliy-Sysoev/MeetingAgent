@@ -159,7 +159,8 @@ def test_stages_returns_all_runnable_stages(tmp_path: Path) -> None:
     stage_names = [s["stage"] for s in body["stages"]]
     expected = [
         "extract_audio", "transcribe", "diarize", "merge",
-        "chunk", "enrich", "index", "analyze", "index_artifacts",
+        "resolve_speakers", "chunk", "enrich", "index", "analyze",
+        "index_artifacts",
     ]
     assert stage_names == expected, "stages must be returned in pipeline order"
     for s in body["stages"]:

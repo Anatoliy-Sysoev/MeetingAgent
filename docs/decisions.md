@@ -1372,3 +1372,32 @@ SYS WAV, назначает preliminary `SPEAKER_XX` финальным Vosk-с�
 Следствие: это post-stop live refinement, а не полная online diarization.
 Chunk-by-chunk PCM transport, устойчивость identity между окнами и автоматическая
 reconciliation с sherpa оформляются отдельной задачей.
+# 2026-07-31 — Speaker edits rebuild only revision-dependent artifacts
+
+Решение: ручное сопоставление или исправление спикера создаёт новую
+`speaker_curation.source_revision`. Отдельная стадия `resolve_speakers`
+материализует исправленный transcript, после чего фиксированный профиль
+`speaker_rebuild` выполняет `chunk -> enrich -> index -> analyze ->
+index_artifacts`. Каждая стадия записывает собственную revision marker только
+после успешной атомарной публикации результата.
+
+Почему:
+
+- raw ASR, diarization и automatic speaker transcript являются evidence и не
+  должны переписываться ручной правкой;
+- существование старого файла не доказывает, что он построен по текущим
+  спикерам;
+- revision markers позволяют безопасно продолжить rebuild после ошибки и
+  пропустить уже актуальные стадии;
+- Q&A не должен читать старый index между правкой и пересборкой;
+- фиксированный server-side план исключает случайный повтор дорогих ASR и
+  diarization.
+
+Следствия:
+
+- Workspace показывает явное состояние stale/current и отдельную кнопку
+  targeted rebuild;
+- browser action использует `jobs.start` и CSRF, а API не принимает произвольный
+  список стадий для speaker rebuild;
+- card/index readiness не сообщает старые speaker-dependent outputs как done;
+- обычные offline pipeline-профили включают `resolve_speakers` после `merge`.

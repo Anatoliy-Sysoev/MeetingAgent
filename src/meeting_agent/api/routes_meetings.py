@@ -182,7 +182,7 @@ def update_speaker_mapping(
     try:
         raw_mapping = {label: entry.model_dump() for label, entry in payload.mapping.items()}
         result = service.update_speaker_mapping(meeting_id, raw_mapping)
-    except ValueError as exc:
+    except (ValueError, SpeakerOverrideError) as exc:
         raise HTTPException(
             status_code=422,
             detail={

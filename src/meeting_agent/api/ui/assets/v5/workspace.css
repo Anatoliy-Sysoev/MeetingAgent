@@ -603,6 +603,10 @@ h3 { margin-bottom: 6px; font-size: 14px; }
 .speaker-map-row input, .speaker-map-row select { width: 100%; }
 .speaker-map-row select[data-field="profile"] { grid-column: 1 / -1; }
 .speaker-map-row button { justify-self: start; }
+.speaker-rebuild-box { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.speaker-rebuild-box p { margin: 6px 0 10px; color: var(--muted); font-size: 13px; }
+.speaker-rebuild-box p.stale { color: var(--danger); }
+.speaker-rebuild-box p.current { color: var(--ok); }
 .speaker-actions { position: sticky; bottom: 0; padding-top: 10px; background: var(--surface); }
 
 .artifacts-workbench { min-height: 520px; }

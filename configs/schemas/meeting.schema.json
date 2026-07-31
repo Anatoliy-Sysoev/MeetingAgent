@@ -95,6 +95,29 @@
         }
       }
     },
+    "speaker_curation": {
+      "type": "object",
+      "description": "Ревизии артефактов, зависящих от ручной правки спикеров.",
+      "additionalProperties": false,
+      "required": ["source_revision", "state", "updated_at"],
+      "properties": {
+        "source_revision": {"$ref": "#/$defs/sha256"},
+        "resolved_revision": {"$ref": "#/$defs/sha256"},
+        "chunks_revision": {"$ref": "#/$defs/sha256"},
+        "enriched_revision": {"$ref": "#/$defs/sha256"},
+        "chunk_index_revision": {"$ref": "#/$defs/sha256"},
+        "analysis_revision": {"$ref": "#/$defs/sha256"},
+        "artifact_index_revision": {"$ref": "#/$defs/sha256"},
+        "state": {
+          "type": "string",
+          "enum": ["stale", "rebuilding", "current", "failed"]
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
     "diarization_summary": {
       "type": "object",
       "description": "Последние запрошенные и фактически найденные параметры offline diarization.",
@@ -392,6 +415,15 @@
         "speaker_transcript": {
           "$ref": "#/$defs/relative_path"
         },
+        "resolved_speaker_transcript": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "resolved_speaker_transcript_txt": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "resolved_speaker_transcript_md": {
+          "$ref": "#/$defs/relative_path"
+        },
         "chunks": {
           "$ref": "#/$defs/relative_path"
         },
@@ -594,6 +626,10 @@
     }
   },
   "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "relative_path": {
       "type": "string",
       "minLength": 1,

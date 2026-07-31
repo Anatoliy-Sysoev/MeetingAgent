@@ -25,6 +25,7 @@ from meeting_agent.meetings.vector_index import (
     MeetingVectorRetriever,
     build_meeting_vector_retriever,
 )
+from meeting_agent.speakers.rebuild import speaker_search_outputs_stale
 
 DEFAULT_MEETING_CHUNKS_PATH = "data/meeting_chunks.jsonl"
 
@@ -72,6 +73,9 @@ _REFUSAL_NO_ANSWER = (
 )
 _REFUSAL_LLM_UNAVAILABLE = (
     "Модель ответа сейчас недоступна. Попробуйте позже или используйте поиск по встрече."
+)
+_REFUSAL_SPEAKER_REBUILD = (
+    "Спикеры встречи были изменены. Сначала пересоберите зависимые материалы встречи."
 )
 
 
@@ -473,8 +477,18 @@ class MeetingQAService:
         """Meeting-scoped search. Returns None when meeting is unsafe/unknown."""
         if not _safe_meeting_id(meeting_id):
             return None
-        if self.meetings_service.get_meeting(meeting_id) is None:
+        card = self.meetings_service.get_meeting(meeting_id)
+        if card is None:
             return None
+        if speaker_search_outputs_stale(card):
+            return {
+                "meeting_id": meeting_id,
+                "query": query,
+                "available": False,
+                "retrieval_mode": "unavailable",
+                "stale_reason": "speaker_curation_changed",
+                "results": [],
+            }
         # Speaker mapping can be edited from Workspace while the API process is
         # alive; refresh segment refs per request but keep per-request reuse.
         self._segment_ref_cache.pop(meeting_id, None)
@@ -502,8 +516,16 @@ class MeetingQAService:
         """Meeting-scoped grounded chat. Returns None when meeting unsafe/unknown."""
         if not _safe_meeting_id(meeting_id):
             return None
-        if self.meetings_service.get_meeting(meeting_id) is None:
+        card = self.meetings_service.get_meeting(meeting_id)
+        if card is None:
             return None
+        if speaker_search_outputs_stale(card):
+            return self._chat_payload(
+                meeting_id,
+                status="stale",
+                refusal=_REFUSAL_SPEAKER_REBUILD,
+                retrieval_mode="unavailable",
+            )
         self._segment_ref_cache.pop(meeting_id, None)
 
         ranked, retrieval_mode = self._ranked_rows(meeting_id, query, top_k)

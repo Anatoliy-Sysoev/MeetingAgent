@@ -4,6 +4,12 @@
 
 ## Now
 
+- MA-SPEAKER-DOWNSTREAM-REBUILD (#297, parent #285) materializes a curated
+  speaker transcript and tracks source/output revision hashes through chunks,
+  enrichment, both indexes and structured artifacts. Speaker mapping or
+  override edits immediately make dependent outputs stale; Workspace offers
+  one CSRF-protected targeted rebuild action. The fixed rebuild plan never
+  runs audio extraction, ASR, diarization or raw speaker merge.
 - MA-PIPELINE-PROGRESS-AND-ETA (#286) now has its first product slice:
   faster-whisper publishes processed media seconds against the real source
   duration, GigaAM publishes completed chunks against the generated chunk
@@ -378,7 +384,11 @@
 - Meeting cards живут в ignored runtime `meetings/<meeting_id>/` и не публикуются в Git, если содержат реальные данные.
 - Offline ASR product profile: `faster-whisper large-v3-turbo`, `language=ru`, `compute_type=int8`; `small` остаётся только явным draft/dev CLI выбором.
 - Optional engines: GigaAM как внешний локальный backend; sherpa-onnx для diarization; Vosk для draft live transcription.
-- Job runner поддерживает стадии `extract_audio`, `transcribe`, `diarize`, `merge`, `chunk`, `enrich`, `index`, `analyze`, `index_artifacts`.
+- Job runner поддерживает стадии `extract_audio`, `transcribe`, `diarize`,
+  `merge`, `resolve_speakers`, `chunk`, `enrich`, `index`, `analyze`,
+  `index_artifacts`. Обычные pipeline-профили материализуют resolved speaker
+  transcript после merge; профиль `speaker_rebuild` запускает только
+  speaker-dependent хвост.
 - Job state persists in ignored `logs/jobs_state.json`: records are written
   atomically under an OS advisory lock, histories/events are bounded, and a
   corrupt or oversized snapshot fails API startup closed. After an API restart,
@@ -472,8 +482,6 @@ GET  /admin/review/chat-runs/export
 - MA-PIPELINE-PROGRESS-AND-ETA (#286): the real ASR progress slice is
   implemented; extend the same bounded worker contract only to stages with a
   defensible denominator or leave them indeterminate.
-- MA-SPEAKER-DOWNSTREAM-REBUILD (#297): invalidate and selectively rebuild
-  dependent artifacts after curated speaker changes.
 - MA-LIVE-DIART-STREAMING-V2 (#262): evaluate bounded streaming diarization
   during capture while keeping offline sherpa-onnx canonical.
 
