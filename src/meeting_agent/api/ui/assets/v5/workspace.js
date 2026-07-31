@@ -1707,6 +1707,24 @@ function renderJobs(status) {
       : (_activeJob.stage || "");
     aVal.textContent = label + " ";
     aVal.appendChild(jBadge);
+    const progress = _activeJob.progress;
+    if (progress) {
+      const progressBox = document.createElement("div");
+      progressBox.className = "job-progress";
+      const bar = document.createElement("progress");
+      bar.max = 100;
+      if (progress.percent != null && Number.isFinite(Number(progress.percent))) bar.value = Number(progress.percent);
+      const text = document.createElement("small");
+      const elapsed = Number.isFinite(Number(progress.elapsed_seconds))
+        ? `${Math.round(Number(progress.elapsed_seconds))} с прошло`
+        : "время уточняется";
+      const eta = Number.isFinite(Number(progress.eta_seconds))
+        ? `${Math.round(Number(progress.eta_seconds))} с осталось`
+        : "остаток оценивается";
+      text.textContent = `${progress.percent == null ? "Выполняется" : `${progress.percent}%`} · ${elapsed} · ${eta}${progress.stale ? " · прогресс давно не обновлялся" : ""}`;
+      progressBox.append(bar, text);
+      aVal.append(progressBox);
+    }
   } else {
     aVal.textContent = "None";
   }

@@ -310,6 +310,13 @@ def test_workspace_auth_state_is_explicit_and_not_only_overlay(html: str) -> Non
     assert "hideAuthOverlay()" in html
 
 
+def test_workspace_renders_machine_progress_without_fake_eta(html: str) -> None:
+    assert "_activeJob.progress" in html
+    assert "progress.eta_seconds" in html
+    assert "остаток оценивается" in html
+    assert "progress.stale" in html
+
+
 def test_csrf_403_does_not_show_login_overlay(html: str) -> None:
     block = html[html.index("async function ensureCsrf"):]
     block = block[: block.index("\n}\n") + 2]

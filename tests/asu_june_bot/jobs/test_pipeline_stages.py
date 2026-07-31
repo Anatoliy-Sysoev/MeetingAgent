@@ -593,6 +593,10 @@ def test_transcribe_launch_command_carries_product_model(
     args = real_calls[0]
     assert "--model" in args
     assert "large-v3-turbo" in args
+    assert "--progress-path" in args
+    progress_path = Path(args[args.index("--progress-path") + 1]).resolve()
+    progress_path.relative_to((tmp_path / MEETING_ID).resolve())
+    assert progress_path.name == f"{resp.json()['job_id']}.json"
 
 
 def test_transcribe_dry_run_preflight_still_works(

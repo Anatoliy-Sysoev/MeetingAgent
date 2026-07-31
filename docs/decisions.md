@@ -1,5 +1,36 @@
 # Решения
 
+## 2026-07-31 - Worker Progress Uses A Dedicated Bounded Snapshot
+
+Решение: долгие offline workers публикуют progress через отдельный JSON-файл
+в runtime-каталоге встречи. JobRunner передаёт безопасный `--progress-path`,
+читает только нормализованные поля и добавляет их в job/pipeline DTO. Stdout и
+stderr не разбираются как источник прогресса.
+
+Для первой поставки faster-whisper считает обработанное media time против
+duration, а GigaAM считает завершённые chunks против общего числа. ETA
+показывается только после достаточного наблюдаемого прогресса; иначе API
+возвращает `null`, а UI показывает `Оцениваем…`.
+
+Почему:
+
+- количество ASR-сегментов не отражает долю обработанного аудио;
+- текстовый stdout нестабилен и может содержать недоверенные или приватные
+  данные;
+- атомарный bounded snapshot переживает polling и API restart без чтения
+  частично записанного JSON;
+- стадии без реального denominator должны оставаться indeterminate, а не
+  создавать ложное ощущение точности.
+
+Следствия:
+
+- snapshot записывается через lock, temp file и `os.replace`;
+- progress path обязан оставаться внутри meeting directory;
+- публичный DTO ограничен полями phase/current/total/unit/percent/elapsed/ETA,
+  timestamps и stale;
+- ошибка записи progress не прерывает саму транскрибацию;
+- #286 остаётся открытым для измеримых progress emitters остальных стадий.
+
 ## 2026-07-15 - Отдельные Python Runtime Для Offline Workers
 
 Решение: API запускается из live-окружения, которому доступны MIC/SYS
