@@ -100,6 +100,7 @@ scripts:
     - scripts/gigaam_transcribe_chunks.py
     - scripts/legacy_entrypoint.py
     - scripts/run_gigaam_transcribe.ps1
+    - scripts/start_meeting_agent_local.ps1
     - scripts/start_ollama_local.ps1
   compatibility:
     - check_rag_status.ps1

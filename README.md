@@ -150,7 +150,19 @@ offline sherpa diarization remains canonical.
 
 ### 3. Run MeetingAgent Core Or The Integrated Runtime
 
-MeetingAgent Core only:
+MeetingAgent Core with live MIC/SYS support on Windows (recommended):
+
+```powershell
+.\scripts\start_meeting_agent_local.ps1
+```
+
+The launcher selects a verified Python 3.12 live environment, validates the
+Vosk model and required audio dependencies, and refuses to start a duplicate
+or incomplete service. Use `-CheckOnly` for preflight and `-Background` for a
+hidden local process. Override machine-specific locations only in local env:
+`MEETINGAGENT_LIVE_PYTHON` and `MEETINGAGENT_LIVE_MODEL_PATH`.
+
+Core-only development without live device capture:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\meeting_agent_api.py --host 127.0.0.1 --port 8000
@@ -320,11 +332,13 @@ Linux uses `constraints-live-py312-linux.txt`. Both platform locks select the
 official PyTorch CPU index and keep Torch/Silero outside the core install and
 base Docker image. On Windows, use a short Python 3.12 environment path such as
 `C:\ma-live` when long-path support is disabled; Torch can otherwise fail to
-unpack with `WinError 206` before sounddevice is installed. Start the API from
-that same live environment so device discovery is available to the Workspace:
+unpack with `WinError 206` before sounddevice is installed. Start the API
+through the verified launcher so device discovery is available to the
+Workspace and an incomplete core-only environment cannot be selected:
 
 ```powershell
-C:\ma-live\Scripts\python.exe scripts\meeting_agent_api.py --host 127.0.0.1 --port 8000
+.\scripts\start_meeting_agent_local.ps1
+.\scripts\start_meeting_agent_local.ps1 -CheckOnly
 ```
 
 Keep Vosk models in an ignored ASCII-only path on Windows, for example:

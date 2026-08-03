@@ -228,13 +228,21 @@ Optional dependencies:
 коротком ASCII-пути, например `C:\ma-live`: глубокое дерево лицензий Torch может
 иначе завершить распаковку с `WinError 206`.
 
-Workspace API запускайте из того же Python 3.12 live-окружения. Если API
-запущен из core-only `.venv`, preflight вернёт `sounddevice_missing` /
-`sys_loopback_backend_missing`, а списки устройств останутся пустыми:
+Workspace API запускайте штатным launcher. Он выбирает проверенное Python 3.12
+live-окружение, проверяет Vosk/Silero/MIC/SYS зависимости и минимальную структуру
+модели, а также не запускает второй API на уже занятом порту. Если API запустить
+напрямую из core-only `.venv`, health может быть зелёным, но live preflight
+вернёт `sounddevice_missing` / `sys_loopback_backend_missing`, а списки
+устройств останутся пустыми:
 
 ```powershell
-C:\ma-live\Scripts\python.exe scripts\meeting_agent_api.py --host 127.0.0.1 --port 8000
+.\scripts\start_meeting_agent_local.ps1 -CheckOnly
+.\scripts\start_meeting_agent_local.ps1
 ```
+
+Для нестандартных ASCII-путей задайте в текущем PowerShell-процессе
+`$env:MEETINGAGENT_LIVE_PYTHON` и `$env:MEETINGAGENT_LIVE_MODEL_PATH`. В Git
+эти пути и локальный `config.yaml` не добавляются.
 
 На Windows Vosk-модель хранится в ignored ASCII-only пути, например:
 
