@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Any
 
@@ -86,7 +87,12 @@ def live_settings(config: dict[str, Any]) -> dict[str, Any]:
         return float(value)
 
     vad = raw.get("vad", "silero")
-    model_path = raw.get("model_path", "models/vosk/vosk-model-small-ru-0.22")
+    configured_model_path = raw.get(
+        "model_path", "models/vosk/vosk-model-small-ru-0.22"
+    )
+    model_path = os.environ.get(
+        "MEETINGAGENT_LIVE_MODEL_PATH", configured_model_path
+    )
     if not isinstance(vad, str) or not vad:
         raise ValueError("Invalid live.vad: expected a non-empty string")
     if not isinstance(model_path, str) or not model_path:

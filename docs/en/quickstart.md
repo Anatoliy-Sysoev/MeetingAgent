@@ -32,8 +32,12 @@ ollama pull qwen3.5:4b
 MeetingAgent Core only:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\meeting_agent_api.py --host 127.0.0.1 --port 8000
+.\scripts\start_meeting_agent_local.ps1
 ```
+
+On Windows this launcher is the recommended MeetingAgent entrypoint: it
+fail-closes when the Python environment lacks MIC/SYS live dependencies or the
+Vosk model is incomplete. Use `-CheckOnly` to validate without starting.
 
 Integrated MeetingAgent + Project Knowledge Bot:
 

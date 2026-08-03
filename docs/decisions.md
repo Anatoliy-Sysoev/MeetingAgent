@@ -1401,3 +1401,15 @@ index_artifacts`. Каждая стадия записывает собстве�
   список стадий для speaker rebuild;
 - card/index readiness не сообщает старые speaker-dependent outputs как done;
 - обычные offline pipeline-профили включают `resolve_speakers` после `merge`.
+
+# 2026-08-03 — Live UI запускается только из проверенного runtime
+
+Решение: на Windows штатно запускать MeetingAgent Core через
+`scripts/start_meeting_agent_local.ps1`. Успешный `/health` подтверждает API,
+но не наличие Vosk, Silero, MIC capture и Windows SYS loopback зависимостей.
+Launcher поэтому fail-closed проверяет live Python и ASCII Vosk model store до
+старта, не создаёт второй процесс на занятом порту и поддерживает локальные
+`MEETINGAGENT_LIVE_PYTHON` / `MEETINGAGENT_LIVE_MODEL_PATH` overrides.
+
+Причина: прямой запуск из core-only `.venv` создавал внешне здоровый сервис с
+неработающей live-панелью и пустым выбором аудиоустройств после перезагрузки.

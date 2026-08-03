@@ -5,7 +5,8 @@ import pytest
 from asu_june_bot.api.dependencies import _live_settings
 
 
-def test_live_settings_have_bounded_product_defaults() -> None:
+def test_live_settings_have_bounded_product_defaults(monkeypatch) -> None:
+    monkeypatch.delenv("MEETINGAGENT_LIVE_MODEL_PATH", raising=False)
     assert _live_settings({}) == {
         "model_path": "models/vosk/vosk-model-small-ru-0.22",
         "vad": "silero",
@@ -45,10 +46,27 @@ def test_live_settings_have_bounded_product_defaults() -> None:
         {"live": {"diarization": {"timeout_seconds": 3601}}},
     ],
 )
-def test_live_settings_reject_wrong_types(config: dict) -> None:
+def test_live_settings_reject_wrong_types(config: dict, monkeypatch) -> None:
+    monkeypatch.delenv("MEETINGAGENT_LIVE_MODEL_PATH", raising=False)
     with pytest.raises(ValueError, match="Invalid live"):
         _live_settings(config)
 
 
-def test_live_settings_preserve_explicit_zero_for_service_validation() -> None:
+def test_live_settings_preserve_explicit_zero_for_service_validation(monkeypatch) -> None:
+    monkeypatch.delenv("MEETINGAGENT_LIVE_MODEL_PATH", raising=False)
     assert _live_settings({"live": {"events_max": 0}})["events_max"] == 0
+
+
+def test_live_model_environment_override_wins_over_config(monkeypatch) -> None:
+    monkeypatch.setenv("MEETINGAGENT_LIVE_MODEL_PATH", "C:/ma-models/vosk")
+
+    settings = _live_settings({"live": {"model_path": "models/configured"}})
+
+    assert settings["model_path"] == "C:/ma-models/vosk"
+
+
+def test_live_model_environment_override_must_not_be_empty(monkeypatch) -> None:
+    monkeypatch.setenv("MEETINGAGENT_LIVE_MODEL_PATH", "")
+
+    with pytest.raises(ValueError, match="Invalid live.model_path"):
+        _live_settings({})

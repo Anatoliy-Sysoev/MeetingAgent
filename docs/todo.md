@@ -1,8 +1,12 @@
 # Todo
 
-Обновлено: 2026-07-31.
+Обновлено: 2026-08-03.
 
 ## Done
+
+- [x] MA-LIVE-RUNTIME-STARTUP-GUARD (#307): verified Windows launcher для
+  MeetingAgent Core, fail-closed проверка live Python/Vosk/MIC/SYS/Silero,
+  запрет дублирующего API и локальные env overrides для runtime/model paths.
 
 - [x] MA-SPEAKER-DOWNSTREAM-REBUILD (#297, parent #285): revision-aware
   materialized speaker transcript, stale index/Q&A guard, fixed six-stage

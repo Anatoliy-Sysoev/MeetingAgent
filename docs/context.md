@@ -1,8 +1,14 @@
 # Текущий Контекст
 
-Обновлено: 2026-07-31.
+Обновлено: 2026-08-03.
 
 ## Now
+
+- MA-LIVE-RUNTIME-STARTUP-GUARD (#307) устраняет повторяющийся отказ live UI
+  после запуска API из core-only `.venv`. Штатный PowerShell launcher выбирает
+  только проверенное live-окружение, валидирует Vosk-модель и аудиозависимости,
+  блокирует конфликт порта; `MEETINGAGENT_LIVE_MODEL_PATH` позволяет держать
+  native-модель в безопасном ASCII-пути без изменения публичного конфига.
 
 - MA-SPEAKER-DOWNSTREAM-REBUILD (#297, parent #285) materializes a curated
   speaker transcript and tracks source/output revision hashes through chunks,
