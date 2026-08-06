@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MeetingAgent</title>
-  <link rel="stylesheet" href="/assets/v3/meetingagent.css" />
+  <link rel="stylesheet" href="/assets/v3/meetingagent.css?rev=20260806-1" />
 </head>
 <body data-initial-section="__INITIAL_SECTION__">
   <a class="skip-link" href="#main-content">Перейти к содержимому</a>
@@ -136,6 +136,7 @@
         <section id="section-operations" hidden>
           <div class="meeting-strip"><div><span class="eyebrow" id="operationMeeting">Локальный job runner</span><h2>Обработка встречи</h2></div><div class="meeting-strip-actions"><span class="status running" id="operationStatus">Проверка</span><button id="operationCancel" type="button" data-write-control hidden>Остановить</button><a id="operationWorkspace" class="button-link" href="/MeetingAgent" hidden>Открыть карточку</a></div></div>
           <div class="processing-summary"><div><span>Профиль</span><strong id="operationProfile">—</strong></div><div><span>Выполнено</span><strong id="operationProgressText">—</strong></div><div><span>Текущий этап</span><strong id="operationStage">—</strong></div><div><span>Запущено</span><strong id="operationStarted">—</strong></div></div>
+          <div class="progress-caption"><span>Прогресс этапа</span><strong id="operationProgressCaption">—</strong></div>
           <progress id="operationProgress" class="wide-progress" max="100" value="0" aria-label="Прогресс активной задачи"></progress>
           <div class="monitor-layout">
             <div class="stage-surface"><div class="section-heading"><div><h2>Этапы pipeline</h2><span>Последовательно, concurrency = 1</span></div><button id="refreshOperationsBtn" type="button">Обновить</button></div><ol class="stage-list" id="operationStages"></ol></div>
@@ -145,6 +146,6 @@
       </main>
     </div>
   </div>
-  <script src="/assets/v3/meetingagent.js" defer></script>
+  <script src="/assets/v3/meetingagent.js?rev=20260806-1" defer></script>
 </body>
 </html>

@@ -5,6 +5,7 @@ const PIPELINE_STAGES = [
   ["transcribe", "Транскрибация", "Faster Whisper или GigaAM"],
   ["diarize", "Диаризация", "Разделение голосов"],
   ["merge", "Объединение", "Транскрипт и спикеры"],
+  ["resolve_speakers", "Спикеры", "Применение имён и ручных исправлений"],
   ["chunk", "Чанкинг", "Окна для поиска"],
   ["enrich", "Обогащение", "Темы и смысловые типы"],
   ["index", "Индексация", "Meeting Q&A"],
@@ -563,6 +564,7 @@ function renderOperation(job) {
   byId("operationStatus").className = `status ${active ? "running" : "neutral"}`;
   byId("operationProfile").textContent = job ? job.profile || job.kind || "stage" : "—";
   byId("operationProgressText").textContent = job ? progress.text : "—";
+  byId("operationProgressCaption").textContent = job ? progress.text : "—";
   byId("operationStage").textContent = job ? PIPELINE_STAGES[currentIndex]?.[1] || currentStage || "—" : "—";
   byId("operationStarted").textContent = job ? job.started_at || job.created_at || "—" : "—";
   if (active && progress.percent == null) byId("operationProgress").removeAttribute("value");
