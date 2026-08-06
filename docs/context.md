@@ -1,8 +1,13 @@
 # Текущий Контекст
 
-Обновлено: 2026-08-03.
+Обновлено: 2026-08-06.
 
 ## Now
+
+- MA-UI-PIPELINE-PROGRESS-CACHE (#309) делает фактический процент ASR, elapsed
+  и ETA явно видимыми над progress bar на странице обработки. Revisioned asset
+  URL исключает старый immutable JS из browser cache, а UI stage catalog теперь
+  включает `resolve_speakers` и совпадает с 10-этапным full profile backend.
 
 - MA-LIVE-RUNTIME-STARTUP-GUARD (#307) устраняет повторяющийся отказ live UI
   после запуска API из core-only `.venv`. Штатный PowerShell launcher выбирает

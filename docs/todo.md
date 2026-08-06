@@ -1,8 +1,12 @@
 # Todo
 
-Обновлено: 2026-08-03.
+Обновлено: 2026-08-06.
 
 ## Done
+
+- [x] MA-UI-PIPELINE-PROGRESS-CACHE (#309): revisioned MeetingAgent bundle,
+  явный процент/elapsed/ETA над progress bar и полный 10-stage UI catalog с
+  `resolve_speakers`.
 
 - [x] MA-LIVE-RUNTIME-STARTUP-GUARD (#307): verified Windows launcher для
   MeetingAgent Core, fail-closed проверка live Python/Vosk/MIC/SYS/Silero,
