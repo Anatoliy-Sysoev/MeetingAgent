@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 
 from meeting_agent.jobs.readiness import pipeline_readiness
 from meeting_agent.meetings.service import MeetingsService, _safe_meeting_id
+from meeting_agent.speakers import SpeakerOverrideError
 
 router = APIRouter(tags=["jobs"])
 
@@ -74,6 +75,7 @@ async def list_job_stages(
 async def pipeline_readiness_map(
     meeting_id: str,
     _principal: Annotated[Principal, Depends(require_permission("jobs.read"))],
+    asr_engine: Literal["faster-whisper", "gigaam"] = "faster-whisper",
     runner: JobRunner = Depends(_get_runner),
     service: MeetingsService = Depends(_get_meetings_service),
 ) -> JSONResponse:
@@ -90,6 +92,13 @@ async def pipeline_readiness_map(
         meeting_id,
         meeting_dir,
         live_session_active=live_session_active,
+        worker_runtime_errors={
+            stage: runner.worker_runtime_error(
+                stage,
+                {"asr_engine": asr_engine} if stage == "transcribe" else None,
+            )
+            for stage in STAGE_COMMANDS
+        },
     )
     payload["job_recovery"] = runner.recovery_summary(meeting_id)
     return JSONResponse(content=payload)
@@ -105,6 +114,7 @@ class PipelineRequest(BaseModel):
     profile: str = Field("default", max_length=32)
     force: bool = False
     asr_engine: Literal["faster-whisper", "gigaam"] = "faster-whisper"
+    num_speakers: Annotated[int, Field(strict=True, ge=1, le=20)] | None = None
     # resume=true explicitly continues after a failure: done stages are
     # skipped and execution starts at the first not-yet-done stage.  This is
     # also the default behavior; force=true overrides the skip.
@@ -114,10 +124,96 @@ class PipelineRequest(BaseModel):
 
 class RetryRequest(BaseModel):
     force: bool = False
+    num_speakers: Annotated[int, Field(strict=True, ge=1, le=20)] | None = None
 
 
 class StageStartRequest(BaseModel):
     asr_engine: Literal["faster-whisper", "gigaam"] = "faster-whisper"
+    num_speakers: Annotated[int, Field(strict=True, ge=1, le=20)] | None = None
+
+
+class SpeakerRebuildRequest(BaseModel):
+    resume: bool = True
+
+
+def _stage_options(
+    stage: str,
+    body: StageStartRequest | RetryRequest | None,
+) -> dict[str, Any] | None:
+    if body is None:
+        return None
+    if stage == "transcribe" and isinstance(body, StageStartRequest):
+        return {"asr_engine": body.asr_engine}
+    if stage == "diarize":
+        return {"num_speakers": body.num_speakers}
+    return None
+
+
+def _pipeline_stage_options(body: PipelineRequest) -> dict[str, dict[str, Any]]:
+    options = {"transcribe": {"asr_engine": body.asr_engine}}
+    if body.num_speakers is not None:
+        options["diarize"] = {"num_speakers": body.num_speakers}
+    return options
+
+
+@router.get("/meetings/{meeting_id}/speakers/rebuild")
+async def get_speaker_rebuild(
+    meeting_id: str,
+    _principal: Annotated[Principal, Depends(require_permission("jobs.read"))],
+    service: MeetingsService = Depends(_get_meetings_service),
+) -> JSONResponse:
+    try:
+        payload = service.get_speaker_rebuild_status(meeting_id)
+    except SpeakerOverrideError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "invalid_speaker_override",
+                "message": "Speaker corrections are unavailable",
+            },
+        ) from exc
+    if payload is None:
+        raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
+    return JSONResponse(content=payload)
+
+
+@router.post("/meetings/{meeting_id}/jobs/speaker-rebuild", status_code=202)
+async def start_speaker_rebuild(
+    meeting_id: str,
+    body: SpeakerRebuildRequest,
+    _principal: Annotated[Principal, Depends(require_action_permission("jobs.start"))],
+    runner: JobRunner = Depends(_get_runner),
+    service: MeetingsService = Depends(_get_meetings_service),
+) -> JSONResponse:
+    meeting_dir = service.root / meeting_id
+    if not _safe_meeting_id(meeting_id) or not (meeting_dir / "meeting.json").is_file():
+        raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
+    try:
+        prepared = service.prepare_speaker_rebuild(meeting_id)
+        if prepared is None:
+            raise HTTPException(status_code=404, detail=f"Meeting not found: {meeting_id!r}")
+        pipeline = await runner.submit_pipeline(
+            meeting_id=meeting_id,
+            meeting_dir=meeting_dir,
+            profile="speaker_rebuild",
+            force=False,
+            resume=body.resume,
+        )
+    except SpeakerOverrideError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "invalid_speaker_override",
+                "message": "Speaker corrections are unavailable",
+            },
+        ) from exc
+    except JobAlreadyRunning as exc:
+        service.mark_speaker_rebuild_not_started(meeting_id)
+        raise _job_error(409, exc) from exc
+    except JobStateUnavailable as exc:
+        service.mark_speaker_rebuild_not_started(meeting_id)
+        raise _job_error(503, exc) from exc
+    return JSONResponse(status_code=202, content=pipeline.as_dict())
 
 
 @router.post("/meetings/{meeting_id}/jobs/pipeline", status_code=202)
@@ -153,7 +249,7 @@ async def start_pipeline(
             force=body.force,
             resume=body.resume,
             stages=body.stages,
-            stage_options={"transcribe": {"asr_engine": body.asr_engine}},
+            stage_options=_pipeline_stage_options(body),
         )
     except JobAlreadyRunning as exc:
         raise _job_error(409, exc) from exc
@@ -199,7 +295,10 @@ async def retry_stage(
         )
     try:
         job = await runner.submit(
-            meeting_id=meeting_id, stage=stage, meeting_dir=meeting_dir
+            meeting_id=meeting_id,
+            stage=stage,
+            meeting_dir=meeting_dir,
+            stage_options=_stage_options(stage, body),
         )
     except JobAlreadyRunning as exc:
         raise _job_error(409, exc) from exc
@@ -239,7 +338,7 @@ async def start_job(
             meeting_id=meeting_id,
             stage=stage,
             meeting_dir=meeting_dir,
-            stage_options={"asr_engine": body.asr_engine} if body and stage == "transcribe" else None,
+            stage_options=_stage_options(stage, body),
         )
     except JobAlreadyRunning as exc:
         raise _job_error(409, exc) from exc

@@ -92,6 +92,35 @@ def test_enrich_meeting_chunks_writes_semantic_metadata(tmp_path: Path) -> None:
     assert meeting["artifacts"]["enriched_chunks"] == "artifacts/enriched_chunks.jsonl"
 
 
+def test_extract_candidates_do_not_promote_entire_chunk() -> None:
+    text = (
+        "Решили использовать единый справочник. "
+        "Спасибо, коллеги. "
+        "Подскажите, экран сейчас видно всем участникам? "
+        "Нам нужно эту встречу записать, подскажите, пожалуйста. "
+        "Нужно подготовить согласованный перечень до пятницы. "
+        "Осталось уточнить владельца процесса."
+    )
+
+    candidates = enrich.extract_candidates(text, "decision", 12.5)
+
+    assert [item["decision"] for item in candidates["decisions"]] == [
+        "Решили использовать единый справочник."
+    ]
+    assert [item["task"] for item in candidates["action_items"]] == [
+        "Нужно подготовить согласованный перечень до пятницы."
+    ]
+    assert [item["question"] for item in candidates["open_questions"]] == [
+        "Осталось уточнить владельца процесса."
+    ]
+
+
+def test_short_conversational_question_is_not_open_question() -> None:
+    candidates = enrich.extract_candidates("Видно экран сейчас?", "open_question", 0.0)
+
+    assert candidates["open_questions"] == []
+
+
 def test_index_meeting_chunks_exports_rag_compatible_rows(tmp_path: Path) -> None:
     meeting_dir = make_chunked_meeting(tmp_path)
     enrich.run(argparse.Namespace(meeting_dir=str(meeting_dir), force=False))

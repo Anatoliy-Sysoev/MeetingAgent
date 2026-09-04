@@ -11,7 +11,11 @@ import datetime
 from pathlib import Path
 from typing import Any
 
-from meeting_agent.meetings.artifact_catalog import ARTIFACT_CATALOG
+from meeting_agent.meetings.artifact_catalog import (
+    ARTIFACT_CATALOG,
+    ARTIFACT_DEFAULT_PATHS,
+    STRUCTURED_INDEX_ARTIFACT_KEYS,
+)
 from meeting_agent.meetings.service import _artifact_map
 
 def _safe_rel_target(meeting_dir: Path, rel: str) -> Path | None:
@@ -79,6 +83,13 @@ def build_artifact_manifest(
 
     rag = card.get("rag")
     indexed = rag.get("indexed_artifacts") if isinstance(rag, dict) else None
+    indexed_set = {
+        str(value) for value in indexed
+    } if isinstance(indexed, list) else set()
+    structured_index_markers = {
+        str(artifacts_map.get(key) or ARTIFACT_DEFAULT_PATHS[key])
+        for key in STRUCTURED_INDEX_ARTIFACT_KEYS
+    }
     entries.append(
         {
             "artifact_key": "index_status",
@@ -86,6 +97,19 @@ def build_artifact_manifest(
             "stage": "index",
             "content_type": "status",
             "exists": bool(indexed),
+            "size_bytes": None,
+            "updated_at": None,
+            "view_url": None,
+            "download_url": None,
+        }
+    )
+    entries.append(
+        {
+            "artifact_key": "structured_index_status",
+            "title": "Structured artifact search index",
+            "stage": "index_artifacts",
+            "content_type": "status",
+            "exists": structured_index_markers.issubset(indexed_set),
             "size_bytes": None,
             "updated_at": None,
             "view_url": None,

@@ -41,8 +41,13 @@ EXPECTED_KEYS = [
     "segments", "transcript_txt", "transcription_report",
     "live_refinement_mic", "live_refinement_sys", "live_diarization_sys",
     "diarization",
-    "speaker_transcript", "chunks", "enriched_chunks", "memo", "protocol",
+    "speaker_transcript",
+    "resolved_speaker_transcript",
+    "resolved_speaker_transcript_txt",
+    "resolved_speaker_transcript_md",
+    "chunks", "enriched_chunks", "memo", "protocol",
     "decisions", "tasks", "risks", "open_questions", "index_status",
+    "structured_index_status",
 ]
 
 
@@ -75,7 +80,10 @@ def test_manifest_covers_all_stages(tmp_path: Path) -> None:
     entries = _by_key(manifest)
     assert list(entries) == EXPECTED_KEYS
     stages = {e["stage"] for e in entries.values()}
-    assert stages == {"transcribe", "diarize", "merge", "chunk", "enrich", "analyze", "index"}
+    assert stages == {
+        "transcribe", "diarize", "merge", "resolve_speakers", "chunk", "enrich", "analyze",
+        "index", "index_artifacts",
+    }
 
 
 def test_missing_artifacts_reported_absent(tmp_path: Path) -> None:
@@ -143,6 +151,25 @@ def test_index_status_from_rag(tmp_path: Path) -> None:
     assert idx["exists"] is True
     assert idx["content_type"] == "status"
     assert idx["view_url"] is None
+
+
+def test_structured_index_status_requires_every_structured_artifact(tmp_path: Path) -> None:
+    indexed = [
+        "artifacts/decisions.json",
+        "artifacts/tasks.json",
+        "artifacts/risks.json",
+        "artifacts/open_questions.json",
+    ]
+    d = _make_meeting(tmp_path, {"rag": {"indexed_artifacts": indexed}})
+    card = json.loads((d / "meeting.json").read_text(encoding="utf-8"))
+    entries = _by_key(build_artifact_manifest(MEETING_ID, d, card))
+
+    assert entries["structured_index_status"]["exists"] is True
+    assert entries["structured_index_status"]["stage"] == "index_artifacts"
+
+    card["rag"]["indexed_artifacts"].pop()
+    entries = _by_key(build_artifact_manifest(MEETING_ID, d, card))
+    assert entries["structured_index_status"]["exists"] is False
 
 
 def test_no_absolute_paths_in_manifest(tmp_path: Path) -> None:
@@ -232,6 +259,9 @@ def test_api_every_view_url_is_servable(tmp_path: Path) -> None:
     _touch(d, "transcript/live/live_diarization.SYS.json", "{}")
     _touch(d, "transcript/diarization.jsonl", '{"s":1}\n')
     _touch(d, "transcript/speaker_transcript.jsonl", '{"s":1}\n')
+    _touch(d, "transcript/resolved_speaker_transcript.jsonl", '{"s":1}\n')
+    _touch(d, "transcript/resolved_speaker_transcript.txt", "speaker: text")
+    _touch(d, "transcript/resolved_speaker_transcript.md", "# Resolved")
     _touch(d, "transcript/chunks.jsonl", '{"c":1}\n')
     _touch(d, "artifacts/enriched_chunks.jsonl", '{"c":1}\n')
     _touch(d, "artifacts/summary.md", "# S")
@@ -243,7 +273,7 @@ def test_api_every_view_url_is_servable(tmp_path: Path) -> None:
     client = _make_client(tmp_path)
     manifest = client.get(f"/meetings/{MEETING_ID}/artifacts/manifest", headers=AUTH).json()
     urls = [e["view_url"] for e in manifest["artifacts"] if e["view_url"]]
-    assert len(urls) == len(EXPECTED_KEYS) - 1  # all except index_status
+    assert len(urls) == len(EXPECTED_KEYS) - 2  # status entries have no files
     for url in urls:
         resp = client.get(url, headers=AUTH)
         assert resp.status_code == 200, f"{url} → {resp.status_code}"

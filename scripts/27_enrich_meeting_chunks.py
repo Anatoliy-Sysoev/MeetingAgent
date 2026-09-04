@@ -10,6 +10,12 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
+from meeting_agent.speakers.rebuild import mark_stage_revision  # noqa: E402
+
 
 SEMANTIC_MARKERS = {
     "decision": ("решили", "решение", "согласовали", "принимаем", "фиксируем", "decision", "agreed"),
@@ -43,6 +49,13 @@ SEMANTIC_MARKERS = {
 }
 ENTITY_RE = re.compile(
     r"\b(?:ФТТ|ПМИ|ЦТА|ПР|AD|LDAP|LDAPS|JWT|OAuth|OIDC|MDR|КШД|СОИ|DOWNSTREAM_SYSTEM|CUSTOMER|PROJECT_SYSTEM|PROJECT_SYSTEM|ППО|СПО)\b",
+    re.IGNORECASE,
+)
+OPERATIONAL_CHATTER_RE = re.compile(
+    r"(?:видно|слышно).{0,24}(?:экран|меня)|"
+    r"(?:экран|документ).{0,24}(?:видно|запуска|вывест)|"
+    r"(?:записать|запись).{0,24}(?:встреч|созвон)|"
+    r"(?:встреч|созвон).{0,24}(?:записать|запись)",
     re.IGNORECASE,
 )
 
@@ -155,12 +168,23 @@ def detect_entities(text: str) -> list[str]:
     return found
 
 
+def _has_marker(text: str, semantic_type: str) -> bool:
+    return any(marker in text for marker in SEMANTIC_MARKERS[semantic_type])
+
+
 def extract_candidates(text: str, semantic_type: str, timestamp: float) -> dict[str, list[dict[str, Any]]]:
+    # ``semantic_type`` describes the whole multi-minute chunk. It must not
+    # promote every sentence in that chunk to the same structured artifact.
+    # Keep it in the signature for compatibility, but classify candidates from
+    # sentence-local evidence only.
+    _ = semantic_type
     result = {"decisions": [], "action_items": [], "risks": [], "open_questions": []}
     for sentence in sentences(text):
         lowered = sentence.lower()
+        if OPERATIONAL_CHATTER_RE.search(lowered):
+            continue
         source_ref = {"timecode_start": timestamp, "note": "heuristic_chunk_enrichment"}
-        if semantic_type == "decision" or any(marker in lowered for marker in SEMANTIC_MARKERS["decision"]):
+        if "?" not in sentence and _has_marker(lowered, "decision"):
             result["decisions"].append(
                 {
                     "title": sentence[:120],
@@ -169,9 +193,9 @@ def extract_candidates(text: str, semantic_type: str, timestamp: float) -> dict[
                     "source_refs": [source_ref],
                 }
             )
-        if semantic_type == "action_item" or any(marker in lowered for marker in SEMANTIC_MARKERS["action_item"]):
+        if len(sentence) >= 24 and _has_marker(lowered, "action_item"):
             result["action_items"].append({"task": sentence, "owner": None, "due_date": None, "confidence": 0.5, "source_refs": [source_ref]})
-        if semantic_type == "risk" or any(marker in lowered for marker in SEMANTIC_MARKERS["risk"]):
+        if _has_marker(lowered, "risk"):
             result["risks"].append(
                 {
                     "title": sentence[:120],
@@ -180,7 +204,9 @@ def extract_candidates(text: str, semantic_type: str, timestamp: float) -> dict[
                     "source_refs": [source_ref],
                 }
             )
-        if semantic_type == "open_question" or "?" in sentence or any(marker in lowered for marker in SEMANTIC_MARKERS["open_question"]):
+        explicit_question = _has_marker(lowered, "open_question")
+        substantial_question = "?" in sentence and len(sentence) >= 32
+        if explicit_question or substantial_question:
             result["open_questions"].append({"question": sentence, "confidence": 0.5, "source_refs": [source_ref]})
     return result
 
@@ -219,6 +245,7 @@ def update_meeting(meeting: dict[str, Any]) -> None:
     meeting["artifacts"] = artifacts
     meeting["updated_at"] = now_iso()
     meeting.pop("last_error", None)
+    mark_stage_revision(meeting, "enrich")
 
 
 def mark_failed(meeting_path: Path, meeting: dict[str, Any], exc: BaseException, stage: str) -> None:

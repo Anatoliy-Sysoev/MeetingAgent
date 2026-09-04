@@ -21,7 +21,6 @@ from asu_june_bot.auth.service import AdminService, LocalAuthService  # noqa: E4
 from asu_june_bot.auth.throttle import LoginThrottle  # noqa: E402
 from asu_june_bot.jobs.runner import (  # noqa: E402
     STAGE_COMMANDS,
-    STAGE_METADATA,
     JobRunner,
     stage_catalog,
 )
@@ -122,10 +121,12 @@ EXPECTED_STAGES_ORDERED = [
     "transcribe",
     "diarize",
     "merge",
+    "resolve_speakers",
     "chunk",
     "enrich",
     "index",
     "analyze",
+    "index_artifacts",
 ]
 
 
@@ -435,7 +436,7 @@ def _write_enriched_chunks(meeting_dir: Path, chunks: list[dict]) -> None:
 
 
 def _run_index_script(meeting_dir: Path, output_path: Path) -> None:
-    import importlib.util, sys as _sys
+    import importlib.util
     spec = importlib.util.spec_from_file_location(
         "idx28", ROOT / "scripts" / "28_index_meeting_chunks.py"
     )
@@ -593,6 +594,10 @@ def test_transcribe_launch_command_carries_product_model(
     args = real_calls[0]
     assert "--model" in args
     assert "large-v3-turbo" in args
+    assert "--progress-path" in args
+    progress_path = Path(args[args.index("--progress-path") + 1]).resolve()
+    progress_path.relative_to((tmp_path / MEETING_ID).resolve())
+    assert progress_path.name == f"{resp.json()['job_id']}.json"
 
 
 def test_transcribe_dry_run_preflight_still_works(
@@ -732,10 +737,35 @@ def test_preflight_error_does_not_include_tmp_path(
     _make_meeting(tmp_path)
     client, _, _ = _make_client(tmp_path)
 
-    for stage in ("chunk", "enrich", "index", "analyze"):
+    for stage in ("chunk", "enrich", "index", "analyze", "index_artifacts"):
         resp = client.post(f"/meetings/{MEETING_ID}/jobs/{stage}", headers=AUTH)
         assert resp.status_code == 422, f"{stage} should fail preflight"
         assert str(tmp_path) not in resp.text, f"{stage} response leaks tmp_path"
+
+
+def test_index_artifacts_rejects_traversal_artifact_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    card = dict(VALID_CARD)
+    card["artifacts"] = {
+        "decisions": "../../private/decisions.json",
+        "tasks": "artifacts/tasks.json",
+        "risks": "artifacts/risks.json",
+        "open_questions": "artifacts/open_questions.json",
+    }
+    _make_meeting(tmp_path, card)
+    meeting_dir = tmp_path / MEETING_ID
+    for name in ("tasks", "risks", "open_questions"):
+        target = meeting_dir / "artifacts" / f"{name}.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text('{"items": []}', encoding="utf-8")
+    client, _, _ = _make_client(tmp_path)
+
+    resp = client.post(f"/meetings/{MEETING_ID}/jobs/index_artifacts", headers=AUTH)
+
+    assert resp.status_code == 422
+    assert "private" not in resp.text
 
 
 def test_job_status_api_redacts_absolute_stderr_path(tmp_path: Path) -> None:

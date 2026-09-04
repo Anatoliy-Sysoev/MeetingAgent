@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from fastapi import Request
@@ -19,6 +19,10 @@ from meeting_agent.auth.service import (
 from meeting_agent.auth.throttle import LoginLimiter, build_login_throttle
 from meeting_agent.auth.trusted_proxy import load_trusted_proxy_cidrs
 from meeting_agent.jobs.runner import JobRunner
+from meeting_agent.jobs.runtimes import (
+    build_diarization_models_dir,
+    build_worker_runtime_registry,
+)
 from meeting_agent.jobs.store import JobStore
 from meeting_agent.live_sessions import LiveSessionService, LiveSessionStore
 from meeting_agent.live_transcription.diart_client import DiartHttpClient
@@ -83,7 +87,12 @@ def live_settings(config: dict[str, Any]) -> dict[str, Any]:
         return float(value)
 
     vad = raw.get("vad", "silero")
-    model_path = raw.get("model_path", "models/vosk/vosk-model-small-ru-0.22")
+    configured_model_path = raw.get(
+        "model_path", "models/vosk/vosk-model-small-ru-0.22"
+    )
+    model_path = os.environ.get(
+        "MEETINGAGENT_LIVE_MODEL_PATH", configured_model_path
+    )
     if not isinstance(vad, str) or not vad:
         raise ValueError("Invalid live.vad: expected a non-empty string")
     if not isinstance(model_path, str) or not model_path:
@@ -137,12 +146,18 @@ def build_core_app_state(config: dict[str, Any] | None = None) -> CoreAppState:
     chat_base_url = str(ollama_cfg.get("chat_base_url") or "http://127.0.0.1:11434/v1")
     chat_model = str(ollama_cfg.get("chat_model") or "qwen3.5:4b")
     paths = config.get("paths") if isinstance(config.get("paths"), dict) else {}
-    meetings_root = paths.get("meetings_root") or "meetings"
+    meetings_root = resolve_work_path(
+        config,
+        paths.get("meetings_root") or "meetings",
+    )
     jobs_state_path = resolve_work_path(
         config,
         paths.get("jobs_state") or "logs/jobs_state.json",
     )
-    auth_db_path = Path(paths.get("auth_db") or DEFAULT_DB_PATH)
+    auth_db_path = resolve_work_path(
+        config,
+        paths.get("auth_db") or DEFAULT_DB_PATH,
+    )
     auth_repository = AuthRepository(auth_db_path)
     auth_repository.initialize()
     auth_cfg = config.get("auth") if isinstance(config.get("auth"), dict) else {}
@@ -157,6 +172,11 @@ def build_core_app_state(config: dict[str, Any] | None = None) -> CoreAppState:
         meetings_root=meetings_root,
         max_text_artifact_bytes=parse_max_text_artifact_bytes(config),
         max_upload_bytes=parse_max_upload_bytes(config),
+        speaker_directory_path=resolve_work_path(
+            config,
+            paths.get("speaker_directory")
+            or "data/meetingagent/speaker_directory.json",
+        ),
     )
     live_cfg = live_settings(config)
     live_state_path = resolve_work_path(
@@ -193,6 +213,8 @@ def build_core_app_state(config: dict[str, Any] | None = None) -> CoreAppState:
         store=job_store,
         coordinator=coordinator,
         meetings_root=meetings_root,
+        worker_runtimes=build_worker_runtime_registry(config),
+        diarization_models_dir=build_diarization_models_dir(config),
     )
     live_session_service = LiveSessionService(
         meetings_root=meetings_service.root,

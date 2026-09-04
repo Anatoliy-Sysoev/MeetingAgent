@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -48,6 +49,22 @@ def validate_model_paths(config: SherpaDiarizationConfig) -> None:
         raise SherpaDiarizationError(f"Missing diarization model file(s): {joined}")
 
 
+def validate_native_model_paths(
+    config: SherpaDiarizationConfig,
+    *,
+    platform_name: str | None = None,
+) -> None:
+    validate_model_paths(config)
+    if (platform_name or os.name) == "nt" and any(
+        not str(path).isascii()
+        for path in (config.segmentation_model, config.embedding_model)
+    ):
+        raise SherpaDiarizationError(
+            "Native Windows sherpa-onnx requires an ASCII-only model path. "
+            "Configure diarization.models_dir outside the user-profile path."
+        )
+
+
 def validate_runtime_dependencies() -> None:
     """Validate optional sherpa-onnx diarization runtime dependencies.
 
@@ -82,8 +99,8 @@ def _import_runtime():
     return np, sherpa_onnx, sf
 
 
-def build_diarizer(config: SherpaDiarizationConfig):
-    validate_model_paths(config)
+def build_runtime_config(config: SherpaDiarizationConfig):
+    validate_native_model_paths(config)
     _, sherpa_onnx, _ = _import_runtime()
 
     clustering_kwargs: dict[str, Any] = {"threshold": config.cluster_threshold}
@@ -106,6 +123,15 @@ def build_diarizer(config: SherpaDiarizationConfig):
     )
     if not sd_config.validate():
         raise SherpaDiarizationError("Invalid sherpa-onnx diarization config.")
+    return sherpa_onnx, sd_config
+
+
+def validate_runtime_config(config: SherpaDiarizationConfig) -> None:
+    build_runtime_config(config)
+
+
+def build_diarizer(config: SherpaDiarizationConfig):
+    sherpa_onnx, sd_config = build_runtime_config(config)
     return sherpa_onnx.OfflineSpeakerDiarization(sd_config)
 
 

@@ -43,8 +43,8 @@ ASSET_NAMES = (
 )
 ASSET_PATHS = (
     *(f"/assets/v1/{name}" for name in ("bot.css", "bot.js", "admin.css", "admin.js")),
-    *(f"/assets/v2/{name}" for name in ("meetingagent.css", "meetingagent.js")),
-    *(f"/assets/v4/{name}" for name in ("workspace.css", "workspace.js")),
+    *(f"/assets/v3/{name}" for name in ("meetingagent.css", "meetingagent.js")),
+    *(f"/assets/v5/{name}" for name in ("workspace.css", "workspace.js")),
 )
 
 
@@ -105,8 +105,14 @@ def test_product_page_contains_only_external_scripts_and_styles(
     assert not re.search(r"<script(?![^>]*\ssrc=)[^>]*>", html, re.IGNORECASE)
     assert not re.search(r"\sstyle\s*=", html, re.IGNORECASE)
     assert not re.search(r"\son[a-z]+\s*=", html, re.IGNORECASE)
-    assert re.search(r'<link[^>]+href="/assets/v[1234]/[^\"]+\.css"', html)
-    assert re.search(r'<script[^>]+src="/assets/v[1234]/[^\"]+\.js"[^>]*></script>', html)
+    assert re.search(
+        r'<link[^>]+href="/assets/v[12345]/[^\"]+\.css(?:\?rev=[a-zA-Z0-9._-]+)?"',
+        html,
+    )
+    assert re.search(
+        r'<script[^>]+src="/assets/v[12345]/[^\"]+\.js(?:\?rev=[a-zA-Z0-9._-]+)?"[^>]*></script>',
+        html,
+    )
 
 
 @pytest.mark.parametrize("path", ASSET_PATHS)
@@ -128,6 +134,8 @@ def test_unknown_asset_is_not_servable(client: TestClient) -> None:
     response = client.get("/assets/v3/not-allowlisted.js")
     assert response.status_code == 404
     response = client.get("/assets/v4/not-allowlisted.js")
+    assert response.status_code == 404
+    response = client.get("/assets/v5/not-allowlisted.js")
     assert response.status_code == 404
 
 
@@ -192,4 +200,6 @@ def test_ui_templates_and_assets_are_declared_as_wheel_package_data() -> None:
         "ui/assets/v3/*.js",
         "ui/assets/v4/*.css",
         "ui/assets/v4/*.js",
+        "ui/assets/v5/*.css",
+        "ui/assets/v5/*.js",
     }

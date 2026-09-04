@@ -1,0 +1,606 @@
+# MeetingAgent
+
+[English](README.md) | [Русский](README.ru.md)
+
+Local-first open-source meeting intelligence and project memory tool.
+
+MeetingAgent helps teams turn project documents, meeting recordings, and transcripts into searchable, source-grounded work artifacts: answers with citations, summaries, protocols, decisions, action items, risks, and open questions.
+
+## Why It Matters
+
+Project teams lose requirements, decisions, risks, and action items across calls, chats, shared folders, and evolving documents. MeetingAgent makes that project memory local, searchable, auditable, and reproducible.
+
+The project is intentionally local-first: private documents, transcripts, runtime indexes, and generated artifacts stay on the user's machine unless a workflow explicitly opts into an external model provider.
+
+## Core Capabilities
+
+- Local document ingestion and text extraction.
+- RAG index over project documentation.
+- Project-only search and chat with citations.
+- Source-quality gates and guarded out-of-scope handling.
+- Meeting ingestion, transcription, chunking, and artifact generation.
+- Meeting Workspace UI with media, transcript, artifacts, jobs, readiness, and meeting-scoped Q&A.
+- One-click meeting pipeline profiles for transcript-only, Q&A-ready, default, and full processing.
+- Meeting memo/protocol generation.
+- Decision, action item, risk, and open-question extraction.
+- Local FastAPI API, Web UI, and Telegram adapter.
+- Evaluation datasets, regression tests, and quality reports.
+- Docker packaging for the local API/bot runtime.
+
+## Repository Layout
+
+```text
+MeetingAgent/
+  scripts/                  CLI entrypoints and automation scripts
+  src/                      Python packages
+  tests/                    Unit and regression tests
+  docs/                     Architecture, context, decisions, quality docs
+  eval/                     Evaluation cases and golden answers
+  examples/                 Public synthetic examples
+  meetings/                 Local meeting cards, not for private data publication
+  data/                     Runtime outputs, ignored by Git except placeholders/docs
+```
+
+## Main Runtime Areas
+
+### MeetingAgent Core
+
+The core pipeline handles local project documents and meeting artifacts:
+
+```text
+documents / audio / video
+  -> extraction / transcription
+  -> chunking
+  -> indexing
+  -> source-grounded search/chat
+  -> summaries, protocols, decisions, tasks, risks
+```
+
+### Project Knowledge Bot
+
+`Project Knowledge Bot` is a reference implementation of a project-only assistant over a private project corpus. It provides:
+
+- `POST /search` for evidence/context retrieval;
+- `POST /chat` for grounded answers with citations;
+- local Web UI;
+- Telegram adapter;
+- guardrails for out-of-project, mixed-scope, and unsafe requests;
+- quality evaluation and regression workflows.
+
+Detailed documentation:
+
+- [Project Knowledge Bot](docs/project_knowledge_bot.md)
+
+### Package Status
+
+`src/meeting_agent/` is the independently startable core: API/UI, auth,
+meetings, durable jobs, live sessions, transcription, diarization, evaluation,
+and shared infrastructure. `src/asu_june_bot/` is the optional Project
+Knowledge Bot layer. Its integrated app adds `/search`, `/chat`, review and bot
+UI routes to the core; legacy moved imports remain deprecated compatibility
+aliases during the migration window.
+
+Empty placeholder apps, templates, and package scaffolds have been removed.
+Legacy `scripts/01_*` ... `scripts/18_*` remain only for compatibility and emit
+a migration warning when run. The complete machine-checked ownership inventory
+is `configs/runtime_inventory.yaml`; see
+[Runtime Ownership](docs/en/runtime_ownership.md).
+
+## Public Examples
+
+Synthetic examples are available for a safe first look at the meeting artifact format:
+
+- [Synthetic meeting dataset](examples/meeting_dataset/README.md)
+- [Sample transcript](examples/en/sample_transcript.md)
+- [Sample protocol](examples/en/sample_protocol.md)
+- [Sample summary](examples/en/sample_summary.md)
+- [Sample action items](examples/en/sample_action_items.json)
+
+These examples do not contain private project data.
+
+## Quickstart
+
+### 1. Install Dependencies
+
+```powershell
+git clone https://github.com/Anatoliy-Sysoev/MeetingAgent.git
+cd MeetingAgent
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -c constraints-py312.txt `
+  -r requirements.txt -r requirements-transcription.txt
+```
+
+### 2. Configure Local Runtime
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Edit `.env` and set `MEETINGAGENT_API_TOKEN` to a strong random secret before starting the API. Do not commit `.env`, tokens, private corpora, meeting files, logs, or local indexes.
+
+For local Ollama workflows, install required models:
+
+```powershell
+ollama pull bge-m3
+ollama pull qwen3.5:4b
+```
+
+On Windows, use a single ASCII Ollama model store before running Docker/API workflows:
+
+```powershell
+.\scripts\start_ollama_local.ps1 -Restart
+```
+
+See [Ollama local runtime](docs/operations/OLLAMA_LOCAL_RUNTIME.md).
+
+Optional real-time speaker diarization is packaged as an isolated CPU-only
+Diart pilot. It is not installed into the core image; see
+[Diart live diarization](docs/operations/DIART_LIVE_DIARIZATION.md).
+
+After accepting the gated pyannote model terms and adding `HF_TOKEN` to the
+local ignored `.env`, start the optional localhost sidecar:
+
+```powershell
+docker compose --profile diart-live up -d diart-api
+```
+
+Set `live.diarization.enabled: true` in local `config.yaml`, then start Core as
+usual. The first product slice labels finalized SYS live segments after Stop;
+offline sherpa diarization remains canonical.
+
+### 3. Run MeetingAgent Core Or The Integrated Runtime
+
+MeetingAgent Core with live MIC/SYS support on Windows (recommended):
+
+```powershell
+.\scripts\start_meeting_agent_local.ps1
+```
+
+The launcher selects a verified Python 3.12 live environment, validates the
+Vosk model and required audio dependencies, and refuses to start a duplicate
+or incomplete service. Use `-CheckOnly` for preflight and `-Background` for a
+hidden local process. Override machine-specific locations only in local env:
+`MEETINGAGENT_LIVE_PYTHON` and `MEETINGAGENT_LIVE_MODEL_PATH`.
+
+Core-only development without live device capture:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\meeting_agent_api.py --host 127.0.0.1 --port 8000
+```
+
+Integrated MeetingAgent + Project Knowledge Bot:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_api.py --host 127.0.0.1 --port 8000
+```
+
+Choose one API entrypoint per local state directory. Do not run Core and the
+integrated API concurrently against the same `data/`, `logs/`, or `meetings/`
+paths.
+
+Health check:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health
+```
+
+Open the local UI:
+
+```text
+http://127.0.0.1:8000/MeetingAgent
+http://127.0.0.1:8000/
+http://127.0.0.1:8000/ui
+```
+
+The built-in web UI supports local login, displays the current auth state, obtains CSRF tokens through `GET /auth/csrf`, and sends authenticated requests from the browser. `/MeetingAgent` is the table-first meeting registry; `/MeetingAgent/new` creates offline or live meetings and `/MeetingAgent/processing` monitors the active local job. The Project Knowledge Bot remains a separate `/ui` surface. Administrators with `users.manage` can open `http://127.0.0.1:8000/admin` after login to manage bounded user pages, roles and account status and to review redacted deployment/bootstrap safety. Product pages use packaged versioned assets and a restrictive self-only Content Security Policy without inline scripts or styles. See [API and Auth Setup](docs/en/API_AUTH_SETUP.md).
+
+### 4. Ask A CLI Question
+
+```powershell
+.\.venv\Scripts\python.exe scripts\asu_june_bot_chat.py `
+  "What project integrations are described?" `
+  --mode hybrid `
+  --top-k 5 `
+  --model qwen3.5:4b
+```
+
+### 5. Run Telegram Adapter
+
+```powershell
+.\scripts\asu_june_bot_start_telegram.ps1
+```
+
+Keep both `ASU_JUNE_BOT_TELEGRAM_TOKEN` and the Chat API Bearer token
+`MEETINGAGENT_API_TOKEN` in local `.env` only. Configure
+`ASU_JUNE_BOT_ALLOWED_CHAT_IDS`; the adapter denies all chats by default.
+See [Project Knowledge Bot](docs/project_knowledge_bot.md).
+
+## Meeting Processing
+
+The meeting pipeline is designed around meeting cards:
+
+```text
+meetings/<meeting_id>/
+  meeting.json
+  source/
+  transcript/
+  chunks/
+  artifacts/
+  logs/
+```
+
+Important entrypoints:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\20_ingest_meeting.py --file "<path>" --title "<title>"
+.\.venv\Scripts\python.exe scripts\21_extract_audio.py --meeting-dir "<meeting-dir>"
+.\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py --meeting-dir "<meeting-dir>" --engine faster-whisper --model large-v3-turbo --language ru --compute-type int8
+.\.venv\Scripts\python.exe scripts\23_diarize_meeting.py --meeting-dir "<meeting-dir>" --dry-run
+.\.venv\Scripts\python.exe scripts\24_merge_transcript_speakers.py --meeting-dir "<meeting-dir>"
+.\.venv\Scripts\python.exe scripts\26_chunk_meeting.py --meeting-dir "<meeting-dir>"
+.\.venv\Scripts\python.exe scripts\27_enrich_meeting_chunks.py --meeting-dir "<meeting-dir>"
+.\.venv\Scripts\python.exe scripts\28_index_meeting_chunks.py --meeting-dir "<meeting-dir>"
+.\.venv\Scripts\python.exe scripts\29_analyze_meeting.py --meeting-dir "<meeting-dir>"
+```
+
+For UI/API-launched offline processing, heavy stages can use separate local
+Python environments while the API keeps the live-capture environment that owns
+the audio devices. Configure machine-specific interpreter paths only in the
+ignored `config.yaml`:
+
+```yaml
+jobs:
+  runtimes:
+    default: "C:/ma-live/Scripts/python.exe"
+    transcription: "C:/ma-asr/Scripts/python.exe"
+    gigaam: "C:/ma-gigaam/Scripts/python.exe"
+    diarization: "C:/ma-diarization/Scripts/python.exe"
+```
+
+The equivalent environment variables are documented in `.env.example`.
+Unset values preserve the backward-compatible single-environment behavior.
+Runtime paths are never returned by the API. Pipeline readiness reports the
+path-free `worker_runtime_missing` reason, and a rejected child dry-run retains
+only a bounded redacted stderr tail and exit code. Live MIC/SYS capture remains
+in the API Python process by design; run the API from the live environment.
+
+Speaker diarization is optional and uses an isolated `sherpa-onnx` path by default. Install optional dependencies from `requirements-diarization.txt` and keep downloaded ONNX models under ignored `models/diarization/`.
+
+Runtime meeting outputs may contain private data and should not be committed.
+
+For a reproducible public transcript-to-protocol run, see [Transcript to protocol quickstart](docs/operations/TRANSCRIPT_TO_PROTOCOL_QUICKSTART.md).
+
+### Meeting Workspace
+
+Processed or partially processed meetings can be reviewed in the browser:
+
+```text
+http://127.0.0.1:8000/meetings/<meeting_id>/workspace
+```
+
+The workspace includes:
+
+- media player and clickable transcript;
+- artifact viewer;
+- pipeline stage controls and readiness map;
+- one-click pipeline profiles through `POST /meetings/{id}/jobs/pipeline`;
+- live MIC/SYS draft controls with source preflight, partial/final rows, elapsed
+  time, capture warnings, one derived chronological Conversation view and
+  explicit offline refinement into the canonical transcript;
+- meeting-scoped search and Q&A with vector retrieval fallback, timestamps, speaker labels, and source citations.
+
+The table-first registry, explicit creation/processing routes and tabbed
+Workspace are implemented as UI v2. Live-only cards, live/offline coordination,
+a derived MIC+SYS transcript timeline and source-scoped offline refinement are
+available in the browser. The approved interaction model and API/state matrix
+are documented in the [UI interaction model](docs/en/ui_interaction_model.md).
+Remaining product work is concentrated in deeper administration and the later
+standalone Project Knowledge Bot package split.
+
+### Live Transcription
+
+Live transcription is an optional draft workflow. The first supported backend is local Vosk; it writes source-scoped draft live artifacts into `transcript/live/` and does not replace the canonical offline transcript from `scripts/22_transcribe_meeting.py`.
+
+Real MIC and SYS capture also retains the full pre-VAD canonical stream as
+`source/live_audio.<SOURCE>.wav` (PCM16 mono 16 kHz). The WAV is written through
+a bounded temporary file and published atomically after graceful finalization.
+It is registered in `source.media_files` and `rag.no_index_artifacts`, so it can
+feed offline ASR without becoming RAG evidence. The default 2 GB payload cap
+and 256 MiB free-space reserve are configurable as
+`live.audio_archive_max_bytes` and `live.audio_archive_min_free_bytes`.
+
+After a live session stops, the Workspace can explicitly refine either retained
+MIC or SYS track with faster-whisper `large-v3-turbo` or GigaAM. The live draft
+remains unchanged and no-indexed; canonical transcript exports are written by
+the normal offline ASR entrypoint. A source-scoped safe comparison report under
+`transcript/live/refinement.<SOURCE>.json` records engines, models, timings and
+count deltas without source text or local paths. Failed runs can be resumed;
+replacing an existing final transcript requires explicit confirmation.
+
+Install optional live dependencies:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install `
+  -c constraints-py312.txt `
+  -c constraints-live-py312-windows.txt `
+  -r requirements.txt `
+  -r requirements-live.txt
+.\.venv\Scripts\python.exe -m pip check
+```
+
+Linux uses `constraints-live-py312-linux.txt`. Both platform locks select the
+official PyTorch CPU index and keep Torch/Silero outside the core install and
+base Docker image. On Windows, use a short Python 3.12 environment path such as
+`C:\ma-live` when long-path support is disabled; Torch can otherwise fail to
+unpack with `WinError 206` before sounddevice is installed. Start the API
+through the verified launcher so device discovery is available to the
+Workspace and an incomplete core-only environment cannot be selected:
+
+```powershell
+.\scripts\start_meeting_agent_local.ps1
+.\scripts\start_meeting_agent_local.ps1 -CheckOnly
+```
+
+Keep Vosk models in an ignored ASCII-only path on Windows, for example:
+
+```text
+C:/ma-models/vosk-model-small-ru-0.22/
+```
+
+The native Windows Vosk runtime cannot reliably load a model from a path with
+non-ASCII characters. Preflight rejects that path before capture starts and
+does not expose the configured path through the API.
+
+API preflight checks the minimum Vosk layout (`am/final.mdl`,
+`conf/model.conf`, and a supported graph FST), not only the directory name.
+
+Dry-run:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --meeting-dir "<meeting-dir>" `
+  --engine vosk `
+  --model-path models\vosk\vosk-model-small-ru-0.22 `
+  --source MIC `
+  --dry-run
+```
+
+List local devices and the effective MIC/SYS/MIX readiness without opening an
+audio stream:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py --list-audio-sources
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --preflight-source --source MIC
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --preflight-source --source SYS
+```
+
+`--preflight-source` exits with code `0` only when the current backend can run
+the source and with code `2` when it is blocked. The JSON result separates
+`device_available` from `capture_supported`. MIC uses `sounddevice`. On Windows,
+SYS uses a real PyAudioWPatch WASAPI loopback input and stateful SoXR conversion
+from the device's native stereo 44.1/48 kHz PCM to canonical mono 16 kHz PCM.
+Device indexes are source-specific; use the index shown under the selected
+source in `--list-audio-sources`. Hardware `MIX` capture remains blocked and no
+source silently falls back to the microphone. Instead, final MIC/SYS segments
+are aligned by their source-session `started_at` values into an atomic derived
+`live_segments.MIX.jsonl`. The source WAVs and source transcripts remain the
+provenance records and are never blended or rewritten.
+
+Windows system-audio capture:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --meeting-dir "<meeting-dir>" `
+  --engine vosk `
+  --model-path models\vosk\vosk-model-small-ru-0.22 `
+  --source SYS `
+  --audio-device-index <sys-loopback-index> `
+  --vad silero
+```
+
+`--vad silero` is optional for both MIC and SYS capture. Streaming Silero uses
+512-frame windows and keeps a mapping from Vosk's accepted-audio timeline back
+to original capture frames, so filtered silence does not compress transcript
+timestamps. The live report includes accepted/filtered frame counts, filtered
+seconds, speech-window count, dropped-short-speech count, and VAD warnings.
+
+MIC capture uses a bounded callback queue (`--mic-queue-max-blocks`, default
+`32`). The PortAudio callback never waits for recognition. On overflow the
+oldest queued block is dropped and the newest is retained; the consumer inserts
+equivalent silence so later transcript timestamps stay aligned with capture
+wall-clock time. `live_report.MIC.json` records queue capacity/peak, dropped
+blocks/frames/seconds, filled gaps, and the `mic_audio_dropped` warning.
+
+Deterministic smoke from a prepared mono 16 kHz WAV:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\33_live_transcribe_meeting.py `
+  --meeting-dir "<meeting-dir>" `
+  --engine vosk `
+  --model-path models\vosk\vosk-model-small-ru-0.22 `
+  --input-wav "<meeting-dir>\source\audio_16k_mono.wav" `
+  --source MIX `
+  --vad silero `
+  --duration-sec 30 `
+  --force
+```
+
+For live microphone and system-audio sessions, `Ctrl+C` is treated as a graceful
+stop: accumulated segments are finalized and written. Live draft completion
+leaves `processing_status=processing`, so final offline ASR can still run
+afterwards. Windows SYS capture polls `get_read_available()` and reads only
+frames that PortAudio reports as non-blocking. Idle intervals are represented as
+zero PCM on the native-rate wall clock, so bounded runs and Ctrl+C do not wait
+inside a native blocking read and later timestamps remain aligned.
+
+Prepared `--input-wav` smoke runs may use MIC, SYS, or MIX labels because they do
+not start hardware capture. Every live result remains a draft and must be
+refined by canonical offline ASR before final meeting artifacts are generated.
+
+To select one retained source explicitly for a manual canonical pass:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\22_transcribe_meeting.py `
+  --meeting-dir "<meeting-dir>" `
+  --engine faster-whisper `
+  --model large-v3-turbo `
+  --media-path "source/live_audio.MIC.wav" `
+  --live-refinement-source MIC
+```
+
+`--media-path` accepts only an existing relative path already registered under
+`source.media_files`; absolute, traversal and unregistered paths fail closed.
+
+Authenticated live sessions are also available through the local API:
+
+```text
+POST /meetings/live
+GET  /meetings/{meeting_id}/live/preflight
+GET  /meetings/{meeting_id}/live/timeline
+GET  /meetings/{meeting_id}/live/refinement
+POST /meetings/{meeting_id}/live/refinement
+GET  /meetings/{meeting_id}/live/sessions/active
+POST /meetings/{meeting_id}/live/sessions
+GET  /meetings/{meeting_id}/live/sessions/{session_id}
+GET  /meetings/{meeting_id}/live/sessions/{session_id}/events
+POST /meetings/{meeting_id}/live/sessions/{session_id}/stop
+```
+
+`POST /meetings/live` creates a schema-valid live-only card from a bounded
+title, language and optional date. Cookie callers require `meetings.upload` and
+the session CSRF token. The card has `source.kind=live_session` and no invented
+media or index rows; a source-scoped WAV is registered only after successful
+MIC/SYS capture. In `/MeetingAgent`, use **Create live meeting** to create the
+card and open its Workspace directly.
+
+The same lifecycle is available in the meeting Workspace. Open
+`/meetings/<meeting_id>/workspace`, then use the **Live transcription** panel.
+MIC and SYS are separate tracks with separate device selectors, partial preview,
+final rows, elapsed time and health warnings. The **Conversation** view combines
+only final rows into a bounded chronological draft while retaining the `MIC` or
+`SYS` badge and origin segment id. It refreshes from the authenticated,
+path-free `/live/timeline` API after either source completes. The UI never
+labels one source as the other and does not allow an offline pipeline job and
+live capture to be started at the same time. The API enforces the same rule for
+browser, bearer
+token and concurrent machine clients: one cross-process lock atomically checks
+the opposing durable state and reserves the winning operation. `MIC` and `SYS`
+may still run together within `live.active_sessions_max`. Conflicts return a
+bounded `409` with `live_session_active` or `offline_job_active`; readiness and
+live preflight expose the same reason. Replacing an existing draft is an
+explicit opt-in.
+Native controls, status regions and keyboard focus remain usable without inline
+handlers or browser storage.
+
+Read operations require `jobs.read`. Start and stop require `jobs.start` and
+`jobs.cancel`; cookie-authenticated browser writes also require the session
+CSRF token. Event polling is bounded to 200 rows per request. Final transcript
+and status events are kept in an atomic bounded snapshot, while high-frequency
+partial hypotheses remain memory-only and are explicitly reported as
+non-durable. A restart marks an unfinished session `stale` and leaves a
+path-free `api_restart` marker on the meeting card.
+
+The live-session state file has one process owner. Running multiple API workers
+against the same `paths.live_sessions_state` fails closed instead of allowing
+duplicate capture. The current deployment contract is therefore one API worker
+per local runtime. `live.active_sessions_max` defaults to `2`, which permits a
+MIC and SYS pair but bounds concurrent Vosk model/CPU use. WebSocket transport
+is not required by the v1 browser surface; it uses bounded cursor polling and
+keeps only the newest 250 final rows per source and 500 combined Conversation
+rows in the DOM. Every MIC/SYS/MIX live artifact remains permanently in
+`rag.no_index_artifacts`; only canonical offline ASR output can become evidence.
+
+## Docker
+
+The Docker setup packages the integrated local API, an optional independent
+MeetingAgent Core profile, the optional Telegram adapter, and an optional
+diarization/meeting-processing profile. GigaAM is intentionally not included in
+the main image; use its reviewed isolated Python 3.12 environment from the
+[GigaAM runbook](docs/operations/GIGAAM_TRANSCRIPTION.md).
+
+```powershell
+Copy-Item .env.example .env
+docker compose build api
+docker compose up api
+docker compose --profile core up --build core
+```
+
+Optional diarization image:
+
+```powershell
+docker compose --profile diarization build diarization
+```
+
+See [Docker documentation](docs/docker.md).
+For a repeatable local machine setup, run preflight first and follow
+[Local Packaging Runbook](docs/operations/LOCAL_PACKAGING.md).
+
+## Authentication
+
+The API uses a machine Bearer token (`MEETINGAGENT_API_TOKEN`) for script and service-to-service access, and optional local cookie sessions for browser use.
+
+See [API and Auth Setup](docs/en/API_AUTH_SETUP.md) for the full reference: token setup, RBAC, CSRF, all endpoints, error codes, reverse proxy, and secure storage.
+
+## Documentation
+
+- [Russian README](README.ru.md)
+- [API and Auth Setup](docs/en/API_AUTH_SETUP.md)
+- [Security policy](SECURITY.md)
+- [Contributing guide](CONTRIBUTING.md)
+- [Architecture index](docs/architecture/ARCHITECTURE.md)
+- [Release process](docs/operations/RELEASE_PROCESS.md)
+- [Documentation parity](docs/en/documentation_parity.md)
+- [GitHub Pages documentation site](docs/index.md)
+- [Current project context](docs/context.md)
+- [Decisions](docs/decisions.md)
+- [TODO](docs/todo.md)
+- [Translation policy](docs/translation_policy.md)
+
+Public bilingual documentation is being organized under:
+
+```text
+docs/en/
+docs/ru/
+```
+
+## Examples
+
+Synthetic public examples:
+
+- [Sample transcript](examples/en/sample_transcript.md)
+- [Sample protocol](examples/en/sample_protocol.md)
+- [Sample summary](examples/en/sample_summary.md)
+- [Sample action items](examples/en/sample_action_items.json)
+
+Do not publish real customer transcripts or private project documents as examples.
+
+## Tests
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -c constraints-py312.txt -r requirements-dev.txt
+.\.venv\Scripts\python.exe scripts\46_ci_verify.py
+```
+
+Some tests and smoke checks require local runtime data or local model services. Use synthetic data for public reproduction whenever possible.
+
+## Security
+
+MeetingAgent can touch sensitive local files, transcripts, indexes, and model provider credentials. Read [SECURITY.md](SECURITY.md) before contributing to ingestion, model integrations, API routes, exports, Telegram, Docker, or guardrail logic.
+
+## Contributing
+
+Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Before opening a PR:
+
+- keep the change focused;
+- run relevant checks;
+- update docs;
+- do not commit secrets or runtime data;
+- include security notes when data handling changes.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

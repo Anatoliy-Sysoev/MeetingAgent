@@ -17,6 +17,15 @@ from pathlib import Path
 from typing import Any
 
 from meeting_agent.jobs.runner import STAGE_COMMANDS, STAGE_METADATA
+from meeting_agent.meetings.artifact_catalog import (
+    ARTIFACT_DEFAULT_PATHS,
+    CHUNK_INDEX_MARKERS,
+    STRUCTURED_INDEX_ARTIFACT_KEYS,
+)
+from meeting_agent.speakers.rebuild import (
+    stage_prerequisites_are_current,
+    stage_revision_is_current,
+)
 
 # Relative output markers proving a stage has already completed.
 # Sources: scripts/21–29 output contracts (see each script's artifacts update).
@@ -25,6 +34,7 @@ _DONE_MARKERS: dict[str, str] = {
     "transcribe": "transcript/segments.jsonl",
     "diarize": "transcript/diarization.jsonl",
     "merge": "transcript/speaker_transcript.jsonl",
+    "resolve_speakers": "transcript/resolved_speaker_transcript.jsonl",
     "chunk": "transcript/chunks.jsonl",
     "enrich": "artifacts/enriched_chunks.jsonl",
     "analyze": "artifacts/summary.md",
@@ -37,10 +47,12 @@ _BLOCK_TOKENS: dict[str, str] = {
     "transcribe": "audio_missing",
     "diarize": "audio_missing",
     "merge": "transcript_missing",
+    "resolve_speakers": "merged_transcript_missing",
     "chunk": "merged_transcript_missing",
     "enrich": "chunks_missing",
     "index": "enriched_chunks_missing",
     "analyze": "enriched_chunks_missing",
+    "index_artifacts": "meeting_artifacts_missing",
 }
 
 _AUDIO_MARKER = "source/audio_16k_mono.wav"
@@ -65,10 +77,25 @@ def _marker_exists(meeting_dir: Path, rel: str) -> bool:
 
 
 def _stage_done(stage: str, meeting_dir: Path, card: dict[str, Any]) -> bool:
-    if stage == "index":
+    revision_current = stage_revision_is_current(card, stage)
+    if revision_current is False:
+        return False
+    if stage in {"index", "index_artifacts"}:
         rag = card.get("rag")
         indexed = rag.get("indexed_artifacts") if isinstance(rag, dict) else None
-        return bool(indexed)
+        indexed_set = {
+            str(value) for value in indexed
+        } if isinstance(indexed, list) else set()
+        if stage == "index":
+            required = CHUNK_INDEX_MARKERS
+        else:
+            artifacts = card.get("artifacts")
+            artifact_map = artifacts if isinstance(artifacts, dict) else {}
+            required = {
+                str(artifact_map.get(key) or ARTIFACT_DEFAULT_PATHS[key])
+                for key in STRUCTURED_INDEX_ARTIFACT_KEYS
+            }
+        return required.issubset(indexed_set)
     marker = _DONE_MARKERS.get(stage)
     return bool(marker and _marker_exists(meeting_dir, marker))
 
@@ -79,6 +106,9 @@ def _stage_blocked_reason(stage: str, meeting_dir: Path) -> str | None:
     Reuses runner preflights where they exist; transcribe/diarize add the
     readiness-level audio requirement (#114: no audio → blocked).
     """
+    card = _read_card(meeting_dir)
+    if stage_prerequisites_are_current(card, stage) is False:
+        return "speaker-dependent prerequisite is stale; run speaker rebuild in order"
     if stage in ("transcribe", "diarize") and not _marker_exists(meeting_dir, _AUDIO_MARKER):
         return "normalized audio not found; run extract_audio first"
     preflight = STAGE_COMMANDS.get(stage, {}).get("preflight")
@@ -98,6 +128,7 @@ def pipeline_readiness(
     meeting_dir: Path,
     *,
     live_session_active: bool = False,
+    worker_runtime_errors: dict[str, str | None] | None = None,
 ) -> dict[str, Any]:
     """Build the readiness map for all runnable stages of one meeting."""
     card = _read_card(meeting_dir)
@@ -112,6 +143,7 @@ def pipeline_readiness(
         meta = STAGE_METADATA[stage]
         done = _stage_done(stage, meeting_dir, card)
         block_detail = _stage_blocked_reason(stage, meeting_dir)
+        runtime_detail = (worker_runtime_errors or {}).get(stage)
         if done:
             state, can_run = "done", False
             reason = "already_done"
@@ -124,6 +156,10 @@ def pipeline_readiness(
             state, can_run = "blocked", False
             reason = _block_reason_token(stage, block_detail)
             detail = block_detail
+        elif runtime_detail is not None:
+            state, can_run = "blocked", False
+            reason = "worker_runtime_missing"
+            detail = runtime_detail
         elif failed_stage == stage:
             # Previous run of this stage failed (#120); prerequisites are met,
             # so the stage can be retried right away.
