@@ -14,6 +14,12 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
+from meeting_agent.speakers.rebuild import mark_stage_revision  # noqa: E402
+
 
 DEFAULT_OUTPUT = "data/meeting_chunks.jsonl"
 ARTIFACT_SPECS = {
@@ -84,6 +90,19 @@ def resolve_meeting_dir(value: str) -> Path:
     if not path.is_absolute():
         path = Path.cwd() / path
     return path.resolve()
+
+
+def safe_resolve(meeting_dir: Path, rel_value: str) -> Path | None:
+    rel_path = Path(str(rel_value).replace("\\", "/"))
+    if rel_path.is_absolute() or ".." in rel_path.parts:
+        return None
+    root = meeting_dir.resolve()
+    target = (root / rel_path).resolve()
+    try:
+        target.relative_to(root)
+    except ValueError:
+        return None
+    return target
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -272,16 +291,17 @@ def upsert_rows(output_path: Path, meeting_id: str, new_rows: list[dict[str, Any
         write_jsonl(output_path, existing + new_rows)
 
 
-def update_meeting(meeting: dict[str, Any]) -> None:
+def update_meeting(meeting: dict[str, Any], indexed_keys: list[str]) -> None:
     rag = dict(meeting.get("rag", {}))
     indexed = set(rag.get("indexed_artifacts") or [])
-    for key in ARTIFACT_SPECS:
+    for key in indexed_keys:
         indexed.add(str(meeting.get("artifacts", {}).get(key) or ARTIFACT_SPECS[key]["path"]))
     rag["indexed_artifacts"] = sorted(indexed)
     meeting["rag"] = rag
     meeting["processing_status"] = "indexed"
     meeting["updated_at"] = now_iso()
     meeting.pop("last_error", None)
+    mark_stage_revision(meeting, "index_artifacts")
 
 
 def mark_failed(meeting_path: Path, meeting: dict[str, Any], exc: BaseException, stage: str) -> None:
@@ -305,21 +325,30 @@ def run(args: argparse.Namespace) -> int:
     meeting = read_json(meeting_path)
     validate_schema(meeting, schema_dir / "meeting.schema.json")
     all_rows: list[dict[str, Any]] = []
+    indexed_keys: list[str] = []
     try:
         for artifact_key, spec in ARTIFACT_SPECS.items():
             rel_path = str(meeting.get("artifacts", {}).get(artifact_key) or spec["path"])
-            artifact_path = meeting_dir / rel_path
+            artifact_path = safe_resolve(meeting_dir, rel_path)
+            if artifact_path is None:
+                raise IndexArtifactsError(
+                    f"Unsafe artifact path for {artifact_key}.", "preflight"
+                )
             if not artifact_path.exists():
                 if args.allow_missing:
                     continue
-                raise IndexArtifactsError(f"Artifact not found: {artifact_path}", "preflight")
+                raise IndexArtifactsError(
+                    f"Artifact not found: {artifact_key}", "preflight"
+                )
             doc = read_json(artifact_path)
             validate_schema(doc, schema_dir / f"meeting.{artifact_key}.schema.json")
             all_rows.extend(to_index_rows(meeting_dir, meeting, artifact_key, doc))
-        if not all_rows:
-            raise IndexArtifactsError("No structured meeting artifacts to index.", "preflight")
+            indexed_keys.append(artifact_key)
+        # An analysis with no decisions/tasks/risks/questions is valid. Upsert
+        # an empty set so stale structured rows from a previous analysis are
+        # removed while the artifact files are still marked as indexed.
         upsert_rows(output_path, str(meeting["meeting_id"]), all_rows)
-        update_meeting(meeting)
+        update_meeting(meeting, indexed_keys)
         validate_schema(meeting, schema_dir / "meeting.schema.json")
         write_json_atomic(meeting_path, meeting)
     except Exception as exc:

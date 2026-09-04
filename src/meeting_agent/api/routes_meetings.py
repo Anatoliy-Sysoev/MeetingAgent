@@ -5,7 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
-from starlette.responses import FileResponse
+from starlette.responses import FileResponse, PlainTextResponse
 
 from meeting_agent.api.auth import require_action_permission, require_permission
 from meeting_agent.api.dependencies import get_app_state, get_meeting_qa_service
@@ -25,6 +25,7 @@ from meeting_agent.meetings.service import (
     MeetingsService,
     _safe_meeting_id,
 )
+from meeting_agent.speakers import SpeakerOverrideError
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
 
@@ -70,12 +71,27 @@ class SpeakerMappingEntry(BaseModel):
 
     name: str = Field(default="", max_length=120)
     role: str = Field(default="", max_length=120)
+    company: str = Field(default="", max_length=120)
+    speaker_id: str = Field(default="", pattern=r"^(?:|spk_[0-9a-f]{32})$")
 
 
 class SpeakerMappingRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     mapping: dict[str, SpeakerMappingEntry] = Field(default_factory=dict)
+
+
+class SpeakerOverrideRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(min_length=1, max_length=500)
+    speaker_label: str = Field(pattern=r"^SPEAKER_(?:UNKNOWN|\d{1,4})$")
+
+
+class SpeakerOverrideResetRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(min_length=1, max_length=500)
 
 
 @router.get("", response_model=MeetingListResponse)
@@ -166,7 +182,7 @@ def update_speaker_mapping(
     try:
         raw_mapping = {label: entry.model_dump() for label, entry in payload.mapping.items()}
         result = service.update_speaker_mapping(meeting_id, raw_mapping)
-    except ValueError as exc:
+    except (ValueError, SpeakerOverrideError) as exc:
         raise HTTPException(
             status_code=422,
             detail={
@@ -174,6 +190,79 @@ def update_speaker_mapping(
                 "message": "Speaker mapping is invalid",
             },
         ) from exc
+    except ArtifactTooLargeError as exc:
+        raise _too_large(exc) from exc
+    except MeetingCardError as exc:
+        raise _invalid_card(exc) from exc
+    if result is None:
+        raise _not_found(meeting_id)
+    return result
+
+
+def _invalid_speaker_override(exc: SpeakerOverrideError) -> HTTPException:
+    return HTTPException(
+        status_code=422,
+        detail={
+            "error": "invalid_speaker_override",
+            "message": str(exc),
+        },
+    )
+
+
+@router.get("/{meeting_id}/speakers/overrides")
+def get_speaker_overrides(
+    meeting_id: str,
+    service: MeetingsService = Depends(get_meetings_service),
+    _principal: Annotated[Principal, Depends(require_permission("meetings.edit"))] = ...,
+) -> dict:
+    try:
+        result = service.get_speaker_overrides(meeting_id)
+    except (SpeakerOverrideError, ArtifactTooLargeError) as exc:
+        if isinstance(exc, ArtifactTooLargeError):
+            raise _too_large(exc) from exc
+        raise _invalid_speaker_override(exc) from exc
+    except MeetingCardError as exc:
+        raise _invalid_card(exc) from exc
+    if result is None:
+        raise _not_found(meeting_id)
+    return result
+
+
+@router.put("/{meeting_id}/speakers/overrides")
+def set_speaker_overrides(
+    meeting_id: str,
+    payload: SpeakerOverrideRequest,
+    service: MeetingsService = Depends(get_meetings_service),
+    principal: Annotated[Principal, Depends(require_action_permission("meetings.edit"))] = ...,
+) -> dict:
+    try:
+        result = service.set_speaker_overrides(
+            meeting_id, payload.segment_ids, payload.speaker_label, principal.principal_id
+        )
+    except SpeakerOverrideError as exc:
+        raise _invalid_speaker_override(exc) from exc
+    except ArtifactTooLargeError as exc:
+        raise _too_large(exc) from exc
+    except MeetingCardError as exc:
+        raise _invalid_card(exc) from exc
+    if result is None:
+        raise _not_found(meeting_id)
+    return result
+
+
+@router.post("/{meeting_id}/speakers/overrides/reset")
+def reset_speaker_overrides(
+    meeting_id: str,
+    payload: SpeakerOverrideResetRequest,
+    service: MeetingsService = Depends(get_meetings_service),
+    principal: Annotated[Principal, Depends(require_action_permission("meetings.edit"))] = ...,
+) -> dict:
+    try:
+        result = service.reset_speaker_overrides(
+            meeting_id, payload.segment_ids, principal.principal_id
+        )
+    except SpeakerOverrideError as exc:
+        raise _invalid_speaker_override(exc) from exc
     except ArtifactTooLargeError as exc:
         raise _too_large(exc) from exc
     except MeetingCardError as exc:
@@ -216,8 +305,37 @@ def get_transcript_segments(
         result = service.get_transcript_segments(meeting_id)
     except ArtifactTooLargeError as exc:
         raise _too_large(exc) from exc
+    except SpeakerOverrideError as exc:
+        raise _invalid_speaker_override(exc) from exc
     if result is None:
         raise _not_found(meeting_id)
+    return result
+
+
+@router.get("/{meeting_id}/transcript/turns")
+def get_resolved_speaker_turns(
+    meeting_id: str,
+    max_gap_sec: float = Query(default=1.5, ge=0, le=30),
+    format: str = Query(default="json", pattern=r"^(?:json|txt|md)$"),
+    service: MeetingsService = Depends(get_meetings_service),
+    _principal: Annotated[Principal, Depends(require_permission("transcripts.read"))] = ...,
+):
+    try:
+        if format == "json":
+            result = service.get_resolved_speaker_turns(meeting_id, max_gap_sec=max_gap_sec)
+        else:
+            result = service.render_resolved_speaker_transcript(
+                meeting_id, max_gap_sec=max_gap_sec, markdown=format == "md"
+            )
+    except ArtifactTooLargeError as exc:
+        raise _too_large(exc) from exc
+    except SpeakerOverrideError as exc:
+        raise _invalid_speaker_override(exc) from exc
+    if result is None:
+        raise _not_found(meeting_id)
+    if isinstance(result, str):
+        media_type = "text/markdown" if format == "md" else "text/plain"
+        return PlainTextResponse(result, media_type=media_type)
     return result
 
 

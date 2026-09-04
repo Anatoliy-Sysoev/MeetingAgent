@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MeetingAgent UI v2 mockup</title>
+  <link rel="stylesheet" href="meetingagent-v2.css" />
+</head>
+<body>
+  <a class="skip-link" href="#prototype-main">Перейти к содержимому</a>
+  <div class="app-shell">
+    <aside class="rail" aria-label="Основная навигация">
+      <a class="brand" href="#registry" data-screen-link="registry">
+        <span class="brand-mark">MA</span>
+        <span><strong>MeetingAgent</strong><small>Локальные встречи</small></span>
+      </a>
+
+      <nav class="primary-nav" aria-label="Разделы MeetingAgent">
+        <button type="button" data-screen-link="registry" aria-current="page">Встречи</button>
+        <button type="button" data-screen-link="create">Новая встреча</button>
+        <button type="button" data-screen-link="processing">Обработка</button>
+        <button type="button" data-screen-link="workspace">Карточка встречи</button>
+      </nav>
+
+      <div class="rail-section">
+        <span class="rail-label">Другой продукт</span>
+        <a class="product-link" href="/ui">Project Knowledge Bot</a>
+      </div>
+
+      <div class="rail-footer">
+        <a href="/admin" data-min-role="admin">Администрирование</a>
+        <label for="prototype-role">Роль</label>
+        <select id="prototype-role">
+          <option value="viewer">Наблюдатель</option>
+          <option value="editor" selected>Редактор</option>
+          <option value="admin">Администратор</option>
+        </select>
+        <span class="account-name">analyst@local</span>
+      </div>
+    </aside>
+
+    <div class="app-main">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobile-menu" type="button" aria-label="Открыть навигацию">Меню</button>
+        <div>
+          <div class="breadcrumbs" id="breadcrumbs">MeetingAgent / Встречи</div>
+          <h1 id="page-title">Встречи</h1>
+        </div>
+        <div class="topbar-actions">
+          <span class="role-badge" id="role-badge">Редактор</span>
+          <button class="quiet" type="button">Обновить</button>
+          <button class="primary" type="button" data-screen-link="create" data-min-role="editor">Новая встреча</button>
+        </div>
+      </header>
+
+      <main class="page" id="prototype-main" tabindex="-1">
+        <section class="screen" data-screen="registry">
+          <div class="active-work" role="status">
+            <div>
+              <strong>Обрабатывается: Еженедельный статус платформы</strong>
+              <span>Транскрибация, этап 2 из 8</span>
+            </div>
+            <div class="progress progress-36" aria-label="Прогресс 36 процентов"><span></span></div>
+            <button type="button" data-screen-link="processing">Открыть монитор</button>
+          </div>
+
+          <div class="command-bar">
+            <label class="search-field">
+              <span>Поиск</span>
+              <input type="search" placeholder="Название, участник, дата" />
+            </label>
+            <label>
+              <span>Статус</span>
+              <select><option>Все статусы</option><option>Готово</option><option>В работе</option><option>Ошибка</option></select>
+            </label>
+            <label>
+              <span>Период</span>
+              <select><option>Последние 30 дней</option><option>Сегодня</option><option>Этот квартал</option></select>
+            </label>
+            <button type="button">Сбросить</button>
+          </div>
+
+          <div class="section-heading">
+            <div><h2>Реестр встреч</h2><span>5 записей</span></div>
+            <div class="view-actions"><button type="button">Экспорт списка</button></div>
+          </div>
+
+          <div class="registry-table-wrap">
+            <table class="registry-table">
+              <thead>
+                <tr><th>Встреча</th><th>Дата</th><th>Источник</th><th>Прогресс</th><th>Статус</th><th>Результаты</th><th></th></tr>
+              </thead>
+              <tbody>
+                <tr class="selected">
+                  <td data-label="Встреча"><button class="row-link" type="button" data-screen-link="workspace">Еженедельный статус платформы</button><small>7 участников · 52 мин</small></td>
+                  <td data-label="Дата">13.07.2026<small>10:00</small></td>
+                  <td data-label="Источник"><span class="source-tag">Видео</span></td>
+                  <td data-label="Прогресс"><span class="stage-text">2 / 8</span><div class="micro-progress progress-25"><span></span></div></td>
+                  <td data-label="Статус"><span class="status running">Транскрибация</span></td>
+                  <td data-label="Результаты"><span class="muted">Транскрипт готовится</span></td>
+                  <td><button class="row-menu" type="button" aria-label="Действия встречи">Ещё</button></td>
+                </tr>
+                <tr>
+                  <td data-label="Встреча"><button class="row-link" type="button" data-screen-link="workspace">Планирование релиза</button><small>5 участников · 38 мин</small></td>
+                  <td data-label="Дата">12.07.2026<small>15:30</small></td>
+                  <td data-label="Источник"><span class="source-tag">Аудио</span></td>
+                  <td data-label="Прогресс"><span class="stage-text">8 / 8</span><div class="micro-progress done progress-100"><span></span></div></td>
+                  <td data-label="Статус"><span class="status success">Готово</span></td>
+                  <td data-label="Результаты"><span class="result-links">Транскрипт · Протокол · 6 задач</span></td>
+                  <td><button class="row-menu" type="button" aria-label="Действия встречи">Ещё</button></td>
+                </tr>
+                <tr>
+                  <td data-label="Встреча"><button class="row-link" type="button" data-screen-link="processing">Архитектурный комитет</button><small>4 участника · 64 мин</small></td>
+                  <td data-label="Дата">11.07.2026<small>11:00</small></td>
+                  <td data-label="Источник"><span class="source-tag">Видео</span></td>
+                  <td data-label="Прогресс"><span class="stage-text">3 / 8</span><div class="micro-progress danger progress-38"><span></span></div></td>
+                  <td data-label="Статус"><span class="status error">Нужен повтор</span></td>
+                  <td data-label="Результаты"><span class="muted">Транскрипт</span></td>
+                  <td><button class="row-menu" type="button" aria-label="Действия встречи">Ещё</button></td>
+                </tr>
+                <tr>
+                  <td data-label="Встреча"><button class="row-link" type="button" data-screen-link="workspace">Демо клиентского портала</button><small>6 участников · 47 мин</small></td>
+                  <td data-label="Дата">10.07.2026<small>17:00</small></td>
+                  <td data-label="Источник"><span class="source-tag">Live</span></td>
+                  <td data-label="Прогресс"><span class="stage-text">Live</span><div class="micro-progress progress-72"><span></span></div></td>
+                  <td data-label="Статус"><span class="status live">Идёт запись</span></td>
+                  <td data-label="Результаты"><span class="muted">Черновик MIC + SYS</span></td>
+                  <td><button class="row-menu" type="button" aria-label="Действия встречи">Ещё</button></td>
+                </tr>
+                <tr>
+                  <td data-label="Встреча"><button class="row-link" type="button" data-screen-link="workspace">Интервью с командой поддержки</button><small>3 участника · 29 мин</small></td>
+                  <td data-label="Дата">09.07.2026<small>09:30</small></td>
+                  <td data-label="Источник"><span class="source-tag">Видео</span></td>
+                  <td data-label="Прогресс"><span class="stage-text">0 / 8</span><div class="micro-progress progress-0"><span></span></div></td>
+                  <td data-label="Статус"><span class="status neutral">Загружено</span></td>
+                  <td data-label="Результаты"><span class="muted">Нет</span></td>
+                  <td><button class="row-menu" type="button" aria-label="Действия встречи">Ещё</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pagination"><span>1–5 из 5</span><button type="button" disabled>Назад</button><button type="button" disabled>Далее</button></div>
+        </section>
+
+        <section class="screen" data-screen="create" hidden>
+          <div class="wizard-steps" aria-label="Этапы создания">
+            <span class="active"><b>1</b> Источник</span><span><b>2</b> Обработка</span><span><b>3</b> Подтверждение</span>
+          </div>
+          <div class="create-layout">
+            <form class="form-surface">
+              <div class="section-heading"><div><h2>Новая встреча</h2><span>Источник и основные сведения</span></div></div>
+              <div class="segmented" role="group" aria-label="Тип источника">
+                <button class="active" type="button" data-create-mode="upload">Файл</button>
+                <button type="button" data-create-mode="live">Live MIC / SYS</button>
+              </div>
+
+              <div data-create-panel="upload">
+                <label class="file-zone" for="mock-file">
+                  <strong>Выберите видео или аудио</strong>
+                  <span>MP4, MP3, WAV, M4A, WEBM, OGG · до 2 ГБ</span>
+                  <input class="visually-hidden" id="mock-file" type="file" />
+                  <span class="file-selection"><b>Выбрать файл</b><span>Файл не выбран</span></span>
+                </label>
+              </div>
+              <div data-create-panel="live" hidden>
+                <div class="inline-notice"><strong>Live-встреча</strong><span>Карточка создаётся без исходного файла. MIC и SYS запускаются в Workspace.</span></div>
+              </div>
+
+              <div class="field-grid">
+                <label><span>Название</span><input value="Еженедельный статус платформы" /></label>
+                <label><span>Дата</span><input type="date" value="2026-07-13" /></label>
+                <label><span>Язык</span><select><option>Русский</option><option>English</option></select></label>
+                <label data-create-panel="upload"><span>ASR</span><select><option>Faster Whisper · large-v3-turbo</option><option>GigaAM</option></select></label>
+              </div>
+
+              <fieldset data-create-panel="upload">
+                <legend>После загрузки</legend>
+                <label class="choice-row"><input type="radio" name="profile" /><span><strong>Только транскрипт</strong><small>Аудио и точная расшифровка</small></span></label>
+                <label class="choice-row"><input type="radio" name="profile" /><span><strong>Подготовить для поиска</strong><small>Транскрипт, спикеры, чанки и индекс</small></span></label>
+                <label class="choice-row"><input type="radio" name="profile" checked /><span><strong>Полная обработка</strong><small>Протокол, решения, задачи, риски и поиск</small></span></label>
+              </fieldset>
+
+              <div class="form-footer">
+                <button type="button" data-screen-link="registry">Отмена</button>
+                <button class="primary" type="button" data-min-role="editor">Продолжить</button>
+              </div>
+            </form>
+
+            <aside class="preflight-surface">
+              <h2>Готовность</h2>
+              <ul class="check-list">
+                <li class="ok"><span>Формат источника</span><strong>Поддерживается</strong></li>
+                <li class="ok"><span>Свободное место</span><strong>Достаточно</strong></li>
+                <li class="ok" data-create-panel="upload"><span>FFmpeg</span><strong>Доступен</strong></li>
+                <li class="warn" data-create-panel="upload"><span>GigaAM</span><strong>Optional runtime</strong></li>
+                <li class="ok" data-create-panel="live" hidden><span>Микрофон</span><strong>Готов</strong></li>
+                <li class="ok" data-create-panel="live" hidden><span>Системный звук</span><strong>Готов</strong></li>
+              </ul>
+              <div class="summary-block"><span>Карточка</span><strong>Локально</strong><small>Исходный файл и результаты не покидают компьютер.</small></div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="screen" data-screen="processing" hidden>
+          <div class="meeting-strip">
+            <div><span class="eyebrow">Архитектурный комитет · 11.07.2026</span><h2>Обработка встречи</h2></div>
+            <div class="meeting-strip-actions"><span class="status running">В работе</span><button type="button" data-min-role="editor">Остановить</button><button type="button" data-screen-link="workspace">Открыть карточку</button></div>
+          </div>
+
+          <div class="processing-summary">
+            <div><span>Профиль</span><strong>Полная обработка</strong></div><div><span>Выполнено</span><strong>2 из 8 этапов</strong></div><div><span>Текущий этап</span><strong>Транскрибация</strong></div><div><span>Прошло</span><strong>18 мин 42 с</strong></div>
+          </div>
+          <div class="wide-progress progress-31"><span></span></div>
+
+          <div class="monitor-layout">
+            <div class="stage-surface">
+              <div class="section-heading"><div><h2>Этапы pipeline</h2><span>Последовательно, concurrency = 1</span></div><button type="button">Обновить</button></div>
+              <ol class="stage-list">
+                <li class="done"><span class="stage-index">1</span><div><strong>Извлечение аудио</strong><small>Завершено за 1 мин 12 с</small></div><span class="status success">Готово</span></li>
+                <li class="active"><span class="stage-index">2</span><div><strong>Транскрибация</strong><small>Faster Whisper · large-v3-turbo</small></div><span class="status running">Выполняется</span></li>
+                <li><span class="stage-index">3</span><div><strong>Диаризация</strong><small>Ожидает завершения ASR</small></div><span class="status neutral">Ожидает</span></li>
+                <li><span class="stage-index">4</span><div><strong>Объединение</strong><small>Транскрипт + спикеры</small></div><span class="status neutral">Ожидает</span></li>
+                <li><span class="stage-index">5</span><div><strong>Чанкинг</strong><small>Окна для поиска</small></div><span class="status neutral">Ожидает</span></li>
+                <li><span class="stage-index">6</span><div><strong>Обогащение</strong><small>Темы и типы</small></div><span class="status neutral">Ожидает</span></li>
+                <li><span class="stage-index">7</span><div><strong>Индексация</strong><small>Meeting Q&amp;A</small></div><span class="status neutral">Ожидает</span></li>
+                <li><span class="stage-index">8</span><div><strong>Анализ</strong><small>Протокол и задачи</small></div><span class="status neutral">Ожидает</span></li>
+              </ol>
+            </div>
+
+            <aside class="job-surface">
+              <h2>Текущая операция</h2>
+              <dl><div><dt>Этап</dt><dd>Транскрибация</dd></div><div><dt>Движок</dt><dd>Faster Whisper</dd></div><div><dt>Модель</dt><dd>large-v3-turbo</dd></div><div><dt>Состояние</dt><dd>running</dd></div></dl>
+              <div class="event-log" role="log"><p><time>10:18:42</time> Обработка продолжается</p><p><time>10:12:08</time> Модель загружена</p><p><time>10:00:46</time> Нормализованное аудио готово</p></div>
+              <button type="button" data-min-role="editor">Отменить задачу</button>
+            </aside>
+          </div>
+        </section>
+
+        <section class="screen" data-screen="workspace" hidden>
+          <div class="meeting-strip workspace-title">
+            <div><span class="eyebrow">13.07.2026 · 10:00 · 52 мин</span><h2>Еженедельный статус платформы</h2></div>
+            <div class="meeting-strip-actions"><span class="status success">Транскрипт готов</span><button type="button" data-screen-link="processing">Обработка</button><button class="primary" type="button" data-min-role="editor">Сформировать протокол</button></div>
+          </div>
+
+          <nav class="workspace-tabs" aria-label="Разделы карточки">
+            <button type="button">Обзор</button><button class="active" type="button">Транскрипт</button><button type="button">Артефакты <span>7</span></button><button type="button">Вопросы</button><button type="button">Live</button>
+          </nav>
+
+          <div class="media-strip">
+            <button class="play-button" type="button" aria-label="Воспроизвести">▶</button>
+            <span class="media-time">12:34 / 52:18</span>
+            <div class="media-progress progress-24"><span></span></div>
+            <select aria-label="Скорость воспроизведения"><option>1×</option><option>1.25×</option><option>1.5×</option></select>
+            <button type="button">Субтитры</button>
+          </div>
+
+          <div class="workspace-layout">
+            <section class="transcript-surface">
+              <div class="transcript-toolbar"><label><span>Поиск по репликам</span><input type="search" placeholder="Введите фразу или имя" /></label><span>643 сегмента</span></div>
+              <div class="utterance-list">
+                <article class="utterance"><button type="button" class="timecode">12:18</button><div><strong>Алексей Орлов <span>Руководитель проекта</span></strong><p>Давайте сначала зафиксируем статус по интеграции и отдельно пройдёмся по рискам релиза.</p></div></article>
+                <article class="utterance active"><button type="button" class="timecode">12:34</button><div><strong>Мария Соколова <span>Системный аналитик</span></strong><p>Контракт согласован. Остаётся проверить обработку повторной отправки и обновить сценарии приёмки.</p></div></article>
+                <article class="utterance"><button type="button" class="timecode">12:51</button><div><strong>Иван Петров <span>Разработчик</span></strong><p>Повторную отправку проверим сегодня. Результат и журнал ошибок добавлю к задаче.</p></div></article>
+                <article class="utterance"><button type="button" class="timecode">13:20</button><div><strong>Алексей Орлов <span>Руководитель проекта</span></strong><p>Срок оставляем до среды. Если тест не проходит, выносим отдельный риск в протокол.</p></div></article>
+                <article class="utterance"><button type="button" class="timecode">13:47</button><div><strong>Мария Соколова <span>Системный аналитик</span></strong><p>Зафиксировала решение и добавила ссылку на согласованный сценарий.</p></div></article>
+              </div>
+            </section>
+
+            <aside class="context-surface">
+              <div class="context-tabs"><button class="active" type="button">Спикеры</button><button type="button">Источники</button></div>
+              <div class="speaker-list">
+                <div><span class="speaker-code">S1</span><label><span>Имя</span><input value="Алексей Орлов" /></label><label><span>Роль</span><input value="Руководитель проекта" /></label></div>
+                <div><span class="speaker-code">S2</span><label><span>Имя</span><input value="Мария Соколова" /></label><label><span>Роль</span><input value="Системный аналитик" /></label></div>
+                <div><span class="speaker-code">S3</span><label><span>Имя</span><input value="Иван Петров" /></label><label><span>Роль</span><input value="Разработчик" /></label></div>
+              </div>
+              <button type="button" data-min-role="editor">Сохранить сопоставление</button>
+              <div class="context-divider"></div>
+              <h3>Связанные результаты</h3>
+              <ul class="artifact-links"><li><button type="button">Протокол</button><span>готов</span></li><li><button type="button">Решения</button><span>4</span></li><li><button type="button">Задачи</button><span>6</span></li><li><button type="button">Риски</button><span>2</span></li></ul>
+            </aside>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <nav class="mobile-nav" aria-label="Мобильная навигация">
+    <button type="button" data-screen-link="registry">Встречи</button><button type="button" data-screen-link="create">Создать</button><button type="button" data-screen-link="processing">Процесс</button><button type="button" data-screen-link="workspace">Карточка</button>
+  </nav>
+  <script src="meetingagent-v2.js" defer></script>
+</body>
+</html>

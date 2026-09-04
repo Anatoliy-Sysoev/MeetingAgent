@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MeetingAgent</title>
-  <link rel="stylesheet" href="/assets/v2/meetingagent.css" />
+  <link rel="stylesheet" href="/assets/v3/meetingagent.css?rev=20260806-1" />
 </head>
 <body data-initial-section="__INITIAL_SECTION__">
   <a class="skip-link" href="#main-content">Перейти к содержимому</a>
@@ -59,7 +59,7 @@
         <section id="section-meetings">
           <div class="active-work" id="activeWork" role="status" hidden>
             <div><strong id="activeWorkTitle">Идёт обработка</strong><span id="activeWorkDetail"></span></div>
-            <div class="progress-track" aria-label="Прогресс обработки"><span id="activeWorkProgress"></span></div>
+            <progress id="activeWorkProgress" class="progress-track" max="100" value="0" aria-label="Прогресс обработки"></progress>
             <button id="activeWorkOpen" type="button">Открыть монитор</button>
           </div>
 
@@ -100,6 +100,7 @@
                   <label><span>Дата</span><input id="meetingDate" name="date" type="date" /></label>
                   <label><span>Язык</span><select name="language"><option value="ru">Русский</option><option value="en">English</option></select></label>
                   <label><span>ASR</span><select id="asrEngine"><option value="faster-whisper">Faster Whisper · large-v3-turbo</option><option value="gigaam">GigaAM</option></select></label>
+                  <label><span>Спикеры</span><select id="diarizationSpeakerCount"><option value="">Определить автоматически</option><option value="1">1 спикер</option><option value="2">2 спикера</option><option value="3">3 спикера</option><option value="4">4 спикера</option><option value="5">5 спикеров</option><option value="6">6 спикеров</option><option value="7">7 спикеров</option><option value="8">8 спикеров</option><option value="9">9 спикеров</option><option value="10">10 спикеров</option></select></label>
                 </div>
                 <fieldset><legend>После загрузки</legend>
                   <label class="choice-row"><input type="radio" name="profile-choice" value="none" /><span><strong>Только создать карточку</strong><small>Запустить обработку позднее</small></span></label>
@@ -135,7 +136,8 @@
         <section id="section-operations" hidden>
           <div class="meeting-strip"><div><span class="eyebrow" id="operationMeeting">Локальный job runner</span><h2>Обработка встречи</h2></div><div class="meeting-strip-actions"><span class="status running" id="operationStatus">Проверка</span><button id="operationCancel" type="button" data-write-control hidden>Остановить</button><a id="operationWorkspace" class="button-link" href="/MeetingAgent" hidden>Открыть карточку</a></div></div>
           <div class="processing-summary"><div><span>Профиль</span><strong id="operationProfile">—</strong></div><div><span>Выполнено</span><strong id="operationProgressText">—</strong></div><div><span>Текущий этап</span><strong id="operationStage">—</strong></div><div><span>Запущено</span><strong id="operationStarted">—</strong></div></div>
-          <div class="wide-progress"><span id="operationProgress"></span></div>
+          <div class="progress-caption"><span>Прогресс этапа</span><strong id="operationProgressCaption">—</strong></div>
+          <progress id="operationProgress" class="wide-progress" max="100" value="0" aria-label="Прогресс активной задачи"></progress>
           <div class="monitor-layout">
             <div class="stage-surface"><div class="section-heading"><div><h2>Этапы pipeline</h2><span>Последовательно, concurrency = 1</span></div><button id="refreshOperationsBtn" type="button">Обновить</button></div><ol class="stage-list" id="operationStages"></ol></div>
             <aside class="job-surface"><h2>Текущая операция</h2><div id="activeJobPanel"><div class="empty">Активная задача не найдена.</div></div></aside>
@@ -144,6 +146,6 @@
       </main>
     </div>
   </div>
-  <script src="/assets/v2/meetingagent.js" defer></script>
+  <script src="/assets/v3/meetingagent.js?rev=20260806-1" defer></script>
 </body>
 </html>

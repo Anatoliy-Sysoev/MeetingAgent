@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Any
 
@@ -86,7 +87,12 @@ def live_settings(config: dict[str, Any]) -> dict[str, Any]:
         return float(value)
 
     vad = raw.get("vad", "silero")
-    model_path = raw.get("model_path", "models/vosk/vosk-model-small-ru-0.22")
+    configured_model_path = raw.get(
+        "model_path", "models/vosk/vosk-model-small-ru-0.22"
+    )
+    model_path = os.environ.get(
+        "MEETINGAGENT_LIVE_MODEL_PATH", configured_model_path
+    )
     if not isinstance(vad, str) or not vad:
         raise ValueError("Invalid live.vad: expected a non-empty string")
     if not isinstance(model_path, str) or not model_path:
@@ -140,7 +146,10 @@ def build_core_app_state(config: dict[str, Any] | None = None) -> CoreAppState:
     chat_base_url = str(ollama_cfg.get("chat_base_url") or "http://127.0.0.1:11434/v1")
     chat_model = str(ollama_cfg.get("chat_model") or "qwen3.5:4b")
     paths = config.get("paths") if isinstance(config.get("paths"), dict) else {}
-    meetings_root = paths.get("meetings_root") or "meetings"
+    meetings_root = resolve_work_path(
+        config,
+        paths.get("meetings_root") or "meetings",
+    )
     jobs_state_path = resolve_work_path(
         config,
         paths.get("jobs_state") or "logs/jobs_state.json",
@@ -163,6 +172,11 @@ def build_core_app_state(config: dict[str, Any] | None = None) -> CoreAppState:
         meetings_root=meetings_root,
         max_text_artifact_bytes=parse_max_text_artifact_bytes(config),
         max_upload_bytes=parse_max_upload_bytes(config),
+        speaker_directory_path=resolve_work_path(
+            config,
+            paths.get("speaker_directory")
+            or "data/meetingagent/speaker_directory.json",
+        ),
     )
     live_cfg = live_settings(config)
     live_state_path = resolve_work_path(

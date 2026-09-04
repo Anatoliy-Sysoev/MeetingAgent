@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Карточка встречи · MeetingAgent</title>
-  <link rel="stylesheet" href="/assets/v4/workspace.css" />
+  <link rel="stylesheet" href="/assets/v5/workspace.css?rev=20260731-2" />
 </head>
 <body data-meeting-id="__MEETING_ID__">
   <a class="skip-link" href="#workspace-main">Перейти к содержимому</a>
@@ -62,11 +62,33 @@
             <article class="panel transcript-col">
               <div class="panel-header"><span>Транскрипт</span><span id="seg-count" class="seg-count"></span></div>
               <div class="transcript-search"><label for="seg-filter">Поиск по репликам</label><input id="seg-filter" type="search" placeholder="Введите фразу или имя" /></div>
+              <div id="speaker-override-toolbar" class="speaker-override-toolbar" hidden>
+                <span id="speaker-override-count">0 реплик выбрано</span>
+                <label for="speaker-override-label">Назначить спикера</label>
+                <select id="speaker-override-label"></select>
+                <button id="speaker-override-apply" type="button">Применить</button>
+                <button id="speaker-override-reset" type="button">Вернуть авто</button>
+                <button id="speaker-override-clear" type="button">Снять выбор</button>
+                <span id="speaker-override-status" role="status"></span>
+              </div>
               <div class="transcript-list" id="transcript-list"><div class="empty">Загрузка транскрипта...</div></div>
+              <nav class="transcript-pagination" aria-label="Страницы транскрипта">
+                <button id="seg-prev" type="button" aria-label="Предыдущая страница">Назад</button>
+                <span id="seg-page-status" role="status"></span>
+                <button id="seg-next" type="button" aria-label="Следующая страница">Далее</button>
+              </nav>
             </article>
             <aside class="panel context-col">
               <div class="panel-header">Спикеры</div>
-              <div class="panel-body"><div id="speaker-map-panel" class="speaker-map-list"><div class="empty">Загрузка спикеров...</div></div><div class="speaker-actions"><button id="speaker-map-save-btn" type="button">Сохранить сопоставление</button><span id="speaker-map-status" class="speaker-status" role="status"></span></div></div>
+              <div class="panel-body">
+                <div id="speaker-map-panel" class="speaker-map-list"><div class="empty">Загрузка спикеров...</div></div>
+                <div class="speaker-actions"><button id="speaker-map-save-btn" type="button">Сохранить сопоставление</button><span id="speaker-map-status" class="speaker-status" role="status"></span></div>
+                <div class="speaker-rebuild-box">
+                  <strong>Зависимые материалы</strong>
+                  <p id="speaker-rebuild-status">Проверяем актуальность протокола и поиска...</p>
+                  <button id="speaker-rebuild-btn" class="primary" type="button">Пересобрать после правок</button>
+                </div>
+              </div>
             </aside>
           </div>
         </section>
@@ -107,13 +129,13 @@
 
         <section class="workspace-tab" data-workspace-panel="pipeline" hidden>
           <div class="pipeline-layout">
-            <article class="panel"><div class="panel-header"><span>Этапы pipeline</span><button id="jobs-refresh-btn" class="compact-btn" type="button">Обновить</button></div><div class="panel-body"><div id="jobs-status" class="jobs-status"><div class="empty">Загрузка...</div></div><div id="jobs-last-error" class="err-msg" hidden></div><div id="jobs-error" class="err-msg" hidden></div><div id="pipeline-actions" class="pipeline-actions"></div><div id="jobs-stages" class="jobs-stages"></div></div></article>
+            <article class="panel"><div class="panel-header"><span>Этапы pipeline</span><button id="jobs-refresh-btn" class="compact-btn" type="button">Обновить</button></div><div class="panel-body"><label class="pipeline-option" for="diarization-speaker-count"><span>Количество спикеров для диаризации</span><select id="diarization-speaker-count"><option value="">Автоматически</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></label><div id="jobs-status" class="jobs-status"><div class="empty">Загрузка...</div></div><div id="jobs-last-error" class="err-msg" hidden></div><div id="jobs-error" class="err-msg" hidden></div><div id="pipeline-actions" class="pipeline-actions"></div><div id="jobs-stages" class="jobs-stages"></div></div></article>
             <aside class="panel"><div class="panel-header">Готовые результаты</div><div class="panel-body"><div id="pipeline-results" class="pipeline-results"></div><p class="muted">Готовность и блокировки приходят от серверного preflight.</p></div></aside>
           </div>
         </section>
       </main>
     </div>
   </div>
-  <script src="/assets/v4/workspace.js" defer></script>
+  <script src="/assets/v5/workspace.js?rev=20260731-2" defer></script>
 </body>
 </html>

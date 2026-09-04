@@ -21,12 +21,14 @@ from meeting_agent.api.routes_jobs import router as jobs_router
 from meeting_agent.api.routes_live import router as live_router
 from meeting_agent.api.routes_meetingagent_ui import router as meetingagent_ui_router
 from meeting_agent.api.routes_meetings import router as meetings_router
+from meeting_agent.api.routes_speakers import router as speakers_router
 from meeting_agent.api.routes_workspace import router as workspace_router
 from meeting_agent.api.ui_assets import (
     UI_ASSETS_V1_DIR,
     UI_ASSETS_V2_DIR,
     UI_ASSETS_V3_DIR,
     UI_ASSETS_V4_DIR,
+    UI_ASSETS_V5_DIR,
 )
 from meeting_agent.shared.config import load_config
 
@@ -58,6 +60,11 @@ def install_core_infrastructure(app: FastAPI, config: dict) -> None:
         StaticFiles(directory=UI_ASSETS_V4_DIR, check_dir=True),
         name="ui-assets-v4",
     )
+    app.mount(
+        "/assets/v5",
+        StaticFiles(directory=UI_ASSETS_V5_DIR, check_dir=True),
+        name="ui-assets-v5",
+    )
 
 
 def include_core_product_routes(app: FastAPI) -> None:
@@ -68,6 +75,7 @@ def include_core_product_routes(app: FastAPI) -> None:
     app.include_router(admin_ui_router)
     app.include_router(admin_router)
     app.include_router(ingest_router)
+    app.include_router(speakers_router)
     app.include_router(meetings_router)
     app.include_router(jobs_router)
     app.include_router(live_router)

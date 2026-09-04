@@ -1,0 +1,30 @@
+# Custom vocabulary for ASR (offline faster-whisper only).
+# Improves recognition of domain abbreviations and proper nouns.
+#
+# enabled: false by default — opt-in via --hotwords flag or set enabled: true here.
+# max_terms: terms beyond this limit are silently dropped (anti-hallucination guard).
+# max_prompt_chars: total prompt chars limit for initial_prompt fallback (not used when
+#   hotwords param is available, which it is in faster-whisper >= 1.0).
+#
+# Vosk/live path: NOT SUPPORTED. Vosk grammar is a restrictive whitelist, not additive
+#   boosting, and would break general live transcription. Unsupported intentionally.
+# GigaAM path: NOT SUPPORTED. GigaAM runs as subprocess with no prompt/hotwords API.
+
+enabled: false
+max_terms: 30
+max_prompt_chars: 300
+
+terms:
+  - ПСИ
+  - ФТТ
+  - ЦТА
+  - Проект Альфа
+  - Система заявок
+  - Руководство пользователя
+  - Паспорт системы
+  - НСИ
+  - OIDC
+  - Kubernetes
+  - Patroni
+  - Grafana Loki
+  - Longhorn
