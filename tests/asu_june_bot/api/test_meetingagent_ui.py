@@ -40,7 +40,8 @@ def test_meetingagent_target_routes_select_section(path: str, section: str) -> N
     resp = client.get(path)
     assert resp.status_code == 200
     assert f'data-initial-section="{section}"' in resp.text
-    assert 'href="/assets/v2/meetingagent.css"' in resp.text
+    assert 'href="/assets/v3/meetingagent.css?rev=20260806-1"' in resp.text
+    assert 'src="/assets/v3/meetingagent.js?rev=20260806-1"' in resp.text
 
 
 def test_meetingagent_ui_lists_and_uploads_meetings(html: str) -> None:
@@ -67,10 +68,16 @@ def test_meetingagent_ui_starts_pipeline_profiles(html: str) -> None:
     assert 'value="faster-whisper"' in html
     assert 'value="gigaam"' in html
     assert "asr_engine: selectedAsrEngine()" in html
+    assert 'id="diarizationSpeakerCount"' in html
+    assert "payload.num_speakers = numSpeakers" in html
     assert "qa_ready" in html
+    assert '["resolve_speakers", "Спикеры"' in html
+    assert '["index_artifacts", "Индекс артефактов"' in html
+    assert "из ${PIPELINE_STAGES.length}" in html
+    assert "из 8" not in html
 
 
-def test_meetingagent_v2_has_registry_filters_and_processing_monitor(html: str) -> None:
+def test_meetingagent_ui_has_registry_filters_and_processing_monitor(html: str) -> None:
     for marker in (
         'id="meetingSearch"',
         'id="meetingStatusFilter"',
@@ -81,6 +88,12 @@ def test_meetingagent_v2_has_registry_filters_and_processing_monitor(html: str) 
         assert marker in html
     assert "function filteredMeetings" in html
     assert "function renderOperation" in html
+    assert "function jobProgress" in html
+    assert "eta_seconds" in html
+    assert "removeAttribute(\"value\")" in html
+    assert 'id="operationProgress"' in html
+    assert 'id="operationProgressCaption"' in html
+    assert 'byId("operationProgressCaption").textContent = job ? progress.text : "—"' in html
 
 
 def test_meetingagent_ui_uses_csrf_for_mutating_requests(html: str) -> None:

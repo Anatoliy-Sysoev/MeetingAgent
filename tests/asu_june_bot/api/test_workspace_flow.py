@@ -79,6 +79,36 @@ def test_speaker_mapping_panel_integrated(html: str) -> None:
     assert "/speakers/mapping" in html
     assert "loadSpeakerMapping" in html
     assert "saveSpeakerMapping" in html
+    assert 'apiFetch("/speakers")' in html
+    assert "createSpeakerProfile" in html
+    assert 'company.dataset.field = "company"' in html
+    assert "payload.num_speakers" in html
+
+
+def test_speaker_override_editor_supports_single_range_and_reset(html: str) -> None:
+    assert 'id="speaker-override-toolbar"' in html
+    assert 'id="speaker-override-label"' in html
+    assert 'id="speaker-override-apply"' in html
+    assert 'id="speaker-override-reset"' in html
+    assert "event.shiftKey" in html
+    assert "speaker_overridden" in html
+    assert "automatic_speaker_label" in html
+    assert '"speakers/overrides/reset"' in html
+    assert "/transcript/turns?max_gap_sec=1.5" in html
+    assert "renderTurnSources" in html
+    assert "const pageSize = 100" in html
+    assert "segment.segment_ids" in html
+
+
+def test_speaker_override_writes_use_csrf_and_dom_apis(html: str) -> None:
+    block = _fn_block(html, "applySpeakerOverride")
+    assert "ensureCsrf()" in block
+    assert "X-CSRF-Token" in block
+    assert block.index("if (!csrf)") < block.index("method: reset")
+    for fn in ("renderTranscriptPage", "populateSpeakerOverrideLabels"):
+        start = html.index(f"function {fn}")
+        block = html[start: html.index("\n}\n", start) + 2]
+        assert "innerHTML" not in block
 
 
 def test_last_error_shown_public_safe(html: str) -> None:
@@ -97,6 +127,15 @@ def test_last_error_shown_public_safe(html: str) -> None:
 def test_run_full_pipeline_button(html: str) -> None:
     assert "Запустить полный цикл" in html
     assert 'profile: "full"' in html
+
+
+def test_diarization_speaker_count_is_wired_to_all_job_paths(html: str) -> None:
+    assert 'id="diarization-speaker-count"' in html
+    assert "selectedDiarizationSpeakerCount" in html
+    assert 'stage === "diarize"' in html
+    assert "payload.num_speakers = numSpeakers" in html
+    assert 'stage === "diarize" && numSpeakers !== null' in html
+    assert "Existing diarization will be rebuilt" in html
 
 
 def test_resume_button_only_for_partial_pipeline(html: str) -> None:
@@ -269,6 +308,13 @@ def test_workspace_auth_state_is_explicit_and_not_only_overlay(html: str) -> Non
     assert "auth.textContent = `${label} · ${roles}`" in html
     assert "Вход не выполнен" in html
     assert "hideAuthOverlay()" in html
+
+
+def test_workspace_renders_machine_progress_without_fake_eta(html: str) -> None:
+    assert "_activeJob.progress" in html
+    assert "progress.eta_seconds" in html
+    assert "остаток оценивается" in html
+    assert "progress.stale" in html
 
 
 def test_csrf_403_does_not_show_login_overlay(html: str) -> None:

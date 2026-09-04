@@ -17,6 +17,18 @@ import jsonschema
 
 from meeting_agent.meetings.artifact_catalog import ARTIFACT_DEFAULT_PATHS
 from meeting_agent.meetings.ingest_lock import IngestLock
+from meeting_agent.speakers import (
+    SpeakerDirectory,
+    SpeakerOverrideError,
+    SpeakerOverrideStore,
+    compute_source_revision,
+    ensure_source_revision,
+    mark_speaker_inputs_changed,
+    rebuild_status,
+    speaker_curation_requested,
+    merge_resolved_turns,
+    render_resolved_turns_text,
+)
 
 SUPPORTED_MEDIA_EXTENSIONS = frozenset({".mp4", ".mp3", ".wav", ".m4a"})
 _VIDEO_EXTENSIONS = frozenset({".mp4"})
@@ -51,6 +63,7 @@ DEFAULT_MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024  # 2 GiB
 MAX_MEETING_TITLE_CHARS = 500
 MAX_ORIGINAL_FILENAME_CHARS = 255
 _SPEAKER_LABEL_RE = re.compile(r"^SPEAKER_(?:UNKNOWN|\d{1,4})$")
+_TRANSCRIPT_SEGMENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$")
 _LANGUAGE_TAG_RE = re.compile(r"^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$")
 _MEETING_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,159}$")
 _ARTIFACT_KEY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$")
@@ -309,12 +322,19 @@ def _speaker_mapping(card: Mapping[str, Any]) -> dict[str, dict[str, str]]:
             continue
         name = str(entry.get("name") or "").strip()
         role = str(entry.get("role") or "").strip()
-        if not name and not role:
+        company = str(entry.get("company") or "").strip()
+        speaker_id = str(entry.get("speaker_id") or "").strip()
+        if not name and not role and not company and not speaker_id:
             continue
-        result[label] = {
+        entry = {
             "name": name[:_SPEAKER_NAME_MAX_CHARS],
             "role": role[:_SPEAKER_ROLE_MAX_CHARS],
         }
+        if company:
+            entry["company"] = company[:_SPEAKER_ROLE_MAX_CHARS]
+        if speaker_id:
+            entry["speaker_id"] = speaker_id[:80]
+        result[label] = entry
     return result
 
 
@@ -327,13 +347,24 @@ def _normalize_speaker_mapping(mapping: Mapping[str, Any]) -> dict[str, dict[str
             raise ValueError(f"Speaker mapping entry must be an object: {label!r}")
         name = str(raw_entry.get("name") or "").strip()
         role = str(raw_entry.get("role") or "").strip()
+        company = str(raw_entry.get("company") or "").strip()
+        speaker_id = str(raw_entry.get("speaker_id") or "").strip()
         if len(name) > _SPEAKER_NAME_MAX_CHARS:
             raise ValueError(f"Speaker name is too long: {label!r}")
         if len(role) > _SPEAKER_ROLE_MAX_CHARS:
             raise ValueError(f"Speaker role is too long: {label!r}")
-        if not name and not role:
+        if len(company) > _SPEAKER_ROLE_MAX_CHARS:
+            raise ValueError(f"Speaker company is too long: {label!r}")
+        if speaker_id and not re.fullmatch(r"spk_[0-9a-f]{32}", speaker_id):
+            raise ValueError(f"Speaker id is invalid: {label!r}")
+        if not name and not role and not company and not speaker_id:
             continue
-        normalized[label] = {"name": name, "role": role}
+        entry = {"name": name, "role": role}
+        if company:
+            entry["company"] = company
+        if speaker_id:
+            entry["speaker_id"] = speaker_id
+        normalized[label] = entry
     return normalized
 
 
@@ -349,6 +380,17 @@ def _speaker_display(label: str | None, mapping: Mapping[str, Mapping[str, str]]
         "speaker_role": role or None,
         "speaker_mapped": bool(name or role),
     }
+
+
+def _stable_transcript_segment_id(row: Mapping[str, Any], index: int) -> str:
+    candidate = row.get("utterance_id")
+    if candidate is None or candidate == "":
+        candidate = row.get("segment_id")
+    if candidate is None or candidate == "":
+        return f"seg-{index + 1:06d}"
+    if not isinstance(candidate, str) or not _TRANSCRIPT_SEGMENT_ID_RE.fullmatch(candidate):
+        raise SpeakerOverrideError("speaker transcript contains an invalid segment id")
+    return candidate
 
 
 def _detect_content_type(path: Path) -> str | None:
@@ -608,6 +650,7 @@ class MeetingsService:
         meetings_root: Path | str = "meetings",
         max_text_artifact_bytes: int = DEFAULT_MAX_TEXT_ARTIFACT_BYTES,
         max_upload_bytes: int = DEFAULT_MAX_UPLOAD_BYTES,
+        speaker_directory_path: Path | str | None = None,
     ) -> None:
         self.root = Path(meetings_root)
         if isinstance(max_text_artifact_bytes, bool):
@@ -632,6 +675,12 @@ class MeetingsService:
                 f"max_upload_bytes must be a positive integer, got {max_upload_bytes}"
             )
         self._max_upload_bytes = max_upload_bytes
+        directory_path = (
+            Path(speaker_directory_path)
+            if speaker_directory_path is not None
+            else self.root.parent / "data" / "meetingagent" / "speaker_directory.json"
+        )
+        self.speaker_directory = SpeakerDirectory(directory_path)
 
     @property
     def max_text_artifact_bytes(self) -> int:
@@ -962,10 +1011,24 @@ class MeetingsService:
                 "speaker_label": label,
                 "name": str((mapping.get(label) or {}).get("name") or ""),
                 "role": str((mapping.get(label) or {}).get("role") or ""),
+                "company": str((mapping.get(label) or {}).get("company") or ""),
+                "speaker_id": str((mapping.get(label) or {}).get("speaker_id") or ""),
                 "display_name": display["speaker"],
                 "mapped": bool(display["speaker_mapped"]),
             })
         return {"meeting_id": meeting_id, "speakers": speakers, "mapping": mapping}
+
+    def list_speaker_profiles(self, *, query: str = "") -> list[dict[str, Any]]:
+        return self.speaker_directory.list(query=query)
+
+    def create_speaker_profile(self, data: Mapping[str, Any]) -> dict[str, Any]:
+        return self.speaker_directory.create(data)
+
+    def update_speaker_profile(self, speaker_id: str, data: Mapping[str, Any]) -> dict[str, Any]:
+        return self.speaker_directory.update(speaker_id, data)
+
+    def delete_speaker_profile(self, speaker_id: str) -> None:
+        self.speaker_directory.delete(speaker_id)
 
     def update_speaker_mapping(
         self, meeting_id: str, mapping: Mapping[str, Any]
@@ -981,7 +1044,18 @@ class MeetingsService:
             card["speaker_mapping"] = normalized
         else:
             card.pop("speaker_mapping", None)
+        overrides = self._speaker_override_store(meeting_id).current()
+        mark_speaker_inputs_changed(
+            card,
+            meeting_dir=card_path.parent,
+            overrides=overrides,
+        )
         card["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        self._write_card_atomic(card_path, card)
+        return self.get_speakers(meeting_id)
+
+    @staticmethod
+    def _write_card_atomic(card_path: Path, card: Mapping[str, Any]) -> None:
         fd, tmp_name = tempfile.mkstemp(
             prefix=".meeting.",
             suffix=".json.tmp",
@@ -992,11 +1066,162 @@ class MeetingsService:
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
                 fh.write(json.dumps(card, ensure_ascii=False, indent=2) + "\n")
+                fh.flush()
+                os.fsync(fh.fileno())
             tmp_path.replace(card_path)
         except Exception:
             tmp_path.unlink(missing_ok=True)
             raise
-        return self.get_speakers(meeting_id)
+
+    def _mark_speaker_curation_changed(
+        self,
+        meeting_id: str,
+        *,
+        overrides: Mapping[str, Any],
+    ) -> None:
+        card_path = self._card_path(meeting_id)
+        card = _read_meeting_json(card_path)
+        mark_speaker_inputs_changed(
+            card,
+            meeting_dir=card_path.parent,
+            overrides=overrides,
+        )
+        card["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        self._write_card_atomic(card_path, card)
+
+    def get_speaker_rebuild_status(self, meeting_id: str) -> dict[str, Any] | None:
+        if not _safe_meeting_id(meeting_id):
+            return None
+        card_path = self._card_path(meeting_id)
+        if not card_path.is_file():
+            return None
+        card = _read_meeting_json(card_path)
+        status = rebuild_status(card)
+        try:
+            overrides = self._speaker_override_store(meeting_id).current()
+            if not speaker_curation_requested(card, overrides):
+                return {"meeting_id": meeting_id, **status}
+            actual_revision = compute_source_revision(
+                card_path.parent,
+                card,
+                overrides,
+            )
+        except SpeakerOverrideError:
+            raise
+        state = card.get("speaker_curation")
+        if not isinstance(state, Mapping) or state.get("source_revision") != actual_revision:
+            status["state"] = "stale"
+            status["needs_rebuild"] = True
+        return {"meeting_id": meeting_id, **status}
+
+    def prepare_speaker_rebuild(self, meeting_id: str) -> dict[str, Any] | None:
+        if not _safe_meeting_id(meeting_id):
+            return None
+        card_path = self._card_path(meeting_id)
+        if not card_path.is_file():
+            return None
+        card = _read_meeting_json(card_path)
+        overrides = self._speaker_override_store(meeting_id).current()
+        ensure_source_revision(
+            card,
+            meeting_dir=card_path.parent,
+            overrides=overrides,
+        )
+        state = card.get("speaker_curation")
+        if isinstance(state, dict) and state.get("state") != "current":
+            state["state"] = "rebuilding"
+            state["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        card["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        self._write_card_atomic(card_path, card)
+        return {"meeting_id": meeting_id, **rebuild_status(card)}
+
+    def mark_speaker_rebuild_not_started(self, meeting_id: str) -> None:
+        card_path = self._card_path(meeting_id)
+        if not card_path.is_file():
+            return
+        card = _read_meeting_json(card_path)
+        state = card.get("speaker_curation")
+        if not isinstance(state, dict) or state.get("state") != "rebuilding":
+            return
+        state["state"] = "stale"
+        state["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        card["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        self._write_card_atomic(card_path, card)
+
+    def _speaker_override_store(self, meeting_id: str) -> SpeakerOverrideStore:
+        meeting_dir = self._meeting_dir(meeting_id)
+        path = _safe_child_path(meeting_dir, "transcript/speaker_overrides.json")
+        if path is None:
+            raise SpeakerOverrideError("speaker override storage is unavailable")
+        return SpeakerOverrideStore(
+            path,
+            meeting_id,
+        )
+
+    def _automatic_speaker_labels(
+        self, meeting_id: str, card: Mapping[str, Any]
+    ) -> dict[str, str]:
+        rows = self._read_jsonl_artifact(meeting_id, card, "speaker_transcript")
+        labels: dict[str, str] = {}
+        for index, row in enumerate(rows):
+            segment_id = _stable_transcript_segment_id(row, index)
+            label = row.get("speaker") or row.get("speaker_id") or row.get("speaker_label")
+            if not isinstance(label, str) or not _SPEAKER_LABEL_RE.fullmatch(label):
+                label = "SPEAKER_UNKNOWN"
+            if segment_id in labels:
+                raise SpeakerOverrideError("speaker transcript contains duplicate segment ids")
+            labels[segment_id] = label
+        return labels
+
+    def get_speaker_overrides(self, meeting_id: str) -> dict[str, Any] | None:
+        if not _safe_meeting_id(meeting_id):
+            return None
+        card = self.get_meeting(meeting_id)
+        if card is None:
+            return None
+        self._automatic_speaker_labels(meeting_id, card)
+        result = self._speaker_override_store(meeting_id).snapshot()
+        return result
+
+    def set_speaker_overrides(
+        self,
+        meeting_id: str,
+        segment_ids: list[str],
+        speaker_label: str,
+        actor_id: str,
+    ) -> dict[str, Any] | None:
+        card = self.get_meeting(meeting_id)
+        if card is None:
+            return None
+        automatic = self._automatic_speaker_labels(meeting_id, card)
+        speakers = self.get_speakers(meeting_id)
+        known_labels = {row["speaker_label"] for row in (speakers or {}).get("speakers", [])}
+        if speaker_label not in known_labels:
+            raise SpeakerOverrideError("speaker label does not exist in this meeting")
+        result = self._speaker_override_store(meeting_id).set(
+            segment_ids, speaker_label, automatic, actor_id
+        )
+        self._mark_speaker_curation_changed(
+            meeting_id,
+            overrides=result.get("current") or {},
+        )
+        return result
+
+    def reset_speaker_overrides(
+        self, meeting_id: str, segment_ids: list[str], actor_id: str
+    ) -> dict[str, Any] | None:
+        card = self.get_meeting(meeting_id)
+        if card is None:
+            return None
+        automatic = self._automatic_speaker_labels(meeting_id, card)
+        result = self._speaker_override_store(meeting_id).reset(
+            segment_ids, automatic, actor_id
+        )
+        self._mark_speaker_curation_changed(
+            meeting_id,
+            overrides=result.get("current") or {},
+        )
+        return result
 
     def get_transcript_segments(self, meeting_id: str) -> dict[str, Any] | None:
         """Return normalized transcript segments for the workspace UI.
@@ -1016,20 +1241,30 @@ class MeetingsService:
         mapping = _speaker_mapping(card)
         speaker_rows = self._read_jsonl_artifact(meeting_id, card, "speaker_transcript")
         if speaker_rows:
+            overrides = self._speaker_override_store(meeting_id).current()
             base: dict[str, Any] = {"meeting_id": meeting_id, "segments": []}
             normalized = []
             for i, seg in enumerate(speaker_rows):
-                label = (
+                automatic_label = (
                     seg.get("speaker")
                     or seg.get("speaker_id")
                     or seg.get("speaker_label")
                 )
-                speaker = _speaker_display(label if isinstance(label, str) else None, mapping)
+                if not isinstance(automatic_label, str) or not _SPEAKER_LABEL_RE.fullmatch(automatic_label):
+                    automatic_label = "SPEAKER_UNKNOWN"
+                segment_id = _stable_transcript_segment_id(seg, i)
+                override = overrides.get(segment_id)
+                resolved_label = override["speaker_label"] if override else automatic_label
+                speaker = _speaker_display(resolved_label, mapping)
                 normalized.append({
-                    "segment_id": str(seg.get("utterance_id") or seg.get("segment_id") or f"seg-{i + 1:06d}"),
+                    "segment_id": segment_id,
                     "start_sec": _coerce_float(_first_present(seg, "start_sec", "start")),
                     "end_sec": _coerce_float(_first_present(seg, "end_sec", "end")),
                     **speaker,
+                    "automatic_speaker_label": automatic_label,
+                    "speaker_overridden": override is not None,
+                    "speaker_override_updated_at": override.get("updated_at") if override else None,
+                    "source": str(seg.get("source") or "MIX"),
                     "text": (
                         seg.get("text") or seg.get("content") or seg.get("transcript") or ""
                     ),
@@ -1063,6 +1298,30 @@ class MeetingsService:
             })
         base["segments"] = normalized
         return base
+
+    def get_resolved_speaker_turns(
+        self, meeting_id: str, *, max_gap_sec: float = 1.5
+    ) -> dict[str, Any] | None:
+        transcript = self.get_transcript_segments(meeting_id)
+        if transcript is None:
+            return None
+        segments = transcript.get("segments") or []
+        turns = merge_resolved_turns(segments, max_gap_sec=max_gap_sec)
+        return {
+            "meeting_id": meeting_id,
+            "max_gap_sec": float(max_gap_sec),
+            "source_segments_count": len(segments),
+            "turns_count": len(turns),
+            "turns": turns,
+        }
+
+    def render_resolved_speaker_transcript(
+        self, meeting_id: str, *, max_gap_sec: float = 1.5, markdown: bool = False
+    ) -> str | None:
+        result = self.get_resolved_speaker_turns(meeting_id, max_gap_sec=max_gap_sec)
+        if result is None:
+            return None
+        return render_resolved_turns_text(result["turns"], markdown=markdown)
 
     # ------------------------------------------------------------------
     # Write / ingest

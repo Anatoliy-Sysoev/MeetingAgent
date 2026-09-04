@@ -431,6 +431,74 @@ def test_build_app_state_wires_durable_job_store(
         state.live_session_service.shutdown()
 
 
+def test_build_app_state_resolves_relative_meetings_root_under_work_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import meeting_agent.api.dependencies as core_deps
+    from asu_june_bot.api import dependencies as deps
+
+    work_root = tmp_path / "deployment"
+    other_cwd = tmp_path / "other-cwd"
+    work_root.mkdir()
+    other_cwd.mkdir()
+    monkeypatch.chdir(other_cwd)
+    monkeypatch.setattr(core_deps, "check_and_fail_if_unsafe", lambda _config: None)
+
+    state = deps.build_app_state(
+        {
+            "work_root_path": work_root,
+            "paths": {
+                "auth_db": "runtime/auth.db",
+                "meetings_root": "runtime/meetings",
+                "jobs_state": "runtime/jobs.json",
+                "live_sessions_state": "runtime/live.json",
+                "meeting_work_lock": "runtime/meeting_work.lock",
+            },
+        }
+    )
+
+    expected = (work_root / "runtime" / "meetings").resolve()
+    try:
+        assert state.meetings_service.root == expected
+        assert state.job_runner.meetings_root == expected
+        assert state.live_session_service.meetings_root == expected
+        assert expected != (other_cwd / "runtime" / "meetings").resolve()
+    finally:
+        state.live_session_service.shutdown()
+
+
+def test_build_app_state_preserves_absolute_meetings_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import meeting_agent.api.dependencies as core_deps
+    from asu_june_bot.api import dependencies as deps
+
+    work_root = tmp_path / "deployment"
+    absolute_root = tmp_path / "external-meetings"
+    work_root.mkdir()
+    monkeypatch.setattr(core_deps, "check_and_fail_if_unsafe", lambda _config: None)
+
+    state = deps.build_app_state(
+        {
+            "work_root_path": work_root,
+            "paths": {
+                "auth_db": "runtime/auth.db",
+                "meetings_root": str(absolute_root),
+                "jobs_state": "runtime/jobs.json",
+                "live_sessions_state": "runtime/live.json",
+                "meeting_work_lock": "runtime/meeting_work.lock",
+            },
+        }
+    )
+
+    try:
+        assert state.meetings_service.root == absolute_root.resolve()
+        assert state.job_runner.meetings_root == absolute_root.resolve()
+        assert state.live_session_service.meetings_root == absolute_root.resolve()
+    finally:
+        state.live_session_service.shutdown()
+
+
 # ------------------------------------------------------------------
 # Bounded text artifact reads
 # ------------------------------------------------------------------

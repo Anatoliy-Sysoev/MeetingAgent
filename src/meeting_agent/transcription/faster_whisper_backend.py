@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 DEFAULT_FASTER_WHISPER_MODEL = "large-v3-turbo"
@@ -35,7 +35,12 @@ def load_model(config: FasterWhisperConfig):
     return WhisperModel(config.model, device=config.device, compute_type=config.compute_type)
 
 
-def transcribe_faster_whisper(media_path: Path, config: FasterWhisperConfig) -> FasterWhisperResult:
+def transcribe_faster_whisper(
+    media_path: Path,
+    config: FasterWhisperConfig,
+    *,
+    progress_callback: Callable[[float, float | None], None] | None = None,
+) -> FasterWhisperResult:
     model = load_model(config)
     transcribe_kwargs: dict = {
         "language": config.language,
@@ -47,6 +52,9 @@ def transcribe_faster_whisper(media_path: Path, config: FasterWhisperConfig) -> 
     elif config.initial_prompt:
         transcribe_kwargs["initial_prompt"] = config.initial_prompt
     segment_iter, info = model.transcribe(str(media_path), **transcribe_kwargs)
+    duration = getattr(info, "duration", None)
+    if progress_callback is not None:
+        progress_callback(0.0, float(duration) if duration is not None else None)
 
     rows: list[dict[str, Any]] = []
     for segment in segment_iter:
@@ -65,13 +73,18 @@ def transcribe_faster_whisper(media_path: Path, config: FasterWhisperConfig) -> 
         if no_speech_prob is not None:
             row["no_speech_prob"] = float(no_speech_prob)
         rows.append(row)
+        if progress_callback is not None:
+            progress_callback(float(segment.end), float(duration) if duration is not None else None)
+
+    if progress_callback is not None and duration is not None:
+        progress_callback(float(duration), float(duration))
 
     metrics = {
         "asr_model": config.model,
         "asr_engine": "faster-whisper",
         "language": getattr(info, "language", config.language),
         "language_probability": getattr(info, "language_probability", None),
-        "duration": getattr(info, "duration", None),
+        "duration": duration,
         "duration_after_vad": getattr(info, "duration_after_vad", None),
         "device": config.device,
         "compute_type": config.compute_type,

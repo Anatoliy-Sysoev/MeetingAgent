@@ -41,6 +41,7 @@ from asu_june_bot.api.ui_assets import (  # noqa: E402
     UI_ASSETS_V2_DIR,
     UI_ASSETS_V3_DIR,
     UI_ASSETS_V4_DIR,
+    UI_ASSETS_V5_DIR,
 )
 
 
@@ -69,6 +70,11 @@ def _build_ui_app() -> FastAPI:
         "/assets/v4",
         StaticFiles(directory=UI_ASSETS_V4_DIR, check_dir=True),
         name="ui-assets-v4",
+    )
+    app.mount(
+        "/assets/v5",
+        StaticFiles(directory=UI_ASSETS_V5_DIR, check_dir=True),
+        name="ui-assets-v5",
     )
     app.include_router(meetingagent_router)
     app.include_router(workspace_router)
@@ -208,6 +214,7 @@ def test_meetingagent_upload_and_pipeline_workflow(page: Page, ui_base_url: str)
     page.locator("#meetingTitle").fill("Browser smoke")
     page.locator('input[name="profile-choice"][value="none"]').check()
     page.locator("#asrEngine").select_option("gigaam")
+    page.locator("#diarizationSpeakerCount").select_option("4")
     page.locator("#uploadSubmit").click()
 
     expect(page.locator("#message")).to_contain_text("Карточка встречи создана")
@@ -219,7 +226,11 @@ def test_meetingagent_upload_and_pipeline_workflow(page: Page, ui_base_url: str)
 
     page.get_by_role("button", name="Запустить транскрибацию").click()
     expect(page.locator("#message")).to_contain_text("Обработка запущена")
-    assert captured["pipeline"] == {"profile": "transcript_only", "asr_engine": "gigaam"}
+    assert captured["pipeline"] == {
+        "profile": "transcript_only",
+        "asr_engine": "gigaam",
+        "num_speakers": 4,
+    }
     pipeline_headers = captured["pipeline_headers"]
     assert isinstance(pipeline_headers, dict)
     assert pipeline_headers.get("x-csrf-token") == "browser-csrf"
@@ -231,21 +242,58 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
     ui_base_url: str,
 ) -> None:
     captured: dict[str, object] = {}
-    mapping = {"SPEAKER_01": {"name": "", "role": ""}}
+    mapping = {
+        "SPEAKER_01": {"name": "", "role": ""},
+        "SPEAKER_02": {"name": "", "role": ""},
+    }
+    overrides: dict[str, str] = {}
+    tail_start = 20.0 + (1504 * 2.0)
+
+    def transcript_payload() -> dict[str, object]:
+        first_label = overrides.get("seg-000001", "SPEAKER_01")
+        display = mapping[first_label]["name"] or first_label
+        rows = [
+            {
+                "segment_id": "seg-000001",
+                "start_sec": 12.0,
+                "end_sec": 15.0,
+                "speaker": display,
+                "speaker_label": first_label,
+                "speaker_role": mapping[first_label]["role"],
+                "automatic_speaker_label": "SPEAKER_01",
+                "speaker_overridden": "seg-000001" in overrides,
+                "text": "Согласовали срок поставки.",
+            }
+        ]
+        for index in range(1, 1505):
+            start = 20.0 + (index * 2.0)
+            text = f"Реплика номер {index}."
+            if index == 1504:
+                text = "Уникальный хвостовой маркер и срок поставки."
+            rows.append(
+                {
+                    "segment_id": f"seg-{index + 1:06d}",
+                    "start_sec": start,
+                    "end_sec": start + 1.0,
+                    "speaker": display,
+                    "speaker_label": "SPEAKER_01",
+                    "speaker_role": mapping["SPEAKER_01"]["role"],
+                    "text": text,
+                }
+            )
+        return {"segments": rows}
 
     def speaker_payload() -> dict[str, object]:
-        values = mapping["SPEAKER_01"]
-        return {
-            "speakers": [
-                {
-                    "speaker_label": "SPEAKER_01",
-                    "name": values["name"],
-                    "role": values["role"],
-                    "display_name": values["name"] or "SPEAKER_01",
-                    "mapped": bool(values["name"] or values["role"]),
-                }
-            ]
-        }
+        speakers = []
+        for label, values in mapping.items():
+            speakers.append({
+                "speaker_label": label,
+                "name": values["name"],
+                "role": values["role"],
+                "display_name": values["name"] or label,
+                "mapped": bool(values["name"] or values["role"]),
+            })
+        return {"speakers": speakers}
 
     def handle_api(route: Route) -> None:
         request = route.request
@@ -281,31 +329,49 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
         elif path == f"{prefix}/media":
             _fulfill_json(route, {"media": []})
         elif path == f"{prefix}/transcript/segments":
-            display = mapping["SPEAKER_01"]["name"] or "SPEAKER_01"
+            _fulfill_json(route, transcript_payload())
+        elif path == f"{prefix}/transcript/turns":
+            source_rows = transcript_payload()["segments"]
             _fulfill_json(
                 route,
                 {
-                    "segments": [
+                    "source_segments_count": len(source_rows),
+                    "turns_count": len(source_rows),
+                    "turns": [
                         {
-                            "segment_id": "seg-000001",
-                            "start_sec": 12.0,
-                            "end_sec": 15.0,
-                            "speaker": display,
-                            "speaker_label": "SPEAKER_01",
-                            "speaker_role": mapping["SPEAKER_01"]["role"],
-                            "text": "Согласовали срок поставки.",
+                            **row,
+                            "turn_id": f"turn-{index + 1:06d}",
+                            "segment_ids": [row["segment_id"]],
+                            "utterance_ids": [row["segment_id"]],
                         }
-                    ]
+                        for index, row in enumerate(source_rows)
+                    ],
                 },
             )
         elif path == f"{prefix}/speakers" and request.method == "GET":
             _fulfill_json(route, speaker_payload())
+        elif path == "/speakers" and request.method == "GET":
+            _fulfill_json(route, {"profiles": [], "count": 0})
         elif path == f"{prefix}/speakers/mapping" and request.method == "PUT":
             body = json.loads(request.post_data or "{}")
             captured["mapping"] = body
             captured["mapping_headers"] = request.headers
             mapping.update(body["mapping"])
             _fulfill_json(route, speaker_payload())
+        elif path == f"{prefix}/speakers/overrides" and request.method == "PUT":
+            body = json.loads(request.post_data or "{}")
+            captured["speaker_override"] = body
+            captured["speaker_override_headers"] = request.headers
+            for segment_id in body["segment_ids"]:
+                overrides[segment_id] = body["speaker_label"]
+            _fulfill_json(route, {"overrides": []})
+        elif path == f"{prefix}/speakers/overrides/reset" and request.method == "POST":
+            body = json.loads(request.post_data or "{}")
+            captured["speaker_override_reset"] = body
+            captured["speaker_override_reset_headers"] = request.headers
+            for segment_id in body["segment_ids"]:
+                overrides.pop(segment_id, None)
+            _fulfill_json(route, {"overrides": []})
         elif path == f"{prefix}/artifacts":
             _fulfill_json(
                 route,
@@ -343,6 +409,15 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
                         {"artifact_key": "index_status", "exists": True},
                         {"artifact_key": "memo", "exists": True},
                     ]
+                },
+            )
+        elif path == f"{prefix}/speakers/rebuild":
+            _fulfill_json(
+                route,
+                {
+                    "state": "not_initialized",
+                    "needs_rebuild": False,
+                    "stages": [],
                 },
             )
         elif path == f"{prefix}/live/preflight":
@@ -408,9 +483,9 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
                     "retrieval_mode": "vector",
                     "citations": [
                         {
-                            "citation_label": "[00:00:12, SPEAKER_01]",
-                            "start_sec": 12.0,
-                            "excerpt": "Согласовали срок поставки.",
+                            "citation_label": "[00:50:28, SPEAKER_01]",
+                            "start_sec": tail_start,
+                            "excerpt": "Уникальный хвостовой маркер и срок поставки.",
                         }
                     ],
                 },
@@ -425,8 +500,8 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
                         {
                             "text": "Согласовали срок поставки.",
                             "source": {
-                                "citation_label": "[00:00:12, SPEAKER_01]",
-                                "start_sec": 12.0,
+                                "citation_label": "[00:50:28, SPEAKER_01]",
+                                "start_sec": tail_start,
                             },
                         }
                     ],
@@ -440,11 +515,23 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
     response = page.goto(f"{ui_base_url}{f'/meetings/{MEETING_ID}/workspace'}", wait_until="networkidle")
     assert response is not None
     assert "'unsafe-inline'" not in response.headers["content-security-policy"]
+    assert errors == []
     expect(page.locator("#hdr-title")).to_have_text("Workspace browser smoke")
     expect(page.locator("#transcript-list")).to_contain_text("Согласовали срок поставки")
+    expect(page.locator("#seg-page-status")).to_have_text("1–150 из 1505")
+    assert page.locator("#transcript-list .seg").count() == 150
 
-    name_input = page.locator('.speaker-map-row input[data-field="name"]')
-    role_input = page.locator('.speaker-map-row input[data-field="role"]')
+    page.locator("#seg-filter").fill("уникальный хвостовой маркер")
+    expect(page.locator("#seg-page-status")).to_have_text("1–1 из 1")
+    assert page.locator("#transcript-list .seg").count() == 1
+    expect(page.locator("#transcript-list")).to_contain_text("Уникальный хвостовой маркер")
+    page.locator("#seg-filter").fill("")
+    expect(page.locator("#seg-page-status")).to_have_text("1–150 из 1505")
+    page.locator("#seg-next").click()
+    expect(page.locator("#seg-page-status")).to_have_text("151–300 из 1505")
+
+    name_input = page.locator('.speaker-map-row input[data-field="name"]').first
+    role_input = page.locator('.speaker-map-row input[data-field="role"]').first
     name_input.fill("Иван Петров")
     role_input.fill("Руководитель")
     page.locator("#speaker-map-save-btn").click()
@@ -457,6 +544,25 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
     assert mapping_headers.get("x-csrf-token") == "workspace-csrf"
     expect(page.locator("#transcript-list")).to_contain_text("Иван Петров")
 
+    first_segment = page.locator("#transcript-list .seg").first
+    first_segment.locator(".seg-speaker-select").check()
+    page.locator("#speaker-override-label").select_option("SPEAKER_02")
+    page.locator("#speaker-override-apply").click()
+    expect(first_segment).to_contain_text("SPEAKER_02")
+    expect(first_segment).to_contain_text("исправлено вручную")
+    assert captured["speaker_override"] == {
+        "segment_ids": ["seg-000001"],
+        "speaker_label": "SPEAKER_02",
+    }
+    assert captured["speaker_override_headers"].get("x-csrf-token") == "workspace-csrf"
+
+    first_segment.locator(".seg-speaker-select").check()
+    page.locator("#speaker-override-reset").click()
+    expect(first_segment).to_contain_text("Иван Петров")
+    expect(first_segment.locator(".seg-corrected")).to_have_count(0)
+    assert captured["speaker_override_reset"] == {"segment_ids": ["seg-000001"]}
+    assert captured["speaker_override_reset_headers"].get("x-csrf-token") == "workspace-csrf"
+
     page.locator('[data-workspace-tab="artifacts"]').click()
     page.get_by_role("button", name="Открыть").click()
     expect(page.locator("#artifact-viewer")).to_contain_text("Итог встречи")
@@ -465,9 +571,13 @@ def test_workspace_transcript_mapping_artifacts_qa_and_pipeline(
     page.locator("#qa-question").fill("Какой срок согласовали?")
     page.locator("#qa-ask-btn").click()
     expect(page.locator("#qa-answer")).to_have_text("Срок поставки согласован.")
-    expect(page.locator("#qa-citations")).to_contain_text("[00:00:12, SPEAKER_01]")
+    expect(page.locator("#qa-citations")).to_contain_text("[00:50:28, SPEAKER_01]")
     assert captured["chat"] == {"query": "Какой срок согласовали?", "top_k": 5}
+    page.locator("#qa-citations .qa-citation").click()
+    expect(page.locator("#seg-page-status")).to_have_text("1501–1505 из 1505")
+    expect(page.locator("#transcript-list")).to_contain_text("Уникальный хвостовой маркер")
 
+    page.locator('[data-workspace-tab="qa"]').click()
     page.locator("#qa-search-input").fill("срок поставки")
     page.locator("#qa-search-btn").click()
     expect(page.locator("#qa-search-results")).to_contain_text("Согласовали срок поставки")
@@ -560,6 +670,15 @@ def test_workspace_live_unified_start_partial_stop_and_final(
             _fulfill_json(route, {"stages": []})
         elif path == f"{prefix}/artifacts/manifest":
             _fulfill_json(route, {"artifacts": []})
+        elif path == f"{prefix}/speakers/rebuild":
+            _fulfill_json(
+                route,
+                {
+                    "state": "not_initialized",
+                    "needs_rebuild": False,
+                    "stages": [],
+                },
+            )
         elif path == "/jobs/active":
             _fulfill_json(route, {})
         elif path == f"{prefix}/live/preflight":
@@ -975,6 +1094,15 @@ def test_meetingagent_live_creation_opens_workspace_and_checks_sources(
             _fulfill_json(route, {"meeting_id": live_id, "status": "new", "stages": []})
         elif path == f"{prefix}/artifacts/manifest":
             _fulfill_json(route, {"artifacts": []})
+        elif path == f"{prefix}/speakers/rebuild":
+            _fulfill_json(
+                route,
+                {
+                    "state": "not_initialized",
+                    "needs_rebuild": False,
+                    "stages": [],
+                },
+            )
         elif path == f"{prefix}/live/preflight":
             source = parse_qs(parsed.query).get("source", [""])[0]
             preflights = captured["preflight_sources"]

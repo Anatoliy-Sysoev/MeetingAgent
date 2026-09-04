@@ -63,6 +63,7 @@ from meeting_agent.transcription import (  # noqa: E402
     transcribe_gigaam as run_gigaam_backend,
     write_transcript_exports,
 )
+from meeting_agent.jobs.progress import ProgressReporter, resolve_progress_path  # noqa: E402
 
 
 def now_iso() -> str:
@@ -300,7 +301,22 @@ def build_faster_whisper_config(args: argparse.Namespace) -> FasterWhisperConfig
 
 
 def transcribe_faster_whisper(media_path: Path, args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    result = run_faster_whisper_backend(media_path, build_faster_whisper_config(args))
+    reporter = getattr(args, "_progress_reporter", None)
+    if reporter is not None:
+        reporter.emit_safely(0.0, None, force=True)
+    result = run_faster_whisper_backend(
+        media_path,
+        build_faster_whisper_config(args),
+        progress_callback=(
+            lambda current, total: reporter.emit_safely(
+                current,
+                total,
+                force=bool(total is not None and current >= total),
+            )
+            if reporter is not None
+            else None
+        ),
+    )
     return result.segments, result.metrics
 
 
@@ -327,6 +343,7 @@ def _run_gigaam(media_path: Path, meeting_dir: Path, args: argparse.Namespace):
                 and not getattr(args, "disable_backend_resume", False)
             ),
         ),
+        progress_path=getattr(args, "_progress_path", None),
     )
 
 
@@ -612,6 +629,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--progress-path",
+        help="Machine-readable progress file inside the meeting directory.",
+    )
     parser.add_argument("--output-formats", default="txt,md,srt,vtt,json,jsonl")
     parser.add_argument("--chunk-seconds", default=24, type=int, help="GigaAM chunk size.")
     parser.add_argument("--gigaam-root", default=str(Path.home() / "GigaAM"))
@@ -628,6 +649,20 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="Path to custom hotwords YAML (default: configs/asr_hotwords.yaml).",
     )
     args = parser.parse_args(argv)
+    meeting_dir = resolve_path(args.meeting_dir)
+    try:
+        args._progress_path = resolve_progress_path(meeting_dir, args.progress_path)
+    except ValueError as exc:
+        parser.error(str(exc))
+    args._progress_reporter = (
+        ProgressReporter(
+            args._progress_path,
+            phase="transcribe:faster-whisper",
+            unit="seconds",
+        )
+        if args._progress_path is not None and args.engine == "faster-whisper" and not args.dry_run
+        else None
+    )
     cfg = transcription_config()
     if args.engine == "faster-whisper" and not args.model:
         args.model = str(cfg.get("model") or DEFAULT_FASTER_WHISPER_MODEL)

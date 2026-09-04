@@ -48,6 +48,8 @@ def test_tracked_tree_has_no_known_customer_or_real_person_markers() -> None:
         "Торбик " + "Виталий",
         "Анатолий " + "Сысоев",
         "Антон " + "Васильев",
+        "C:" + "\\Users\\" + "Сотрудник",
+        "C:" + "/Users/" + "Сотрудник",
     )
     leaks: list[str] = []
 
@@ -60,15 +62,14 @@ def test_tracked_tree_has_no_known_customer_or_real_person_markers() -> None:
 
 
 def test_public_docs_have_no_literal_windows_user_profile_paths() -> None:
-    roots = [ROOT / "docs", ROOT / "examples"]
     leaks: list[str] = []
 
-    for base in roots:
-        for path in base.rglob("*"):
-            if not path.is_file():
-                continue
-            text = path.read_text(encoding="utf-8", errors="ignore")
-            if ":\\Users\\" in text or ":/Users/" in text:
-                leaks.append(path.relative_to(ROOT).as_posix())
+    for path in _tracked_existing_paths():
+        relative = path.relative_to(ROOT).as_posix()
+        if not relative.startswith(("docs/", "examples/")):
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        if ":\\Users\\" in text or ":/Users/" in text:
+            leaks.append(relative)
 
     assert leaks == []

@@ -1,0 +1,20 @@
+{"id":"SYN-REQ-001","category":"requirements","query":"Какие требования определены для модуля обработки заявок?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-REQ-002","category":"requirements","query":"Какие ограничения по доступности указаны в требованиях?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-REQ-003","category":"requirements","query":"Какие этапы реализации перечислены в проектной документации?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-ARCH-001","category":"architecture","query":"Какие компоненты входят в архитектуру системы?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-ARCH-002","category":"architecture","query":"Какие контуры развёртывания описаны в архитектуре?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-ARCH-003","category":"architecture","query":"Какие требования к резервному копированию указаны в документации?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-INT-001","category":"integration","query":"Какие форматы сообщений поддерживает интеграционный API?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-INT-002","category":"integration","query":"Как обрабатываются повторные сообщения интеграции?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-INT-003","category":"integration","query":"Какой сервис является источником справочника подразделений?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-ROLE-001","category":"roles_access","query":"Какие пользовательские роли предусмотрены в системе?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-ROLE-002","category":"roles_access","query":"Кто может согласовать заявку?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-ROLE-003","category":"roles_access","query":"Какие действия доступны администратору проекта?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-TEST-001","category":"test_docs","query":"Какие сценарии функционального тестирования описаны в программе испытаний?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-TEST-002","category":"test_docs","query":"Какие открытые вопросы остались по итогам испытаний?","expected_status":"project_answer_or_no_answer","review_priority":"high"}
+{"id":"SYN-OPS-001","category":"operations","query":"Какие события должны записываться в журнал аудита?","expected_status":"project_answer_or_no_answer","review_priority":"medium"}
+{"id":"SYN-AMB-001","category":"ambiguous","query":"статус","expected_status":"clarify_or_refused","review_priority":"medium"}
+{"id":"SYN-AMB-002","category":"ambiguous","query":"какие документы?","expected_status":"clarify_or_project_answer","review_priority":"medium"}
+{"id":"SYN-REFUSE-001","category":"out_of_scope","query":"Какая погода завтра?","expected_status":"refused","review_priority":"high"}
+{"id":"SYN-REFUSE-002","category":"out_of_scope","query":"Напиши рецепт ужина","expected_status":"refused","review_priority":"high"}
+{"id":"SYN-MIX-001","category":"mixed_scope","query":"Какие роли есть в проекте и какая погода завтра?","expected_status":"refused_or_clarify","review_priority":"high"}

@@ -70,6 +70,8 @@ paths:
   watched_folder: "watched_folder"
   # SQLite database for auth (users, sessions, audit log). Local runtime, never commit.
   auth_db: "data/meetingagent/auth.db"
+  # Private reusable speaker profiles. Runtime only; never commit this file.
+  speaker_directory: "data/meetingagent/speaker_directory.json"
   # Durable pipeline state and bounded recovery history. Local runtime, never commit.
   jobs_state: "logs/jobs_state.json"
   # Durable bounded live-session state. Partial hypotheses remain memory-only.
