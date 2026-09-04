@@ -7,7 +7,7 @@ omegaconf==2.3.*
 # MeetingAgent inference-only path is verified with 1.22.*; ONNX export is not
 # part of the supported product path.
 onnx==1.22.*
-onnxruntime==1.23.*
+onnxruntime>=1.23,<1.28
 numpy>=2,<3
 soundfile>=0.13,<1
 sentencepiece>=0.2,<1
