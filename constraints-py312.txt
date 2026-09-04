@@ -61,7 +61,7 @@ colorama==0.4.6
     #   mkdocs-material
     #   pytest
     #   tqdm
-coverage==7.15.0
+coverage==7.15.2
     # via -r requirements-dev.txt
 ctranslate2==4.8.1
     # via faster-whisper
