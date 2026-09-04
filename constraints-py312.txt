@@ -54,7 +54,13 @@ click==8.4.2
     #   pip-tools
     #   uvicorn
 colorama==0.4.6
-    # via mkdocs-material
+    # via
+    #   build
+    #   click
+    #   mkdocs
+    #   mkdocs-material
+    #   pytest
+    #   tqdm
 coverage==7.15.2
     # via -r requirements-dev.txt
 ctranslate2==4.8.1
@@ -148,7 +154,7 @@ mkdocs-material-extensions==1.3.1
     # via mkdocs-material
 msgpack==1.2.1
     # via cachecontrol
-numpy==2.4.6
+numpy==2.5.1
     # via
     #   -r requirements-diarization.txt
     #   -r requirements.txt
@@ -313,6 +319,8 @@ typing-inspection==0.4.2
     # via
     #   fastapi
     #   pydantic
+tzdata==2026.3
+    # via pandas
 urllib3==2.7.0
     # via requests
 uvicorn==0.51.0
