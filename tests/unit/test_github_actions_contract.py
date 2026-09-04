@@ -10,7 +10,7 @@ WORKFLOWS_DIR = ROOT / ".github" / "workflows"
 REVIEWED_NODE24_ACTIONS = {
     "actions/checkout": "v7",
     "actions/deploy-pages": "v5",
-    "actions/setup-python": "v6",
+    "actions/setup-python": "v7",
     "actions/upload-pages-artifact": "v5",
 }
 
