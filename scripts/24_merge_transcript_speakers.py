@@ -15,6 +15,11 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from meeting_agent.diarization import assign_speaker, normalize_intervals  # noqa: E402
+from meeting_agent.speakers import (  # noqa: E402
+    SpeakerOverrideStore,
+    mark_speaker_inputs_changed,
+    speaker_curation_requested,
+)
 
 
 DEFAULT_SPEAKER = "SPEAKER_UNKNOWN"
@@ -200,10 +205,20 @@ def build_text(
     return "\n".join(lines).rstrip() + "\n"
 
 
-def update_meeting(meeting: dict[str, Any]) -> None:
+def update_meeting(meeting: dict[str, Any], meeting_dir: Path) -> None:
     artifacts = dict(meeting.get("artifacts", {}))
     artifacts["speaker_transcript"] = "transcript/speaker_transcript.jsonl"
     meeting["artifacts"] = artifacts
+    overrides = SpeakerOverrideStore(
+        meeting_dir / "transcript" / "speaker_overrides.json",
+        str(meeting["meeting_id"]),
+    ).current()
+    if speaker_curation_requested(meeting, overrides):
+        mark_speaker_inputs_changed(
+            meeting,
+            meeting_dir=meeting_dir,
+            overrides=overrides,
+        )
     meeting["updated_at"] = now_iso()
     meeting.pop("last_error", None)
 
@@ -270,7 +285,7 @@ def run(args: argparse.Namespace) -> int:
             build_text(utterances, speaker_mapping=normalize_speaker_mapping(meeting)),
             encoding="utf-8",
         )
-        update_meeting(meeting)
+        update_meeting(meeting, meeting_dir)
         validate_schema(meeting, schema_path)
         write_json_atomic(meeting_path, meeting)
     except Exception as exc:

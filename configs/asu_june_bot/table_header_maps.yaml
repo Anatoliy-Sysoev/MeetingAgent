@@ -1,0 +1,14 @@
+# Public-safe table header semantics used at context-build time.
+# These maps do not change persisted chunks or embeddings.
+
+tables:
+  "ФТТ.docx::Table 8":
+    document_type: "ФТТ"
+    repeated_headers:
+      "Входит в объём проекта":
+        "Входит в объём проекта": "Этап 1 (ФТ1)"
+        "Входит в объём проекта_2": "Этап 2 (ФТ2)"
+        "Входит в объём проекта_3": "Этап 3 (ФТ3)"
+        "Входит в объём проекта_4": "Этап 4 (ФТ4)"
+      "Развитие ИС":
+        "Развитие ИС": "Развитие ИС / не входит в текущий проект"

@@ -45,6 +45,7 @@ def _import_script(name: str) -> types.ModuleType:
         "enrich": "27_enrich_meeting_chunks.py",
         "index": "28_index_meeting_chunks.py",
         "analyze": "29_analyze_meeting.py",
+        "index_artifacts": "32_index_meeting_artifacts.py",
     }
     path = SCRIPTS / mapping[name]
     spec = importlib.util.spec_from_file_location(f"_script_{name}", path)
@@ -568,8 +569,8 @@ def test_analyze_artifacts_are_valid_json(tmp_path: Path) -> None:
 # ===========================================================================
 
 
-def test_full_pipeline_chain_produces_indexed_chunks(tmp_path: Path) -> None:
-    """chunk → enrich → index → analyze all succeed on the seeded transcript."""
+def test_full_pipeline_chain_indexes_chunks_and_structured_artifacts(tmp_path: Path) -> None:
+    """The complete local chain indexes chunks and final analysis artifacts."""
     meeting_dir = build_meeting_dir(tmp_path)
     card = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
     card["artifacts"]["speaker_transcript"] = "transcript/speaker_transcript.jsonl"
@@ -581,11 +582,17 @@ def test_full_pipeline_chain_produces_indexed_chunks(tmp_path: Path) -> None:
     enrich_mod = _import_script("enrich")
     index_mod = _import_script("index")
     analyze_mod = _import_script("analyze")
+    artifact_index_mod = _import_script("index_artifacts")
 
     assert chunk_mod.run(chunk_mod.parse_args(["--meeting-dir", str(meeting_dir), "--force"])) == 0
     assert enrich_mod.run(enrich_mod.parse_args(["--meeting-dir", str(meeting_dir)])) == 0
     assert index_mod.run(index_mod.parse_args(["--meeting-dir", str(meeting_dir), "--output", str(chunks_out)])) == 0
     assert analyze_mod.run(analyze_mod.parse_args(["--meeting-dir", str(meeting_dir), "--mode", "extractive", "--force"])) == 0
+    assert artifact_index_mod.run(
+        artifact_index_mod.parse_args(
+            ["--meeting-dir", str(meeting_dir), "--output", str(chunks_out)]
+        )
+    ) == 0
 
     # Indexed rows exist.
     rows = [
@@ -593,14 +600,58 @@ def test_full_pipeline_chain_produces_indexed_chunks(tmp_path: Path) -> None:
         for line in chunks_out.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    assert any(r["meeting_id"] == MEETING_ID for r in rows)
+    meeting_rows = [row for row in rows if row["meeting_id"] == MEETING_ID]
+    assert any(row["source_type"] == "meeting_chunk" for row in meeting_rows)
+    assert any(
+        row["source_type"] in {
+            "meeting_decision", "meeting_action_item", "meeting_risk",
+            "meeting_open_question",
+        }
+        for row in meeting_rows
+    )
+    row_ids = [row["chunk_id"] for row in meeting_rows]
+    assert len(row_ids) == len(set(row_ids))
+
+    # Re-indexing final artifacts is idempotent and does not duplicate rows.
+    assert artifact_index_mod.run(
+        artifact_index_mod.parse_args(
+            ["--meeting-dir", str(meeting_dir), "--output", str(chunks_out)]
+        )
+    ) == 0
+    rerun_rows = [
+        json.loads(line)
+        for line in chunks_out.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    rerun_ids = [row["chunk_id"] for row in rerun_rows if row["meeting_id"] == MEETING_ID]
+    assert len(rerun_ids) == len(set(rerun_ids))
+    assert sorted(rerun_ids) == sorted(row_ids)
 
     # Analyze artifacts exist.
     assert (meeting_dir / "artifacts" / "summary.md").exists()
     assert (meeting_dir / "artifacts" / "decisions.json").exists()
 
     card_final = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
-    assert card_final["processing_status"] == "summarized"
+    assert card_final["processing_status"] == "indexed"
+    assert {
+        "artifacts/decisions.json",
+        "artifacts/tasks.json",
+        "artifacts/risks.json",
+        "artifacts/open_questions.json",
+    }.issubset(set(card_final["rag"]["indexed_artifacts"]))
+
+    client, _, _ = make_client(tmp_path / "meetings", chunks_path=chunks_out)
+    response = client.post(
+        f"/meetings/{MEETING_ID}/search",
+        json={"query": "обновленный график работ", "top_k": 10},
+        headers=AUTH,
+    )
+    assert response.status_code == 200
+    assert any(
+        "-meeting_decision-" in result["chunk_id"]
+        or "-meeting_action_item-" in result["chunk_id"]
+        for result in response.json()["results"]
+    )
 
 
 # ===========================================================================
@@ -854,12 +905,13 @@ def test_stage_catalog_does_not_expose_scripts_or_commands(tmp_path: Path) -> No
     assert str(ROOT) not in catalog_text
 
 
-def test_stage_catalog_covers_all_eight_stages() -> None:
+def test_stage_catalog_covers_all_pipeline_stages() -> None:
     from asu_june_bot.jobs.runner import stage_catalog
 
     expected = {
         "extract_audio", "transcribe", "diarize", "merge",
-        "chunk", "enrich", "index", "analyze",
+        "resolve_speakers", "chunk", "enrich", "index", "analyze",
+        "index_artifacts",
     }
     actual = {s["stage"] for s in stage_catalog()}
     assert actual == expected

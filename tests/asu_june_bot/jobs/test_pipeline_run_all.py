@@ -54,10 +54,12 @@ _MARKERS = {
     "22_transcribe_meeting.py": "transcript/segments.jsonl",
     "23_diarize_meeting.py": "transcript/diarization.jsonl",
     "24_merge_transcript_speakers.py": "transcript/speaker_transcript.jsonl",
+    "25_resolve_speaker_transcript.py": "transcript/resolved_speaker_transcript.jsonl",
     "26_chunk_meeting.py": "transcript/chunks.jsonl",
     "27_enrich_meeting_chunks.py": "artifacts/enriched_chunks.jsonl",
     "28_index_meeting_chunks.py": None,  # writes rag.indexed_artifacts instead
     "29_analyze_meeting.py": "artifacts/summary.md",
+    "32_index_meeting_artifacts.py": None,  # writes structured rag markers
 }
 
 
@@ -86,12 +88,26 @@ class _StageProcess:
                 target = self._meeting_dir / marker
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text("x", encoding="utf-8")
+                if self._script == "29_analyze_meeting.py":
+                    for name in ("decisions", "tasks", "risks", "open_questions"):
+                        artifact = self._meeting_dir / "artifacts" / f"{name}.json"
+                        artifact.write_text('{"items": []}', encoding="utf-8")
             elif self._script == "28_index_meeting_chunks.py":
                 card_path = self._meeting_dir / "meeting.json"
                 card = json.loads(card_path.read_text(encoding="utf-8"))
                 card.setdefault("rag", {})["indexed_artifacts"] = [
                     "artifacts/enriched_chunks.jsonl"
                 ]
+                card_path.write_text(json.dumps(card), encoding="utf-8")
+            elif self._script == "32_index_meeting_artifacts.py":
+                card_path = self._meeting_dir / "meeting.json"
+                card = json.loads(card_path.read_text(encoding="utf-8"))
+                indexed = set(card.setdefault("rag", {}).get("indexed_artifacts") or [])
+                indexed.update(
+                    f"artifacts/{name}.json"
+                    for name in ("decisions", "tasks", "risks", "open_questions")
+                )
+                card["rag"]["indexed_artifacts"] = sorted(indexed)
                 card_path.write_text(json.dumps(card), encoding="utf-8")
             return b"", b""
         return b"", b"stage failed"
@@ -149,17 +165,32 @@ def _stage_statuses(pipeline: PipelineJobState) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 def test_profiles_defined() -> None:
-    assert set(PIPELINE_PROFILES) == {"default", "full", "transcript_only", "qa_ready"}
+    assert set(PIPELINE_PROFILES) == {
+        "default",
+        "full",
+        "transcript_only",
+        "qa_ready",
+        "speaker_rebuild",
+    }
     assert PIPELINE_PROFILES["default"] == [
         "extract_audio",
         "transcribe",
         "merge",
+        "resolve_speakers",
         "chunk",
         "enrich",
         "index",
     ]
     assert PIPELINE_PROFILES["qa_ready"] == PIPELINE_PROFILES["default"]
-    assert PIPELINE_PROFILES["full"][-1] == "analyze"
+    assert PIPELINE_PROFILES["full"][-2:] == ["analyze", "index_artifacts"]
+    assert PIPELINE_PROFILES["speaker_rebuild"] == [
+        "resolve_speakers",
+        "chunk",
+        "enrich",
+        "index",
+        "analyze",
+        "index_artifacts",
+    ]
 
 
 def test_transcribe_stage_base_args_select_asr_engine() -> None:
@@ -170,6 +201,18 @@ def test_transcribe_stage_base_args_select_asr_engine() -> None:
         "large-v3-turbo",
     ]
     assert stage_base_args("transcribe", {"asr_engine": "gigaam"}) == ["--engine", "gigaam"]
+
+
+def test_diarize_stage_base_args_select_speaker_count() -> None:
+    assert stage_base_args("diarize") == []
+    assert stage_base_args("diarize", {"num_speakers": None}) == []
+    assert stage_base_args("diarize", {"num_speakers": 4}) == ["--num-speakers", "4"]
+
+
+@pytest.mark.parametrize("value", [True, "4", 0, 21])
+def test_diarize_stage_base_args_reject_invalid_speaker_count(value) -> None:
+    with pytest.raises(ValueError, match="speaker count"):
+        stage_base_args("diarize", {"num_speakers": value})
 
 
 def test_transcribe_stage_base_args_build_safe_live_refinement() -> None:
@@ -234,11 +277,39 @@ def test_pipeline_runs_stages_in_order(tmp_path: Path, monkeypatch: pytest.Monke
 
 def test_full_profile_completes_chain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     d = _make_meeting(tmp_path)
-    _patch_subprocess(monkeypatch, d)
+    launched = _patch_subprocess(monkeypatch, d)
     runner = JobRunner()
     pipeline = asyncio.run(_run_and_wait(runner, d, profile="full"))
     assert pipeline.status == "completed"
     assert all(s == "completed" for s in _stage_statuses(pipeline).values())
+    assert launched[-2:] == ["29_analyze_meeting.py", "32_index_meeting_artifacts.py"]
+
+
+def test_full_profile_skips_completed_structured_artifact_index(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    d = _make_meeting(tmp_path)
+    for name in ("decisions", "tasks", "risks", "open_questions"):
+        artifact = d / "artifacts" / f"{name}.json"
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        artifact.write_text('{"items": []}', encoding="utf-8")
+    card_path = d / "meeting.json"
+    card = json.loads(card_path.read_text(encoding="utf-8"))
+    card.setdefault("rag", {})["indexed_artifacts"] = [
+        f"artifacts/{name}.json"
+        for name in ("decisions", "tasks", "risks", "open_questions")
+    ]
+    card_path.write_text(json.dumps(card), encoding="utf-8")
+    launched = _patch_subprocess(monkeypatch, d)
+    runner = JobRunner()
+
+    pipeline = asyncio.run(
+        _run_and_wait(runner, d, stages=["index_artifacts"])
+    )
+
+    assert pipeline.status == "completed"
+    assert _stage_statuses(pipeline)["index_artifacts"] == "skipped"
+    assert "32_index_meeting_artifacts.py" not in launched
 
 
 def test_default_profile_reaches_index_after_enrich(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -434,6 +505,41 @@ def test_api_pipeline_accepts_asr_engine_option(tmp_path: Path, monkeypatch: pyt
 
     assert resp.status_code == 202
     assert resp.json()["stage_options"] == {"transcribe": {"asr_engine": "gigaam"}}
+
+
+def test_api_pipeline_accepts_diarization_speaker_count(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    d = _make_meeting(tmp_path)
+    _patch_subprocess(monkeypatch, d)
+    monkeypatch.setattr(runner_mod.shutil, "which", lambda name: "/usr/bin/ffmpeg")
+    client, _runner = _make_client(tmp_path)
+
+    resp = client.post(
+        f"/meetings/{MEETING_ID}/jobs/pipeline",
+        headers=AUTH,
+        json={"profile": "full", "num_speakers": 4},
+    )
+
+    assert resp.status_code == 202
+    assert resp.json()["stage_options"]["diarize"] == {"num_speakers": 4}
+
+
+@pytest.mark.parametrize("value", [True, "4", 0, 21])
+def test_api_pipeline_rejects_invalid_diarization_speaker_count(
+    tmp_path: Path, value
+) -> None:
+    _make_meeting(tmp_path)
+    client, _runner = _make_client(tmp_path)
+
+    resp = client.post(
+        f"/meetings/{MEETING_ID}/jobs/pipeline",
+        headers=AUTH,
+        json={"profile": "full", "num_speakers": value},
+    )
+
+    assert resp.status_code == 422
+    assert _runner.active_pipeline is None
 
 
 def test_api_invalid_profile_422(tmp_path: Path) -> None:

@@ -10,6 +10,12 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
+from meeting_agent.speakers.rebuild import mark_stage_revision  # noqa: E402
+
 
 SEMANTIC_MARKERS = {
     "decision": ("решили", "решение", "согласовали", "принимаем", "фиксируем", "decision", "agreed"),
@@ -239,6 +245,7 @@ def update_meeting(meeting: dict[str, Any]) -> None:
     meeting["artifacts"] = artifacts
     meeting["updated_at"] = now_iso()
     meeting.pop("last_error", None)
+    mark_stage_revision(meeting, "enrich")
 
 
 def mark_failed(meeting_path: Path, meeting: dict[str, Any], exc: BaseException, stage: str) -> None:

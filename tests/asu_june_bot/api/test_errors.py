@@ -39,7 +39,7 @@ def test_unhandled_error_response_is_sanitized() -> None:
 
     @app.get("/boom")
     def boom() -> dict:
-        raise RuntimeError("secret local path C:/Users/local-user/Desktop/AI/MeetingAgent/.env")
+        raise RuntimeError("secret local path C:/Users/local-user/Desktop/MeetingAgent/.env")
 
     client = TestClient(app, raise_server_exceptions=False)
     response = client.get("/boom", headers={"X-Request-Id": "err-001"})

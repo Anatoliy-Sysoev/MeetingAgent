@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from meeting_agent.jobs.progress import ProgressReporter
+
 
 @dataclass(frozen=True)
 class GigaAMConfig:
@@ -131,6 +133,7 @@ def transcribe_gigaam(
     meeting_dir: Path,
     repo_root: Path,
     config: GigaAMConfig,
+    progress_path: Path | None = None,
 ) -> GigaAMResult:
     work_dir = meeting_dir / "transcript" / "_gigaam"
     raw_segments_path = work_dir / "raw_segments.jsonl"
@@ -138,8 +141,7 @@ def transcribe_gigaam(
 
     if not config.resume or not raw_segments_path.exists():
         _wav_path, chunks_dir = prepare_audio_and_chunks(media_path, work_dir, config)
-        run_command(
-            [
+        worker_command = [
                 config.python_exe,
                 str(repo_root / "scripts" / "gigaam_transcribe_chunks.py"),
                 "--chunks-dir",
@@ -156,14 +158,21 @@ def transcribe_gigaam(
                 config.model,
                 "--chunk-seconds",
                 str(config.chunk_seconds),
-            ],
-            "gigaam_asr",
-        )
+            ]
+        if progress_path is not None:
+            worker_command.extend(["--progress-path", str(progress_path)])
+        run_command(worker_command, "gigaam_asr")
         if not legacy_segments_path.exists():
             raise GigaAMBackendError(f"GigaAM worker did not create {legacy_segments_path}", stage="gigaam_asr")
         legacy_segments_path.replace(raw_segments_path)
 
     rows = read_jsonl(raw_segments_path)
+    if progress_path is not None:
+        ProgressReporter(
+            progress_path,
+            phase="transcribe:gigaam",
+            unit="chunks",
+        ).emit_safely(len(rows), len(rows) or None, force=True)
     errors = sum(1 for row in rows if row.get("error"))
     nonempty = sum(1 for row in rows if str(row.get("text") or "").strip())
     metrics = {

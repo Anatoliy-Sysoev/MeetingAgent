@@ -1,0 +1,7 @@
+# Retrieval configuration for Asu June Bot.
+
+mode: hybrid
+vector_weight: 0.65
+bm25_weight: 0.35
+default_top_k: 10
+candidate_multiplier: 3

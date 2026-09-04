@@ -336,6 +336,25 @@ def test_chat_citations_are_meeting_scoped_with_source_fields(tmp_path: Path) ->
     assert "/abs/local/path" not in resp.text
 
 
+def test_broad_decision_question_uses_structured_artifact(tmp_path: Path) -> None:
+    client, _repo, llm = make_client(
+        tmp_path,
+        llm=FakeLLM("Принято решение увеличить бюджет [S1]."),
+    )
+
+    response = client.post(
+        f"/meetings/{MEETING_ID}/chat",
+        json={"query": "Какие основные решения приняли?", "top_k": 5},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "answered"
+    assert body["citations_basis"] == "cited"
+    assert [citation["chunk_id"] for citation in body["citations"]] == ["c2"]
+    assert "Тип материала: решение" in llm.calls[0].prompt
+
+
 def test_chat_citations_filtered_to_actually_cited_sources(tmp_path: Path) -> None:
     """Answer citing only [S2] must return only that source, not all retrieved."""
     client, _repo, _llm = make_client(tmp_path, llm=FakeLLM("Бюджет увеличен [S2]."))

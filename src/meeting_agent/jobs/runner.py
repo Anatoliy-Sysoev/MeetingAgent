@@ -18,13 +18,20 @@ from meeting_agent.jobs.processes import (
     subprocess_group_kwargs,
     terminate_process_tree,
 )
+from meeting_agent.jobs.progress import normalize_progress_snapshot, read_progress_snapshot
 from meeting_agent.jobs.runtimes import WorkerRuntimeRegistry
 from meeting_agent.jobs.store import JobStore, JobStoreConflict, JobStoreError
+from meeting_agent.meetings.artifact_catalog import (
+    ARTIFACT_DEFAULT_PATHS,
+    STRUCTURED_INDEX_ARTIFACT_KEYS,
+)
 from meeting_agent.meeting_work import (
     MeetingWorkConflict,
     MeetingWorkCoordinator,
     MeetingWorkStateError,
 )
+from meeting_agent.speakers.rebuild import SPEAKER_REBUILD_STAGES
+from meeting_agent.speakers.rebuild import stage_prerequisites_are_current
 
 _ROOT = Path(__file__).resolve().parents[3]
 
@@ -121,11 +128,29 @@ def _chunk_preflight(meeting_dir: Path) -> str | None:
     if err:
         return err
     artifacts = _artifact_map(data or {})
-    speaker_rel = artifacts.get("speaker_transcript", "transcript/speaker_transcript.jsonl")
+    if stage_prerequisites_are_current(data or {}, "chunk") is False:
+        return "resolved speaker transcript is stale; run resolve_speakers first"
+    speaker_rel = artifacts.get("resolved_speaker_transcript") or artifacts.get(
+        "speaker_transcript", "transcript/speaker_transcript.jsonl"
+    )
     resolved = _safe_resolve(meeting_dir, speaker_rel)
     if resolved is not None and resolved.exists():
         return None
     return "speaker_transcript.jsonl not found; run transcribe, diarize, and merge first"
+
+
+def _resolve_speakers_preflight(meeting_dir: Path) -> str | None:
+    err, data = _read_card(meeting_dir)
+    if err:
+        return err
+    artifacts = _artifact_map(data or {})
+    speaker_rel = artifacts.get(
+        "speaker_transcript", "transcript/speaker_transcript.jsonl"
+    )
+    resolved = _safe_resolve(meeting_dir, speaker_rel)
+    if resolved is not None and resolved.is_file():
+        return None
+    return "speaker_transcript.jsonl not found; run merge first"
 
 
 def _enrich_preflight(meeting_dir: Path) -> str | None:
@@ -133,6 +158,8 @@ def _enrich_preflight(meeting_dir: Path) -> str | None:
     if err:
         return err
     artifacts = _artifact_map(data or {})
+    if stage_prerequisites_are_current(data or {}, "enrich") is False:
+        return "meeting chunks are stale; run chunk first"
     chunks_rel = artifacts.get("chunks", "transcript/chunks.jsonl")
     resolved = _safe_resolve(meeting_dir, chunks_rel)
     if resolved is not None and resolved.exists():
@@ -145,6 +172,8 @@ def _index_preflight(meeting_dir: Path) -> str | None:
     if err:
         return err
     artifacts = _artifact_map(data or {})
+    if stage_prerequisites_are_current(data or {}, "index") is False:
+        return "enriched chunks are stale; run enrich first"
     enriched_rel = artifacts.get("enriched_chunks", "artifacts/enriched_chunks.jsonl")
     resolved = _safe_resolve(meeting_dir, enriched_rel)
     if resolved is not None and resolved.exists():
@@ -164,11 +193,28 @@ def _analyze_preflight(meeting_dir: Path) -> str | None:
     if err:
         return err
     artifacts = _artifact_map(data or {})
+    if stage_prerequisites_are_current(data or {}, "analyze") is False:
+        return "enriched chunks are stale; run enrich first"
     enriched_rel = artifacts.get("enriched_chunks", "artifacts/enriched_chunks.jsonl")
     resolved = _safe_resolve(meeting_dir, enriched_rel)
     if resolved is not None and resolved.exists():
         return None
     return "enriched_chunks.jsonl not found; run enrich first"
+
+
+def _index_artifacts_preflight(meeting_dir: Path) -> str | None:
+    err, data = _read_card(meeting_dir)
+    if err:
+        return err
+    artifacts = _artifact_map(data or {})
+    if stage_prerequisites_are_current(data or {}, "index_artifacts") is False:
+        return "speaker-dependent indexes or analysis are stale; finish speaker rebuild first"
+    for key in STRUCTURED_INDEX_ARTIFACT_KEYS:
+        rel = artifacts.get(key, ARTIFACT_DEFAULT_PATHS[key])
+        resolved = _safe_resolve(meeting_dir, rel)
+        if resolved is None or not resolved.is_file():
+            return "structured meeting artifacts not found; run analyze first"
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -204,6 +250,12 @@ STAGE_COMMANDS: dict[str, dict[str, Any]] = {
         "supports_dry_run": False,
         "preflight": _merge_preflight,
     },
+    "resolve_speakers": {
+        "script": _ROOT / "scripts" / "25_resolve_speaker_transcript.py",
+        "base_args": [],
+        "supports_dry_run": False,
+        "preflight": _resolve_speakers_preflight,
+    },
     "chunk": {
         "script": _ROOT / "scripts" / "26_chunk_meeting.py",
         "base_args": ["--force"],
@@ -228,6 +280,12 @@ STAGE_COMMANDS: dict[str, dict[str, Any]] = {
         "supports_dry_run": False,
         "preflight": _analyze_preflight,
     },
+    "index_artifacts": {
+        "script": _ROOT / "scripts" / "32_index_meeting_artifacts.py",
+        "base_args": [],
+        "supports_dry_run": False,
+        "preflight": _index_artifacts_preflight,
+    },
 }
 
 ASR_ENGINE_ARGS: dict[str, list[str]] = {
@@ -238,6 +296,17 @@ ASR_ENGINE_ARGS: dict[str, list[str]] = {
 
 def stage_base_args(stage: str, options: dict[str, Any] | None = None) -> list[str]:
     cfg = STAGE_COMMANDS[stage]
+    if stage == "diarize":
+        result = list(cfg["base_args"])
+        num_speakers = (options or {}).get("num_speakers")
+        if num_speakers is None:
+            return result
+        if isinstance(num_speakers, bool) or not isinstance(num_speakers, int):
+            raise ValueError("Diarization speaker count must be an integer")
+        if not 1 <= num_speakers <= 20:
+            raise ValueError("Diarization speaker count must be in the range 1..20")
+        result.extend(["--num-speakers", str(num_speakers)])
+        return result
     if stage != "transcribe":
         return list(cfg["base_args"])
     engine = str((options or {}).get("asr_engine") or "faster-whisper")
@@ -323,6 +392,13 @@ STAGE_METADATA: dict[str, dict[str, Any]] = {
         "outputs": ["merged_transcript"],
         "order": 40,
     },
+    "resolve_speakers": {
+        "label": "Resolve curated speakers",
+        "description": "Materialize manual speaker names and corrections without changing raw evidence.",
+        "requires": ["merged_transcript"],
+        "outputs": ["resolved_speaker_transcript"],
+        "order": 45,
+    },
     "chunk": {
         "label": "Chunk transcript",
         "description": "Produce time-window chunks from merged transcript for retrieval.",
@@ -350,6 +426,13 @@ STAGE_METADATA: dict[str, dict[str, Any]] = {
         "requires": ["enriched_chunks"],
         "outputs": ["meeting_artifacts"],
         "order": 80,
+    },
+    "index_artifacts": {
+        "label": "Index meeting artifacts",
+        "description": "Write final decisions, tasks, risks, and questions to the meeting search index.",
+        "requires": ["meeting_artifacts"],
+        "outputs": ["structured_artifact_search_index"],
+        "order": 90,
     },
 }
 
@@ -509,6 +592,8 @@ class JobState:
     exit_code: int | None = None
     stderr_lines: list[str] = field(default_factory=list)
     operation: dict[str, str] | None = None
+    _progress: dict[str, Any] | None = field(default=None, repr=False, compare=False)
+    _progress_path: Path | None = field(default=None, repr=False, compare=False)
     _process: Any = field(default=None, repr=False, compare=False)
     _meeting_dir: Path | None = field(default=None, repr=False, compare=False)
 
@@ -532,6 +617,18 @@ class JobState:
             d["meeting_status"] = meeting_status
         if self.operation is not None:
             d["operation"] = dict(self.operation)
+        progress = read_progress_snapshot(
+            self._progress_path,
+            running=self.status in {"starting", "running", "orphaned"},
+        )
+        if progress is None:
+            progress = normalize_progress_snapshot(
+                self._progress,
+                running=self.status in {"starting", "running", "orphaned"},
+            )
+        if progress is not None:
+            self._progress = progress
+            d["progress"] = progress
         return d
 
 
@@ -541,19 +638,38 @@ class JobState:
 
 # Stage sequences per profile. Only stages from STAGE_COMMANDS are allowed.
 PIPELINE_PROFILES: dict[str, list[str]] = {
-    "default": ["extract_audio", "transcribe", "merge", "chunk", "enrich", "index"],
+    "default": [
+        "extract_audio",
+        "transcribe",
+        "merge",
+        "resolve_speakers",
+        "chunk",
+        "enrich",
+        "index",
+    ],
     "full": [
         "extract_audio",
         "transcribe",
         "diarize",
         "merge",
+        "resolve_speakers",
         "chunk",
         "enrich",
         "index",
         "analyze",
+        "index_artifacts",
     ],
     "transcript_only": ["extract_audio", "transcribe"],
-    "qa_ready": ["extract_audio", "transcribe", "merge", "chunk", "enrich", "index"],
+    "qa_ready": [
+        "extract_audio",
+        "transcribe",
+        "merge",
+        "resolve_speakers",
+        "chunk",
+        "enrich",
+        "index",
+    ],
+    "speaker_rebuild": list(SPEAKER_REBUILD_STAGES),
 }
 
 _PIPELINE_POLL_SEC = 0.2
@@ -578,6 +694,7 @@ class PipelineJobState:
     finished_at: str | None = None
     recovery_status: str | None = None
     _meeting_dir: Path | None = field(default=None, repr=False, compare=False)
+    _current_job: JobState | None = field(default=None, repr=False, compare=False)
     _task: asyncio.Task[Any] | None = field(default=None, repr=False, compare=False)
 
     def as_dict(self, meeting_status: str | None = None) -> dict[str, Any]:
@@ -600,6 +717,51 @@ class PipelineJobState:
         }
         if meeting_status is not None:
             d["meeting_status"] = meeting_status
+        child_progress = (
+            self._current_job.as_dict().get("progress")
+            if self._current_job is not None
+            else None
+        )
+        if child_progress is not None:
+            d["progress"] = child_progress
+        completed = sum(
+            1
+            for item in self.stages
+            if item.get("status") == "completed"
+            or (
+                item.get("status") == "skipped"
+                and item.get("reason") == "already_done"
+            )
+        )
+        current_fraction = (
+            float(child_progress.get("percent") or 0.0) / 100.0
+            if isinstance(child_progress, dict)
+            else 0.0
+        )
+        total = len(self.stages)
+        if total:
+            pipeline_current = min(float(total), completed + current_fraction)
+            d["pipeline_progress"] = {
+                "phase": f"pipeline:{self.current_stage or self.status}",
+                "current": round(pipeline_current, 3),
+                "total": float(total),
+                "unit": "stages",
+                "percent": round(100.0 * pipeline_current / total, 1),
+                "elapsed_seconds": None,
+                "eta_seconds": None,
+                "eta_confidence": None,
+                "started_at": self.started_at,
+                "updated_at": (
+                    child_progress.get("updated_at")
+                    if isinstance(child_progress, dict)
+                    else None
+                ),
+                "stale": bool(
+                    child_progress.get("stale")
+                    if isinstance(child_progress, dict)
+                    else False
+                ),
+            }
         return d
 
 
@@ -659,6 +821,7 @@ def _job_record(job: JobState) -> dict[str, Any]:
         "recovery_status": job.recovery_status,
         "stderr_lines": public["stderr_tail"],
         "operation": dict(job.operation) if job.operation is not None else None,
+        "progress": public.get("progress"),
     }
 
 
@@ -711,6 +874,13 @@ def _job_from_record(record: dict[str, Any], meetings_root: Path) -> JobState:
         exit_code=record.get("exit_code") if isinstance(record.get("exit_code"), int) else None,
         stderr_lines=stderr_lines,
         operation=operation,
+        _progress=normalize_progress_snapshot(record.get("progress")),
+        _progress_path=(
+            _safe_record_meeting_dir(meetings_root, meeting_id)
+            / "runtime"
+            / "progress"
+            / f"{job_id}.json"
+        ),
         _meeting_dir=_safe_record_meeting_dir(meetings_root, meeting_id),
     )
 
@@ -836,6 +1006,24 @@ def _read_meeting_status(meeting_dir: Path) -> str | None:
         return None
 
 
+def _mark_speaker_rebuild_terminal(meeting_dir: Path, status: str) -> None:
+    card_path = meeting_dir / "meeting.json"
+    try:
+        card = json.loads(card_path.read_text(encoding="utf-8"))
+        state = card.get("speaker_curation") if isinstance(card, dict) else None
+        if not isinstance(state, dict):
+            return
+        if status == "completed":
+            # The final index stage owns the authoritative transition to
+            # current after checking all revision markers.
+            return
+        state["state"] = "failed" if status == "failed" else "stale"
+        state["updated_at"] = _now_iso()
+        _write_json_atomic(card_path, card)
+    except Exception:  # noqa: BLE001
+        return
+
+
 class JobRunner:
     def __init__(
         self,
@@ -928,6 +1116,7 @@ class JobRunner:
                 pipeline.status = "orphaned"
                 pipeline.recovery_status = "orphaned_process_alive"
                 self.active_pipeline = pipeline
+                pipeline._current_job = self.active_job
                 recovered_events.append(_pipeline_record(pipeline))
             else:
                 pipeline.status = (
@@ -1150,6 +1339,11 @@ class JobRunner:
                 operation=_operation_from_stage_options(stage, stage_options),
                 _meeting_dir=meeting_dir.resolve(),
             )
+            if stage == "transcribe":
+                job._progress_path = (
+                    job._meeting_dir / "runtime" / "progress" / f"{job.job_id}.json"
+                )
+                cmd.extend(["--progress-path", str(job._progress_path)])
             if self.store is not None:
                 try:
                     pipeline_id = (
@@ -1291,6 +1485,21 @@ class JobRunner:
         if job._process is None and job.pid is None:
             # submit() owns the pre-launch path and will release the durable
             # reservation after its current await returns.
+            return job
+        if (
+            job.status == "cancelled"
+            and job._process is None
+            and job.pid is not None
+            and not process_matches(job.pid, job.process_identity)
+        ):
+            # A recovered orphan can exit after API startup but before the
+            # operator cancels it. Treat the now-missing process as a
+            # successful termination instead of leaving the durable slot
+            # blocked until another API restart.
+            job.recovery_status = "orphaned_process_missing"
+            await self._finish_job_without_monitor(
+                job, event_type="orphaned_job_already_exited"
+            )
             return job
         terminated = await terminate_process_tree(
             pid=job.pid,
@@ -1471,6 +1680,7 @@ class JobRunner:
                         stage_options=pstate.stage_options.get(stage),
                         _from_pipeline=True,
                     )
+                    pstate._current_job = child
                 except PreflightFailed as exc:
                     item["status"] = "failed"
                     item["reason"] = str(exc)
@@ -1488,6 +1698,7 @@ class JobRunner:
                 while child.status in ("starting", "running"):
                     await asyncio.sleep(_PIPELINE_POLL_SEC)
                 item["exit_code"] = child.exit_code
+                pstate._current_job = None
                 if child.status == "completed":
                     item["status"] = "completed"
                     self._persist_pipeline_update(pstate, "pipeline_stage_completed")
@@ -1523,10 +1734,13 @@ class JobRunner:
                         item["reason"] = "pipeline orchestration failed"
                         break
         finally:
+            if pstate.profile == "speaker_rebuild":
+                _mark_speaker_rebuild_terminal(meeting_dir, pstate.status)
             if pstate.status == "orphaned":
                 pstate._task = None
                 self._persist_pipeline_update(pstate, "pipeline_orphaned")
             else:
+                pstate._current_job = None
                 pstate.current_stage = None
                 pstate.finished_at = _now_iso()
                 if pstate.status == "running":
