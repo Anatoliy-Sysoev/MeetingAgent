@@ -1,8 +1,17 @@
 # Текущий Контекст
 
-Обновлено: 2026-08-06.
+Обновлено: 2026-09-04.
 
 ## Now
+
+- MA-MEETING-QA-STRUCTURED-ROUTING (#312) направляет явные общие вопросы о
+  решениях, задачах, рисках и открытых вопросах к соответствующим
+  структурированным артефактам до lexical/vector ranking. Поиск остаётся в
+  границах одной встречи и сохраняет точные ссылки на источники. Если LLM
+  ошибочно сообщает об отсутствии ответа при наличии артефактов, сервис
+  возвращает ограниченный extractive-список. Узкие правила intent detection не
+  принимают обычные вопросы о договорах или обсуждавшихся темах за artifact
+  query.
 
 - MA-UI-PIPELINE-PROGRESS-CACHE (#309) делает фактический процент ASR, elapsed
   и ETA явно видимыми над progress bar на странице обработки. Revisioned asset
@@ -490,6 +499,10 @@ GET  /admin/review/chat-runs/export
 
 ## Next
 
+- MA-MEETING-QA-VECTOR-PREWARM (#311): готовить или проверять embeddings
+  встречи на стадии индексации, чтобы первый Q&A-запрос строил embedding только
+  для вопроса; сохранить lexical fallback и публиковать честный ограниченный
+  прогресс подготовки.
 - MA-PIPELINE-PROGRESS-AND-ETA (#286): the real ASR progress slice is
   implemented; extend the same bounded worker contract only to stages with a
   defensible denominator or leave them indeterminate.
@@ -498,6 +511,10 @@ GET  /admin/review/chat-runs/export
 
 ## Open decisions / blockers
 
+- #313 tracks an order-dependent test-isolation defect: the runtime inventory
+  test passes alone, but a full Windows suite can expose temporary ignored
+  scripts created during another test. This is not a public inventory mismatch
+  and must not be fixed by committing private scripts.
 - #167 awaits GitHub Support removal of internal pull-request refs and cached
   commit views under Support ticket #4593146. All operator-controlled public
   branches and tags are already rewritten and fresh-clone verification is

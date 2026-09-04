@@ -1,8 +1,13 @@
 # Todo
 
-Обновлено: 2026-08-06.
+Обновлено: 2026-09-04.
 
 ## Done
+
+- [x] MA-MEETING-QA-STRUCTURED-ROUTING (#312): направлять явные запросы о
+  решениях, задачах, рисках и открытых вопросах к структурированным артефактам
+  выбранной встречи, сохранять точные citations и использовать ограниченный
+  grounded fallback, если LLM возвращает no-answer marker при наличии данных.
 
 - [x] MA-UI-PIPELINE-PROGRESS-CACHE (#309): revisioned MeetingAgent bundle,
   явный процент/elapsed/ETA над progress bar и полный 10-stage UI catalog с
@@ -106,6 +111,12 @@
 
 ## Active / Next
 
+- [ ] MA-MEETING-QA-VECTOR-PREWARM (#311): строить или обновлять векторы
+  встречи во время pipeline indexing, отдавать ограниченный прогресс и
+  гарантировать, что первый Q&A-запрос строит embedding только для вопроса.
+- [ ] TEST-RUNTIME-INVENTORY-ISOLATION (#313): найти источник временных ignored
+  scripts в полном Windows suite и устранить зависимость inventory-теста от
+  порядка выполнения, не добавляя приватные scripts в публичный каталог.
 - [ ] MA-PIPELINE-PROGRESS-AND-ETA (#286): ASR progress is implemented.
   Add worker progress to the remaining stages only where current/total has a
   real machine-readable source; keep unknown work indeterminate and do not
