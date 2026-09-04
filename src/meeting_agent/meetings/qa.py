@@ -41,6 +41,18 @@ MEETING_SOURCE_TYPES = frozenset(
     }
 )
 
+_STRUCTURED_SOURCE_LABELS = {
+    "meeting_decision": "решение",
+    "meeting_action_item": "задача",
+    "meeting_risk": "риск",
+    "meeting_open_question": "открытый вопрос",
+}
+_STRUCTURED_INTENT_STEMS = {
+    "meeting_decision": ("решен", "решил", "договорил", "договорен", "утверд"),
+    "meeting_action_item": ("задач", "поруч", "действи", "action", "todo"),
+    "meeting_risk": ("риск", "угроз", "опас", "блокер"),
+}
+
 _TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9]{2,}")
 
 # Matches source references the model is asked to emit, e.g. [S1], [S2].
@@ -81,6 +93,56 @@ _REFUSAL_SPEAKER_REBUILD = (
 
 def _tokenize(text: str) -> list[str]:
     return [token.lower().replace("ё", "е") for token in _TOKEN_RE.findall(text or "")]
+
+
+def _structured_query_source_types(query: str) -> tuple[str, ...]:
+    """Return explicit structured artifact intents detected in ``query``.
+
+    The router deliberately uses narrow domain stems.  It never classifies a
+    generic user question as ``meeting_open_question`` merely because it ends
+    with a question mark or contains the word "вопрос".
+    """
+    tokens = _tokenize(query)
+    normalized = " ".join(tokens)
+    detected = [
+        source_type
+        for source_type, stems in _STRUCTURED_INTENT_STEMS.items()
+        if any(token.startswith(stem) for token in tokens for stem in stems)
+    ]
+    has_question_noun = any(token.startswith("вопрос") for token in tokens)
+    has_open_qualifier = any(
+        token.startswith(stem)
+        for token in tokens
+        for stem in ("открыт", "нереш", "уточн", "остал")
+    )
+    if (
+        has_question_noun and has_open_qualifier
+    ) or "что осталось выяснить" in normalized:
+        detected.append("meeting_open_question")
+    if "кто должен" in normalized or "что нужно сделать" in normalized:
+        detected.append("meeting_action_item")
+    return tuple(dict.fromkeys(detected))
+
+
+def _structured_extract_answer(
+    ranked: list[tuple[float, dict[str, Any]]],
+    source_types: tuple[str, ...],
+) -> str | None:
+    """Build a bounded grounded list when the LLM misses explicit artifacts."""
+    if not ranked or not source_types:
+        return None
+    allowed = set(source_types)
+    if any(row.get("source_type") not in allowed for _score, row in ranked):
+        return None
+    lines = []
+    for index, (_score, row) in enumerate(ranked, start=1):
+        text = _make_preview(str(row.get("text") or ""), max_chars=600)
+        text = _CITATION_REF_RE.sub("", text).strip()
+        if text:
+            lines.append(f"- {text} [S{index}]")
+    if not lines:
+        return None
+    return "По структурированным материалам встречи:\n" + "\n".join(lines)
 
 
 def _cited_source_indices(answer: str, max_index: int) -> list[int]:
@@ -435,6 +497,13 @@ class MeetingQAService:
         failure falls back to the lexical-only path.
         """
         rows = self._load_meeting_rows(meeting_id)
+        structured_types = _structured_query_source_types(query)
+        structured_rows = [
+            row for row in rows if row.get("source_type") in structured_types
+        ]
+        routed_to_structured = bool(structured_rows)
+        if routed_to_structured:
+            rows = structured_rows
         lexical_scores = [self._lexical_score(query, row) for row in rows]
 
         vector_scores: list[float] | None = None
@@ -447,20 +516,24 @@ class MeetingQAService:
             max_vec = max(vector_scores, default=0.0)
             max_lex = max(lexical_scores, default=0.0)
             for row, vec, lex in zip(rows, vector_scores, lexical_scores):
-                if lex <= 0 and vec < self.MIN_VECTOR_SIMILARITY:
+                if (
+                    not routed_to_structured
+                    and lex <= 0
+                    and vec < self.MIN_VECTOR_SIMILARITY
+                ):
                     continue
                 vec_norm = vec / max_vec if max_vec > 0 else 0.0
                 lex_norm = lex / max_lex if max_lex > 0 else 0.0
                 fused = self.VECTOR_WEIGHT * vec_norm + self.LEXICAL_WEIGHT * lex_norm
-                if fused <= 0:
+                if fused <= 0 and not routed_to_structured:
                     continue
-                scored.append((round(fused, 6), row))
+                scored.append((max(round(fused, 6), 0.000001), row))
         else:
             mode = "lexical"
             for row, lex in zip(rows, lexical_scores):
-                if lex <= 0:
+                if lex <= 0 and not routed_to_structured:
                     continue
-                scored.append((lex, row))
+                scored.append((max(lex, 0.000001), row))
 
         scored.sort(
             key=lambda item: (
@@ -558,7 +631,10 @@ class MeetingQAService:
             )
 
         answer = (llm_response.text or "").strip()
-        if not answer or _has_no_answer_marker(answer) or _is_malformed_answer(answer):
+        structured_types = _structured_query_source_types(query)
+        if answer and _has_no_answer_marker(answer):
+            answer = _structured_extract_answer(ranked, structured_types) or ""
+        if not answer or _is_malformed_answer(answer):
             return self._chat_payload(
                 meeting_id,
                 status="no_answer",
@@ -596,7 +672,15 @@ class MeetingQAService:
             ts_start = row.get("timestamp_start") or "??:??:??"
             ts_end = row.get("timestamp_end") or "??:??:??"
             speaker = self._speaker(row) or "спикер неизвестен"
-            inner = f"[{ref}] ({ts_start}-{ts_end}, {speaker})\n{str(row.get('text') or '').strip()}"
+            material_label = _STRUCTURED_SOURCE_LABELS.get(
+                str(row.get("source_type") or ""),
+                "фрагмент транскрипта",
+            )
+            inner = (
+                f"[{ref}] ({ts_start}-{ts_end}, {speaker})\n"
+                f"Тип материала: {material_label}\n"
+                f"{str(row.get('text') or '').strip()}"
+            )
             # Neutralize fake delimiter strings inside untrusted content (#108)
             # before wrapping in the real source boundary.
             inner = neutralize_source_delimiters(inner)
@@ -608,7 +692,9 @@ class MeetingQAService:
             f"{_SOURCE_BOUNDARY_INSTRUCTION}\n\n"
             f"Фрагменты встречи:\n\n{context}\n\n"
             f"Вопрос: {query}\n\n"
-            "Ответь только на основе фрагментов выше и сошлись на источники [S#]."
+            "Ответь только на основе фрагментов выше и сошлись на источники [S#]. "
+            "Если передано несколько структурированных элементов запрошенного типа, "
+            "перечисли каждый подтвержденный элемент отдельным пунктом."
         )
 
     def _citation(self, row: dict[str, Any], meeting_id: str) -> dict[str, Any]:

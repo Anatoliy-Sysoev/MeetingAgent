@@ -131,8 +131,10 @@ class MutableSpeakerMeetingsService(FakeMeetingsService):
 class FakeLLM:
     def __init__(self, answer: str = "Решение зафиксировано [S1].") -> None:
         self.answer = answer
+        self.last_prompt = ""
 
     def generate(self, request):
+        self.last_prompt = request.prompt
         return LLMResponse(text=self.answer)
 
 
@@ -159,6 +161,31 @@ def _chunk(meeting_id: str, chunk_id: str, text: str, **kwargs) -> dict:
         "relative_path": f"meetings/{meeting_id}/transcript/chunks.jsonl",
         **kwargs,
     }
+
+
+def _structured_row(
+    meeting_id: str,
+    chunk_id: str,
+    text: str,
+    source_type: str = "meeting_decision",
+    **kwargs,
+) -> dict:
+    return _chunk(
+        meeting_id,
+        chunk_id,
+        text,
+        source_type=source_type,
+        artifact_type=kwargs.pop("artifact_type", "decisions"),
+        artifact_id=kwargs.pop("artifact_id", chunk_id.upper()),
+        semantic_type=kwargs.pop("semantic_type", "decision"),
+        **kwargs,
+    )
+
+
+def _write_rows(path: Path, rows: list[dict]) -> None:
+    with path.open("w", encoding="utf-8") as fh:
+        for row in rows:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
 @pytest.fixture()
@@ -226,6 +253,132 @@ def test_irrelevant_chunks_filtered_by_similarity(chunks_path: Path, tmp_path: P
     result = svc.search(MEETING_ID, "Что решили по паспорту проекта?", top_k=5)
     ids = [r["chunk_id"] for r in result["results"]]
     assert "c_off" not in ids  # off-topic chunk below MIN_VECTOR_SIMILARITY
+
+
+def test_broad_decision_query_routes_to_structured_rows(tmp_path: Path) -> None:
+    rows = [
+        _chunk(MEETING_ID, "transcript-1", "Участники начали встречу и показали экран"),
+        _structured_row(MEETING_ID, "decision-1", "Использовать единый справочник договоров"),
+        _structured_row(MEETING_ID, "decision-2", "Согласовать формат обмена с 1С"),
+        _structured_row(OTHER_MEETING_ID, "other-decision", "Чужое решение другой встречи"),
+    ]
+    path = tmp_path / "meeting_chunks.jsonl"
+    _write_rows(path, rows)
+    svc = _service(path, tmp_path, embedder=None, retriever=None)
+
+    result = svc.search(MEETING_ID, "Какие основные решения приняли?", top_k=5)
+
+    assert result["retrieval_mode"] == "lexical"
+    assert [item["chunk_id"] for item in result["results"]] == [
+        "decision-1",
+        "decision-2",
+    ]
+
+
+def test_broad_decision_chat_cites_only_structured_rows(tmp_path: Path) -> None:
+    rows = [
+        _chunk(MEETING_ID, "transcript-1", "Решения обсуждались в течение встречи"),
+        _structured_row(MEETING_ID, "decision-1", "Использовать единый справочник договоров"),
+        _structured_row(MEETING_ID, "decision-2", "Согласовать формат обмена с 1С"),
+    ]
+    path = tmp_path / "meeting_chunks.jsonl"
+    _write_rows(path, rows)
+    llm = FakeLLM("Приняты два решения [S1] [S2].")
+    svc = _service(path, tmp_path, embedder=None, retriever=None, llm=llm)
+
+    payload = svc.chat(MEETING_ID, "Какие основные решения приняли?", top_k=5)
+
+    assert payload["status"] == "answered"
+    assert payload["citations_basis"] == "cited"
+    assert [item["chunk_id"] for item in payload["citations"]] == [
+        "decision-1",
+        "decision-2",
+    ]
+    assert "Тип материала: решение" in llm.last_prompt
+
+
+def test_structured_rows_fallback_when_llm_claims_no_answer(tmp_path: Path) -> None:
+    rows = [
+        _structured_row(MEETING_ID, "decision-1", "Использовать единый справочник договоров"),
+        _structured_row(MEETING_ID, "decision-2", "Согласовать формат обмена с 1С"),
+    ]
+    path = tmp_path / "meeting_chunks.jsonl"
+    _write_rows(path, rows)
+    svc = _service(
+        path,
+        tmp_path,
+        embedder=None,
+        retriever=None,
+        llm=FakeLLM("В материалах встречи нет ответа."),
+    )
+
+    payload = svc.chat(MEETING_ID, "Какие решения приняли?", top_k=5)
+
+    assert payload["status"] == "answered"
+    assert "Использовать единый справочник" in payload["answer"]
+    assert [item["chunk_id"] for item in payload["citations"]] == [
+        "decision-1",
+        "decision-2",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("query", "source_type"),
+    [
+        ("Какие решения приняли?", "meeting_decision"),
+        ("Какие задачи зафиксировали?", "meeting_action_item"),
+        ("Кто должен подготовить протокол?", "meeting_action_item"),
+        ("Какие риски обнаружили?", "meeting_risk"),
+        ("Какие вопросы остались открытыми?", "meeting_open_question"),
+    ],
+)
+def test_structured_intents_route_to_matching_artifact(
+    tmp_path: Path,
+    query: str,
+    source_type: str,
+) -> None:
+    rows = [
+        _structured_row(
+            MEETING_ID,
+            "target",
+            "Подтвержденный структурированный пункт",
+            source_type=source_type,
+        ),
+        _chunk(MEETING_ID, "transcript", query),
+    ]
+    path = tmp_path / "meeting_chunks.jsonl"
+    _write_rows(path, rows)
+    svc = _service(path, tmp_path, embedder=None, retriever=None)
+
+    result = svc.search(MEETING_ID, query, top_k=5)
+
+    assert [item["chunk_id"] for item in result["results"]] == ["target"]
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Какие договоры относятся к первому этапу?",
+        "Какие действующие договоры показали?",
+        "Какой вопрос обсуждали на встрече?",
+        "Уточните вопрос по формату обмена",
+    ],
+)
+def test_generic_domain_queries_do_not_trigger_structured_routing(
+    tmp_path: Path,
+    query: str,
+) -> None:
+    rows = [
+        _structured_row(MEETING_ID, "decision", "Посторонний структурированный пункт"),
+        _chunk(MEETING_ID, "transcript", query),
+    ]
+    path = tmp_path / "meeting_chunks.jsonl"
+    _write_rows(path, rows)
+    svc = _service(path, tmp_path, embedder=None, retriever=None)
+
+    result = svc.search(MEETING_ID, query, top_k=5)
+
+    assert [item["chunk_id"] for item in result["results"]] == ["transcript"]
 
 
 # ---------------------------------------------------------------------------
