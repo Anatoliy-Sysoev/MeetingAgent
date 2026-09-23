@@ -176,6 +176,7 @@ def test_last_error_writes_and_clears_without_partial_files(tmp_path: Path) -> N
     written = json.loads(card_path.read_text(encoding="utf-8"))
     assert written["last_error"]["stage"] == "chunk"
     assert written["last_error"]["job_id"] == "job-1"
+    assert written["processing_status"] == "failed"
     assert not list(meeting_dir.glob(".meeting.json.*.tmp"))
 
     _clear_last_error(meeting_dir, stage="chunk")
