@@ -142,8 +142,13 @@ def _stage_options(
 ) -> dict[str, Any] | None:
     if body is None:
         return None
-    if stage == "transcribe" and isinstance(body, StageStartRequest):
-        return {"asr_engine": body.asr_engine}
+    if stage == "transcribe":
+        if isinstance(body, StageStartRequest):
+            return {"asr_engine": body.asr_engine}
+        if isinstance(body, RetryRequest):
+            # A retry continues a recoverable partial transcript.  An explicit
+            # force rerun intentionally replaces it instead.
+            return {"force": body.force, "resume": not body.force}
     if stage == "diarize":
         return {"num_speakers": body.num_speakers}
     return None
