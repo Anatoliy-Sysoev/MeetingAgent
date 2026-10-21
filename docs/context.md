@@ -9,7 +9,9 @@
   переиспользует модель и сохраняет VAD/абсолютные таймкоды. Незавершённый
   экспорт блокирует downstream, retry использует --resume, force — новый прогон.
   #328 добавляет path-free recovery в readiness/registry/jobs, сохранённый
-  процент в UI и ETA по новой попытке. Далее #329 (аварийный E2E).
+  процент в UI и ETA по новой попытке. #329 проверяет принудительное завершение
+  worker, повтор без ASR завершённых блоков и сбой финализации отдельными
+  процессами. Реальный speech/quality smoke остаётся opt-in: текущий ASR занят.
   Текущие runtime-задачи не перезапускаются.
 
 - MA-MEETING-QA-STRUCTURED-ROUTING (#312) направляет явные общие вопросы о
@@ -518,6 +520,11 @@ GET  /admin/review/chat-runs/export
   during capture while keeping offline sherpa-onnx canonical.
 
 ## Open decisions / blockers
+
+- #325: перед включением нового режима в рабочий сервер проверить русскую речь
+  на границах блоков. Детерминированный E2E подтверждает восстановление и
+  совпадение с непрерывным тестовым прогоном, но не измеряет качество модели.
+  `MEETINGAGENT_ASR_SMOKE_WAV` включает реальный smoke после освобождения ASR.
 
 - #313 tracks an order-dependent test-isolation defect: the runtime inventory
   test passes alone, but a full Windows suite can expose temporary ignored

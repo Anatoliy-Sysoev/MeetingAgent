@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 import time
@@ -276,6 +277,9 @@ def extract_initial_prompt() -> str:
 
 
 def build_faster_whisper_config(args: argparse.Namespace) -> FasterWhisperConfig:
+    block_seconds = getattr(args, "whisper_block_seconds", 120.0)
+    if not math.isfinite(block_seconds) or not 1 <= block_seconds <= 600:
+        raise TranscribeMeetingError("Whisper block duration must be between 1 and 600 seconds.", stage="preflight")
     hotwords_list: list[str] | None = None
     initial_prompt = extract_initial_prompt()
 
@@ -302,7 +306,7 @@ def build_faster_whisper_config(args: argparse.Namespace) -> FasterWhisperConfig
         source="MIX",
         initial_prompt=initial_prompt,
         hotwords=hotwords_list,
-        block_seconds=getattr(args, "whisper_block_seconds", 120.0),
+        block_seconds=block_seconds,
     )
 
 
@@ -316,6 +320,7 @@ def transcribe_faster_whisper(media_path: Path, args: argparse.Namespace) -> tup
         meeting_dir=resolve_path(args.meeting_dir),
         resume=bool(args.resume and not args.force),
         saved_callback=reporter.checkpoint if reporter is not None else None,
+        lock_held=getattr(args, "_checkpoint_lock_held", False),
         progress_callback=(
             lambda current, total: reporter.emit_safely(
                 current,
@@ -407,6 +412,8 @@ def run(args: argparse.Namespace) -> int:
     start_time = time.time()
     refinement_source = getattr(args, "live_refinement_source", None)
     reuse_refinement_segments = False
+    run_lock = None
+    args._checkpoint_lock_held = False
 
     try:
         if args.engine not in SUPPORTED_ENGINES:
@@ -467,6 +474,10 @@ def run(args: argparse.Namespace) -> int:
             if args.engine != "from-segments"
             else None
         )
+        if args.engine == "faster-whisper":
+            build_faster_whisper_config(args)
+        if args.engine == "from-segments" and not args.segments_path and not transcript_is_complete(meeting_dir):
+            raise TranscribeMeetingError("Incomplete import requires --segments-path.", stage="preflight")
         if args.force and args.resume:
             raise TranscribeMeetingError("--force and --resume are mutually exclusive.", stage="preflight")
         if args.engine == "faster-whisper" and args.resume and not args.force:
@@ -494,6 +505,17 @@ def run(args: argparse.Namespace) -> int:
                     print("model_load: ok")
             return 0
 
+        run_lock = CheckpointStore(meeting_dir).lock()
+        run_lock.__enter__()
+        args._checkpoint_lock_held = True
+        meeting = read_json(meeting_path)
+        if not transcript_is_complete(meeting_dir) and args.resume:
+            meeting = {**meeting, "processing_status": STATUS_FAILED}
+        try:
+            ensure_status_allows_run(meeting, args.force, args.resume)
+        except AlreadyTranscribed as exc:
+            print(str(exc))
+            return 0
         mutate_on_error = True
         was_complete = transcript_is_complete(meeting_dir)
         begin_publication(meeting_dir)
@@ -622,6 +644,10 @@ def run(args: argparse.Namespace) -> int:
         )
         print(f"ERROR[runtime]: {exc}", file=sys.stderr)
         return 1
+    finally:
+        if run_lock is not None and args._checkpoint_lock_held:
+            run_lock.__exit__(None, None, None)
+        args._checkpoint_lock_held = False
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:

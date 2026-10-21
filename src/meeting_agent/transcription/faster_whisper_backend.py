@@ -44,6 +44,7 @@ def transcribe_faster_whisper(
     meeting_dir: Path | None = None,
     resume: bool = False,
     saved_callback: Callable | None = None,
+    lock_held: bool = False,
 ) -> FasterWhisperResult:
     if meeting_dir is not None:
         from .resumable import transcribe_blocks
@@ -51,6 +52,7 @@ def transcribe_faster_whisper(
         rows, metrics = transcribe_blocks(
             media_path, config, meeting_dir, resume=resume, model_loader=load_model,
             progress_callback=progress_callback, saved_callback=saved_callback,
+            lock_held=lock_held,
         )
         return FasterWhisperResult(rows, metrics)
     model = load_model(config)
