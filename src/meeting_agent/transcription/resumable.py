@@ -89,7 +89,13 @@ def transcribe_blocks(media: Path, config: Any, meeting_dir: Path, *, resume: bo
             rate, total = audio.getframerate(), audio.getnframes()
             header = store.begin(fingerprint, total_frames=total, sample_rate=rate,
                                  block_frames=round(rate * config.block_seconds), resume=resume)
+            stat = media.stat()
+            header["source_stat"] = {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+            from .checkpoints import atomic_json
+            atomic_json(store.current, header)
             rows, first = store.prefix(header)
+            header["saved_blocks"] = first
+            atomic_json(store.current, header)
             blocks = math.ceil(total / header["block_frames"])
             saved = min(first * header["block_frames"], total) / rate
             duration = total / rate
@@ -106,6 +112,8 @@ def transcribe_blocks(media: Path, config: Any, meeting_dir: Path, *, resume: bo
                 fingerprint["model_revision"] = revision
                 header = store.begin(fingerprint, total_frames=total, sample_rate=rate,
                                      block_frames=header["block_frames"], resume=False)
+                header["source_stat"] = {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+                atomic_json(store.current, header)
             for index in range(first, blocks):
                 a, b = store.bounds(header, index)
                 audio.setpos(a)

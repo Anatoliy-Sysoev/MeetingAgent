@@ -41,7 +41,7 @@ def test_meetingagent_target_routes_select_section(path: str, section: str) -> N
     assert resp.status_code == 200
     assert f'data-initial-section="{section}"' in resp.text
     assert 'href="/assets/v3/meetingagent.css?rev=20260806-1"' in resp.text
-    assert 'src="/assets/v3/meetingagent.js?rev=20260806-1"' in resp.text
+    assert 'src="/assets/v3/meetingagent.js?rev=20261021-recovery"' in resp.text
 
 
 def test_meetingagent_ui_lists_and_uploads_meetings(html: str) -> None:

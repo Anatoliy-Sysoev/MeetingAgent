@@ -92,7 +92,7 @@ def normalize_progress_snapshot(
             stale = (reference - updated.astimezone(timezone.utc)).total_seconds() > _STALE_AFTER_SECONDS
         except ValueError:
             stale = True
-    return {
+    result = {
         "phase": phase,
         "current": round(current, 3),
         "total": round(total, 3) if total is not None else None,
@@ -105,6 +105,11 @@ def normalize_progress_snapshot(
         "updated_at": updated_at,
         "stale": stale,
     }
+    saved = _finite_number(value.get("saved_seconds"))
+    if saved is not None and total is not None and unit == "seconds":
+        saved = min(max(saved, 0), current)
+        result.update(saved_seconds=round(saved, 3), saved_percent=round(100 * saved / total, 1))
+    return result
 
 
 def read_progress_snapshot(path: Path | None, *, running: bool = False) -> dict[str, Any] | None:
@@ -127,6 +132,15 @@ class ProgressReporter:
         self._started_monotonic = time.monotonic()
         self._started_at = _now_iso()
         self._last_write_monotonic = 0.0
+        self._resume_offset = 0.0
+        self._saved_seconds: float | None = None
+
+    def checkpoint(self, saved: float, total: float, initial: bool = False) -> None:
+        if initial:
+            self._resume_offset = saved
+            self._started_monotonic = time.monotonic()
+        self._saved_seconds = saved
+        self.emit_safely(saved, total, force=True)
 
     def emit(
         self,
@@ -142,8 +156,10 @@ class ProgressReporter:
         elapsed = max(0.0, now_monotonic - self._started_monotonic)
         eta: float | None = None
         confidence: str | None = None
-        if total is not None and total > 0 and current > 0:
-            fraction = min(1.0, current / total)
+        remaining_total = (total - self._resume_offset) if total is not None else None
+        completed_here = max(0.0, current - self._resume_offset)
+        if remaining_total is not None and remaining_total > 0 and completed_here > 0:
+            fraction = min(1.0, completed_here / remaining_total)
             if elapsed >= 30.0 and fraction >= 0.02 and fraction < 1.0:
                 eta = elapsed * (1.0 - fraction) / fraction
                 confidence = "medium" if fraction >= 0.15 else "low"
@@ -161,6 +177,8 @@ class ProgressReporter:
             "started_at": self._started_at,
             "updated_at": _now_iso(),
         }
+        if self._saved_seconds is not None:
+            payload["saved_seconds"] = self._saved_seconds
         normalized = normalize_progress_snapshot(payload)
         if normalized is None:
             raise ValueError("invalid progress snapshot")

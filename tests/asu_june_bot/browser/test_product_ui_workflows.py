@@ -156,6 +156,77 @@ def _capture_browser_errors(page: Page) -> list[str]:
     return errors
 
 
+def test_processing_shows_processed_and_saved_percent(page, ui_base_url):
+    def handle(route):
+        path = urlparse(route.request.url).path
+        if path == "/auth/me":
+            _fulfill_json(route, {"email": "editor@local", "permissions": ["jobs.read"]})
+        elif path == "/jobs/active":
+            _fulfill_json(route, {"job_id": "resume", "meeting_id": MEETING_ID,
+                "stage": "transcribe", "status": "running", "progress": {
+                    "percent": 85, "saved_percent": 80, "elapsed_seconds": 60, "eta_seconds": 180}})
+        elif path == "/meetings":
+            _fulfill_json(route, {"items": [{"meeting_id": MEETING_ID, "title": "Resume smoke",
+                "processing_status": "transcribing", "transcription_recovery": {
+                    "state": "available", "saved_percent": 80}}]})
+        else:
+            route.continue_()
+    page.route("**/*", handle)
+    page.goto(f"{ui_base_url}/MeetingAgent/processing", wait_until="networkidle")
+    expect(page.locator("#operationProgressText")).to_contain_text("85.0%")
+    expect(page.locator("#operationProgressText")).to_contain_text("Сохранено 80.0%")
+
+
+@pytest.mark.parametrize("csrf", [True, False])
+def test_workspace_recovery_button_runtime(page, ui_base_url, csrf):
+    captured = []
+    prefix = f"/meetings/{MEETING_ID}"
+    def handle(route):
+        request = route.request
+        path = urlparse(request.url).path
+        if path.endswith("/workspace"):
+            route.continue_()
+            return
+        if path == "/auth/me":
+            payload = {"email": "editor@local", "permissions": ["jobs.read", "jobs.retry"]}
+        elif path == "/auth/csrf":
+            payload = {"csrf_token": "recovery-csrf" if csrf else None}
+        elif path == prefix:
+            payload = {"meeting_id": MEETING_ID, "title": "Recovery", "processing_status": "failed"}
+        elif path.endswith("/pipeline/readiness"):
+            payload = {"stages": [], "transcription_recovery": {
+                "engine": "faster-whisper", "state": "available", "saved_percent": 80,
+                "saved_seconds": 800, "can_resume": True}}
+        elif path.endswith("/jobs/transcribe/retry"):
+            captured.append((request.headers, json.loads(request.post_data)))
+            _fulfill_json(route, {"job_id": "resumed-job"}, status=202)
+            return
+        elif path.endswith("/jobs/stages"):
+            payload = {"stages": []}
+        elif path.endswith("/jobs/active") or path.endswith("/jobs/resumed-job"):
+            payload = {}
+        elif path.startswith(prefix + "/") or path == "/speakers":
+            payload = {}
+        else:
+            route.continue_()
+            return
+        _fulfill_json(route, payload)
+    page.route("**/*", handle)
+    page.goto(f"{ui_base_url}{prefix}/workspace", wait_until="networkidle")
+    page.locator('[data-workspace-tab="pipeline"]').click()
+    resume = page.get_by_role("button", name="Продолжить транскрибацию", exact=True)
+    expect(resume).to_be_enabled()
+    if csrf:
+        with page.expect_response(lambda response: response.url.endswith("/jobs/transcribe/retry")):
+            resume.click()
+        assert captured and captured[0][0]["x-csrf-token"] == "recovery-csrf"
+        assert captured[0][1] == {"force": False, "asr_engine": "faster-whisper"}
+    else:
+        resume.click()
+        expect(page.locator("#jobs-error")).to_contain_text("CSRF")
+        assert captured == []
+
+
 def test_meetingagent_upload_and_pipeline_workflow(page: Page, ui_base_url: str) -> None:
     captured: dict[str, object] = {}
     meetings: list[dict[str, object]] = []

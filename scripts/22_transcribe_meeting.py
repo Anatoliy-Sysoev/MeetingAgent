@@ -315,6 +315,7 @@ def transcribe_faster_whisper(media_path: Path, args: argparse.Namespace) -> tup
         build_faster_whisper_config(args),
         meeting_dir=resolve_path(args.meeting_dir),
         resume=bool(args.resume and not args.force),
+        saved_callback=reporter.checkpoint if reporter is not None else None,
         progress_callback=(
             lambda current, total: reporter.emit_safely(
                 current,

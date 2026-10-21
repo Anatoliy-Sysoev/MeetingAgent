@@ -101,6 +101,8 @@ async def pipeline_readiness_map(
         },
     )
     payload["job_recovery"] = runner.recovery_summary(meeting_id)
+    from meeting_agent.transcription.recovery import recovery_summary
+    payload["transcription_recovery"] = recovery_summary(meeting_dir)
     return JSONResponse(content=payload)
 
 

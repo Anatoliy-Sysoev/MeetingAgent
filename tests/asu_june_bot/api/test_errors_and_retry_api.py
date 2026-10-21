@@ -260,6 +260,28 @@ def _make_client(root: Path) -> tuple[TestClient, JobRunner]:
     return client, runner
 
 
+def test_readiness_exposes_path_free_asr_recovery_with_auth(tmp_path):
+    from meeting_agent.transcription.checkpoints import CheckpointStore
+    directory = _make_meeting(tmp_path)
+    audio = directory / "source/video.mp4"
+    stat = audio.stat()
+    store = CheckpointStore(directory)
+    header = store.begin({"source": "source/video.mp4", "settings": {}},
+                         total_frames=100, sample_rate=1, block_frames=20, resume=False)
+    header["source_stat"] = {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+    store.commit(header, 0, [])
+    client, _ = _make_client(tmp_path)
+    endpoint = f"/meetings/{MEETING_ID}/pipeline/readiness"
+    assert client.get(endpoint).status_code == 401
+    response = client.get(endpoint, headers=AUTH)
+    assert response.status_code == 200
+    recovery = response.json()["transcription_recovery"]
+    assert recovery["saved_percent"] == 20
+    assert recovery["can_resume"]
+    assert "video.mp4" not in json.dumps(recovery)
+    assert str(directory) not in json.dumps(recovery)
+
+
 def test_retry_unknown_stage_422(tmp_path: Path) -> None:
     _make_meeting(tmp_path)
     client, _ = _make_client(tmp_path)

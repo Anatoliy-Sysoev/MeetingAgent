@@ -313,7 +313,7 @@ def test_workspace_returns_html(tmp_path: Path) -> None:
     assert "media-panel" in body
     assert "transcript-list" in body
     assert "artifacts-panel" in body
-    assert 'src="/assets/v5/workspace.js?rev=20260731-2"' in body
+    assert 'src="/assets/v5/workspace.js?rev=20261021-recovery"' in body
     assert 'href="/assets/v5/workspace.css?rev=20260731-2"' in body
 
 

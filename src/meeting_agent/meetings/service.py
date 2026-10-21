@@ -770,6 +770,11 @@ class MeetingsService:
                 )
         total = len(items)
         page = items[offset: offset + limit]
+        from meeting_agent.transcription.recovery import recovery_summary
+        for item in page:
+            recovery = recovery_summary(self._meeting_dir(item["meeting_id"]))
+            if recovery is not None:
+                item["transcription_recovery"] = recovery
         result: dict[str, Any] = {
             "items": page,
             "total": total,
@@ -841,6 +846,9 @@ class MeetingsService:
         data = _read_meeting_json(card_path)
         artifacts = _artifact_map(data)
         meeting_dir = self._meeting_dir(meeting_id)
+        from meeting_agent.transcription.publication import transcript_is_complete
+        if not transcript_is_complete(meeting_dir):
+            return {"artifact": None, "format": "pending", "segments": []}
         for key in ("segments", "transcript_json", "transcript_txt", "transcript"):
             rel = artifacts.get(key)
             if not rel:
@@ -1238,6 +1246,9 @@ class MeetingsService:
         if not card_path.exists():
             return None
         card = _read_meeting_json(card_path)
+        from meeting_agent.transcription.publication import transcript_is_complete
+        if not transcript_is_complete(self._meeting_dir(meeting_id)):
+            return {"meeting_id": meeting_id, "segments": [], "publication_pending": True}
         mapping = _speaker_mapping(card)
         speaker_rows = self._read_jsonl_artifact(meeting_id, card, "speaker_transcript")
         if speaker_rows:
