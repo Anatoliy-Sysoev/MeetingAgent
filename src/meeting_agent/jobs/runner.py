@@ -632,6 +632,9 @@ class JobState:
         if progress is not None:
             self._progress = progress
             d["progress"] = progress
+        if self.stage == "transcribe" and self._meeting_dir is not None:
+            from meeting_agent.transcription.recovery import recovery_summary
+            d["transcription_recovery"] = recovery_summary(self._meeting_dir)
         return d
 
 
@@ -727,6 +730,10 @@ class PipelineJobState:
         )
         if child_progress is not None:
             d["progress"] = child_progress
+        if self._current_job is not None:
+            recovery = self._current_job.as_dict().get("transcription_recovery")
+            if recovery:
+                d["transcription_recovery"] = recovery
         completed = sum(
             1
             for item in self.stages

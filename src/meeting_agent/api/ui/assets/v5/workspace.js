@@ -1670,15 +1670,18 @@ let _readiness = {};      // stage -> readiness entry
 let _manifest = null;      // artifacts manifest payload
 let _failedStage = null;   // stage with state=ready_for_retry
 let _jobRecovery = null;   // durable recovery summary from readiness API
+let _asrRecovery = null;
 
 async function loadReadiness() {
   const resp = await apiFetch(`/meetings/${encodeURIComponent(MEETING_ID)}/pipeline/readiness`);
   _readiness = {};
   _failedStage = null;
   _jobRecovery = null;
+  _asrRecovery = null;
   if (!resp || !resp.ok) return;
   const d = await resp.json();
   _jobRecovery = d.job_recovery || null;
+  _asrRecovery = d.transcription_recovery || null;
   for (const st of (Array.isArray(d.stages) ? d.stages : [])) {
     _readiness[st.stage] = st;
     if (st.state === "ready_for_retry") _failedStage = st.stage;
@@ -1777,10 +1780,10 @@ function renderJobs(status) {
       const elapsed = Number.isFinite(Number(progress.elapsed_seconds))
         ? `${Math.round(Number(progress.elapsed_seconds))} с прошло`
         : "время уточняется";
-      const eta = Number.isFinite(Number(progress.eta_seconds))
+      const eta = progress.eta_seconds != null && Number.isFinite(Number(progress.eta_seconds))
         ? `${Math.round(Number(progress.eta_seconds))} с осталось`
         : "остаток оценивается";
-      text.textContent = `${progress.percent == null ? "Выполняется" : `${progress.percent}%`} · ${elapsed} · ${eta}${progress.stale ? " · прогресс давно не обновлялся" : ""}`;
+      text.textContent = `${progress.percent == null ? "Выполняется" : `${progress.percent}%`} · ${progress.saved_percent == null ? "" : `Сохранено ${Number(progress.saved_percent).toFixed(1)}% · `}${elapsed} · ${eta}${progress.stale ? " · прогресс давно не обновлялся" : ""}`;
       progressBox.append(bar, text);
       aVal.append(progressBox);
     }
@@ -1798,6 +1801,27 @@ function renderJobs(status) {
     grid.append(rLabel, rVal);
   }
   statusEl.appendChild(grid);
+
+  if (_asrRecovery && _asrRecovery.state !== "complete") {
+    const saved = document.createElement("p");
+    saved.textContent = _asrRecovery.saved_percent == null
+      ? "Контрольная точка недоступна. Можно начать новый прогон."
+      : `Сохранено ${Number(_asrRecovery.saved_percent).toFixed(1)}% · ${Math.round(_asrRecovery.saved_seconds)} с записи. Совместимость настроек проверяется перед запуском.`;
+    if (_asrRecovery.state === "source_changed") saved.textContent += " Исходная запись изменилась.";
+    statusEl.append(saved);
+    const busy = Boolean(_activeJob || _actionInProgress || anyLiveActive());
+    if (_permissions.has("jobs.retry")) {
+      const resume = document.createElement("button");
+      resume.textContent = "Продолжить транскрибацию";
+      resume.disabled = busy || !_asrRecovery.can_resume;
+      resume.addEventListener("click", () => retryStage("transcribe", false));
+      const restart = document.createElement("button");
+      restart.textContent = "Начать транскрибацию заново";
+      restart.disabled = busy;
+      restart.addEventListener("click", () => retryStage("transcribe", true));
+      statusEl.append(resume, restart);
+    }
+  }
 
   // Cancel control for the active job
   if (_activeJob) {
@@ -2100,6 +2124,7 @@ async function retryStage(stage, force) {
   _actionInProgress = true;
   try {
     const payload = { force: Boolean(force) };
+    if (stage === "transcribe" && _asrRecovery) payload.asr_engine = _asrRecovery.engine;
     const numSpeakers = selectedDiarizationSpeakerCount();
     if (stage === "diarize" && numSpeakers !== null) {
       payload.num_speakers = numSpeakers;

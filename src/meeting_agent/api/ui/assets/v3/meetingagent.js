@@ -298,6 +298,12 @@ function renderMeetings() {
     fill.className = `progress-step-${stageIndex}`;
     bar.append(fill);
     progress.append(stageText, bar);
+    const checkpoint = checkpointLabel(item.transcription_recovery);
+    if (checkpoint) {
+      const saved = document.createElement("small");
+      saved.textContent = checkpoint;
+      progress.append(saved);
+    }
     appendCell(row, "Прогресс", progress);
 
     const statusInfo = statusView(normalizedStatus(item));
@@ -494,7 +500,14 @@ async function startPipeline(meetingId, profile) {
 }
 
 function jobIsActive(job) {
-  return Boolean(job && ["queued", "starting", "running", "cancelling"].includes(job.status));
+  return Boolean(job && ["queued", "starting", "running", "orphaned", "cancelling"].includes(job.status));
+}
+
+function checkpointLabel(recovery) {
+  if (!recovery) return "";
+  if (recovery.state === "source_changed") return "Исходная запись изменилась — требуется новый прогон";
+  if (recovery.state === "unavailable") return "Контрольная точка недоступна — требуется новый прогон";
+  return recovery.saved_percent == null ? "" : `Сохранено ${Number(recovery.saved_percent).toFixed(1)}%`;
 }
 
 function formatDuration(seconds) {
@@ -524,7 +537,7 @@ function jobProgress(job) {
           ? Number(aggregate.percent)
           : (100 * fallbackIndex / PIPELINE_STAGES.length),
     text: detailed
-      ? `${detailed.percent == null ? "Выполняется" : `${Number(detailed.percent).toFixed(1)}%`} · прошло ${formatDuration(detailed.elapsed_seconds)} · осталось ${detailed.eta_seconds == null ? "оцениваем…" : formatDuration(detailed.eta_seconds)}${detailed.stale ? " · данные давно не обновлялись" : ""}`
+      ? `${detailed.percent == null ? "Выполняется" : `${Number(detailed.percent).toFixed(1)}%`} · ${detailed.saved_percent == null ? "" : `Сохранено ${Number(detailed.saved_percent).toFixed(1)}% · `}прошло ${formatDuration(detailed.elapsed_seconds)} · осталось ${detailed.eta_seconds == null ? "оцениваем…" : formatDuration(detailed.eta_seconds)}${detailed.stale ? " · данные давно не обновлялись" : ""}`
       : aggregate
         ? `${Number(aggregate.percent).toFixed(1)}% общего pipeline`
         : `${fallbackIndex + 1} из ${PIPELINE_STAGES.length} этапов`,

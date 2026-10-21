@@ -152,6 +152,8 @@ class CheckpointStore:
         if len(_encode(envelope)) > MAX_BLOCK_BYTES:
             raise CheckpointError("Checkpoint block exceeds size limit")
         atomic_json(self.block_path(header, index), envelope)
+        header["saved_blocks"] = index + 1
+        atomic_json(self.current, header)
 
     def prefix(self, header: dict[str, Any]) -> tuple[list[dict[str, Any]], int]:
         rows: list[dict[str, Any]] = []
