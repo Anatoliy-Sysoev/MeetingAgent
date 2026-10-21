@@ -1,6 +1,13 @@
 # Todo
 
-Обновлено: 2026-09-04.
+Обновлено: 2026-10-21.
+
+## Active
+
+- [x] MA-ASR-CHECKPOINT-STORAGE (#326): атомарные checkpoints, hashes и проверка префикса.
+- [ ] MA-WHISPER-RESUMABLE-TRANSCRIPTION (#327): продолжение ASR по блокам.
+- [ ] MA-ASR-RECOVERY-UI (#328): сохранённый прогресс и восстановление.
+- [ ] MA-ASR-CRASH-RECOVERY-E2E (#329): аварийное завершение/повтор.
 
 ## Done
 
