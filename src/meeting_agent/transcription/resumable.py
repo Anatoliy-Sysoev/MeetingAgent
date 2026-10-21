@@ -5,6 +5,7 @@ import os
 import subprocess
 import uuid
 import wave
+from contextlib import nullcontext
 from dataclasses import asdict
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -36,7 +37,11 @@ def identity(media: Path, config: Any, meeting_dir: Path | None = None) -> dict[
     settings = asdict(config)
     local_model = Path(config.model)
     if local_model.is_dir():
-        versions["weights_sha256"] = file_sha256(local_model / "model.bin")
+        versions["model_files"] = {
+            name: file_sha256(local_model / name)
+            for name in ("model.bin", "config.json", "tokenizer.json", "preprocessor_config.json")
+            if (local_model / name).is_file()
+        }
     return {"audio_sha256": file_sha256(media), "settings": settings, "versions": versions,
             "model_revision": _model_revision(config),
             "source": media.resolve().relative_to(meeting_dir.resolve()).as_posix() if meeting_dir else None}
@@ -74,13 +79,14 @@ def _pcm_audio(media: Path, store: CheckpointStore) -> Path:
 
 def transcribe_blocks(media: Path, config: Any, meeting_dir: Path, *, resume: bool,
                       model_loader: Callable, progress_callback: Callable | None = None,
-                      saved_callback: Callable | None = None) -> tuple[list[dict], dict]:
+                      saved_callback: Callable | None = None,
+                      lock_held: bool = False) -> tuple[list[dict], dict]:
     import numpy as np
 
     if not math.isfinite(config.block_seconds) or not 1 <= config.block_seconds <= 600:
         raise CheckpointError("Whisper block duration must be between 1 and 600 seconds")
     store = CheckpointStore(meeting_dir)
-    with store.lock():
+    with nullcontext() if lock_held else store.lock():
         fingerprint = identity(media, config, meeting_dir)
         if resume:
             validate_resume(media, config, store)
@@ -130,8 +136,11 @@ def transcribe_blocks(media: Path, config: Any, meeting_dir: Path, *, resume: bo
                 iterator, _info = model.transcribe(samples, **kwargs)
                 pending = []
                 for segment in iterator:
-                    start = max(a / rate, a / rate + float(segment.start))
-                    end = min(b / rate, a / rate + float(segment.end))
+                    local_start, local_end = float(segment.start), float(segment.end)
+                    if not all(math.isfinite(v) for v in (local_start, local_end)):
+                        continue
+                    start = max(a / rate, a / rate + local_start)
+                    end = min(b / rate, a / rate + local_end)
                     text = str(segment.text or "").strip()
                     if not all(math.isfinite(v) for v in (start, end)) or end <= start or not text:
                         continue

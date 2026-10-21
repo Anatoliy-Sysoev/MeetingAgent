@@ -87,6 +87,29 @@ def test_choose_media_can_select_registered_live_audio(tmp_path: Path) -> None:
     assert selected == live_audio.resolve()
 
 
+@pytest.mark.parametrize("seconds", ["0", "601", "nan"])
+def test_invalid_checkpoint_block_duration_is_read_only_in_dry_run(tmp_path, seconds):
+    meeting_dir = make_meeting(tmp_path)
+    card = meeting_dir / "meeting.json"
+    original = card.read_bytes()
+    original_paths = {p.relative_to(meeting_dir) for p in meeting_dir.rglob("*")}
+    args = transcribe22.parse_args(["--meeting-dir", str(meeting_dir), "--engine", "faster-whisper",
+                                    "--dry-run", "--whisper-block-seconds", seconds])
+    assert transcribe22.run(args) == 1
+    assert card.read_bytes() == original
+    assert {p.relative_to(meeting_dir) for p in meeting_dir.rglob("*")} == original_paths
+
+
+def test_incomplete_import_requires_external_segments_without_mutation(tmp_path):
+    from meeting_agent.transcription.publication import begin_publication
+    meeting_dir = make_meeting(tmp_path)
+    begin_publication(meeting_dir)
+    card = meeting_dir / "meeting.json"
+    original = card.read_bytes()
+    assert transcribe22.run(make_args(meeting_dir, None, resume=True)) == 1
+    assert card.read_bytes() == original
+
+
 @pytest.mark.parametrize(
     "selected",
     ["source/not-registered.wav", "../outside.wav", r"C:\private\audio.wav"],

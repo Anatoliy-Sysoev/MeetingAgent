@@ -118,3 +118,27 @@ def test_retry_engine_and_command_contract(force):
 def test_default_retry_has_resume():
     from meeting_agent.api.routes_jobs import _stage_options
     assert "--resume" in stage_base_args("transcribe", _stage_options("transcribe", None))
+
+
+def test_non_finite_decoder_timestamps_are_not_persisted(tmp_path, monkeypatch):
+    audio = audio_file(tmp_path, seconds=1)
+    invalid = SimpleNamespace(start=float("nan"), end=0.9, text="invalid")
+    monkeypatch.setattr(backend, "load_model", lambda cfg: SimpleNamespace(
+        transcribe=lambda *a, **k: (iter([invalid]), SimpleNamespace())))
+    result = backend.transcribe_faster_whisper(audio, backend.FasterWhisperConfig(), meeting_dir=tmp_path)
+    assert result.segments == []
+
+
+def test_local_tokenizer_change_invalidates_checkpoint(tmp_path, monkeypatch):
+    audio = audio_file(tmp_path, seconds=1)
+    model_dir = tmp_path / "model"
+    model_dir.mkdir()
+    (model_dir / "model.bin").write_bytes(b"synthetic weights")
+    (model_dir / "tokenizer.json").write_text("{}", encoding="utf-8")
+    config = backend.FasterWhisperConfig(model=str(model_dir))
+    monkeypatch.setattr(backend, "load_model", lambda cfg: SimpleNamespace(
+        transcribe=lambda *a, **k: (iter([fake_segment()]), SimpleNamespace())))
+    backend.transcribe_faster_whisper(audio, config, meeting_dir=tmp_path)
+    (model_dir / "tokenizer.json").write_text('{"updated":true}', encoding="utf-8")
+    with pytest.raises(CheckpointError):
+        backend.transcribe_faster_whisper(audio, config, meeting_dir=tmp_path, resume=True)
