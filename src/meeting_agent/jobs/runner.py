@@ -109,6 +109,9 @@ def _extract_audio_preflight(meeting_dir: Path) -> str | None:
 
 def _merge_preflight(meeting_dir: Path) -> str | None:
     """Return error string if merge preconditions are not met, else None."""
+    from meeting_agent.transcription.publication import transcript_is_complete
+    if not transcript_is_complete(meeting_dir):
+        return "transcription publication is incomplete; resume transcribe first"
     err, data = _read_card(meeting_dir)
     if err:
         return err
@@ -314,6 +317,10 @@ def stage_base_args(stage: str, options: dict[str, Any] | None = None) -> list[s
     if args is None:
         raise ValueError(f"Unsupported ASR engine: {engine!r}")
     result = list(args)
+    force = bool((options or {}).get("force"))
+    resume = bool((options or {}).get("resume"))
+    if force and resume:
+        raise ValueError("Transcription force and resume are mutually exclusive")
     refinement_source = str((options or {}).get("live_refinement_source") or "")
     if refinement_source:
         if refinement_source not in {"MIC", "SYS"}:
@@ -322,10 +329,6 @@ def stage_base_args(stage: str, options: dict[str, Any] | None = None) -> list[s
         expected_media = f"source/live_audio.{refinement_source}.wav"
         if media_path != expected_media:
             raise ValueError("Live refinement media must match its source-scoped archive")
-        force = bool((options or {}).get("force"))
-        resume = bool((options or {}).get("resume"))
-        if force and resume:
-            raise ValueError("Live refinement force and resume are mutually exclusive")
         result.extend(
             [
                 "--media-path",
@@ -334,10 +337,10 @@ def stage_base_args(stage: str, options: dict[str, Any] | None = None) -> list[s
                 refinement_source,
             ]
         )
-        if force:
-            result.append("--force")
-        elif resume:
-            result.append("--resume")
+    if force:
+        result.append("--force")
+    elif resume:
+        result.append("--resume")
     return result
 
 
@@ -1310,6 +1313,9 @@ class JobRunner:
     ) -> JobState:
         if self.active_pipeline is not None and not _from_pipeline:
             raise JobAlreadyRunning("A pipeline job is already running. Cancel it first.")
+        from meeting_agent.transcription.publication import transcript_is_complete
+        if stage not in {"extract_audio", "transcribe", "diarize"} and not transcript_is_complete(meeting_dir):
+            raise PreflightFailed("transcription publication is incomplete; resume transcribe first")
         cfg = STAGE_COMMANDS[stage]
         script: Path = cfg["script"]
         try:
@@ -1673,11 +1679,14 @@ class JobRunner:
                 item["status"] = "running"
                 self._persist_pipeline_update(pstate, "pipeline_stage_started")
                 try:
+                    stage_options = dict(pstate.stage_options.get(stage) or {})
+                    if stage == "transcribe":
+                        stage_options.update(force=pstate.force, resume=not pstate.force)
                     child = await self.submit(
                         meeting_id=pstate.meeting_id,
                         stage=stage,
                         meeting_dir=meeting_dir,
-                        stage_options=pstate.stage_options.get(stage),
+                        stage_options=stage_options or None,
                         _from_pipeline=True,
                     )
                     pstate._current_job = child

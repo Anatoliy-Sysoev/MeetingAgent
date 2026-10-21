@@ -77,6 +77,9 @@ def _marker_exists(meeting_dir: Path, rel: str) -> bool:
 
 
 def _stage_done(stage: str, meeting_dir: Path, card: dict[str, Any]) -> bool:
+    from meeting_agent.transcription.publication import transcript_is_complete
+    if stage not in {"extract_audio", "diarize"} and not transcript_is_complete(meeting_dir):
+        return False
     revision_current = stage_revision_is_current(card, stage)
     if revision_current is False:
         return False
@@ -106,6 +109,9 @@ def _stage_blocked_reason(stage: str, meeting_dir: Path) -> str | None:
     Reuses runner preflights where they exist; transcribe/diarize add the
     readiness-level audio requirement (#114: no audio → blocked).
     """
+    from meeting_agent.transcription.publication import transcript_is_complete
+    if stage not in {"extract_audio", "transcribe", "diarize"} and not transcript_is_complete(meeting_dir):
+        return "transcription publication is incomplete; resume transcribe first"
     card = _read_card(meeting_dir)
     if stage_prerequisites_are_current(card, stage) is False:
         return "speaker-dependent prerequisite is stale; run speaker rebuild in order"

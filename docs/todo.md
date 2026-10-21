@@ -5,7 +5,7 @@
 ## Active
 
 - [x] MA-ASR-CHECKPOINT-STORAGE (#326): атомарные checkpoints, hashes и проверка префикса.
-- [ ] MA-WHISPER-RESUMABLE-TRANSCRIPTION (#327): продолжение ASR по блокам.
+- [x] MA-WHISPER-RESUMABLE-TRANSCRIPTION (#327): продолжение по блокам, publication marker, retry/force.
 - [ ] MA-ASR-RECOVERY-UI (#328): сохранённый прогресс и восстановление.
 - [ ] MA-ASR-CRASH-RECOVERY-E2E (#329): аварийное завершение/повтор.
 

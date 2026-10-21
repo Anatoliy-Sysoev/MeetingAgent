@@ -64,6 +64,11 @@ from meeting_agent.transcription import (  # noqa: E402
     write_transcript_exports,
 )
 from meeting_agent.jobs.progress import ProgressReporter, resolve_progress_path  # noqa: E402
+from meeting_agent.transcription.checkpoints import CheckpointStore, atomic_json  # noqa: E402
+from meeting_agent.transcription.resumable import validate_resume  # noqa: E402
+from meeting_agent.transcription.publication import (  # noqa: E402
+    begin_publication, complete_publication, transcript_is_complete,
+)
 
 
 def now_iso() -> str:
@@ -297,6 +302,7 @@ def build_faster_whisper_config(args: argparse.Namespace) -> FasterWhisperConfig
         source="MIX",
         initial_prompt=initial_prompt,
         hotwords=hotwords_list,
+        block_seconds=getattr(args, "whisper_block_seconds", 120.0),
     )
 
 
@@ -307,6 +313,8 @@ def transcribe_faster_whisper(media_path: Path, args: argparse.Namespace) -> tup
     result = run_faster_whisper_backend(
         media_path,
         build_faster_whisper_config(args),
+        meeting_dir=resolve_path(args.meeting_dir),
+        resume=bool(args.resume and not args.force),
         progress_callback=(
             lambda current, total: reporter.emit_safely(
                 current,
@@ -415,6 +423,8 @@ def run(args: argparse.Namespace) -> int:
         meeting = read_json(meeting_path)
         validate_schema(meeting, schema_path)
         try:
+            if not transcript_is_complete(meeting_dir) and args.resume:
+                meeting = {**meeting, "processing_status": STATUS_FAILED}
             ensure_status_allows_run(meeting, args.force, args.resume)
         except AlreadyTranscribed as exc:
             print(str(exc))
@@ -456,6 +466,10 @@ def run(args: argparse.Namespace) -> int:
             if args.engine != "from-segments"
             else None
         )
+        if args.force and args.resume:
+            raise TranscribeMeetingError("--force and --resume are mutually exclusive.", stage="preflight")
+        if args.engine == "faster-whisper" and args.resume and not args.force:
+            validate_resume(media_path, build_faster_whisper_config(args), CheckpointStore(meeting_dir))
         if args.dry_run:
             print("dry-run ok")
             print(f"meeting_dir: {meeting_dir}")
@@ -480,6 +494,8 @@ def run(args: argparse.Namespace) -> int:
             return 0
 
         mutate_on_error = True
+        was_complete = transcript_is_complete(meeting_dir)
+        begin_publication(meeting_dir)
         if refinement_source:
             begin_live_refinement(
                 meeting,
@@ -495,9 +511,10 @@ def run(args: argparse.Namespace) -> int:
         write_json_atomic(meeting_path, meeting)
 
         resume_segments_path = existing_segments_path(meeting_dir, meeting)
-        if args.resume and resume_segments_path.exists() and (
+        has_whisper_checkpoint = (meeting_dir / "transcript/_whisper/manifest.json").exists()
+        if args.resume and was_complete and resume_segments_path.exists() and (
             not refinement_source or reuse_refinement_segments
-        ):
+        ) and not (args.engine == "faster-whisper" and has_whisper_checkpoint):
             raw_segments = read_jsonl(resume_segments_path)
             model = f"gigaam/{args.model}" if args.engine == "gigaam" else (args.model or None)
             backend_metrics: dict[str, Any] = {
@@ -556,7 +573,7 @@ def run(args: argparse.Namespace) -> int:
             backend_metrics=backend_metrics,
         )
         report_path = transcript_dir / "transcription_report.json"
-        report_path.write_text(json.dumps(report.to_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        atomic_json(report_path, report.to_dict())
 
         update_meeting_artifacts(meeting, meeting_dir, written, report_path)
         required_keys = required_artifact_keys_for_formats(output_formats)
@@ -574,6 +591,8 @@ def run(args: argparse.Namespace) -> int:
         validate_artifact_paths_exist(meeting, meeting_dir, required_keys)
         validate_schema(meeting, schema_path)
         write_json_atomic(meeting_path, meeting)
+
+        complete_publication(meeting_dir, {**written, "report": report_path})
 
         print("transcription complete")
         print(f"engine: {args.engine}")
@@ -635,6 +654,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument("--output-formats", default="txt,md,srt,vtt,json,jsonl")
     parser.add_argument("--chunk-seconds", default=24, type=int, help="GigaAM chunk size.")
+    parser.add_argument("--whisper-block-seconds", default=120.0, type=float,
+                        help="Whisper recovery block duration, 1..600 seconds.")
     parser.add_argument("--gigaam-root", default=str(Path.home() / "GigaAM"))
     parser.add_argument("--gigaam-cache-root", default=str(Path(os.environ.get("ProgramData", r"C:\ProgramData")) / "gigaam_cache"))
     parser.add_argument(

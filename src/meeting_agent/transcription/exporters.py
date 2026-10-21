@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import tempfile
 from pathlib import Path
 from typing import Iterable
 
@@ -124,6 +126,25 @@ def write_jsonl(path: Path, segments: Iterable[CanonicalSegment]) -> None:
 
 
 def write_transcript_exports(
+    output_dir: Path,
+    document: TranscriptDocument,
+    *,
+    formats: set[str] | None = None,
+) -> dict[str, Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    published = {}
+    with tempfile.TemporaryDirectory(prefix=".exports-", dir=output_dir) as temporary:
+        staged = _write_transcript_exports(Path(temporary), document, formats=formats)
+        for key, path in staged.items():
+            with path.open("r+b") as handle:
+                os.fsync(handle.fileno())
+            target = output_dir / path.name
+            os.replace(path, target)
+            published[key] = target
+    return published
+
+
+def _write_transcript_exports(
     output_dir: Path,
     document: TranscriptDocument,
     *,
