@@ -236,6 +236,8 @@ def test_missing_process_recovers_as_failed_and_ready_for_retry(tmp_path: Path) 
     ]
     assert last_error["stage"] == "chunk"
     assert last_error["job_id"] == "job-1"
+    card = json.loads((meeting_dir / "meeting.json").read_text(encoding="utf-8"))
+    assert card["processing_status"] == "failed"
 
 
 def test_live_refinement_operation_survives_durable_recovery(tmp_path: Path) -> None:
