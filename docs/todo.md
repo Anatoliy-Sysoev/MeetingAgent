@@ -1,10 +1,13 @@
 # Todo
 
-Обновлено: 2026-09-04.
+Обновлено: 2026-09-23.
 
 ## Done
 
 - [x] PR #317: согласовать requirements-docs и constraints-py312 для mkdocs-material 9.7.7.
+- [x] MA-JOB-ORPHANED-RETRY-STATUS (#321): recovery отсутствующего worker
+  переводит `meeting.json.processing_status` в `failed`, поэтому обычный
+  Retry транскрибации не блокируется stale-статусом `transcribing` — bb198a2.
 
 - [x] MA-MEETING-QA-STRUCTURED-ROUTING (#312): направлять явные запросы о
   решениях, задачах, рисках и открытых вопросах к структурированным артефактам
