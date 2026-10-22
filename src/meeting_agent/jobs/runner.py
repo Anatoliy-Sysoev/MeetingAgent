@@ -314,6 +314,10 @@ def stage_base_args(stage: str, options: dict[str, Any] | None = None) -> list[s
     if args is None:
         raise ValueError(f"Unsupported ASR engine: {engine!r}")
     result = list(args)
+    force = bool((options or {}).get("force"))
+    resume = bool((options or {}).get("resume"))
+    if force and resume:
+        raise ValueError("Transcription force and resume are mutually exclusive")
     refinement_source = str((options or {}).get("live_refinement_source") or "")
     if refinement_source:
         if refinement_source not in {"MIC", "SYS"}:
@@ -322,10 +326,6 @@ def stage_base_args(stage: str, options: dict[str, Any] | None = None) -> list[s
         expected_media = f"source/live_audio.{refinement_source}.wav"
         if media_path != expected_media:
             raise ValueError("Live refinement media must match its source-scoped archive")
-        force = bool((options or {}).get("force"))
-        resume = bool((options or {}).get("resume"))
-        if force and resume:
-            raise ValueError("Live refinement force and resume are mutually exclusive")
         result.extend(
             [
                 "--media-path",
@@ -334,10 +334,10 @@ def stage_base_args(stage: str, options: dict[str, Any] | None = None) -> list[s
                 refinement_source,
             ]
         )
-        if force:
-            result.append("--force")
-        elif resume:
-            result.append("--resume")
+    if force:
+        result.append("--force")
+    elif resume:
+        result.append("--resume")
     return result
 
 
@@ -1676,11 +1676,17 @@ class JobRunner:
                 item["status"] = "running"
                 self._persist_pipeline_update(pstate, "pipeline_stage_started")
                 try:
+                    stage_options = dict(pstate.stage_options.get(stage) or {})
+                    if stage == "transcribe":
+                        if pstate.force:
+                            stage_options["force"] = True
+                        elif pstate.resume:
+                            stage_options["resume"] = True
                     child = await self.submit(
                         meeting_id=pstate.meeting_id,
                         stage=stage,
                         meeting_dir=meeting_dir,
-                        stage_options=pstate.stage_options.get(stage),
+                        stage_options=stage_options or None,
                         _from_pipeline=True,
                     )
                     pstate._current_job = child

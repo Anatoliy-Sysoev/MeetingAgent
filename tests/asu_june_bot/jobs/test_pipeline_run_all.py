@@ -203,6 +203,47 @@ def test_transcribe_stage_base_args_select_asr_engine() -> None:
     assert stage_base_args("transcribe", {"asr_engine": "gigaam"}) == ["--engine", "gigaam"]
 
 
+def test_transcribe_stage_base_args_supports_retry_resume_or_force() -> None:
+    assert stage_base_args("transcribe", {"resume": True})[-1] == "--resume"
+    assert stage_base_args("transcribe", {"force": True})[-1] == "--force"
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        stage_base_args("transcribe", {"force": True, "resume": True})
+
+
+@pytest.mark.parametrize(("force", "resume", "expected"), [(False, True, "--resume"), (True, False, "--force")])
+def test_pipeline_passes_transcribe_recovery_mode_to_worker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    force: bool,
+    resume: bool,
+    expected: str,
+) -> None:
+    meeting_dir = _make_meeting(tmp_path)
+    (meeting_dir / "source" / "audio_16k_mono.wav").write_text("x", encoding="utf-8")
+    calls: list[tuple[str, ...]] = []
+
+    async def fake_subprocess(*args, stdout, stderr):
+        calls.append(args)
+        return _StageProcess(meeting_dir, Path(args[1]).name)
+
+    monkeypatch.setattr(runner_mod, "_create_subprocess", fake_subprocess)
+    monkeypatch.setattr(runner_mod.shutil, "which", lambda name: "/usr/bin/ffmpeg")
+    runner = JobRunner()
+    pipeline = asyncio.run(
+        _run_and_wait(
+            runner,
+            meeting_dir,
+            profile="transcript_only",
+            force=force,
+            resume=resume,
+        )
+    )
+
+    assert pipeline.status == "completed"
+    commands = [args for args in calls if Path(args[1]).name == "22_transcribe_meeting.py"]
+    assert commands and all(expected in args for args in commands)
+
+
 def test_diarize_stage_base_args_select_speaker_count() -> None:
     assert stage_base_args("diarize") == []
     assert stage_base_args("diarize", {"num_speakers": None}) == []

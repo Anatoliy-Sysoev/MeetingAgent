@@ -1,6 +1,19 @@
 # Todo
 
-Обновлено: 2026-09-23.
+Обновлено: 2026-10-22.
+
+## Active
+
+- [x] MA-JOB-RETRY-RESUME-CONTRACT (#323): retry failed transcription передаёт
+  `--resume`, force rerun передаёт `--force`; pipeline resume/force сохраняют
+  тот же контракт для стадии transcribe.
+  Тест не требует ffmpeg на CI-машине.
+- [x] MA-ASR-CHECKPOINT-STORAGE (#326): атомарные checkpoints, hashes и проверка префикса.
+- [ ] MA-WHISPER-RESUMABLE-TRANSCRIPTION (#327): продолжение ASR по блокам.
+- [ ] MA-ASR-RECOVERY-UI (#328): сохранённый прогресс и восстановление.
+- [ ] MA-ASR-CRASH-RECOVERY-E2E (#329): аварийное завершение/повтор.
+- [ ] MA-ASR-BLOCK-BOUNDARY-QUALITY (#334): устранить пропуски у границ блоков;
+  блокирует rollout #331–#333, parent #325 остаётся открытым.
 
 ## Done
 
