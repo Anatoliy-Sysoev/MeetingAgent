@@ -1,6 +1,6 @@
 # Todo
 
-Обновлено: 2026-10-21.
+Обновлено: 2026-10-22.
 
 ## Active
 
@@ -10,6 +10,10 @@
 - [ ] MA-ASR-CRASH-RECOVERY-E2E (#329): аварийное завершение/повтор.
 
 ## Done
+
+- [x] MA-JOB-ORPHANED-RETRY-STATUS (#321): recovery отсутствующего worker
+  переводит `meeting.json.processing_status` в `failed`, поэтому обычный
+  Retry транскрибации не блокируется stale-статусом `transcribing` — bb198a2.
 
 - [x] MA-MEETING-QA-STRUCTURED-ROUTING (#312): направлять явные запросы о
   решениях, задачах, рисках и открытых вопросах к структурированным артефактам
