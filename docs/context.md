@@ -4,6 +4,8 @@
 
 ## Now
 
+- PR #317: версия mkdocs-material синхронизирована в requirements-docs и
+  constraints-py312. Обновление больше не конфликтует с собственным lock-файлом.
 - MA-JOB-RETRY-RESUME-CONTRACT (#323) делает обычный retry транскрибации
   именно продолжением (`--resume`) после recoverable failure, а force rerun —
   явной перезаписью (`--force`). То же правило применяется к pipeline resume,

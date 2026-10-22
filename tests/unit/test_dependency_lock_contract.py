@@ -273,7 +273,7 @@ def test_documentation_entrypoint_installs_under_constraints() -> None:
 def test_docs_theme_and_internal_link_validation_are_release_gated() -> None:
     pins = _pins()
     assert pins["mkdocs"] == Version("1.6.1")
-    assert pins["mkdocs-material"] == Version("9.7.6")
+    assert pins["mkdocs-material"] == Version("9.7.7")
     config = yaml.safe_load((ROOT / "mkdocs.yml").read_text(encoding="utf-8"))
     assert config["theme"]["name"] == "material"
     assert config["validation"]["links"] == {

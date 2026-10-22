@@ -17,6 +17,7 @@
 
 ## Done
 
+- [x] PR #317: согласовать requirements-docs и constraints-py312 для mkdocs-material 9.7.7.
 - [x] MA-JOB-ORPHANED-RETRY-STATUS (#321): recovery отсутствующего worker
   переводит `meeting.json.processing_status` в `failed`, поэтому обычный
   Retry транскрибации не блокируется stale-статусом `transcribing` — bb198a2.
