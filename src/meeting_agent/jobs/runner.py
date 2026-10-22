@@ -965,6 +965,9 @@ def _write_last_error(meeting_dir: Path, *, stage: str, job_id: str, exit_code: 
             "timestamp": _now_iso(),
             "job_id": job_id,
         }
+        # A recovered/missing worker cannot still be processing.  Keeping the
+        # stale status blocks the normal retry path in the ASR entrypoint.
+        card["processing_status"] = "failed"
         _write_json_atomic(card_path, card)
     except Exception:  # noqa: BLE001
         return
