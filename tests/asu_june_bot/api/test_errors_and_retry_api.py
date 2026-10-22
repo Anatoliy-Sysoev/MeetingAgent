@@ -318,6 +318,38 @@ def test_retry_failed_stage_starts_job(
     assert body["job_id"]
 
 
+def test_retry_failed_transcribe_submits_resume(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    d = _make_meeting(tmp_path)
+    card = _read_card(d)
+    card["processing_status"] = "failed"
+    (d / "meeting.json").write_text(json.dumps(card), encoding="utf-8")
+    client, runner = _make_client(tmp_path)
+    submitted: dict[str, object] = {}
+
+    async def fake_submit(**kwargs):
+        submitted.update(kwargs)
+        return JobState(
+            job_id="retry-transcribe",
+            meeting_id=MEETING_ID,
+            stage="transcribe",
+            status="starting",
+            started_at="now",
+            _meeting_dir=d,
+        )
+
+    monkeypatch.setattr(runner, "submit", fake_submit)
+    resp = client.post(
+        f"/meetings/{MEETING_ID}/jobs/transcribe/retry", headers=AUTH, json={}
+    )
+
+    assert resp.status_code == 202
+    assert submitted["stage_options"] == {
+        "asr_engine": "faster-whisper", "force": False, "resume": True,
+    }
+
+
 def test_retry_cookie_session_without_csrf_403(tmp_path: Path) -> None:
     _make_meeting(tmp_path)
     client, _ = _make_client(tmp_path)

@@ -21,6 +21,7 @@ class FasterWhisperConfig:
     # faster-whisper >= 1.0 supports hotwords= directly (additive boosting).
     # When set, hotwords takes priority over initial_prompt for term boosting.
     hotwords: list[str] | None = None
+    block_seconds: float = 120.0
 
 
 @dataclass(frozen=True)
@@ -40,7 +41,18 @@ def transcribe_faster_whisper(
     config: FasterWhisperConfig,
     *,
     progress_callback: Callable[[float, float | None], None] | None = None,
+    meeting_dir: Path | None = None,
+    resume: bool = False,
+    saved_callback: Callable | None = None,
 ) -> FasterWhisperResult:
+    if meeting_dir is not None:
+        from .resumable import transcribe_blocks
+
+        rows, metrics = transcribe_blocks(
+            media_path, config, meeting_dir, resume=resume, model_loader=load_model,
+            progress_callback=progress_callback, saved_callback=saved_callback,
+        )
+        return FasterWhisperResult(rows, metrics)
     model = load_model(config)
     transcribe_kwargs: dict = {
         "language": config.language,

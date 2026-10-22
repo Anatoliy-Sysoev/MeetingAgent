@@ -124,6 +124,7 @@ class PipelineRequest(BaseModel):
 
 class RetryRequest(BaseModel):
     force: bool = False
+    asr_engine: Literal["faster-whisper", "gigaam"] = "faster-whisper"
     num_speakers: Annotated[int, Field(strict=True, ge=1, le=20)] | None = None
 
 
@@ -140,9 +141,13 @@ def _stage_options(
     stage: str,
     body: StageStartRequest | RetryRequest | None,
 ) -> dict[str, Any] | None:
+    if stage == "transcribe" and not isinstance(body, StageStartRequest):
+        force = bool(body.force) if isinstance(body, RetryRequest) else False
+        return {"asr_engine": body.asr_engine if body else "faster-whisper",
+                "force": force, "resume": not force}
     if body is None:
         return None
-    if stage == "transcribe" and isinstance(body, StageStartRequest):
+    if stage == "transcribe":
         return {"asr_engine": body.asr_engine}
     if stage == "diarize":
         return {"num_speakers": body.num_speakers}
