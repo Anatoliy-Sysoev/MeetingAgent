@@ -8,6 +8,10 @@
 - [x] MA-WHISPER-RESUMABLE-TRANSCRIPTION (#327): продолжение по блокам, publication marker, retry/force.
 - [ ] MA-ASR-RECOVERY-UI (#328): сохранённый прогресс и восстановление.
 - [ ] MA-ASR-CRASH-RECOVERY-E2E (#329): аварийное завершение/повтор.
+- [x] MA-JOB-RETRY-RESUME-CONTRACT (#323): retry failed transcription передаёт
+  `--resume`, force rerun передаёт `--force`; pipeline resume/force сохраняют
+  тот же контракт для стадии transcribe.
+  Тест не требует ffmpeg на CI-машине.
 
 ## Done
 
