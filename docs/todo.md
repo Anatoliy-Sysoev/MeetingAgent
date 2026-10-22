@@ -1,12 +1,13 @@
 # Todo
 
-Обновлено: 2026-09-23.
+Обновлено: 2026-10-22.
 
 ## Active
 
 - [x] MA-JOB-RETRY-RESUME-CONTRACT (#323): retry failed transcription передаёт
   `--resume`, force rerun передаёт `--force`; pipeline resume/force сохраняют
   тот же контракт для стадии transcribe.
+  Тест не требует ffmpeg на CI-машине.
 
 ## Done
 

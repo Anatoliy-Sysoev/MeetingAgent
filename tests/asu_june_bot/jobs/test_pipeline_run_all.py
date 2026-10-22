@@ -227,6 +227,7 @@ def test_pipeline_passes_transcribe_recovery_mode_to_worker(
         return _StageProcess(meeting_dir, Path(args[1]).name)
 
     monkeypatch.setattr(runner_mod, "_create_subprocess", fake_subprocess)
+    monkeypatch.setattr(runner_mod.shutil, "which", lambda name: "/usr/bin/ffmpeg")
     runner = JobRunner()
     pipeline = asyncio.run(
         _run_and_wait(
