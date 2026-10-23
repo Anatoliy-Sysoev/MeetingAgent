@@ -5,6 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 import sys
 
+import pytest
+
 from meeting_agent.jobs.progress import read_progress_snapshot
 from meeting_agent.transcription.faster_whisper_backend import (
     FasterWhisperConfig,
@@ -57,15 +59,27 @@ def test_faster_whisper_reports_media_timestamp_progress(monkeypatch, tmp_path: 
     assert events == [(0.0, 120.0), (12.0, 120.0), (40.0, 120.0), (120.0, 120.0)]
 
 
-def test_gigaam_worker_reports_completed_chunks(monkeypatch, tmp_path: Path) -> None:
+@pytest.mark.parametrize("model_name,structured_result", [
+    ("v3_e2e_rnnt", False), ("multilingual_ctc", True),
+])
+def test_gigaam_worker_reports_completed_chunks(
+    monkeypatch, tmp_path: Path, model_name: str, structured_result: bool,
+) -> None:
     class _GigaModel:
-        def transcribe(self, path: str) -> str:
-            return Path(path).stem
+        def transcribe(self, path: str):
+            text = Path(path).stem
+            return SimpleNamespace(text=text, words=None) if structured_result else text
+
+    loaded = []
+
+    def load_model(name, **kwargs):
+        loaded.append((name, kwargs))
+        return _GigaModel()
 
     monkeypatch.setitem(
         sys.modules,
         "gigaam",
-        SimpleNamespace(load_model=lambda *_args, **_kwargs: _GigaModel()),
+        SimpleNamespace(load_model=load_model),
     )
     meeting_dir = tmp_path / "meeting"
     chunks_dir = meeting_dir / "transcript" / "_gigaam" / "chunks_24s"
@@ -79,7 +93,7 @@ def test_gigaam_worker_reports_completed_chunks(monkeypatch, tmp_path: Path) -> 
         source_file=meeting_dir / "source" / "video.mp4",
         gigaam_root=tmp_path / "GigaAM",
         cache_root=tmp_path / "cache",
-        model="v3_e2e_rnnt",
+        model=model_name,
         chunk_seconds=24.0,
         progress_path=progress_path,
     )
@@ -92,3 +106,7 @@ def test_gigaam_worker_reports_completed_chunks(monkeypatch, tmp_path: Path) -> 
     assert progress["current"] == 3
     assert progress["total"] == 3
     assert progress["percent"] == 100.0
+    assert loaded == [(model_name, {"download_root": str(args.cache_root)})]
+    rows = (args.output_dir / "segments_gigaam.jsonl").read_text(encoding="utf-8")
+    assert f"gigaam/{model_name}" in rows
+    assert "namespace(" not in rows
