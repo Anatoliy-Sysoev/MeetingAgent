@@ -4,6 +4,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -17,9 +18,6 @@ from asu_june_bot.auth.service import LocalAuthService  # noqa: E402
 from asu_june_bot.core.limits import MAX_QUERY_CHARS  # noqa: E402
 from asu_june_bot.auth.throttle import LoginThrottle  # noqa: E402
 from asu_june_bot.search.models import SearchResponse  # noqa: E402
-
-import os
-import tempfile
 
 TOKEN = "test-search-token"
 AUTH = {"Authorization": f"Bearer {TOKEN}"}
@@ -75,12 +73,11 @@ class FakeState:
     login_throttle: LoginThrottle = field(default_factory=LoginThrottle)
 
 
-def build_client():
-    os.environ["MEETINGAGENT_API_TOKEN"] = TOKEN
-    td = tempfile.mkdtemp()
-    repo = AuthRepository(Path(td) / "auth.db")
+def build_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    repo = AuthRepository(tmp_path / "auth.db")
     repo.initialize()
-    app = create_app()
+    app = create_app(config={"work_root_path": tmp_path, "paths": {"auth_db": "auth.db"}})
     client = TestClient(app, headers=AUTH)
     client.__enter__()
     fake_search = FakeSearchService()
@@ -92,8 +89,8 @@ def build_client():
     return client, fake_search
 
 
-def test_search_endpoint_project_query() -> None:
-    client, fake_search = build_client()
+def test_search_endpoint_project_query(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, fake_search = build_client(tmp_path, monkeypatch)
     try:
         response = client.post(
             "/search",
@@ -117,8 +114,26 @@ def test_search_endpoint_project_query() -> None:
     assert fake_search.last_request.no_guard is False
 
 
-def test_search_endpoint_refused_query() -> None:
-    client, _fake_search = build_client()
+def test_search_smoke_startup_ignores_local_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def reject_local_config():
+        pytest.fail("Smoke startup must not load the working runtime config")
+
+    monkeypatch.setitem(create_app.__globals__, "load_config", reject_local_config)
+    client, _ = build_client(tmp_path, monkeypatch)
+    try:
+        state = client.app.state.meeting_agent
+        assert state.meetings_service.root == tmp_path / "meetings"
+        assert state.live_session_service.store.path == tmp_path / "logs/live_sessions_state.json"
+        assert state.job_runner.store.path == tmp_path / "logs/jobs_state.json"
+    finally:
+        client.__exit__(None, None, None)
+
+    client, _ = build_client(tmp_path, monkeypatch)
+    client.__exit__(None, None, None)
+
+
+def test_search_endpoint_refused_query(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, _fake_search = build_client(tmp_path, monkeypatch)
     try:
         response = client.post("/search", json={"query": "Какая погода завтра в Москве?", "mode": "hybrid", "top_k": 8})
     finally:
@@ -132,8 +147,8 @@ def test_search_endpoint_refused_query() -> None:
     assert data["results"] == []
 
 
-def test_search_endpoint_rejects_public_no_guard_bypass() -> None:
-    client, _fake_search = build_client()
+def test_search_endpoint_rejects_public_no_guard_bypass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, _fake_search = build_client(tmp_path, monkeypatch)
     try:
         response = client.post("/search", json={"query": "Какая погода завтра в Москве?", "no_guard": True})
     finally:
@@ -145,8 +160,8 @@ def test_search_endpoint_rejects_public_no_guard_bypass() -> None:
     assert data["error_code"] == "validation_error"
 
 
-def test_search_endpoint_validation_error_on_unknown_field() -> None:
-    client, _fake_search = build_client()
+def test_search_endpoint_validation_error_on_unknown_field(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, _fake_search = build_client(tmp_path, monkeypatch)
     try:
         response = client.post("/search", json={"query": "test", "unknown": "field"})
     finally:
@@ -158,8 +173,8 @@ def test_search_endpoint_validation_error_on_unknown_field() -> None:
     assert data["error_code"] == "validation_error"
 
 
-def test_search_endpoint_rejects_too_long_query() -> None:
-    client, _fake_search = build_client()
+def test_search_endpoint_rejects_too_long_query(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, _fake_search = build_client(tmp_path, monkeypatch)
     try:
         response = client.post("/search", json={"query": "x" * (MAX_QUERY_CHARS + 1)})
     finally:

@@ -4,6 +4,14 @@
 
 ## Active
 
+- [ ] MA-PREFLIGHT-OLLAMA-TAG-ALIAS (#336): учитывать эквивалентность имени
+  модели без тега и :latest без ложных совпадений явных версий.
+
+- [x] MA-TEST-RUNTIME-ISOLATION (#335): изолированы chat/search smoke;
+  локально проверены все 2166 тестов двумя частями (2154 passed, 12 skipped).
+  Изолирован также тест wiring лимитов MeetingsService.
+  Public inventory больше не требует внесения приватных ignored-скриптов в Git.
+
 - [x] MA-JOB-RETRY-RESUME-CONTRACT (#323): retry failed transcription передаёт
   `--resume`, force rerun передаёт `--force`; pipeline resume/force сохраняют
   тот же контракт для стадии transcribe.
