@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from asu_june_bot.packaging import preflight
 from asu_june_bot.packaging.preflight import CheckResult
 
@@ -52,6 +54,29 @@ def test_check_ollama_unavailable_returns_single_error(monkeypatch) -> None:
     assert results[0].name == "ollama_api"
     assert results[0].status == "error"
     assert "boom" in results[0].detail
+
+
+@pytest.mark.parametrize("requested,visible,expected", [
+    ("bge-m3", "bge-m3", "ok"),
+    ("bge-m3", "bge-m3:latest", "ok"),
+    ("bge-m3:latest", "bge-m3", "ok"),
+    ("bge-m3:latest", "bge-m3:latest", "ok"),
+    ("bge-m3", "bge-m3:other", "error"),
+    ("bge-m3:other", "bge-m3:latest", "error"),
+    ("qwen3.5:4b", "qwen3.5:4b", "ok"),
+    ("qwen3.5:4b", "qwen3.5:9b", "error"),
+    ("registry.test:5000/team/model", "registry.test:5000/team/model:latest", "ok"),
+    ("registry.test:5000/team/model:latest", "registry.test:5000/team/model", "ok"),
+    ("registry.test:5000/team/model", "registry.test:5000/other/model:latest", "error"),
+    ("Model", "model:latest", "error"),
+    ("model@sha256:abc", "model:latest", "error"),
+    ("model@sha256:abc", "model@sha256:abc", "ok"),
+])
+def test_ollama_default_tag_alias_is_narrow(monkeypatch, requested, visible, expected):
+    monkeypatch.setattr(preflight, "_ollama_tags", lambda _url, timeout_sec: [visible])
+    results = preflight.check_ollama(embedding_model=requested, chat_model=requested)
+    assert [result.status for result in results] == ["ok", expected, expected]
+    assert all(result.detail.startswith(requested) for result in results[1:])
 
 
 def test_run_preflight_docker_mode(monkeypatch) -> None:
