@@ -1,9 +1,20 @@
 # Текущий Контекст
 
-Обновлено: 2026-10-21.
+Обновлено: 2026-10-23.
 
 ## Now
 
+- MA-ASR-BLOCK-BOUNDARY-QUALITY (#334): контекст до 5 секунд с каждой стороны,
+  word timestamps и однозначное владение словами по середине span вместо
+  обрезания текста на границе блока. Алгоритм входит в checkpoint identity;
+  старые generations несовместимы, canonical IDs и source metadata сохраняются.
+  Реальный CPU smoke 66 секунд/три блока: cached resume идентичен, ранее
+  пропущенный хвост восстановлен относительно непрерывного ASR. Word-sequence
+  similarity 0.920 -> 0.963 не является WER или ручным эталоном.
+  Полный локальный suite: 2103 passed, 14 skipped; финальные targeted
+  boundary/resume: 18 passed, повтор subprocess kill/resume: 3 passed.
+  Проверки CLI/jobs/progress/recovery: 255 passed; compileall/ruff/diff проходят.
+  До прослушивания/разметки стыков rollout PR #331–#333 остаётся заблокирован.
 - MA-ASR-CRASH-RECOVERY (#325): #326 хранит проверенные завершённые блоки;
   #327 подключает Whisper к последовательным PCM-блокам (120 секунд),
   переиспользует модель и сохраняет VAD/абсолютные таймкоды. Незавершённый
@@ -11,7 +22,8 @@
   #328 добавляет path-free recovery в readiness/registry/jobs, сохранённый
   процент в UI и ETA по новой попытке. #329 проверяет принудительное завершение
   worker, повтор без ASR завершённых блоков и сбой финализации отдельными
-  процессами. Реальный speech/quality smoke остаётся opt-in: текущий ASR занят.
+  процессами. Реальный speech smoke выполнен без параллельного рабочего ASR;
+  ручной quality gate остаётся открытым в #334.
   Текущие runtime-задачи не перезапускаются.
 
 - MA-MEETING-QA-STRUCTURED-ROUTING (#312) направляет явные общие вопросы о

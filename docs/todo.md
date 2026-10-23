@@ -1,14 +1,18 @@
 # Todo
 
-Обновлено: 2026-10-21.
+Обновлено: 2026-10-23.
 
 ## Active
 
+- [~] MA-ASR-BLOCK-BOUNDARY-QUALITY (#334): реализованы context overlap,
+  word ownership, versioned identity и regressions. Реальный cached resume
+  проверен; до rollout нужны прослушивание и ручной эталон стыков, не ASR-baseline.
 - [x] MA-ASR-CHECKPOINT-STORAGE (#326): атомарные checkpoints, hashes и проверка префикса.
 - [x] MA-WHISPER-RESUMABLE-TRANSCRIPTION (#327): продолжение по блокам, publication marker, retry/force.
 - [x] MA-ASR-RECOVERY-UI (#328): сохранённый процент, recovery API/кнопки и ETA новой попытки.
 - [x] MA-ASR-CRASH-RECOVERY-E2E (#329): subprocess kill/resume, export failure, force и dry-run.
-- [ ] MA-ASR-CRASH-RECOVERY (#325): реальный speech smoke и ручная проверка границ после завершения активного ASR; затем rollout.
+- [ ] MA-ASR-CRASH-RECOVERY (#325): после ручного quality gate #334 интегрировать
+  и проверить #331–#333; работающие встречи не перезапускать автоматически.
 
 ## Done
 
