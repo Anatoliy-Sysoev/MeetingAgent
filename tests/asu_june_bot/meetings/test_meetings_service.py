@@ -361,7 +361,9 @@ def test_parse_upload_limit_rejects_invalid_values(value) -> None:
         parse_max_upload_bytes({"meetings": {"max_upload_bytes": value}})
 
 
-def test_build_app_state_passes_limit_into_service(monkeypatch) -> None:
+def test_build_app_state_passes_limit_into_service(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     import meeting_agent.api.dependencies as core_deps
     from asu_june_bot.api import dependencies as deps
 
@@ -376,6 +378,7 @@ def test_build_app_state_passes_limit_into_service(monkeypatch) -> None:
         core_deps,
         "load_config",
         lambda: {
+            "work_root_path": tmp_path,
             "meetings": {
                 "max_text_artifact_bytes": 2048,
                 "max_upload_bytes": 8192,
@@ -389,6 +392,8 @@ def test_build_app_state_passes_limit_into_service(monkeypatch) -> None:
         assert captured.get("max_upload_bytes") == 8192
         assert state.meetings_service.max_text_artifact_bytes == 2048
         assert state.meetings_service.max_upload_bytes == 8192
+        assert state.meetings_service.root == tmp_path / "meetings"
+        assert state.live_session_service.store.path == tmp_path / "logs/live_sessions_state.json"
     finally:
         state.live_session_service.shutdown()
 

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import os
 import sys
-import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -85,12 +84,11 @@ class FakeState:
     login_throttle: LoginThrottle = field(default_factory=LoginThrottle)
 
 
-def build_client():
-    os.environ["MEETINGAGENT_API_TOKEN"] = TOKEN
-    td = tempfile.mkdtemp()
-    repo = AuthRepository(Path(td) / "auth.db")
+def build_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("MEETINGAGENT_API_TOKEN", TOKEN)
+    repo = AuthRepository(tmp_path / "auth.db")
     repo.initialize()
-    app = create_app()
+    app = create_app(config={"work_root_path": tmp_path, "paths": {"auth_db": "auth.db"}})
     client = TestClient(app, headers=AUTH)
     client.__enter__()
     fake_chat = FakeChatService()
@@ -103,8 +101,8 @@ def build_client():
     return client, fake_chat
 
 
-def test_ui_endpoint_returns_local_chat_page() -> None:
-    client, _fake_chat = build_client()
+def test_ui_endpoint_returns_local_chat_page(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, _fake_chat = build_client(tmp_path, monkeypatch)
     try:
         response = client.get("/ui")
     finally:
@@ -122,8 +120,27 @@ def test_ui_endpoint_returns_local_chat_page() -> None:
     assert str(MAX_QUERY_CHARS) in ui
 
 
-def test_chat_endpoint_project_query() -> None:
-    client, fake_chat = build_client()
+def test_chat_smoke_startup_ignores_local_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def reject_local_config():
+        pytest.fail("Smoke startup must not load the working runtime config")
+
+    monkeypatch.setitem(create_app.__globals__, "load_config", reject_local_config)
+    client, _ = build_client(tmp_path, monkeypatch)
+    try:
+        state = client.app.state.meeting_agent
+        assert state.meetings_service.root == tmp_path / "meetings"
+        assert state.live_session_service.store.path == tmp_path / "logs/live_sessions_state.json"
+        assert state.job_runner.store.path == tmp_path / "logs/jobs_state.json"
+    finally:
+        client.__exit__(None, None, None)
+
+    # A second startup must be able to reacquire the temporary runtime lock.
+    client, _ = build_client(tmp_path, monkeypatch)
+    client.__exit__(None, None, None)
+
+
+def test_chat_endpoint_project_query(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, fake_chat = build_client(tmp_path, monkeypatch)
     try:
         response = client.post(
             "/chat",
@@ -156,8 +173,8 @@ def test_chat_endpoint_project_query() -> None:
     assert fake_chat.last_request.timeout_sec == 300
 
 
-def test_chat_endpoint_refused_query_does_not_call_llm() -> None:
-    client, fake_chat = build_client()
+def test_chat_endpoint_refused_query_does_not_call_llm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, fake_chat = build_client(tmp_path, monkeypatch)
     try:
         response = client.post("/chat", json={"query": "Какая погода завтра в Москве?", "mode": "hybrid", "top_k": 5})
     finally:
@@ -171,8 +188,8 @@ def test_chat_endpoint_refused_query_does_not_call_llm() -> None:
     assert fake_chat.last_request.max_tokens == 1400
 
 
-def test_chat_endpoint_clarify_query_does_not_call_llm() -> None:
-    client, _fake_chat = build_client()
+def test_chat_endpoint_clarify_query_does_not_call_llm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, _fake_chat = build_client(tmp_path, monkeypatch)
     try:
         response = client.post("/chat", json={"query": "Расскажи подробнее", "mode": "hybrid", "top_k": 5})
     finally:
@@ -184,8 +201,8 @@ def test_chat_endpoint_clarify_query_does_not_call_llm() -> None:
     assert data["diagnostics"]["llm_called"] is False
 
 
-def test_chat_endpoint_empty_llm_response() -> None:
-    client, _fake_chat = build_client()
+def test_chat_endpoint_empty_llm_response(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, _fake_chat = build_client(tmp_path, monkeypatch)
     try:
         response = client.post("/chat", json={"query": "Проектный запрос с пустой LLM", "mode": "hybrid", "top_k": 5})
     finally:
@@ -198,8 +215,8 @@ def test_chat_endpoint_empty_llm_response() -> None:
     assert data["diagnostics"]["llm_finish_reason"] == "length"
 
 
-def test_chat_endpoint_validation_error_on_unknown_field() -> None:
-    client, _fake_chat = build_client()
+def test_chat_endpoint_validation_error_on_unknown_field(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, _fake_chat = build_client(tmp_path, monkeypatch)
     try:
         response = client.post("/chat", json={"query": "test", "unknown": "field"})
     finally:
@@ -211,8 +228,8 @@ def test_chat_endpoint_validation_error_on_unknown_field() -> None:
     assert data["error_code"] == "validation_error"
 
 
-def test_chat_endpoint_rejects_too_long_query() -> None:
-    client, _fake_chat = build_client()
+def test_chat_endpoint_rejects_too_long_query(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, _fake_chat = build_client(tmp_path, monkeypatch)
     try:
         response = client.post("/chat", json={"query": "x" * (MAX_QUERY_CHARS + 1)})
     finally:

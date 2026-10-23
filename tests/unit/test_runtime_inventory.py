@@ -55,15 +55,41 @@ def _flatten(section: str) -> list[str]:
     return values
 
 
-def test_inventory_covers_every_script_exactly_once() -> None:
-    actual = {
-        path.relative_to(ROOT).as_posix()
-        for path in SCRIPTS.rglob("*")
-        if path.is_file() and path.suffix.lower() in {".py", ".ps1"}
+def _public_scripts(root: Path) -> set[str]:
+    result = subprocess.run(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z",
+         "--", "scripts", ":(top,glob)*.ps1"],
+        cwd=root, capture_output=True, check=True,
+    )
+    paths = (name.decode("utf-8") for name in result.stdout.split(b"\0") if name)
+    return {
+        name for name in paths
+        if Path(name).suffix.lower() in {".py", ".ps1"} and (root / name).is_file()
     }
-    actual.update(path.name for path in ROOT.glob("*.ps1") if path.is_file())
+
+
+def test_inventory_covers_every_script_exactly_once() -> None:
+    actual = _public_scripts(ROOT)
 
     assert set(_flatten("scripts")) == actual
+
+
+def test_inventory_ignores_private_scripts_but_detects_new_public_scripts(tmp_path: Path) -> None:
+    subprocess.run(["git", "init", "--quiet"], cwd=tmp_path, check=True)
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (tmp_path / ".gitignore").write_text("scripts/private.py\n", encoding="utf-8")
+    (scripts / "private.py").write_text("", encoding="utf-8")
+    (scripts / "public.py").write_text("", encoding="utf-8")
+    (scripts / "README.md").write_text("", encoding="utf-8")
+    (tmp_path / "start.ps1").write_text("", encoding="utf-8")
+    assert _public_scripts(tmp_path) == {"scripts/public.py", "start.ps1"}
+
+    subprocess.run(["git", "add", "scripts/public.py"], cwd=tmp_path, check=True)
+    (tmp_path / ".gitignore").write_text("scripts/*.py\n", encoding="utf-8")
+    assert _public_scripts(tmp_path) == {"scripts/public.py", "start.ps1"}
+    (scripts / "public.py").unlink()
+    assert _public_scripts(tmp_path) == {"start.ps1"}
 
 
 def test_inventory_covers_every_python_package_exactly_once() -> None:

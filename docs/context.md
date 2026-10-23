@@ -4,6 +4,20 @@
 
 ## Now
 
+- MA-TEST-RUNTIME-ISOLATION (#335): chat/search smoke передают явный временный
+  work_root_path, используют tmp_path и восстанавливаемый token через monkeypatch.
+  Это устраняет конфликт с runtime lock работающего API без ослабления защиты.
+  Regression проверяет пути jobs/live/meetings и освобождение lock при shutdown.
+  Такой же временный корень задан в тесте передачи лимитов в MeetingsService.
+  Public script inventory исключает ignored-файлы через Git, но учитывает
+  новые untracked non-ignored скрипты и уже tracked файлы под ignore-правилами.
+  Локальный набор при работающем API проверен двумя частями: 2075 + 79 passed,
+  12 skipped (всего 2166 тестов); целевые проверки 111 passed, 2 skipped.
+  Retrieval/search coverage gate, compileall и ruff изменённых тестов проходят.
+- Локальный runtime проверен: API/UI доступны, qwen3.5:4b отвечает,
+  bge-m3 возвращает 1024-мерный embedding. Preflight пока требует явный
+  bge-m3:latest из-за ложного сравнения тегов (#336); конфиг/cache не менялись.
+
 - PR #317: версия mkdocs-material синхронизирована в requirements-docs и
   constraints-py312. Обновление больше не конфликтует с собственным lock-файлом.
 - MA-JOB-RETRY-RESUME-CONTRACT (#323) делает обычный retry транскрибации
