@@ -37,6 +37,82 @@ lock фиксирует проверенный inference-only override ONNX 1.22
 
 Причина ASCII-cache: `sentencepiece` в GigaAM может падать на пути к tokenizer с кириллицей в `%USERPROFILE%\.cache\gigaam`. Поэтому wrapper использует `%ProgramData%\gigaam_cache` и при необходимости копирует туда уже скачанные файлы модели.
 
+## Изолированный Пилот Multilingual CTC (#340)
+
+`multilingual_ctc` (220M) устанавливается отдельно от штатной `v3_e2e_rnnt`.
+Это не GigaAM v4 и не автоматическая миграция API/UI. Не обновляйте рабочие
+исходники, venv, config.yaml или кэш v3 ради эксперимента.
+
+Ревизия исходников пилота:
+`7447938d791c4f3e643386ee22c33777004293a5`. Старый штатный source revision
+не содержит Multilingual. Пилот использует отдельный inference-only CPU lock
+с Hydra 1.3.7 и override ONNX 1.22 вместо upstream pin 1.19; source импортируется
+через явный PYTHONPATH/--gigaam-root, а не через pip install upstream с заменой
+зависимостей. Для общего CLI дополнительно нужен jsonschema из core constraints.
+Longform/pyannote, Transformers и CUDA для коротких 24-секундных чанков не нужны.
+
+Из корня MeetingAgent, в отдельном PowerShell-окне:
+
+```powershell
+$pilot = "C:\ma-gigaam-multilingual"
+py -3.12 -m venv "$pilot\venv"
+git clone https://github.com/salute-developers/GigaAM.git "$pilot\source"
+git -C "$pilot\source" checkout 7447938d791c4f3e643386ee22c33777004293a5
+& "$pilot\venv\Scripts\python.exe" -m pip install `
+  -c constraints-gigaam-multilingual-py312-windows.txt `
+  -r requirements-gigaam-multilingual-py312.in
+& "$pilot\venv\Scripts\python.exe" -m pip check
+$env:PYTHONPATH = "$pilot\source"
+```
+
+При уже существующем каталоге сначала проверьте его назначение; команды
+создания/clone не предназначены для перезаписи существующей установки.
+Запускать загрузку в память и ASR только после завершения других тяжёлых
+ASR/diarization/LLM задач и проверки свободной ОЗУ. Веса скачиваются локально
+из официального CDN, для `multilingual_ctc` не нужен HF_TOKEN:
+
+```powershell
+& "$pilot\venv\Scripts\python.exe" -c "import gigaam; gigaam.load_model('multilingual_ctc', device='cpu', download_root=r'C:\ma-gigaam-multilingual\cache'); print('model loaded')"
+```
+
+Только доверенные официальные веса: upstream использует pickle-based
+torch.load(weights_only=False). Сравните checksum с закреплённым source;
+MD5 upstream проверяет целостность, но не заменяет доверенный источник.
+Скачанный checkpoint занимает 883212109 байт (около 842 MiB). SHA-256
+проверенного файла:
+`24aa92be5994fa8b9f1ce40fe59fc9693de0ce6af415011b7c0b4480c7fcf733`.
+
+Для проверки транскрибации создайте отдельную карточку, не используйте --force
+над результатом рабочей v3. После завершения всех других тяжёлых задач:
+
+```powershell
+& "$pilot\venv\Scripts\python.exe" scripts/22_transcribe_meeting.py `
+  --meeting-dir "meetings/<отдельная-pilot-карточка>" `
+  --engine gigaam --model multilingual_ctc `
+  --gigaam-root "$pilot\source" --gigaam-cache-root "$pilot\cache"
+```
+
+CLI передаёт явные model/source/cache в worker; без --model сохраняется
+`v3_e2e_rnnt`. Runtime installation/freeze reports, аудио, веса и результаты
+сравнений не коммитятся. Успешные install/download/import не доказывают
+качество ASR: отдельно фиксируйте реальный smoke, время/память, термины,
+пунктуацию и таймкоды. Короткий smoke не заменяет сравнение с v3/Whisper.
+
+Первый аудит исходного dependency graph выявил три advisory Hydra 1.3.4.
+В пилоте они устранены обновлением до 1.3.7; повторный аудит установленного
+окружения не нашёл известных уязвимостей. Не используйте старый GigaAM lock
+для повторной установки пилота. Обновление штатного v3 вынесено в #341 и
+не выполняется под работающим worker. Даже исправленная Hydra не является
+песочницей для недоверенных конфигураций или checkpoint-файлов.
+
+Реальная проверка пилота: 10 секунд русской речи на CPU, два потока;
+загрузка около 9 секунд, ASR около 4 секунд, 20 слов с допустимыми границами.
+Общий CLI создаёт canonical exports и report, но в coarse wrapper обнаружен
+старый дефект #342: для короткого последнего чанка end/report duration могут
+завышаться до полного chunk_seconds. Не считайте этот span точной границей
+речи. Новые пословные timestamps прямого API пока не сохраняются wrapper-ом.
+Качество терминов/пунктуации и сравнение с v3/Whisper ещё не оценивались.
+
 ## Основная Команда В Карточку Встречи
 
 ```powershell

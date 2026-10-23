@@ -1,0 +1,13 @@
+# Optional isolated CPU pilot, not the production v3 runtime.
+# Upstream source: salute-developers/GigaAM@7447938d791c4f3e643386ee22c33777004293a5.
+--extra-index-url https://download.pytorch.org/whl/cpu
+-r requirements-gigaam.txt
+hydra-core==1.3.7
+onnxruntime==1.23.2
+# CLI schema dependencies match the reviewed core pins without importing its
+# newer ONNX Runtime constraint into this separate inference-only environment.
+jsonschema==4.26.0
+attrs==26.1.0
+jsonschema-specifications==2025.9.1
+referencing==0.37.0
+rpds-py==2026.6.3

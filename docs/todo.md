@@ -4,6 +4,15 @@
 
 ## Active
 
+- [x] MA-GIGAAM-MULTILINGUAL-PILOT (#340): отдельный runtime/source/cache,
+  reproducible runbook, безопасный lock и CLI regressions без смены v3.
+  Веса скачаны, pip/import/audit проверки пройдены; реальный CPU short-speech
+  и общий CLI выполнены последовательно после завершения другого pipeline.
+- [ ] SEC-HYDRA-PATCH (#341): проверить затронутые runtime и обновить Hydra
+  штатного GigaAM с 1.3.4 до исправленной 1.3.7, без изменения активных workers.
+- [ ] MA-GIGAAM-TAIL-TIMECODES (#342): ограничить последний coarse-чанк
+  фактической длительностью WAV; report не должен завышать длительность записи.
+
 - [x] MA-PREFLIGHT-OLLAMA-TAG-ALIAS (#336): имя без тега эквивалентно только
   :latest; явные версии, namespace, digest и registry port покрыты тестами.
 

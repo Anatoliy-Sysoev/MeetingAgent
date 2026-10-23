@@ -32,6 +32,23 @@ def read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def test_multilingual_pilot_is_explicit_and_preserves_default(tmp_path, monkeypatch):
+    monkeypatch.setattr(transcribe22, "transcription_config", lambda: {})
+    base = ["--meeting-dir", str(tmp_path), "--engine", "gigaam"]
+    assert transcribe22.parse_args(base).model == "v3_e2e_rnnt"
+    root, cache = tmp_path / "pilot-source", tmp_path / "pilot-cache"
+    args = transcribe22.parse_args(base + ["--model", "multilingual_ctc",
+        "--gigaam-root", str(root), "--gigaam-cache-root", str(cache)])
+    captured = {}
+    monkeypatch.setattr(transcribe22, "run_gigaam_backend", lambda **kwargs: captured.update(kwargs))
+    transcribe22._run_gigaam(tmp_path / "sample.wav", tmp_path, args)
+    config = captured["config"]
+    assert config.model == "multilingual_ctc"
+    assert config.gigaam_root == root and config.cache_root == cache
+    assert config.python_exe == sys.executable
+    assert transcribe22.parse_args(base).model == "v3_e2e_rnnt"
+
+
 def validate_meeting(meeting: dict) -> None:
     schema = read_json(REPO_ROOT / "configs" / "schemas" / "meeting.schema.json")
     Draft202012Validator(schema).validate(meeting)

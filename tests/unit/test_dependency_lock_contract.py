@@ -212,6 +212,19 @@ def test_gigaam_lock_is_isolated_cpu_only_and_matches_reviewed_source() -> None:
     assert "nvidia-" not in lock_input.lower()
 
 
+def test_multilingual_pilot_lock_is_separate_and_patches_hydra() -> None:
+    pilot = _pins("constraints-gigaam-multilingual-py312-windows.txt")
+    legacy = _pins("constraints-gigaam-py312-windows.txt")
+    assert pilot["hydra-core"] == Version("1.3.7")
+    assert pilot["jsonschema"] == _pins()["jsonschema"]
+    for name in sorted(legacy.keys() & pilot.keys() - {"hydra-core"}):
+        assert pilot[name] == legacy[name], f"unreviewed pilot dependency change: {name}"
+    text = (ROOT / "requirements-gigaam-multilingual-py312.in").read_text(encoding="utf-8")
+    assert "7447938d791c4f3e643386ee22c33777004293a5" in text
+    assert "--extra-index-url https://download.pytorch.org/whl/cpu" in text
+    assert "hydra-core==1.3.7" in text
+
+
 def test_windows_only_live_marker_matches_pyproject() -> None:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     project_live = {

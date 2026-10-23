@@ -4,6 +4,22 @@
 
 ## Now
 
+- MA-GIGAAM-MULTILINGUAL-PILOT (#340): отдельные Python 3.12 CPU runtime,
+  upstream source 7447938 и ASCII-cache для multilingual_ctc (220M), без
+  изменения рабочего v3/config/API/UI. Веса скачаны и сверены с upstream,
+  SHA-256 записан в runbook. Mock-регрессии проверяют passthrough модели,
+  отдельного кэша и обработку нового результата с полем text.
+  Pip check и импорты CPU/Torch/torchaudio/ONNX проходят. Первый аудит выявил
+  три advisory Hydra 1.3.4; в пилоте исправлено на 1.3.7, повторный audit чистый.
+  Рабочий v3 не обновлялся; его patch/проверки отдельно в #341.
+  После завершения рабочих ASR/diarization выполнен реальный CPU smoke:
+  10 секунд речи, 20 слов с word timestamps, загрузка около 9 секунд,
+  ASR около 4 секунд при двух потоках. Общий CLI также успешно сформировал
+  отдельную pilot-карточку и transcript exports, без memo/protocol/indexing.
+  Обнаружен общий wrapper-дефект #342: короткий последний чанк получает
+  полную длительность 24 секунды. Это не исправлено сменой модели.
+  Все runtime reports/тексты/медиа остаются локально; v3 остаётся default.
+
 - MA-OLLAMA-PREFLIGHT-DEFAULT-TAG (#336): preflight считает имя без тега
   эквивалентным только тому же имени с :latest. Явные версии, namespace,
   регистр и digest не подменяются; порт registry не принимается за тег.
