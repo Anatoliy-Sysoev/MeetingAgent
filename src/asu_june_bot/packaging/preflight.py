@@ -107,6 +107,13 @@ def _ollama_tags(base_url: str, timeout_sec: int) -> list[str]:
     return tags
 
 
+def _model_tag_identity(model: str) -> str:
+    # A registry port is not a model tag; only inspect the final path component.
+    if "@" in model or ":" in model.rsplit("/", 1)[-1]:
+        return model
+    return model + ":latest"
+
+
 def check_ollama(
     base_url: str = DEFAULT_OLLAMA_URL,
     embedding_model: str = DEFAULT_EMBEDDING_MODEL,
@@ -131,13 +138,14 @@ def check_ollama(
             detail=f"{base_url} reachable; {len(tags)} model(s) visible",
         )
     ]
-    visible = set(tags)
+    visible = {_model_tag_identity(tag) for tag in tags}
     for label, model in (("embedding_model", embedding_model), ("chat_model", chat_model)):
+        present = _model_tag_identity(model) in visible
         results.append(
             CheckResult(
                 name=label,
-                status="ok" if model in visible else "error",
-                detail=f"{model} present" if model in visible else f"{model} missing in Ollama tags",
+                status="ok" if present else "error",
+                detail=f"{model} present" if present else f"{model} missing in Ollama tags",
             )
         )
     return results

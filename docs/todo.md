@@ -1,11 +1,11 @@
 # Todo
 
-Обновлено: 2026-10-22.
+Обновлено: 2026-10-23.
 
 ## Active
 
-- [ ] MA-PREFLIGHT-OLLAMA-TAG-ALIAS (#336): учитывать эквивалентность имени
-  модели без тега и :latest без ложных совпадений явных версий.
+- [x] MA-PREFLIGHT-OLLAMA-TAG-ALIAS (#336): имя без тега эквивалентно только
+  :latest; явные версии, namespace, digest и registry port покрыты тестами.
 
 - [x] MA-TEST-RUNTIME-ISOLATION (#335): изолированы chat/search smoke;
   локально проверены все 2166 тестов двумя частями (2154 passed, 12 skipped).
@@ -140,9 +140,8 @@
 - [ ] MA-MEETING-QA-VECTOR-PREWARM (#311): строить или обновлять векторы
   встречи во время pipeline indexing, отдавать ограниченный прогресс и
   гарантировать, что первый Q&A-запрос строит embedding только для вопроса.
-- [ ] TEST-RUNTIME-INVENTORY-ISOLATION (#313): найти источник временных ignored
-  scripts в полном Windows suite и устранить зависимость inventory-теста от
-  порядка выполнения, не добавляя приватные scripts в публичный каталог.
+- [x] TEST-RUNTIME-INVENTORY-ISOLATION (#313): PR #337 исключает ignored scripts
+  через Git, не скрывает новые публичные файлы; полный локальный suite проверен.
 - [ ] MA-PIPELINE-PROGRESS-AND-ETA (#286): ASR progress is implemented.
   Add worker progress to the remaining stages only where current/total has a
   real machine-readable source; keep unknown work indeterminate and do not

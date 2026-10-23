@@ -1,9 +1,14 @@
 # Текущий Контекст
 
-Обновлено: 2026-10-22.
+Обновлено: 2026-10-23.
 
 ## Now
 
+- MA-OLLAMA-PREFLIGHT-DEFAULT-TAG (#336): preflight считает имя без тега
+  эквивалентным только тому же имени с :latest. Явные версии, namespace,
+  регистр и digest не подменяются; порт registry не принимается за тег.
+  Конфигурация моделей и identity embeddings cache не менялись.
+- PR #337 принят в main: изоляция локальных тестов (#335) завершена.
 - MA-TEST-RUNTIME-ISOLATION (#335): chat/search smoke передают явный временный
   work_root_path, используют tmp_path и восстанавливаемый token через monkeypatch.
   Это устраняет конфликт с runtime lock работающего API без ослабления защиты.
@@ -15,8 +20,7 @@
   12 skipped (всего 2166 тестов); целевые проверки 111 passed, 2 skipped.
   Retrieval/search coverage gate, compileall и ruff изменённых тестов проходят.
 - Локальный runtime проверен: API/UI доступны, qwen3.5:4b отвечает,
-  bge-m3 возвращает 1024-мерный embedding. Preflight пока требует явный
-  bge-m3:latest из-за ложного сравнения тегов (#336); конфиг/cache не менялись.
+  bge-m3 возвращает 1024-мерный embedding; конфиг/cache не менялись.
 
 - PR #317: версия mkdocs-material синхронизирована в requirements-docs и
   constraints-py312. Обновление больше не конфликтует с собственным lock-файлом.
