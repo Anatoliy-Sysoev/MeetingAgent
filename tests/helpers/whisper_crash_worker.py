@@ -21,7 +21,7 @@ def main():
 
     class Model:
         def transcribe(self, samples, **kwargs):
-            index = round(float(samples[0]) * 32768 / 1000) - 1
+            index = round(float(samples[min(16000, len(samples) - 1)]) * 32768 / 1000) - 1
             with (meeting_dir / "calls.jsonl").open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps({"block": index}) + "\n")
                 handle.flush()
@@ -30,7 +30,9 @@ def main():
                 atomic_json(meeting_dir / "ready.json", {"waiting": True})
                 while True:
                     time.sleep(0.1)
-            segment = SimpleNamespace(start=0.05, end=0.9, text=f"piece{index}")
+            offset = 0 if index == 0 else 1
+            segment = SimpleNamespace(start=offset + 0.05, end=offset + 0.9, text=f"piece{index}",
+                words=[SimpleNamespace(start=offset + 0.05, end=offset + 0.9, word=f"piece{index}")])
             return iter([segment]), SimpleNamespace()
 
     backend.load_model = lambda config: Model()

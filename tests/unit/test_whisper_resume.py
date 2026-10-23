@@ -25,8 +25,10 @@ def audio_file(tmp_path, seconds=5):
     return path
 
 
-def fake_segment():
-    return SimpleNamespace(start=0.1, end=0.9, text="phrase", avg_logprob=-0.1, no_speech_prob=0.1)
+def fake_segment(offset=0):
+    return SimpleNamespace(start=offset + 0.1, end=offset + 0.9, text="phrase",
+        words=[SimpleNamespace(start=offset + 0.1, end=offset + 0.9, word="phrase")],
+        avg_logprob=-0.1, no_speech_prob=0.1)
 
 
 def test_resume_skips_committed_blocks_and_loads_model_once_per_attempt(tmp_path, monkeypatch):
@@ -38,9 +40,10 @@ def test_resume_skips_committed_blocks_and_loads_model_once_per_attempt(tmp_path
         def transcribe(self, samples, **kwargs):
             calls.append(len(samples))
             assert kwargs["vad_filter"] is True
+            assert kwargs["word_timestamps"] is True
             if len(calls) == 2:
                 raise RuntimeError("simulated crash")
-            return iter([fake_segment()]), SimpleNamespace()
+            return iter([fake_segment(0 if len(samples) == 48000 else 1)]), SimpleNamespace()
     monkeypatch.setattr(backend, "load_model", lambda cfg: (loads.append(cfg), Model())[1])
     with pytest.raises(RuntimeError):
         backend.transcribe_faster_whisper(audio, config, meeting_dir=tmp_path)
@@ -49,7 +52,7 @@ def test_resume_skips_committed_blocks_and_loads_model_once_per_attempt(tmp_path
         audio, config, meeting_dir=tmp_path, resume=True,
         progress_callback=lambda current, total: progress.append((current, total)),
     )
-    assert calls == [32000, 32000, 32000, 16000]
+    assert calls == [48000, 64000, 64000, 32000]
     assert len(loads) == 2
     assert [s["start"] for s in result.segments] == [0.1, 2.1, 4.1]
     assert progress[0] == (2, 5)
@@ -120,13 +123,16 @@ def test_default_retry_has_resume():
     assert "--resume" in stage_base_args("transcribe", _stage_options("transcribe", None))
 
 
-def test_non_finite_decoder_timestamps_are_not_persisted(tmp_path, monkeypatch):
+def test_non_finite_word_timestamps_are_not_persisted(tmp_path, monkeypatch):
     audio = audio_file(tmp_path, seconds=1)
-    invalid = SimpleNamespace(start=float("nan"), end=0.9, text="invalid")
+    invalid = fake_segment()
+    invalid.words[0].start = float("nan")
     monkeypatch.setattr(backend, "load_model", lambda cfg: SimpleNamespace(
         transcribe=lambda *a, **k: (iter([invalid]), SimpleNamespace())))
-    result = backend.transcribe_faster_whisper(audio, backend.FasterWhisperConfig(), meeting_dir=tmp_path)
-    assert result.segments == []
+    with pytest.raises(CheckpointError, match="Invalid word timestamps"):
+        backend.transcribe_faster_whisper(audio, backend.FasterWhisperConfig(), meeting_dir=tmp_path)
+    store = CheckpointStore(tmp_path)
+    assert store.prefix(store.header()) == ([], 0)
 
 
 def test_local_tokenizer_change_invalidates_checkpoint(tmp_path, monkeypatch):
